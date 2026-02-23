@@ -6,9 +6,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as Crypto from "expo-crypto";
 import Colors from "@/constants/colors";
-import { settingsStorage, medicationStorage, type Medication } from "@/lib/storage";
+import { settingsStorage, medicationStorage } from "@/lib/storage";
 
 const C = Colors.dark;
 const TOTAL_STEPS = 9;
@@ -88,16 +87,14 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     });
 
     for (const m of meds) {
-      const med: Medication = {
-        id: Crypto.randomUUID(),
+      await medicationStorage.save({
         name: m.name,
         dosage: m.dosage,
         frequency: "Daily",
         timeTag: "Morning",
         active: true,
         doses: 1,
-      };
-      await medicationStorage.add(med);
+      });
     }
 
     onComplete();
@@ -139,7 +136,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   );
 
   const renderHealthSetup = () => (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.setupContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.setupContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       <Text style={styles.stepTitle}>Your health setup</Text>
       <Text style={styles.setupSub}>Add your medications and conditions.{"\n"}You can always change these later.</Text>
 
