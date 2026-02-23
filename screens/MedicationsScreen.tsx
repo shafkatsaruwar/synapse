@@ -25,7 +25,7 @@ const DEFAULT_MEDICATIONS: Omit<Medication, "id">[] = [
   { name: "Levothyroxine", dosage: "200 mcg tablet", frequency: "Daily, before breakfast", timeTag: "Morning", active: true },
   { name: "Fluticasone/Salmeterol (Advair)", dosage: "250-50 mcg diskus inhaler, 1 puff", frequency: "Twice daily (morning & bedtime)", timeTag: "Morning", active: true },
   { name: "Hydrocortisone", dosage: "5 mg tablet (3 morning + 1 afternoon)", frequency: "Daily", timeTag: "Morning", active: true },
-  { name: "Simethicone", dosage: "80 mg chewable tablet", frequency: "As needed for gas", timeTag: "Afternoon", active: true },
+  { name: "Simethicone", dosage: "80 mg chewable tablet", frequency: "As needed for gas, with Levothyroxine", timeTag: "Morning", active: true },
 ];
 
 export default function MedicationsScreen() {
@@ -45,9 +45,25 @@ export default function MedicationsScreen() {
 
   const loadData = useCallback(async () => {
     let meds = await medicationStorage.getAll();
-    if (meds.length === 0) {
+    const defaultNames = DEFAULT_MEDICATIONS.map((d) => d.name);
+    const hasAllDefaults = defaultNames.every((n) => meds.some((m) => m.name === n));
+    if (meds.length === 0 || !hasAllDefaults) {
       for (const def of DEFAULT_MEDICATIONS) {
-        await medicationStorage.save(def);
+        if (!meds.some((m) => m.name === def.name)) {
+          await medicationStorage.save(def);
+        } else {
+          const existing = meds.find((m) => m.name === def.name);
+          if (existing && (existing.frequency !== def.frequency || existing.timeTag !== def.timeTag)) {
+            const updated = { ...existing, frequency: def.frequency, timeTag: def.timeTag };
+            const allMeds = await medicationStorage.getAll();
+            const idx = allMeds.findIndex((m) => m.id === existing.id);
+            if (idx !== -1) {
+              allMeds[idx] = updated;
+              const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+              await AsyncStorage.setItem("@fir_medications", JSON.stringify(allMeds));
+            }
+          }
+        }
       }
       meds = await medicationStorage.getAll();
     }
