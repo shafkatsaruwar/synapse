@@ -90,7 +90,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const [todaySymptoms, setTodaySymptoms] = useState<Symptom[]>([]);
   const [fastingLog, setFastingLog] = useState<FastingLog | undefined>();
   const [vitals, setVitals] = useState<Vital[]>([]);
-  const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false });
+  const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
   const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -126,8 +126,21 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     setRefreshing(false);
   };
 
-  const takenCount = medLogs.filter((l) => l.taken).length;
-  const totalMeds = medications.length;
+  const isSickMode = settings.sickMode;
+  const getDoseCount = (med: Medication) => {
+    const base = (med as any).doses || 1;
+    if (isSickMode && med.name === "Hydrocortisone") return base * 3;
+    return base;
+  };
+  const totalDoses = medications.reduce((s, m) => s + getDoseCount(m), 0);
+  const takenDoses = medications.reduce((s, m) => {
+    const dc = getDoseCount(m);
+    let t = 0;
+    for (let i = 0; i < dc; i++) {
+      if (medLogs.find((l) => l.medicationId === m.id && (l.doseIndex ?? 0) === i)?.taken) t++;
+    }
+    return s + t;
+  }, 0);
   const nextApt = appointments[0];
 
   const dateObj = new Date();
@@ -140,14 +153,14 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const energyLabels = ["Low", "Fair", "Good", "Great", "Excellent"];
 
   const renderMedicationsCard = () => (
-    <PriorityCard color={PRIORITY_COLORS.medications} icon="medical" label="Medications Today" onPress={() => onNavigate("medications")}>
-      {totalMeds > 0 ? (
+    <PriorityCard color={isSickMode ? "#CC2222" : PRIORITY_COLORS.medications} icon="medical" label={isSickMode ? "Stress Dosing" : "Medications Today"} onPress={() => onNavigate("medications")}>
+      {totalDoses > 0 ? (
         <View>
-          <Text style={styles.priBigNum}>{takenCount}<Text style={styles.priBigNumSub}>/{totalMeds}</Text></Text>
+          <Text style={styles.priBigNum}>{takenDoses}<Text style={styles.priBigNumSub}>/{totalDoses}</Text></Text>
           <View style={styles.priProgress}>
-            <View style={[styles.priProgressFill, { width: `${totalMeds > 0 ? (takenCount / totalMeds) * 100 : 0}%` }]} />
+            <View style={[styles.priProgressFill, { width: `${(takenDoses / totalDoses) * 100}%` }]} />
           </View>
-          <Text style={styles.priMeta}>{totalMeds - takenCount === 0 ? "All taken" : `${totalMeds - takenCount} remaining`}</Text>
+          <Text style={styles.priMeta}>{totalDoses - takenDoses === 0 ? "All taken" : `${totalDoses - takenDoses} doses left`}</Text>
         </View>
       ) : (
         <Text style={styles.priEmpty}>No medications added</Text>
@@ -220,6 +233,13 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />
       }
     >
+      {isSickMode && (
+        <View style={styles.sickBanner}>
+          <Ionicons name="warning" size={16} color={C.red} />
+          <Text style={styles.sickBannerText}>Recovery protocol active</Text>
+        </View>
+      )}
+
       <View style={styles.welcome}>
         <Text style={styles.greetingText}>
           {greeting}{settings.name ? `, ${settings.name}` : ""}
@@ -398,6 +418,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
+  sickBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16, backgroundColor: "rgba(255,69,58,0.12)", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "rgba(255,69,58,0.3)" },
+  sickBannerText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: "#FF453A" },
   welcome: { marginBottom: 20 },
   greetingText: { fontFamily: "Inter_700Bold", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   dateText: { fontFamily: "Inter_400Regular", fontSize: 14, color: C.textSecondary },
