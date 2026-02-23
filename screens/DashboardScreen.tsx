@@ -282,6 +282,48 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           )}
         </Pressable>
 
+        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("healthdata")}>
+          <View style={[styles.cardHeader, { marginBottom: 0 }]}>
+            <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
+              <Ionicons name="analytics" size={16} color={C.accent} />
+            </View>
+            <Text style={styles.cardLabel}>Health Trends</Text>
+          </View>
+          <Text style={styles.reportDesc}>Track weight, BP, blood sugar, sleep and more</Text>
+          <View style={styles.reportBtn}>
+            <Ionicons name="arrow-forward" size={16} color={C.tint} />
+            <Text style={styles.reportBtnText}>View Trends</Text>
+          </View>
+        </Pressable>
+
+        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("documents")}>
+          <View style={[styles.cardHeader, { marginBottom: 0 }]}>
+            <View style={[styles.cardIcon, { backgroundColor: C.pinkLight }]}>
+              <Ionicons name="scan" size={16} color={C.pink} />
+            </View>
+            <Text style={styles.cardLabel}>Document Scanner</Text>
+          </View>
+          <Text style={styles.reportDesc}>Upload lab reports and prescriptions for AI extraction</Text>
+          <View style={styles.reportBtn}>
+            <Ionicons name="arrow-forward" size={16} color={C.tint} />
+            <Text style={styles.reportBtnText}>Scan Documents</Text>
+          </View>
+        </Pressable>
+
+        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("insights")}>
+          <View style={[styles.cardHeader, { marginBottom: 0 }]}>
+            <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
+              <Ionicons name="sparkles" size={16} color={C.accent} />
+            </View>
+            <Text style={styles.cardLabel}>AI Health Insights</Text>
+          </View>
+          <Text style={styles.reportDesc}>Get personalized analysis of your health patterns</Text>
+          <View style={styles.reportBtn}>
+            <Ionicons name="arrow-forward" size={16} color={C.tint} />
+            <Text style={styles.reportBtnText}>View Insights</Text>
+          </View>
+        </Pressable>
+
         <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("reports")}>
           <View style={[styles.cardHeader, { marginBottom: 0 }]}>
             <View style={[styles.cardIcon, { backgroundColor: C.greenLight }]}>

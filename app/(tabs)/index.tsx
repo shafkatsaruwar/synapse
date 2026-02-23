@@ -8,6 +8,10 @@ import SymptomsScreen from "@/screens/SymptomsScreen";
 import AppointmentsScreen from "@/screens/AppointmentsScreen";
 import ReportsScreen from "@/screens/ReportsScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
+import HealthDataScreen from "@/screens/HealthDataScreen";
+import DocumentsScreen from "@/screens/DocumentsScreen";
+import InsightsScreen from "@/screens/InsightsScreen";
+import PrivacyScreen from "@/screens/PrivacyScreen";
 import Colors from "@/constants/colors";
 
 const C = Colors.dark;
@@ -27,14 +31,22 @@ export default function MainScreen() {
         return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
       case "log":
         return <DailyLogScreen />;
+      case "healthdata":
+        return <HealthDataScreen />;
       case "medications":
         return <MedicationsScreen />;
       case "symptoms":
         return <SymptomsScreen />;
+      case "documents":
+        return <DocumentsScreen />;
+      case "insights":
+        return <InsightsScreen />;
       case "appointments":
         return <AppointmentsScreen />;
       case "reports":
         return <ReportsScreen />;
+      case "privacy":
+        return <PrivacyScreen />;
       case "settings":
         return <SettingsScreen />;
       default:

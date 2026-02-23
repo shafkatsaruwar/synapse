@@ -154,12 +154,36 @@ export default function DailyLogScreen() {
                   <TextInput style={styles.fieldInput} placeholder="e.g. 6:45" placeholderTextColor={C.textTertiary} value={iftarTime} onChangeText={(t) => { setIftarTime(t); setSaved(false); }} />
                 </View>
               </View>
-              <Text style={styles.fieldLabel}>Hydration (glasses)</Text>
+
+              {settings.ramadanMode && (
+                <View style={styles.ramadanTips}>
+                  <View style={styles.ramTipRow}>
+                    <Ionicons name="medical" size={14} color={C.orange} />
+                    <Text style={styles.ramTipText}>Take medications at suhoor (before fasting begins) or after iftar</Text>
+                  </View>
+                  <View style={styles.ramTipRow}>
+                    <Ionicons name="water" size={14} color={C.cyan} />
+                    <Text style={styles.ramTipText}>Aim for 8+ glasses of water between iftar and suhoor</Text>
+                  </View>
+                  <View style={styles.ramTipRow}>
+                    <Ionicons name="nutrition" size={14} color={C.green} />
+                    <Text style={styles.ramTipText}>Include slow-release carbs at suhoor for sustained energy</Text>
+                  </View>
+                </View>
+              )}
+
+              <Text style={styles.fieldLabel}>Hydration (glasses between iftar & suhoor)</Text>
               <View style={styles.hydrationRow}>
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
                   <Pressable key={i} style={[styles.hydrationDot, i <= hydration && { backgroundColor: C.cyan }]} onPress={() => { setHydration(i); setSaved(false); }} />
                 ))}
               </View>
+              {hydration > 0 && hydration < 8 && (
+                <View style={styles.hydrationWarning}>
+                  <Ionicons name="alert-circle" size={14} color={C.orange} />
+                  <Text style={styles.hydrationWarningText}>Try to drink at least 8 glasses to stay hydrated during fasting</Text>
+                </View>
+              )}
               {renderSlider("Energy Level", fastEnergy, (v) => { setFastEnergy(v); setSaved(false); }, energyLabels, C.yellow)}
             </View>
           )}
@@ -240,8 +264,13 @@ const styles = StyleSheet.create({
   fieldRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
   fieldLabel: { fontFamily: "Inter_500Medium", fontSize: 12, color: C.textTertiary, marginBottom: 6 },
   fieldInput: { fontFamily: "Inter_400Regular", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border },
-  hydrationRow: { flexDirection: "row", gap: 6, marginBottom: 16 },
+  ramadanTips: { backgroundColor: C.orangeLight, borderRadius: 10, padding: 12, marginBottom: 14, gap: 8 },
+  ramTipRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  ramTipText: { fontFamily: "Inter_400Regular", fontSize: 12, color: C.text, flex: 1, lineHeight: 16 },
+  hydrationRow: { flexDirection: "row", gap: 4, marginBottom: 8 },
   hydrationDot: { flex: 1, height: 8, borderRadius: 4, backgroundColor: C.surfaceElevated },
+  hydrationWarning: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 },
+  hydrationWarningText: { fontFamily: "Inter_400Regular", fontSize: 11, color: C.orange, flex: 1 },
   notesInput: { fontFamily: "Inter_400Regular", fontSize: 14, color: C.text, minHeight: 80, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: C.border },
   saveBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 12 },
   saveBtnSaved: { backgroundColor: C.green },
