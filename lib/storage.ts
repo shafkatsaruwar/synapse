@@ -69,6 +69,41 @@ export interface Vital {
   unit: string;
 }
 
+export interface DocumentExtraction {
+  id: string;
+  date: string;
+  imageUri?: string;
+  diagnoses: string[];
+  medications: { name: string; dosage: string; frequency: string; status: string }[];
+  labResults: { test: string; value: string; unit: string; referenceRange: string; flag: string }[];
+  followUpDates: { date: string; doctor: string; purpose: string }[];
+  doctorInstructions: string[];
+  summary: string;
+}
+
+export interface HealthInsight {
+  id: string;
+  date: string;
+  changes: { title: string; description: string; type: string }[];
+  unclear: { title: string; description: string; suggestion: string }[];
+  labsToTrack: { test: string; reason: string; frequency: string }[];
+  symptomCorrelations: { pattern: string; description: string; confidence: string }[];
+  medicationNotes: { medication: string; note: string; type: string }[];
+  ramadanTips: { tip: string; category: string }[];
+  summary: string;
+}
+
+export interface MedComparison {
+  id: string;
+  date: string;
+  documentId: string;
+  newMeds: { name: string; dosage: string; frequency: string; source: string }[];
+  stoppedMeds: { name: string; dosage: string; reason: string }[];
+  doseChanged: { name: string; oldDosage: string; newDosage: string }[];
+  unchanged: { name: string; dosage: string }[];
+  summary: string;
+}
+
 export interface UserSettings {
   name: string;
   conditions: string[];
@@ -85,6 +120,9 @@ const KEYS = {
   FASTING_LOGS: "fir_fasting_logs",
   VITALS: "fir_vitals",
   SETTINGS: "fir_settings",
+  DOCUMENTS: "fir_documents",
+  INSIGHTS: "fir_insights",
+  MED_COMPARISONS: "fir_med_comparisons",
 };
 
 async function getItem<T>(key: string): Promise<T[]> {
