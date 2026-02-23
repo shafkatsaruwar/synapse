@@ -1,7 +1,7 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform,
-  useWindowDimensions, Animated, KeyboardAvoidingView,
+  useWindowDimensions, Animated, Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,7 +10,16 @@ import Colors from "@/constants/colors";
 import { settingsStorage, medicationStorage } from "@/lib/storage";
 
 const C = Colors.dark;
-const TOTAL_STEPS = 9;
+
+const ACCENT_COLORS = {
+  green: "#30D158",
+  greenGlow: "rgba(48,209,88,0.35)",
+  blue: "#0A84FF",
+  purple: "#BF5AF2",
+  orange: "#FF9F0A",
+  pink: "#FF375F",
+  teal: "#64D2FF",
+};
 
 interface OnboardingScreenProps {
   onComplete: () => void;
@@ -21,11 +30,93 @@ interface OnboardingMed {
   dosage: string;
 }
 
+function AnimatedLine({ text, delay, style, color }: { text: string; delay: number; style?: any; color?: string }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(18)).current;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(opacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(translateY, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]).start();
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  return (
+    <Animated.Text style={[style, { opacity, transform: [{ translateY }], color: color || style?.color || C.text }]}>
+      {text}
+    </Animated.Text>
+  );
+}
+
+function AnimatedView({ delay, children, style }: { delay: number; children: React.ReactNode; style?: any }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(18)).current;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(opacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(translateY, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]).start();
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  return (
+    <Animated.View style={[style, { opacity, transform: [{ translateY }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function GlowDot({ active, done }: { active: boolean; done: boolean }) {
+  const scale = useRef(new Animated.Value(active ? 1 : 0.7)).current;
+  const glowOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (active) {
+      Animated.timing(scale, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowOpacity, { toValue: 1, duration: 1200, useNativeDriver: true }),
+          Animated.timing(glowOpacity, { toValue: 0.3, duration: 1200, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      Animated.timing(scale, { toValue: 0.7, duration: 200, useNativeDriver: true }).start();
+      glowOpacity.setValue(0);
+    }
+  }, [active]);
+
+  return (
+    <View style={styles.dotContainer}>
+      {active && (
+        <Animated.View style={[styles.dotGlow, { opacity: glowOpacity }]} />
+      )}
+      <Animated.View
+        style={[
+          styles.dot,
+          done && styles.dotDone,
+          active && styles.dotActive,
+          { transform: [{ scale }] },
+        ]}
+      />
+    </View>
+  );
+}
+
+const TOTAL_STEPS = 11;
+
+const founderImage = require("@assets/images/founder.png");
+
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const [step, setStep] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const [animKey, setAnimKey] = useState(0);
 
   const [userName, setUserName] = useState("");
   const [conditions, setConditions] = useState<string[]>([]);
@@ -33,15 +124,47 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [meds, setMeds] = useState<OnboardingMed[]>([]);
   const [medName, setMedName] = useState("");
   const [medDosage, setMedDosage] = useState("");
+  const [showMedFields, setShowMedFields] = useState(false);
+  const [showCondFields, setShowCondFields] = useState(false);
+
+  const screenOpacity = useRef(new Animated.Value(1)).current;
+  const completionScale = useRef(new Animated.Value(0)).current;
+  const completionOpacity = useRef(new Animated.Value(0)).current;
+  const checkOpacity = useRef(new Animated.Value(0)).current;
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
 
+  useEffect(() => {
+    if (step === 8) {
+      const t = setTimeout(() => setShowMedFields(true), 600);
+      return () => clearTimeout(t);
+    }
+    if (step === 9) {
+      const t = setTimeout(() => setShowCondFields(true), 600);
+      return () => clearTimeout(t);
+    }
+    if (step === 10) {
+      Animated.sequence([
+        Animated.parallel([
+          Animated.spring(completionScale, { toValue: 1, friction: 5, tension: 60, useNativeDriver: true }),
+          Animated.timing(completionOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ]),
+        Animated.delay(400),
+        Animated.timing(checkOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [step]);
+
   const animateTransition = (next: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
+    Animated.timing(screenOpacity, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => {
       setStep(next);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+      setAnimKey(k => k + 1);
+      setShowMedFields(false);
+      setShowCondFields(false);
+      screenOpacity.setValue(0);
+      Animated.timing(screenOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
     });
   };
 
@@ -54,6 +177,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     if (trimmed && !conditions.includes(trimmed)) {
       setConditions([...conditions, trimmed]);
       setConditionInput("");
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
 
@@ -68,6 +192,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       setMeds([...meds, { name: n, dosage: d || "as prescribed" }]);
       setMedName("");
       setMedDosage("");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   };
 
@@ -77,7 +202,6 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
   const handleFinish = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
     const settings = await settingsStorage.get();
     await settingsStorage.save({
       ...settings,
@@ -85,7 +209,6 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       conditions,
       onboardingCompleted: true,
     });
-
     for (const m of meds) {
       await medicationStorage.save({
         name: m.name,
@@ -96,345 +219,426 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         doses: 1,
       });
     }
-
     onComplete();
   };
 
-  const renderDots = () => (
-    <View style={styles.dots}>
-      {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-        <View key={i} style={[styles.dot, i === step && styles.dotActive, i < step && styles.dotDone]} />
-      ))}
-    </View>
-  );
-
-  const renderWelcome = () => (
-    <View style={styles.centerContent}>
-      <View style={styles.logoCircle}>
-        <Text style={styles.logoEmoji}>🌿</Text>
-      </View>
-      <Text style={styles.welcomeTitle}>Hello, I am Fir,{"\n"}your personal{"\n"}healthcare assistant</Text>
-      <Text style={styles.welcomeSub}>Built for people who manage{"\n"}chronic conditions every day.</Text>
-    </View>
-  );
-
-  const renderName = () => (
-    <KeyboardAvoidingView style={styles.centerContent} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <Text style={styles.stepTitle}>What should I call you?</Text>
-      <TextInput
-        style={styles.nameInput}
-        placeholder="Your name"
-        placeholderTextColor={C.textTertiary}
-        value={userName}
-        onChangeText={setUserName}
-        autoFocus
-        returnKeyType="done"
-        onSubmitEditing={goNext}
-      />
-      <Text style={styles.inputHint}>This stays on your device only.</Text>
-    </KeyboardAvoidingView>
-  );
-
-  const renderHealthSetup = () => (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.setupContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-      <Text style={styles.stepTitle}>Your health setup</Text>
-      <Text style={styles.setupSub}>Add your medications and conditions.{"\n"}You can always change these later.</Text>
-
-      <Text style={styles.setupLabel}>Medications</Text>
-      <View style={styles.inputRow}>
-        <TextInput
-          style={[styles.setupInput, { flex: 2 }]}
-          placeholder="Medication name"
-          placeholderTextColor={C.textTertiary}
-          value={medName}
-          onChangeText={setMedName}
-        />
-        <TextInput
-          style={[styles.setupInput, { flex: 1 }]}
-          placeholder="Dosage"
-          placeholderTextColor={C.textTertiary}
-          value={medDosage}
-          onChangeText={setMedDosage}
-        />
-        <Pressable style={[styles.addBtn, !medName.trim() && { opacity: 0.3 }]} onPress={addMed} disabled={!medName.trim()}>
-          <Ionicons name="add" size={20} color="#fff" />
-        </Pressable>
-      </View>
-      {meds.map((m, i) => (
-        <View key={i} style={styles.chipRow}>
-          <View style={styles.medChip}>
-            <Text style={styles.medChipText}>💊 {m.name}</Text>
-            <Text style={styles.medChipDose}>{m.dosage}</Text>
-          </View>
-          <Pressable onPress={() => removeMed(i)} hitSlop={8}>
-            <Ionicons name="close-circle" size={20} color={C.textTertiary} />
-          </Pressable>
-        </View>
-      ))}
-
-      <Text style={[styles.setupLabel, { marginTop: 28 }]}>Medical Conditions</Text>
-      <View style={styles.inputRow}>
-        <TextInput
-          style={[styles.setupInput, { flex: 1 }]}
-          placeholder="e.g. Adrenal Insufficiency"
-          placeholderTextColor={C.textTertiary}
-          value={conditionInput}
-          onChangeText={setConditionInput}
-          onSubmitEditing={addCondition}
-          returnKeyType="done"
-        />
-        <Pressable style={[styles.addBtn, !conditionInput.trim() && { opacity: 0.3 }]} onPress={addCondition} disabled={!conditionInput.trim()}>
-          <Ionicons name="add" size={20} color="#fff" />
-        </Pressable>
-      </View>
-      <View style={styles.chipsWrap}>
-        {conditions.map(c => (
-          <Pressable key={c} style={styles.condChip} onPress={() => removeCondition(c)}>
-            <Text style={styles.condChipText}>{c}</Text>
-            <Ionicons name="close" size={14} color={C.textSecondary} />
-          </Pressable>
-        ))}
-      </View>
-    </ScrollView>
-  );
-
-  const renderStory = (content: React.ReactNode, buttonLabel?: string) => (
-    <View style={styles.storyContent}>
-      {content}
-      {buttonLabel && step === TOTAL_STEPS - 1 && null}
-    </View>
-  );
-
-  const storyScreens: { content: React.ReactNode; button: string }[] = [
-    {
-      content: (
-        <View style={styles.storyContent}>
-          <Text style={styles.storyText}>
-            The app you are about to use{"\n"}was built for survival.
-          </Text>
-        </View>
-      ),
-      button: "Continue",
-    },
-    {
-      content: (
-        <View style={styles.storyContent}>
-          <Text style={styles.storyText}>
-            I was born with conditions{"\n"}that require lifelong medication.
-          </Text>
-          <Text style={[styles.storyText, { marginTop: 24 }]}>
-            Missing a dose is not small.{"\n"}It is dangerous.
-          </Text>
-        </View>
-      ),
-      button: "Continue",
-    },
-    {
-      content: (
-        <View style={styles.storyContent}>
-          <Text style={styles.storyText}>
-            Every day is timing.{"\n"}Every illness is a risk.{"\n"}Every symptom is a decision.
-          </Text>
-          <Text style={[styles.storyText, { marginTop: 24, color: C.textSecondary }]}>
-            This is not fitness.{"\n"}This is stability.
-          </Text>
-        </View>
-      ),
-      button: "Continue",
-    },
-    {
-      content: (
-        <View style={styles.storyContent}>
-          <Text style={styles.storyText}>Most health apps track steps.</Text>
-          <Text style={[styles.storyText, { marginTop: 24 }]}>
-            I needed something{"\n"}that tracks life-saving routines.
-          </Text>
-          <Text style={[styles.storyText, { marginTop: 24, color: C.tint }]}>
-            So I built it.
-          </Text>
-        </View>
-      ),
-      button: "Continue",
-    },
-    {
-      content: (
-        <View style={styles.storyContent}>
-          <Text style={styles.storyTextSmall}>This app understands:</Text>
-          <View style={styles.storyList}>
-            <Text style={styles.storyListItem}>💊  Medications that cannot be late</Text>
-            <Text style={styles.storyListItem}>🌡  Sick days that change everything</Text>
-            <Text style={styles.storyListItem}>🧠  Brain fog and fatigue</Text>
-            <Text style={styles.storyListItem}>🩺  The need for structure</Text>
-          </View>
-          <Text style={[styles.storyTextSmall, { marginTop: 24, color: C.textSecondary }]}>Because I live it.</Text>
-        </View>
-      ),
-      button: "Continue",
-    },
-    {
-      content: (
-        <View style={styles.storyContent}>
-          <Text style={styles.storyText}>Fir is not just an app.</Text>
-          <Text style={[styles.storyText, { marginTop: 24 }]}>
-            It is the system{"\n"}I depend on every day.
-          </Text>
-          <View style={styles.storyDivider} />
-          <Text style={styles.storyTextSmall}>
-            Built by a patient.{"\n"}For patients who cannot afford mistakes.
-          </Text>
-        </View>
-      ),
-      button: "Enter Fir",
-    },
-  ];
-
-  const isStoryStep = step >= 3;
-  const storyIndex = step - 3;
-
   const canContinue = () => {
-    if (step === 1) return userName.trim().length > 0;
+    if (step === 7) return userName.trim().length > 0;
     return true;
   };
 
+  const getButtonLabel = () => {
+    if (step === 6) return "Enter Fir";
+    if (step === 10) return "Let's go";
+    return "Continue";
+  };
+
   const handleContinue = () => {
-    if (step === TOTAL_STEPS - 1) {
+    if (step === 10) {
       handleFinish();
     } else {
       goNext();
     }
   };
 
-  const getButtonLabel = () => {
-    if (step === 0) return "Continue";
-    if (step === 1) return "Continue";
-    if (step === 2) return "Continue";
-    if (isStoryStep) return storyScreens[storyIndex].button;
-    return "Continue";
+  const renderDots = () => (
+    <View style={styles.dotsRow}>
+      {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+        <GlowDot key={i} active={i === step} done={i < step} />
+      ))}
+    </View>
+  );
+
+  const renderFounderIntro = () => (
+    <View style={styles.storyCenter} key={animKey}>
+      <AnimatedView delay={0}>
+        <View style={styles.photoCircle}>
+          <Image source={founderImage} style={styles.photoImage} />
+        </View>
+      </AnimatedView>
+      <AnimatedLine text="Why Fir exists" delay={300} style={styles.founderTitle} color={ACCENT_COLORS.green} />
+      <AnimatedLine text="This app was not built in a boardroom." delay={600} style={styles.founderSub} />
+      <AnimatedLine text="It was built from a hospital bed," delay={900} style={styles.founderSub} />
+      <AnimatedLine text="from years of managing a condition" delay={1200} style={styles.founderSub} />
+      <AnimatedLine text="that never takes a day off." delay={1500} style={styles.founderSub} />
+    </View>
+  );
+
+  const storySlides = [
+    {
+      lines: [
+        { text: "The app you are about to use", delay: 0, color: C.text },
+        { text: "was built for survival.", delay: 400, color: ACCENT_COLORS.orange },
+      ],
+    },
+    {
+      lines: [
+        { text: "I was born with conditions", delay: 0, color: C.text },
+        { text: "that require lifelong medication.", delay: 400, color: C.text },
+        { text: "", delay: 600, color: C.text },
+        { text: "Missing a dose is not small.", delay: 800, color: C.textSecondary },
+        { text: "It is dangerous.", delay: 1100, color: ACCENT_COLORS.pink },
+      ],
+    },
+    {
+      lines: [
+        { text: "Every day is timing.", delay: 0, color: C.text },
+        { text: "Every illness is a risk.", delay: 400, color: C.text },
+        { text: "Every symptom is a decision.", delay: 800, color: C.text },
+        { text: "", delay: 1000, color: C.text },
+        { text: "This is not fitness.", delay: 1200, color: C.textSecondary },
+        { text: "This is stability.", delay: 1500, color: ACCENT_COLORS.blue },
+      ],
+    },
+    {
+      lines: [
+        { text: "Most health apps track steps.", delay: 0, color: C.textSecondary },
+        { text: "", delay: 200, color: C.text },
+        { text: "I needed something", delay: 500, color: C.text },
+        { text: "that tracks life-saving routines.", delay: 800, color: C.text },
+        { text: "", delay: 1000, color: C.text },
+        { text: "So I built it.", delay: 1300, color: ACCENT_COLORS.teal },
+      ],
+    },
+    {
+      lines: [
+        { text: "This app understands:", delay: 0, color: C.textSecondary },
+      ],
+      items: [
+        { emoji: "💊", text: "Medications that cannot be late", delay: 400 },
+        { emoji: "🌡", text: "Sick days that change everything", delay: 700 },
+        { emoji: "🧠", text: "Brain fog and fatigue", delay: 1000 },
+        { emoji: "🩺", text: "The need for structure", delay: 1300 },
+      ],
+      footer: { text: "Because I live it.", delay: 1700, color: ACCENT_COLORS.purple },
+    },
+    {
+      lines: [
+        { text: "Fir is not just an app.", delay: 0, color: C.text },
+        { text: "", delay: 200, color: C.text },
+        { text: "It is the system", delay: 500, color: C.text },
+        { text: "I depend on every day.", delay: 800, color: C.text },
+      ],
+      divider: true,
+      footer: { text: "Built by a patient.\nFor patients who cannot afford mistakes.", delay: 1400, color: ACCENT_COLORS.green },
+    },
+  ];
+
+  const renderStorySlide = (slideIdx: number) => {
+    const slide = storySlides[slideIdx];
+    return (
+      <View style={styles.storyCenter} key={animKey}>
+        {slide.lines.map((line, i) =>
+          line.text === "" ? (
+            <View key={i} style={{ height: 12 }} />
+          ) : (
+            <AnimatedLine key={i} text={line.text} delay={line.delay} style={styles.storyLine} color={line.color} />
+          )
+        )}
+        {slide.items && (
+          <View style={styles.storyList}>
+            {slide.items.map((item, i) => (
+              <AnimatedView key={i} delay={item.delay} style={styles.storyListRow}>
+                <Text style={styles.storyEmoji}>{item.emoji}</Text>
+                <Text style={styles.storyListText}>{item.text}</Text>
+              </AnimatedView>
+            ))}
+          </View>
+        )}
+        {slide.divider && <AnimatedView delay={1100}><View style={styles.storyDivider} /></AnimatedView>}
+        {slide.footer && (
+          <AnimatedLine text={slide.footer.text} delay={slide.footer.delay} style={styles.storyFooter} color={slide.footer.color} />
+        )}
+      </View>
+    );
   };
+
+  const renderNameInput = () => (
+    <View style={styles.inputCenter} key={animKey}>
+      <AnimatedLine
+        text={userName.trim() ? `Nice to meet you, ${userName.trim()}` : "What should I call you?"}
+        delay={0}
+        style={styles.nameTitle}
+        color={userName.trim() ? ACCENT_COLORS.green : C.text}
+      />
+      <AnimatedView delay={400}>
+        <TextInput
+          style={styles.nameInput}
+          placeholder="Your name"
+          placeholderTextColor={C.textTertiary}
+          value={userName}
+          onChangeText={setUserName}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={() => { if (canContinue()) goNext(); }}
+        />
+      </AnimatedView>
+      <AnimatedLine text="Stored only on your device." delay={700} style={styles.nameHint} color={C.textTertiary} />
+    </View>
+  );
+
+  const renderMedications = () => (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.setupScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" key={animKey}>
+      <AnimatedLine text="Your medications" delay={0} style={styles.setupTitle} color={C.text} />
+      <AnimatedLine text="Add what you take daily." delay={300} style={styles.setupSub} color={C.textSecondary} />
+
+      {showMedFields && (
+        <AnimatedView delay={0} style={styles.fieldBlock}>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[styles.fieldInput, { flex: 2 }]}
+              placeholder="Medication name"
+              placeholderTextColor={C.textTertiary}
+              value={medName}
+              onChangeText={setMedName}
+            />
+            <TextInput
+              style={[styles.fieldInput, { flex: 1 }]}
+              placeholder="Dosage"
+              placeholderTextColor={C.textTertiary}
+              value={medDosage}
+              onChangeText={setMedDosage}
+              onSubmitEditing={addMed}
+              returnKeyType="done"
+            />
+            <Pressable style={[styles.addBtn, !medName.trim() && { opacity: 0.3 }]} onPress={addMed} disabled={!medName.trim()}>
+              <Ionicons name="add" size={20} color="#fff" />
+            </Pressable>
+          </View>
+          {meds.map((m, i) => (
+            <AnimatedView key={`${m.name}-${i}`} delay={0} style={styles.medChipRow}>
+              <View style={styles.medChip}>
+                <Text style={styles.medChipEmoji}>💊</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.medChipName}>{m.name}</Text>
+                  <Text style={styles.medChipDose}>{m.dosage}</Text>
+                </View>
+                <Pressable onPress={() => removeMed(i)} hitSlop={10}>
+                  <Ionicons name="close-circle" size={20} color={C.textTertiary} />
+                </Pressable>
+              </View>
+            </AnimatedView>
+          ))}
+          {meds.length === 0 && (
+            <Text style={styles.fieldHint}>You can add more later in Settings.</Text>
+          )}
+        </AnimatedView>
+      )}
+    </ScrollView>
+  );
+
+  const renderConditions = () => (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.setupScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" key={animKey}>
+      <AnimatedLine text="Your conditions" delay={0} style={styles.setupTitle} color={C.text} />
+      <AnimatedLine text="What do you manage?" delay={300} style={styles.setupSub} color={C.textSecondary} />
+
+      {showCondFields && (
+        <AnimatedView delay={0} style={styles.fieldBlock}>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[styles.fieldInput, { flex: 1 }]}
+              placeholder="e.g. Adrenal Insufficiency"
+              placeholderTextColor={C.textTertiary}
+              value={conditionInput}
+              onChangeText={setConditionInput}
+              onSubmitEditing={addCondition}
+              returnKeyType="done"
+            />
+            <Pressable style={[styles.addBtn, !conditionInput.trim() && { opacity: 0.3 }]} onPress={addCondition} disabled={!conditionInput.trim()}>
+              <Ionicons name="add" size={20} color="#fff" />
+            </Pressable>
+          </View>
+          <View style={styles.condChipsWrap}>
+            {conditions.map(c => (
+              <Pressable key={c} style={styles.condChip} onPress={() => removeCondition(c)}>
+                <Text style={styles.condChipText}>{c}</Text>
+                <Ionicons name="close" size={14} color={C.textSecondary} />
+              </Pressable>
+            ))}
+          </View>
+          {conditions.length === 0 && (
+            <Text style={styles.fieldHint}>You can always update these later.</Text>
+          )}
+        </AnimatedView>
+      )}
+    </ScrollView>
+  );
+
+  const renderCompletion = () => (
+    <View style={styles.completionCenter} key={animKey}>
+      <Animated.View style={[styles.completionCircle, { transform: [{ scale: completionScale }], opacity: completionOpacity }]}>
+        <Animated.View style={{ opacity: checkOpacity }}>
+          <Ionicons name="checkmark" size={48} color="#fff" />
+        </Animated.View>
+      </Animated.View>
+      <AnimatedLine text="Fir is ready." delay={800} style={styles.completionTitle} color={ACCENT_COLORS.green} />
+      <AnimatedLine text="Ready to take care of you." delay={1200} style={styles.completionSub} color={C.textSecondary} />
+    </View>
+  );
+
+  const renderContent = () => {
+    if (step === 0) return renderFounderIntro();
+    if (step >= 1 && step <= 6) return renderStorySlide(step - 1);
+    if (step === 7) return renderNameInput();
+    if (step === 8) return renderMedications();
+    if (step === 9) return renderConditions();
+    if (step === 10) return renderCompletion();
+    return null;
+  };
+
+  const buttonDelay = step === 0 ? 1800 : step >= 1 && step <= 6 ? 1800 : step === 10 ? 1600 : 1000;
 
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
-      <Animated.View style={[styles.body, { opacity: fadeAnim }]}>
-        {step === 0 && renderWelcome()}
-        {step === 1 && renderName()}
-        {step === 2 && renderHealthSetup()}
-        {isStoryStep && storyScreens[storyIndex].content}
+      <Animated.View style={[styles.body, { opacity: screenOpacity }]}>
+        {renderContent()}
       </Animated.View>
 
       <View style={styles.footer}>
         {renderDots()}
-        <Pressable
-          style={[styles.continueBtn, !canContinue() && { opacity: 0.35 }]}
-          onPress={handleContinue}
-          disabled={!canContinue()}
-        >
-          <Text style={styles.continueBtnText}>{getButtonLabel()}</Text>
-          {step < TOTAL_STEPS - 1 && <Ionicons name="arrow-forward" size={18} color="#fff" />}
-        </Pressable>
+        <AnimatedView delay={buttonDelay} key={`btn-${animKey}`}>
+          <Pressable
+            style={[
+              styles.continueBtn,
+              !canContinue() && { opacity: 0.35 },
+              step === 10 && { backgroundColor: ACCENT_COLORS.green },
+              step === 6 && { backgroundColor: ACCENT_COLORS.green },
+            ]}
+            onPress={handleContinue}
+            disabled={!canContinue()}
+          >
+            <Text style={styles.continueBtnText}>{getButtonLabel()}</Text>
+            {step < 10 && step !== 6 && <Ionicons name="arrow-forward" size={18} color="#fff" />}
+          </Pressable>
+        </AnimatedView>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background, paddingHorizontal: 28 },
+  container: { flex: 1, backgroundColor: "#000", paddingHorizontal: 28 },
   body: { flex: 1, justifyContent: "center" },
   footer: { gap: 16, paddingBottom: 8 },
 
-  dots: { flexDirection: "row", justifyContent: "center", gap: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.12)" },
-  dotActive: { backgroundColor: C.text, width: 10, height: 10, borderRadius: 5 },
-  dotDone: { backgroundColor: "rgba(255,255,255,0.3)" },
+  dotsRow: { flexDirection: "row", justifyContent: "center", gap: 10 },
+  dotContainer: { width: 14, height: 14, alignItems: "center", justifyContent: "center" },
+  dotGlow: {
+    position: "absolute", width: 14, height: 14, borderRadius: 7,
+    backgroundColor: ACCENT_COLORS.greenGlow,
+  },
+  dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "rgba(255,255,255,0.15)" },
+  dotActive: { width: 10, height: 10, borderRadius: 5, backgroundColor: ACCENT_COLORS.green },
+  dotDone: { backgroundColor: "rgba(255,255,255,0.35)" },
 
-  centerContent: { flex: 1, justifyContent: "center", alignItems: "center" },
-  logoCircle: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: "rgba(48,209,88,0.12)",
-    alignItems: "center", justifyContent: "center", marginBottom: 32,
+  photoCircle: {
+    width: 120, height: 120, borderRadius: 60, overflow: "hidden",
+    borderWidth: 3, borderColor: ACCENT_COLORS.green,
+    alignSelf: "center", marginBottom: 28,
   },
-  logoEmoji: { fontSize: 36 },
-  welcomeTitle: {
-    fontFamily: "Inter_700Bold", fontSize: 28, color: C.text,
-    textAlign: "center", lineHeight: 38, letterSpacing: -0.5,
+  photoImage: { width: "100%", height: "100%", resizeMode: "cover" },
+  founderTitle: {
+    fontFamily: "Inter_700Bold", fontSize: 28, textAlign: "center",
+    letterSpacing: -0.5, marginBottom: 20,
   },
-  welcomeSub: {
-    fontFamily: "Inter_400Regular", fontSize: 15, color: C.textSecondary,
-    textAlign: "center", marginTop: 16, lineHeight: 22,
-  },
-
-  stepTitle: {
-    fontFamily: "Inter_700Bold", fontSize: 26, color: C.text,
-    textAlign: "center", letterSpacing: -0.5, marginBottom: 24,
-  },
-  nameInput: {
-    fontFamily: "Inter_500Medium", fontSize: 20, color: C.text, textAlign: "center",
-    borderBottomWidth: 2, borderBottomColor: C.tint, paddingVertical: 12,
-    width: "100%", maxWidth: 280,
-  },
-  inputHint: {
-    fontFamily: "Inter_400Regular", fontSize: 13, color: C.textTertiary,
-    marginTop: 12, textAlign: "center",
+  founderSub: {
+    fontFamily: "Inter_400Regular", fontSize: 16, textAlign: "center",
+    lineHeight: 24, color: C.textSecondary,
   },
 
-  setupContent: { paddingTop: 8, paddingBottom: 40 },
-  setupSub: {
-    fontFamily: "Inter_400Regular", fontSize: 14, color: C.textSecondary,
-    textAlign: "center", lineHeight: 20, marginBottom: 28,
+  storyCenter: { flex: 1, justifyContent: "center", paddingHorizontal: 4 },
+  storyLine: {
+    fontFamily: "Inter_600SemiBold", fontSize: 24, lineHeight: 34,
+    letterSpacing: -0.3,
   },
-  setupLabel: {
-    fontFamily: "Inter_600SemiBold", fontSize: 13, color: C.textSecondary,
-    textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10,
-  },
-  inputRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
-  setupInput: {
-    fontFamily: "Inter_400Regular", fontSize: 15, color: C.text,
-    backgroundColor: C.surface, borderRadius: 12, padding: 14,
-    borderWidth: 1, borderColor: C.border,
-  },
-  addBtn: {
-    width: 48, borderRadius: 12, backgroundColor: C.tint,
-    alignItems: "center", justifyContent: "center",
-  },
-  chipRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    marginBottom: 8,
-  },
-  medChip: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    backgroundColor: C.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    borderWidth: 1, borderColor: C.border,
-  },
-  medChipText: { fontFamily: "Inter_500Medium", fontSize: 15, color: C.text },
-  medChipDose: { fontFamily: "Inter_400Regular", fontSize: 13, color: C.textSecondary },
-  chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
-  condChip: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: C.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
-    borderWidth: 1, borderColor: C.border,
-  },
-  condChipText: { fontFamily: "Inter_500Medium", fontSize: 14, color: C.text },
-
-  storyContent: { flex: 1, justifyContent: "center", paddingHorizontal: 4 },
-  storyText: {
-    fontFamily: "Inter_600SemiBold", fontSize: 24, color: C.text,
-    lineHeight: 34, letterSpacing: -0.3,
-  },
-  storyTextSmall: {
-    fontFamily: "Inter_500Medium", fontSize: 18, color: C.text,
-    lineHeight: 26,
-  },
-  storyList: { marginTop: 20, gap: 16 },
-  storyListItem: {
-    fontFamily: "Inter_500Medium", fontSize: 17, color: C.text, lineHeight: 24,
-  },
+  storyList: { marginTop: 24, gap: 18 },
+  storyListRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  storyEmoji: { fontSize: 22 },
+  storyListText: { fontFamily: "Inter_500Medium", fontSize: 17, color: C.text, flex: 1 },
   storyDivider: {
     width: 40, height: 2, backgroundColor: "rgba(255,255,255,0.12)",
     marginVertical: 24,
   },
+  storyFooter: {
+    fontFamily: "Inter_500Medium", fontSize: 17, lineHeight: 26,
+    marginTop: 8,
+  },
+
+  inputCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
+  nameTitle: {
+    fontFamily: "Inter_700Bold", fontSize: 26, textAlign: "center",
+    letterSpacing: -0.5, marginBottom: 28,
+  },
+  nameInput: {
+    fontFamily: "Inter_500Medium", fontSize: 22, color: C.text, textAlign: "center",
+    borderBottomWidth: 2, borderBottomColor: ACCENT_COLORS.green, paddingVertical: 14,
+    width: 260,
+  },
+  nameHint: {
+    fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center", marginTop: 14,
+  },
+
+  setupScroll: { paddingTop: 20, paddingBottom: 40 },
+  setupTitle: {
+    fontFamily: "Inter_700Bold", fontSize: 26, letterSpacing: -0.5,
+    textAlign: "center", marginBottom: 8,
+  },
+  setupSub: {
+    fontFamily: "Inter_400Regular", fontSize: 15, textAlign: "center",
+    marginBottom: 28, lineHeight: 22,
+  },
+  fieldBlock: { gap: 2 },
+  inputRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
+  fieldInput: {
+    fontFamily: "Inter_400Regular", fontSize: 15, color: C.text,
+    backgroundColor: C.surface, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: C.border,
+  },
+  addBtn: {
+    width: 48, borderRadius: 14, backgroundColor: ACCENT_COLORS.blue,
+    alignItems: "center", justifyContent: "center",
+  },
+  fieldHint: {
+    fontFamily: "Inter_400Regular", fontSize: 13, color: C.textTertiary,
+    textAlign: "center", marginTop: 16,
+  },
+
+  medChipRow: { marginBottom: 8 },
+  medChip: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: C.surface, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
+    borderWidth: 1, borderColor: C.border,
+  },
+  medChipEmoji: { fontSize: 20 },
+  medChipName: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: C.text },
+  medChipDose: { fontFamily: "Inter_400Regular", fontSize: 13, color: C.textSecondary, marginTop: 2 },
+
+  condChipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  condChip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: C.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1, borderColor: C.border,
+  },
+  condChipText: { fontFamily: "Inter_500Medium", fontSize: 14, color: C.text },
+
+  completionCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
+  completionCircle: {
+    width: 100, height: 100, borderRadius: 50,
+    backgroundColor: ACCENT_COLORS.green, alignItems: "center", justifyContent: "center",
+    marginBottom: 32,
+  },
+  completionTitle: {
+    fontFamily: "Inter_700Bold", fontSize: 32, textAlign: "center",
+    letterSpacing: -0.5, marginBottom: 8,
+  },
+  completionSub: {
+    fontFamily: "Inter_400Regular", fontSize: 17, textAlign: "center",
+    lineHeight: 24,
+  },
 
   continueBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: C.tint, borderRadius: 14, paddingVertical: 16,
+    backgroundColor: ACCENT_COLORS.blue, borderRadius: 16, paddingVertical: 18,
   },
-  continueBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 16, color: "#fff" },
+  continueBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 17, color: "#fff" },
 });
