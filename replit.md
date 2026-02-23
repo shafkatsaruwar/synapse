@@ -61,3 +61,5 @@ Design preferences: Apple-inspired, calm, minimal dark mode UI. Not playful, not
 - 2026-02-23: Added Recovery Protocol section: hydration tracker (2000mL goal), food/rest checklists, PRN Tylenol with 4hr countdown, temperature logging with fever alerts, symptom toggles
 - 2026-02-23: Added warning color theme — red banner on Dashboard when Sick Mode active, red medication card with "Stress Dosing" label
 - 2026-02-23: Storage layer updated with SickModeData interface, sickMode field in UserSettings, doseIndex in MedicationLog
+- 2026-02-23: Dedicated SickModeScreen recovery dashboard: replaces Dashboard when active, stress dosing card, temperature logger, recovery checklist with progress bar, "I'm better" exit button, manual activation from Dashboard, auto-trigger on fever ≥100°F, dimmed non-essential nav
+- 2026-02-23: Added first-launch onboarding flow (9 screens): Welcome, Name input, Health Setup (medications + conditions), 6-screen founder story with progress dots. Saves onboardingCompleted flag to skip on subsequent launches
