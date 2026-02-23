@@ -139,8 +139,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   const energyLabels = ["Low", "Fair", "Good", "Great", "Excellent"];
 
-  const priorityCardWidth = isWide ? undefined : width * 0.78;
-
   const renderMedicationsCard = () => (
     <PriorityCard color={PRIORITY_COLORS.medications} icon="medical" label="Medications Today" onPress={() => onNavigate("medications")}>
       {totalMeds > 0 ? (
@@ -233,25 +231,11 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
       <Text style={styles.sectionLabel}>Today</Text>
 
-      {isWide ? (
-        <View style={styles.priorityRowWide}>
-          <View style={{ flex: 1 }}>{renderMedicationsCard()}</View>
-          <View style={{ flex: 1 }}>{renderAppointmentsCard()}</View>
-          <View style={{ flex: 1 }}>{renderDailyLogCard()}</View>
-        </View>
-      ) : (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.priorityScroll}
-          snapToInterval={priorityCardWidth + 12}
-          decelerationRate="fast"
-        >
-          <View style={{ width: priorityCardWidth }}>{renderMedicationsCard()}</View>
-          <View style={{ width: priorityCardWidth }}>{renderAppointmentsCard()}</View>
-          <View style={{ width: priorityCardWidth }}>{renderDailyLogCard()}</View>
-        </ScrollView>
-      )}
+      <View style={styles.priorityGrid}>
+        <View style={styles.priorityGridItem}>{renderMedicationsCard()}</View>
+        <View style={styles.priorityGridItem}>{renderAppointmentsCard()}</View>
+        <View style={styles.priorityGridItem}>{renderDailyLogCard()}</View>
+      </View>
 
       <View style={[styles.grid, isWide && styles.gridWide]}>
         <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("symptoms")}>
@@ -418,29 +402,29 @@ const styles = StyleSheet.create({
   greetingText: { fontFamily: "Inter_700Bold", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   dateText: { fontFamily: "Inter_400Regular", fontSize: 14, color: C.textSecondary },
   sectionLabel: { fontFamily: "Inter_700Bold", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
-  priorityScroll: { gap: 12, paddingRight: 24, marginBottom: 28, marginLeft: 0 },
-  priorityRowWide: { flexDirection: "row", gap: 12, marginBottom: 28 },
+  priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 20 },
+  priorityGridItem: { width: "48%", marginBottom: 12 },
   priorityCard: {
     borderRadius: 16,
-    padding: 20,
-    minHeight: 160,
+    padding: 16,
+    aspectRatio: 1.1,
     justifyContent: "space-between",
     boxShadow: "0px 4px 16px rgba(0,0,0,0.3)",
   },
-  priorityHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
-  priorityIconWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  priorityLabel: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: "#fff", flex: 1 },
-  priBigNum: { fontFamily: "Inter_700Bold", fontSize: 36, color: "#fff", letterSpacing: -1, marginBottom: 8 },
-  priBigNumSub: { fontSize: 20, color: "rgba(255,255,255,0.6)" },
+  priorityHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  priorityIconWrap: { width: 28, height: 28, borderRadius: 7, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  priorityLabel: { fontFamily: "Inter_600SemiBold", fontSize: 12, color: "#fff", flex: 1 },
+  priBigNum: { fontFamily: "Inter_700Bold", fontSize: 28, color: "#fff", letterSpacing: -1, marginBottom: 4 },
+  priBigNumSub: { fontSize: 16, color: "rgba(255,255,255,0.6)" },
   priProgress: { height: 4, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden", marginBottom: 8 },
   priProgressFill: { height: "100%", backgroundColor: "#fff", borderRadius: 2 },
   priMeta: { fontFamily: "Inter_400Regular", fontSize: 12, color: "rgba(255,255,255,0.7)" },
   priEmpty: { fontFamily: "Inter_500Medium", fontSize: 14, color: "rgba(255,255,255,0.8)" },
-  priAptName: { fontFamily: "Inter_600SemiBold", fontSize: 16, color: "#fff", marginBottom: 2 },
-  priAptSpec: { fontFamily: "Inter_400Regular", fontSize: 13, color: "rgba(255,255,255,0.7)", marginBottom: 10 },
-  priAptDateRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  priAptDate: { fontFamily: "Inter_400Regular", fontSize: 12, color: "rgba(255,255,255,0.7)", marginRight: 8 },
-  priLogRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  priAptName: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: "#fff", marginBottom: 2 },
+  priAptSpec: { fontFamily: "Inter_400Regular", fontSize: 11, color: "rgba(255,255,255,0.7)", marginBottom: 6 },
+  priAptDateRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
+  priAptDate: { fontFamily: "Inter_400Regular", fontSize: 11, color: "rgba(255,255,255,0.7)", marginRight: 4 },
+  priLogRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
   priLogItem: { flex: 1, alignItems: "center" },
   priLogLabel: { fontFamily: "Inter_400Regular", fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 4 },
   priLogValue: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: "#fff" },
