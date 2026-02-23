@@ -17,6 +17,7 @@ export interface Symptom {
   name: string;
   severity: number;
   notes: string;
+  temperature?: number;
 }
 
 export interface Medication {

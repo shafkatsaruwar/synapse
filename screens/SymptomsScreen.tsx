@@ -6,18 +6,22 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { symptomStorage, type Symptom } from "@/lib/storage";
+import { symptomStorage, settingsStorage, sickModeStorage, type Symptom } from "@/lib/storage";
 import { getToday, getRelativeDay, getDaysAgo } from "@/lib/date-utils";
 
 const C = Colors.dark;
 
 const COMMON_SYMPTOMS = [
-  "Headache", "Fatigue", "Nausea", "Dizziness", "Joint Pain",
+  "Fever", "Headache", "Fatigue", "Nausea", "Dizziness", "Joint Pain",
   "Bloating", "Insomnia", "Anxiety", "Back Pain", "Chest Tightness",
   "Shortness of Breath", "Brain Fog", "Muscle Ache", "Stomach Pain",
 ];
 
-export default function SymptomsScreen() {
+interface SymptomsScreenProps {
+  onActivateSickMode?: () => void;
+}
+
+export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -29,6 +33,10 @@ export default function SymptomsScreen() {
   const [customSymptom, setCustomSymptom] = useState("");
   const [severity, setSeverity] = useState(3);
   const [notes, setNotes] = useState("");
+  const [feverTemp, setFeverTemp] = useState("");
+  const [showFeverAlert, setShowFeverAlert] = useState(false);
+
+  const isFeverSelected = selectedSymptom === "Fever";
 
   const loadData = useCallback(async () => {
     const all = await symptomStorage.getAll();
@@ -40,11 +48,30 @@ export default function SymptomsScreen() {
   const handleAdd = async () => {
     const name = selectedSymptom || customSymptom.trim();
     if (!name) return;
-    await symptomStorage.save({ date: today, name, severity, notes: notes.trim() });
+    const temp = isFeverSelected && feverTemp.trim() ? parseFloat(feverTemp) : undefined;
+    await symptomStorage.save({ date: today, name, severity, notes: notes.trim(), temperature: temp });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setSelectedSymptom(""); setCustomSymptom(""); setSeverity(3); setNotes("");
+
+    if (isFeverSelected && temp && temp >= 100) {
+      const settings = await settingsStorage.get();
+      if (!settings.sickMode) {
+        setShowFeverAlert(true);
+      }
+    }
+
+    setSelectedSymptom(""); setCustomSymptom(""); setSeverity(3); setNotes(""); setFeverTemp("");
     setShowModal(false);
     loadData();
+  };
+
+  const handleActivateSickMode = async () => {
+    const settings = await settingsStorage.get();
+    await settingsStorage.save({ ...settings, sickMode: true });
+    const sd = await sickModeStorage.get();
+    await sickModeStorage.save({ ...sd, active: true, startedAt: new Date().toISOString() });
+    setShowFeverAlert(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    onActivateSickMode?.();
   };
 
   const handleDelete = async (s: Symptom) => {
@@ -100,7 +127,14 @@ export default function SymptomsScreen() {
               <View key={s.id} style={styles.symptomCard}>
                 <View style={[styles.sevBar, { backgroundColor: sevColor(s.severity) }]} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.symptomName}>{s.name}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={styles.symptomName}>{s.name}</Text>
+                    {s.name === "Fever" && s.temperature && (
+                      <View style={[styles.tempBadge, s.temperature >= 100 && styles.tempBadgeHigh]}>
+                        <Text style={[styles.tempBadgeText, s.temperature >= 100 && { color: C.red }]}>{s.temperature}°F</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={[styles.sevText, { color: sevColor(s.severity) }]}>{sevLabel(s.severity)}</Text>
                   {!!s.notes && <Text style={styles.symptomNotes}>{s.notes}</Text>}
                 </View>
@@ -158,6 +192,29 @@ export default function SymptomsScreen() {
               ))}
             </View>
             <TextInput style={styles.input} placeholder="Or type custom symptom" placeholderTextColor={C.textTertiary} value={customSymptom} onChangeText={(t) => { setCustomSymptom(t); setSelectedSymptom(""); }} />
+
+            {isFeverSelected && (
+              <View style={styles.feverInputWrap}>
+                <View style={styles.feverInputRow}>
+                  <Text style={{ fontSize: 20 }}>🌡️</Text>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    placeholder="Temperature (°F)"
+                    placeholderTextColor={C.textTertiary}
+                    value={feverTemp}
+                    onChangeText={setFeverTemp}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+                {feverTemp && parseFloat(feverTemp) >= 100 && (
+                  <View style={styles.feverWarning}>
+                    <Ionicons name="warning" size={14} color={C.red} />
+                    <Text style={styles.feverWarningText}>High fever — stress dose may be needed</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
             <Text style={styles.label}>Severity</Text>
             <View style={styles.sevPicker}>
               {[1, 2, 3, 4, 5].map((i) => (
@@ -175,6 +232,25 @@ export default function SymptomsScreen() {
             </View>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      <Modal visible={showFeverAlert} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.feverAlertCard}>
+            <View style={styles.feverAlertIcon}>
+              <Ionicons name="warning" size={28} color={C.red} />
+            </View>
+            <Text style={styles.feverAlertTitle}>Stress dose recommended</Text>
+            <Text style={styles.feverAlertDesc}>A temperature of 100°F or higher was recorded. Activating Sick Mode will triple your Hydrocortisone dose and start the recovery protocol.</Text>
+            <Pressable style={styles.feverAlertBtn} onPress={handleActivateSickMode}>
+              <Ionicons name="shield" size={18} color="#fff" />
+              <Text style={styles.feverAlertBtnText}>Activate Sick Mode</Text>
+            </Pressable>
+            <Pressable style={styles.feverAlertDismiss} onPress={() => setShowFeverAlert(false)}>
+              <Text style={styles.feverAlertDismissText}>Not now</Text>
+            </Pressable>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -225,4 +301,19 @@ const styles = StyleSheet.create({
   cancelText: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: C.textSecondary },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.orange, alignItems: "center" },
   confirmText: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: "#fff" },
+  feverInputWrap: { marginBottom: 14, gap: 8 },
+  feverInputRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  feverWarning: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.redLight, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: "rgba(255,69,58,0.25)" },
+  feverWarningText: { fontFamily: "Inter_500Medium", fontSize: 12, color: C.red },
+  tempBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: C.orangeLight },
+  tempBadgeHigh: { backgroundColor: C.redLight },
+  tempBadgeText: { fontFamily: "Inter_600SemiBold", fontSize: 11, color: C.orange },
+  feverAlertCard: { backgroundColor: C.surface, borderRadius: 20, padding: 28, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: "rgba(255,69,58,0.3)", alignItems: "center" },
+  feverAlertIcon: { width: 56, height: 56, borderRadius: 16, backgroundColor: C.redLight, alignItems: "center", justifyContent: "center", marginBottom: 16 },
+  feverAlertTitle: { fontFamily: "Inter_700Bold", fontSize: 18, color: C.text, marginBottom: 8 },
+  feverAlertDesc: { fontFamily: "Inter_400Regular", fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 20, marginBottom: 20 },
+  feverAlertBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.red, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, width: "100%" },
+  feverAlertBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: "#fff" },
+  feverAlertDismiss: { paddingVertical: 12 },
+  feverAlertDismissText: { fontFamily: "Inter_500Medium", fontSize: 13, color: C.textTertiary },
 });
