@@ -88,17 +88,23 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <View style={styles.card}>
+        <Pressable
+          style={styles.card}
+          testID="ramadan-mode-toggle"
+          onPress={() => { setSettings((p) => ({ ...p, ramadanMode: !p.ramadanMode })); setSaved(false); Haptics.selectionAsync(); }}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: settings.ramadanMode }}
+        >
           <View style={styles.toggleHeader}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.sectionTitle}>Ramadan Mode</Text>
               <Text style={styles.desc}>Enable fasting tracking with suhoor/iftar</Text>
             </View>
-            <Pressable style={[styles.toggle, settings.ramadanMode && styles.toggleActive]} onPress={() => { setSettings((p) => ({ ...p, ramadanMode: !p.ramadanMode })); setSaved(false); Haptics.selectionAsync(); }}>
+            <View style={[styles.toggle, settings.ramadanMode && styles.toggleActive]}>
               <View style={[styles.toggleThumb, settings.ramadanMode && styles.toggleThumbActive]} />
-            </Pressable>
+            </View>
           </View>
-        </View>
+        </Pressable>
 
         <View style={styles.card}>
           <View style={styles.vitalsHeader}>

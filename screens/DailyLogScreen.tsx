@@ -68,8 +68,8 @@ export default function DailyLogScreen() {
   React.useEffect(() => { loadData(); }, [loadData]);
 
   const handleSave = async () => {
-    await healthLogStorage.save({ date: today, energy, mood, sleep, fasting, notes });
-    if (fasting || settings.ramadanMode) {
+    await healthLogStorage.save({ date: today, energy, mood, sleep, fasting: settings.ramadanMode ? fasting : false, notes });
+    if (settings.ramadanMode && fasting) {
       await fastingLogStorage.save({ date: today, suhoorTime, iftarTime, hydrationGlasses: hydration, energyLevel: fastEnergy, notes: fastNotes });
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -123,39 +123,42 @@ export default function DailyLogScreen() {
           {renderSlider("Sleep", sleep, setSleep, sleepLabels, C.cyan)}
         </View>
 
-        <View style={[styles.card, isWide && styles.cardHalf]}>
-          <Text style={styles.sectionTitle}>Fasting</Text>
-          <View style={styles.toggleRow}>
-            <Pressable
-              style={[styles.toggleBtn, fasting && { backgroundColor: C.tintLight, borderColor: C.tint }]}
-              onPress={() => { setFasting(true); setSaved(false); Haptics.selectionAsync(); }}
-            >
-              <Ionicons name="checkmark-circle" size={18} color={fasting ? C.tint : C.textTertiary} />
-              <Text style={[styles.toggleText, fasting && { color: C.tint }]}>Yes</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.toggleBtn, !fasting && { backgroundColor: C.redLight, borderColor: C.red }]}
-              onPress={() => { setFasting(false); setSaved(false); Haptics.selectionAsync(); }}
-            >
-              <Ionicons name="close-circle" size={18} color={!fasting ? C.red : C.textTertiary} />
-              <Text style={[styles.toggleText, !fasting && { color: C.red }]}>No</Text>
-            </Pressable>
-          </View>
+        {settings.ramadanMode && (
+          <View style={[styles.card, isWide && styles.cardHalf]}>
+            <View style={styles.ramadanHeader}>
+              <Ionicons name="moon" size={16} color={C.yellow} />
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Ramadan Fasting</Text>
+            </View>
+            <View style={styles.toggleRow}>
+              <Pressable
+                style={[styles.toggleBtn, fasting && { backgroundColor: C.tintLight, borderColor: C.tint }]}
+                onPress={() => { setFasting(true); setSaved(false); Haptics.selectionAsync(); }}
+              >
+                <Ionicons name="checkmark-circle" size={18} color={fasting ? C.tint : C.textTertiary} />
+                <Text style={[styles.toggleText, fasting && { color: C.tint }]}>Fasted</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.toggleBtn, !fasting && { backgroundColor: C.redLight, borderColor: C.red }]}
+                onPress={() => { setFasting(false); setSaved(false); Haptics.selectionAsync(); }}
+              >
+                <Ionicons name="close-circle" size={18} color={!fasting ? C.red : C.textTertiary} />
+                <Text style={[styles.toggleText, !fasting && { color: C.red }]}>Not today</Text>
+              </Pressable>
+            </View>
 
-          {(fasting || settings.ramadanMode) && (
-            <View style={styles.fastingFields}>
-              <View style={styles.fieldRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>Suhoor Time</Text>
-                  <TextInput style={styles.fieldInput} placeholder="e.g. 4:30" placeholderTextColor={C.textTertiary} value={suhoorTime} onChangeText={(t) => { setSuhoorTime(t); setSaved(false); }} />
+            {fasting && (
+              <View style={styles.fastingFields}>
+                <View style={styles.fieldRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Suhoor Time</Text>
+                    <TextInput style={styles.fieldInput} placeholder="e.g. 4:30" placeholderTextColor={C.textTertiary} value={suhoorTime} onChangeText={(t) => { setSuhoorTime(t); setSaved(false); }} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Iftar Time</Text>
+                    <TextInput style={styles.fieldInput} placeholder="e.g. 6:45" placeholderTextColor={C.textTertiary} value={iftarTime} onChangeText={(t) => { setIftarTime(t); setSaved(false); }} />
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>Iftar Time</Text>
-                  <TextInput style={styles.fieldInput} placeholder="e.g. 6:45" placeholderTextColor={C.textTertiary} value={iftarTime} onChangeText={(t) => { setIftarTime(t); setSaved(false); }} />
-                </View>
-              </View>
 
-              {settings.ramadanMode && (
                 <View style={styles.ramadanTips}>
                   <View style={styles.ramTipRow}>
                     <Ionicons name="medical" size={14} color={C.orange} />
@@ -170,24 +173,24 @@ export default function DailyLogScreen() {
                     <Text style={styles.ramTipText}>Include slow-release carbs at suhoor for sustained energy</Text>
                   </View>
                 </View>
-              )}
 
-              <Text style={styles.fieldLabel}>Hydration (glasses between iftar & suhoor)</Text>
-              <View style={styles.hydrationRow}>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
-                  <Pressable key={i} style={[styles.hydrationDot, i <= hydration && { backgroundColor: C.cyan }]} onPress={() => { setHydration(i); setSaved(false); }} />
-                ))}
-              </View>
-              {hydration > 0 && hydration < 8 && (
-                <View style={styles.hydrationWarning}>
-                  <Ionicons name="alert-circle" size={14} color={C.orange} />
-                  <Text style={styles.hydrationWarningText}>Try to drink at least 8 glasses to stay hydrated during fasting</Text>
+                <Text style={styles.fieldLabel}>Hydration (glasses between iftar & suhoor)</Text>
+                <View style={styles.hydrationRow}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
+                    <Pressable key={i} style={[styles.hydrationDot, i <= hydration && { backgroundColor: C.cyan }]} onPress={() => { setHydration(i); setSaved(false); }} />
+                  ))}
                 </View>
-              )}
-              {renderSlider("Energy Level", fastEnergy, (v) => { setFastEnergy(v); setSaved(false); }, energyLabels, C.yellow)}
-            </View>
-          )}
-        </View>
+                {hydration > 0 && hydration < 8 && (
+                  <View style={styles.hydrationWarning}>
+                    <Ionicons name="alert-circle" size={14} color={C.orange} />
+                    <Text style={styles.hydrationWarningText}>Try to drink at least 8 glasses to stay hydrated during fasting</Text>
+                  </View>
+                )}
+                {renderSlider("Energy Level", fastEnergy, (v) => { setFastEnergy(v); setSaved(false); }, energyLabels, C.yellow)}
+              </View>
+            )}
+          </View>
+        )}
       </View>
 
       <View style={styles.card}>
@@ -251,6 +254,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
   cardHalf: { flex: 1 },
   sectionTitle: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: C.text, marginBottom: 14 },
+  ramadanHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 },
   sliderSection: { marginBottom: 20 },
   sliderHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   sliderLabel: { fontFamily: "Inter_500Medium", fontSize: 13, color: C.textSecondary },

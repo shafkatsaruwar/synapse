@@ -30,7 +30,7 @@ export default function MainScreen() {
       case "dashboard":
         return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
       case "log":
-        return <DailyLogScreen />;
+        return <DailyLogScreen key={refreshKey} />;
       case "healthdata":
         return <HealthDataScreen />;
       case "medications":
