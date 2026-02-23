@@ -8,9 +8,11 @@ import {
   Platform,
   RefreshControl,
   useWindowDimensions,
+  Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import {
   healthLogStorage,
@@ -34,9 +36,45 @@ import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 
 const C = Colors.dark;
 
+const PRIORITY_COLORS = {
+  medications: "#0A84FF",
+  appointments: "#BF5AF2",
+  dailylog: "#30D158",
+};
+
 interface DashboardScreenProps {
   onNavigate: (screen: string) => void;
   onRefreshKey?: number;
+}
+
+function PriorityCard({ color, icon, label, onPress, children }: { color: string; icon: string; label: string; onPress: () => void; children: React.ReactNode }) {
+  const scale = React.useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
+  };
+  const handlePressOut = () => {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
+  };
+
+  return (
+    <Pressable
+      onPress={() => { Haptics.selectionAsync(); onPress(); }}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+    >
+      <Animated.View style={[styles.priorityCard, { backgroundColor: color, transform: [{ scale }] }]}>
+        <View style={styles.priorityHeader}>
+          <View style={styles.priorityIconWrap}>
+            <Ionicons name={icon as any} size={18} color="#fff" />
+          </View>
+          <Text style={styles.priorityLabel}>{label}</Text>
+          <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.6)" />
+        </View>
+        {children}
+      </Animated.View>
+    </Pressable>
+  );
 }
 
 export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardScreenProps) {
@@ -99,6 +137,76 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 4);
 
+  const energyLabels = ["Low", "Fair", "Good", "Great", "Excellent"];
+
+  const priorityCardWidth = isWide ? undefined : width * 0.78;
+
+  const renderMedicationsCard = () => (
+    <PriorityCard color={PRIORITY_COLORS.medications} icon="medical" label="Medications Today" onPress={() => onNavigate("medications")}>
+      {totalMeds > 0 ? (
+        <View>
+          <Text style={styles.priBigNum}>{takenCount}<Text style={styles.priBigNumSub}>/{totalMeds}</Text></Text>
+          <View style={styles.priProgress}>
+            <View style={[styles.priProgressFill, { width: `${totalMeds > 0 ? (takenCount / totalMeds) * 100 : 0}%` }]} />
+          </View>
+          <Text style={styles.priMeta}>{totalMeds - takenCount === 0 ? "All taken" : `${totalMeds - takenCount} remaining`}</Text>
+        </View>
+      ) : (
+        <Text style={styles.priEmpty}>No medications added</Text>
+      )}
+    </PriorityCard>
+  );
+
+  const renderAppointmentsCard = () => (
+    <PriorityCard color={PRIORITY_COLORS.appointments} icon="calendar" label="Upcoming Appointments" onPress={() => onNavigate("appointments")}>
+      {nextApt ? (
+        <View>
+          <Text style={styles.priAptName}>{nextApt.doctorName}</Text>
+          <Text style={styles.priAptSpec}>{nextApt.specialty}</Text>
+          <View style={styles.priAptDateRow}>
+            <Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.7)" />
+            <Text style={styles.priAptDate}>{formatDate(nextApt.date)}</Text>
+            <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.7)" />
+            <Text style={styles.priAptDate}>{formatTime12h(nextApt.time)}</Text>
+          </View>
+        </View>
+      ) : (
+        <Text style={styles.priEmpty}>No upcoming visits</Text>
+      )}
+    </PriorityCard>
+  );
+
+  const renderDailyLogCard = () => (
+    <PriorityCard color={PRIORITY_COLORS.dailylog} icon="heart" label="Daily Log" onPress={() => onNavigate("log")}>
+      {todayLog ? (
+        <View>
+          <View style={styles.priLogRow}>
+            <View style={styles.priLogItem}>
+              <Text style={styles.priLogLabel}>Energy</Text>
+              <Text style={styles.priLogValue}>{energyLabels[todayLog.energy - 1]}</Text>
+            </View>
+            <View style={styles.priLogDivider} />
+            <View style={styles.priLogItem}>
+              <Text style={styles.priLogLabel}>Mood</Text>
+              <Text style={styles.priLogValue}>{todayLog.mood}/5</Text>
+            </View>
+            <View style={styles.priLogDivider} />
+            <View style={styles.priLogItem}>
+              <Text style={styles.priLogLabel}>Sleep</Text>
+              <Text style={styles.priLogValue}>{todayLog.sleep}/5</Text>
+            </View>
+          </View>
+          {todayLog.fasting && <Text style={styles.priMeta}>Fasting today</Text>}
+        </View>
+      ) : (
+        <View>
+          <Text style={styles.priEmpty}>Not logged yet</Text>
+          <Text style={[styles.priMeta, { marginTop: 6 }]}>Tap to log how you're feeling</Text>
+        </View>
+      )}
+    </PriorityCard>
+  );
+
   return (
     <ScrollView
       style={styles.container}
@@ -121,45 +229,31 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         <Text style={styles.dateText}>
           {dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
         </Text>
-        {todayLog ? (
-          <View style={styles.summaryPill}>
-            <View style={[styles.summaryDot, { backgroundColor: C.green }]} />
-            <Text style={styles.summaryText}>
-              Energy {todayLog.energy}/5 {todayLog.fasting ? " \u00B7 Fasting" : ""}
-              {todaySymptoms.length > 0 ? ` \u00B7 ${todaySymptoms.length} symptom${todaySymptoms.length > 1 ? "s" : ""}` : ""}
-            </Text>
-          </View>
-        ) : (
-          <Pressable style={styles.summaryPill} onPress={() => onNavigate("log")}>
-            <View style={[styles.summaryDot, { backgroundColor: C.textTertiary }]} />
-            <Text style={styles.summaryText}>No log today. Tap to log.</Text>
-          </Pressable>
-        )}
       </View>
 
-      <View style={[styles.grid, isWide && styles.gridWide]}>
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("medications")}>
-          <View style={styles.cardHeader}>
-            <View style={[styles.cardIcon, { backgroundColor: C.tintLight }]}>
-              <Ionicons name="medical" size={16} color={C.tint} />
-            </View>
-            <Text style={styles.cardLabel}>Medications Today</Text>
-          </View>
-          {totalMeds > 0 ? (
-            <View>
-              <Text style={styles.cardBigNum}>{takenCount}<Text style={styles.cardBigNumSub}>/{totalMeds}</Text></Text>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${totalMeds > 0 ? (takenCount / totalMeds) * 100 : 0}%` }]} />
-              </View>
-              <Text style={styles.cardMeta}>{totalMeds - takenCount === 0 ? "All taken" : `${totalMeds - takenCount} remaining`}</Text>
-            </View>
-          ) : (
-            <View style={styles.cardEmpty}>
-              <Text style={styles.cardEmptyText}>No medications added</Text>
-            </View>
-          )}
-        </Pressable>
+      <Text style={styles.sectionLabel}>Today</Text>
 
+      {isWide ? (
+        <View style={styles.priorityRowWide}>
+          <View style={{ flex: 1 }}>{renderMedicationsCard()}</View>
+          <View style={{ flex: 1 }}>{renderAppointmentsCard()}</View>
+          <View style={{ flex: 1 }}>{renderDailyLogCard()}</View>
+        </View>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.priorityScroll}
+          snapToInterval={priorityCardWidth + 12}
+          decelerationRate="fast"
+        >
+          <View style={{ width: priorityCardWidth }}>{renderMedicationsCard()}</View>
+          <View style={{ width: priorityCardWidth }}>{renderAppointmentsCard()}</View>
+          <View style={{ width: priorityCardWidth }}>{renderDailyLogCard()}</View>
+        </ScrollView>
+      )}
+
+      <View style={[styles.grid, isWide && styles.gridWide]}>
         <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("symptoms")}>
           <View style={styles.cardHeader}>
             <View style={[styles.cardIcon, { backgroundColor: C.orangeLight }]}>
@@ -180,31 +274,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           ) : (
             <View style={styles.cardEmpty}>
               <Text style={styles.cardEmptyText}>No symptoms today</Text>
-            </View>
-          )}
-        </Pressable>
-
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("appointments")}>
-          <View style={styles.cardHeader}>
-            <View style={[styles.cardIcon, { backgroundColor: C.purpleLight }]}>
-              <Ionicons name="calendar" size={16} color={C.purple} />
-            </View>
-            <Text style={styles.cardLabel}>Appointments</Text>
-          </View>
-          {nextApt ? (
-            <View>
-              <Text style={styles.aptName}>{nextApt.doctorName}</Text>
-              <Text style={styles.aptSpec}>{nextApt.specialty}</Text>
-              <View style={styles.aptDateRow}>
-                <Ionicons name="calendar-outline" size={13} color={C.textSecondary} />
-                <Text style={styles.aptDateText}>{formatDate(nextApt.date)}</Text>
-                <Ionicons name="time-outline" size={13} color={C.textSecondary} />
-                <Text style={styles.aptDateText}>{formatTime12h(nextApt.time)}</Text>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.cardEmpty}>
-              <Text style={styles.cardEmptyText}>No upcoming visits</Text>
             </View>
           )}
         </Pressable>
@@ -345,12 +414,37 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
-  welcome: { marginBottom: 28 },
+  welcome: { marginBottom: 20 },
   greetingText: { fontFamily: "Inter_700Bold", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
-  dateText: { fontFamily: "Inter_400Regular", fontSize: 14, color: C.textSecondary, marginBottom: 14 },
-  summaryPill: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.surface, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignSelf: "flex-start" },
-  summaryDot: { width: 7, height: 7, borderRadius: 4 },
-  summaryText: { fontFamily: "Inter_500Medium", fontSize: 13, color: C.textSecondary },
+  dateText: { fontFamily: "Inter_400Regular", fontSize: 14, color: C.textSecondary },
+  sectionLabel: { fontFamily: "Inter_700Bold", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
+  priorityScroll: { gap: 12, paddingRight: 24, marginBottom: 28, marginLeft: 0 },
+  priorityRowWide: { flexDirection: "row", gap: 12, marginBottom: 28 },
+  priorityCard: {
+    borderRadius: 16,
+    padding: 20,
+    minHeight: 160,
+    justifyContent: "space-between",
+    boxShadow: "0px 4px 16px rgba(0,0,0,0.3)",
+  },
+  priorityHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
+  priorityIconWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  priorityLabel: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: "#fff", flex: 1 },
+  priBigNum: { fontFamily: "Inter_700Bold", fontSize: 36, color: "#fff", letterSpacing: -1, marginBottom: 8 },
+  priBigNumSub: { fontSize: 20, color: "rgba(255,255,255,0.6)" },
+  priProgress: { height: 4, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden", marginBottom: 8 },
+  priProgressFill: { height: "100%", backgroundColor: "#fff", borderRadius: 2 },
+  priMeta: { fontFamily: "Inter_400Regular", fontSize: 12, color: "rgba(255,255,255,0.7)" },
+  priEmpty: { fontFamily: "Inter_500Medium", fontSize: 14, color: "rgba(255,255,255,0.8)" },
+  priAptName: { fontFamily: "Inter_600SemiBold", fontSize: 16, color: "#fff", marginBottom: 2 },
+  priAptSpec: { fontFamily: "Inter_400Regular", fontSize: 13, color: "rgba(255,255,255,0.7)", marginBottom: 10 },
+  priAptDateRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  priAptDate: { fontFamily: "Inter_400Regular", fontSize: 12, color: "rgba(255,255,255,0.7)", marginRight: 8 },
+  priLogRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  priLogItem: { flex: 1, alignItems: "center" },
+  priLogLabel: { fontFamily: "Inter_400Regular", fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 4 },
+  priLogValue: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: "#fff" },
+  priLogDivider: { width: 1, height: 28, backgroundColor: "rgba(255,255,255,0.2)" },
   grid: { gap: 12 },
   gridWide: { flexDirection: "row", flexWrap: "wrap" },
   card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: C.border },
@@ -368,10 +462,6 @@ const styles = StyleSheet.create({
   symptomRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 },
   severityDot: { width: 6, height: 6, borderRadius: 3 },
   symptomText: { fontFamily: "Inter_400Regular", fontSize: 13, color: C.textSecondary, flex: 1 },
-  aptName: { fontFamily: "Inter_600SemiBold", fontSize: 16, color: C.text, marginBottom: 2 },
-  aptSpec: { fontFamily: "Inter_400Regular", fontSize: 13, color: C.textSecondary, marginBottom: 10 },
-  aptDateRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  aptDateText: { fontFamily: "Inter_400Regular", fontSize: 12, color: C.textSecondary, marginRight: 8 },
   fastingRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
   fastingItem: { flex: 1, alignItems: "center" },
   fastingDivider: { width: 1, height: 28, backgroundColor: C.border },
