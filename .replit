@@ -73,3 +73,8 @@ task = "shell.exec"
 args = "npm run expo:dev"
 waitForPort = 8081
 ensurePreviewReachable = "/status"
+
+[userenv]
+
+[userenv.shared]
+EXPO_PUBLIC_DOMAIN = "592dc9e2-539b-4019-8052-5513e18368d8-00-1szpvkla0bq2g.worf.replit.dev"

@@ -87,8 +87,9 @@ export default function HealthDataScreen() {
       }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Health Data</Text>
-          <Pressable style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => setShowAdd(true)}>
+          <Pressable testID="add-health-data" style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => setShowAdd(true)}>
             <Ionicons name="add" size={20} color="#fff" />
+            <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 }}>Add</Text>
           </Pressable>
         </View>
 
@@ -216,7 +217,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
   title: { fontFamily: "Inter_700Bold", fontSize: 28, color: C.text, letterSpacing: -0.5 },
-  addBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+  addBtn: { flexDirection: "row", gap: 4, paddingHorizontal: 14, height: 36, borderRadius: 10, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
   catRow: { gap: 6, marginBottom: 16, paddingRight: 24 },
   catChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface },
   catText: { fontFamily: "Inter_500Medium", fontSize: 12, color: C.textSecondary },
