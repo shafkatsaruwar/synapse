@@ -127,6 +127,7 @@ export interface UserSettings {
   conditions: string[];
   ramadanMode: boolean;
   sickMode: boolean;
+  onboardingCompleted?: boolean;
 }
 
 const KEYS = {

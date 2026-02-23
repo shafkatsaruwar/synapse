@@ -13,6 +13,7 @@ import DocumentsScreen from "@/screens/DocumentsScreen";
 import InsightsScreen from "@/screens/InsightsScreen";
 import PrivacyScreen from "@/screens/PrivacyScreen";
 import SickModeScreen from "@/screens/SickModeScreen";
+import OnboardingScreen from "@/screens/OnboardingScreen";
 import { settingsStorage } from "@/lib/storage";
 import Colors from "@/constants/colors";
 
@@ -22,18 +23,20 @@ export default function MainScreen() {
   const [activeScreen, setActiveScreen] = useState("dashboard");
   const [refreshKey, setRefreshKey] = useState(0);
   const [sickMode, setSickMode] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
 
-  const checkSickMode = useCallback(async () => {
+  const checkInitialState = useCallback(async () => {
     const settings = await settingsStorage.get();
     setSickMode(settings.sickMode);
+    setShowOnboarding(!settings.onboardingCompleted);
   }, []);
 
-  useEffect(() => { checkSickMode(); }, [checkSickMode]);
+  useEffect(() => { checkInitialState(); }, [checkInitialState]);
 
   const handleNavigate = (screen: string) => {
     setActiveScreen(screen);
     setRefreshKey((k) => k + 1);
-    checkSickMode();
+    settingsStorage.get().then(s => setSickMode(s.sickMode));
   };
 
   const handleActivateSickMode = () => {
@@ -47,6 +50,17 @@ export default function MainScreen() {
     setActiveScreen("dashboard");
     setRefreshKey((k) => k + 1);
   };
+
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    setRefreshKey((k) => k + 1);
+  };
+
+  if (showOnboarding === null) return <View style={styles.container} />;
+
+  if (showOnboarding) {
+    return <OnboardingScreen onComplete={handleOnboardingComplete} />;
+  }
 
   const renderScreen = () => {
     if (sickMode && activeScreen === "dashboard") {
