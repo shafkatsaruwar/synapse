@@ -18,6 +18,7 @@ import {
   healthLogStorage,
   medicationStorage,
   medicationLogStorage,
+  sickModeStorage,
   appointmentStorage,
   symptomStorage,
   fastingLogStorage,
@@ -45,6 +46,7 @@ const PRIORITY_COLORS = {
 interface DashboardScreenProps {
   onNavigate: (screen: string) => void;
   onRefreshKey?: number;
+  onActivateSickMode?: () => void;
 }
 
 function PriorityCard({ color, icon, label, onPress, children }: { color: string; icon: string; label: string; onPress: () => void; children: React.ReactNode }) {
@@ -77,7 +79,7 @@ function PriorityCard({ color, icon, label, onPress, children }: { color: string
   );
 }
 
-export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardScreenProps) {
+export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSickMode }: DashboardScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -233,11 +235,21 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />
       }
     >
-      {isSickMode && (
-        <View style={styles.sickBanner}>
-          <Ionicons name="warning" size={16} color={C.red} />
-          <Text style={styles.sickBannerText}>Recovery protocol active</Text>
-        </View>
+      {!isSickMode && (
+        <Pressable
+          style={styles.sickModeActivateBtn}
+          onPress={async () => {
+            const s = await settingsStorage.get();
+            await settingsStorage.save({ ...s, sickMode: true });
+            const sd = await sickModeStorage.get();
+            await sickModeStorage.save({ ...sd, active: true, startedAt: new Date().toISOString() });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            onActivateSickMode?.();
+          }}
+        >
+          <Ionicons name="shield-outline" size={16} color={C.red} />
+          <Text style={styles.sickModeActivateBtnText}>Activate Sick Mode</Text>
+        </Pressable>
       )}
 
       <View style={styles.welcome}>
@@ -418,8 +430,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
-  sickBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16, backgroundColor: "rgba(255,69,58,0.12)", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "rgba(255,69,58,0.3)" },
-  sickBannerText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: "#FF453A" },
+  sickModeActivateBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-end", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(255,69,58,0.08)", borderWidth: 1, borderColor: "rgba(255,69,58,0.2)", marginBottom: 8 },
+  sickModeActivateBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 12, color: "#FF453A" },
   welcome: { marginBottom: 20 },
   greetingText: { fontFamily: "Inter_700Bold", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   dateText: { fontFamily: "Inter_400Regular", fontSize: 14, color: C.textSecondary },

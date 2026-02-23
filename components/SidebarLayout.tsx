@@ -42,16 +42,20 @@ const PRIMARY_KEYS = ["dashboard", "log", "healthdata"];
 const PRIMARY_ITEMS = NAV_ITEMS.filter((n) => PRIMARY_KEYS.includes(n.key));
 const MORE_ITEMS = NAV_ITEMS.filter((n) => !PRIMARY_KEYS.includes(n.key));
 
+const ESSENTIAL_SICK_KEYS = ["dashboard", "sickmode", "medications", "symptoms", "settings"];
+
 interface SidebarLayoutProps {
   activeScreen: string;
   onNavigate: (screen: string) => void;
   children: React.ReactNode;
+  sickMode?: boolean;
 }
 
 export default function SidebarLayout({
   activeScreen,
   onNavigate,
   children,
+  sickMode,
 }: SidebarLayoutProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -76,19 +80,20 @@ export default function SidebarLayout({
           <View style={styles.mobileNavContent}>
             {PRIMARY_ITEMS.map((item) => {
               const active = activeScreen === item.key;
+              const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
               return (
                 <Pressable
                   key={item.key}
-                  style={styles.mobileNavItem}
+                  style={[styles.mobileNavItem, dimmed && { opacity: 0.35 }]}
                   onPress={() => onNavigate(item.key)}
                   testID={`tab-${item.key}`}
                 >
                   <Ionicons
                     name={active ? item.iconActive : item.icon}
                     size={22}
-                    color={active ? C.tint : C.textTertiary}
+                    color={active ? (sickMode ? C.red : C.tint) : C.textTertiary}
                   />
-                  <Text style={[styles.mobileNavLabel, active && { color: C.tint }]}>
+                  <Text style={[styles.mobileNavLabel, active && { color: sickMode ? C.red : C.tint }]}>
                     {item.label}
                   </Text>
                 </Pressable>
@@ -129,24 +134,25 @@ export default function SidebarLayout({
               <View style={styles.moreGrid}>
                 {MORE_ITEMS.map((item) => {
                   const active = activeScreen === item.key;
+                  const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
                   return (
                     <Pressable
                       key={item.key}
-                      style={[styles.moreItem, active && styles.moreItemActive]}
+                      style={[styles.moreItem, active && styles.moreItemActive, dimmed && { opacity: 0.35 }]}
                       onPress={() => {
                         onNavigate(item.key);
                         setMoreOpen(false);
                       }}
                       testID={`more-${item.key}`}
                     >
-                      <View style={[styles.moreIconWrap, active && { backgroundColor: C.tint + "22" }]}>
+                      <View style={[styles.moreIconWrap, active && { backgroundColor: (sickMode ? C.red : C.tint) + "22" }]}>
                         <Ionicons
                           name={active ? item.iconActive : item.icon}
                           size={22}
-                          color={active ? C.tint : C.textSecondary}
+                          color={active ? (sickMode ? C.red : C.tint) : C.textSecondary}
                         />
                       </View>
-                      <Text style={[styles.moreLabel, active && { color: C.tint }]}>
+                      <Text style={[styles.moreLabel, active && { color: sickMode ? C.red : C.tint }]}>
                         {item.label}
                       </Text>
                     </Pressable>
@@ -173,19 +179,20 @@ export default function SidebarLayout({
         <View style={styles.navList}>
           {NAV_ITEMS.map((item) => {
             const active = activeScreen === item.key;
+            const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
             return (
               <Pressable
                 key={item.key}
-                style={[styles.navItem, active && styles.navItemActive]}
+                style={[styles.navItem, active && styles.navItemActive, dimmed && { opacity: 0.35 }]}
                 onPress={() => onNavigate(item.key)}
               >
                 <Ionicons
                   name={active ? item.iconActive : item.icon}
                   size={18}
-                  color={active ? C.text : C.textTertiary}
+                  color={active ? (sickMode ? C.red : C.text) : C.textTertiary}
                 />
                 <Text
-                  style={[styles.navLabel, active && styles.navLabelActive]}
+                  style={[styles.navLabel, active && styles.navLabelActive, active && sickMode && { color: C.red }]}
                 >
                   {item.label}
                 </Text>
