@@ -7,6 +7,7 @@ import {
   Platform,
   ScrollView,
   useWindowDimensions,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -37,6 +38,10 @@ const NAV_ITEMS: NavItem[] = [
   { key: "settings", label: "Settings", icon: "settings-outline", iconActive: "settings" },
 ];
 
+const PRIMARY_KEYS = ["dashboard", "log", "healthdata"];
+const PRIMARY_ITEMS = NAV_ITEMS.filter((n) => PRIMARY_KEYS.includes(n.key));
+const MORE_ITEMS = NAV_ITEMS.filter((n) => !PRIMARY_KEYS.includes(n.key));
+
 interface SidebarLayoutProps {
   activeScreen: string;
   onNavigate: (screen: string) => void;
@@ -51,6 +56,9 @@ export default function SidebarLayout({
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  const moreIsActive = MORE_ITEMS.some((n) => n.key === activeScreen);
 
   if (!isWide) {
     return (
@@ -58,45 +66,96 @@ export default function SidebarLayout({
         <View style={[styles.mobileContent, { paddingBottom: 72 + (Platform.OS === "web" ? 34 : insets.bottom) }]}>
           {children}
         </View>
+
         <View
           style={[
             styles.mobileNav,
-            {
-              paddingBottom: Platform.OS === "web" ? 34 : insets.bottom,
-            },
+            { paddingBottom: Platform.OS === "web" ? 34 : insets.bottom },
           ]}
         >
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.mobileNavContent}
-          >
-            {NAV_ITEMS.filter(n => n.key !== "settings").map((item) => {
+          <View style={styles.mobileNavContent}>
+            {PRIMARY_ITEMS.map((item) => {
               const active = activeScreen === item.key;
               return (
                 <Pressable
                   key={item.key}
                   style={styles.mobileNavItem}
                   onPress={() => onNavigate(item.key)}
+                  testID={`tab-${item.key}`}
                 >
                   <Ionicons
                     name={active ? item.iconActive : item.icon}
                     size={22}
                     color={active ? C.tint : C.textTertiary}
                   />
-                  <Text
-                    style={[
-                      styles.mobileNavLabel,
-                      active && { color: C.tint },
-                    ]}
-                  >
+                  <Text style={[styles.mobileNavLabel, active && { color: C.tint }]}>
                     {item.label}
                   </Text>
                 </Pressable>
               );
             })}
-          </ScrollView>
+
+            <Pressable
+              style={styles.mobileNavItem}
+              onPress={() => setMoreOpen(true)}
+              testID="tab-more"
+            >
+              <Ionicons
+                name={moreIsActive ? "ellipsis-horizontal-circle" : "ellipsis-horizontal-circle-outline"}
+                size={22}
+                color={moreIsActive ? C.tint : C.textTertiary}
+              />
+              <Text style={[styles.mobileNavLabel, moreIsActive && { color: C.tint }]}>
+                More
+              </Text>
+            </Pressable>
+          </View>
         </View>
+
+        <Modal
+          visible={moreOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setMoreOpen(false)}
+        >
+          <Pressable style={styles.moreOverlay} onPress={() => setMoreOpen(false)}>
+            <Pressable
+              style={[styles.moreSheet, { paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 16 }]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={styles.moreHandle} />
+              <Text style={styles.moreTitle}>More</Text>
+
+              <View style={styles.moreGrid}>
+                {MORE_ITEMS.map((item) => {
+                  const active = activeScreen === item.key;
+                  return (
+                    <Pressable
+                      key={item.key}
+                      style={[styles.moreItem, active && styles.moreItemActive]}
+                      onPress={() => {
+                        onNavigate(item.key);
+                        setMoreOpen(false);
+                      }}
+                      testID={`more-${item.key}`}
+                    >
+                      <View style={[styles.moreIconWrap, active && { backgroundColor: C.tint + "22" }]}>
+                        <Ionicons
+                          name={active ? item.iconActive : item.icon}
+                          size={22}
+                          color={active ? C.tint : C.textSecondary}
+                        />
+                      </View>
+                      <Text style={[styles.moreLabel, active && { color: C.tint }]}>
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     );
   }
@@ -240,20 +299,75 @@ const styles = StyleSheet.create({
   },
   mobileNavContent: {
     flexDirection: "row",
-    paddingHorizontal: 8,
+    justifyContent: "space-around",
     paddingTop: 8,
-    gap: 4,
   },
   mobileNavItem: {
     alignItems: "center",
     paddingVertical: 6,
     paddingHorizontal: 12,
-    minWidth: 56,
+    minWidth: 64,
   },
   mobileNavLabel: {
     fontFamily: "Inter_500Medium",
     fontSize: 10,
     color: C.textTertiary,
     marginTop: 3,
+  },
+  moreOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  moreSheet: {
+    backgroundColor: C.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    paddingHorizontal: 24,
+  },
+  moreHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: C.textTertiary,
+    alignSelf: "center",
+    marginBottom: 16,
+    opacity: 0.4,
+  },
+  moreTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 18,
+    color: C.text,
+    marginBottom: 20,
+  },
+  moreGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  moreItem: {
+    width: "30%",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  moreItemActive: {
+    backgroundColor: C.tint + "10",
+  },
+  moreIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: C.border + "60",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  moreLabel: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 11,
+    color: C.textSecondary,
+    textAlign: "center",
   },
 });
