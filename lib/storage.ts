@@ -5,8 +5,17 @@ export interface HealthLog {
   id: string;
   date: string;
   energy: number;
-  symptoms: string[];
+  mood: number;
+  sleep: number;
+  notes: string;
   fasting: boolean;
+}
+
+export interface Symptom {
+  id: string;
+  date: string;
+  name: string;
+  severity: number;
   notes: string;
 }
 
@@ -14,7 +23,7 @@ export interface Medication {
   id: string;
   name: string;
   dosage: string;
-  timeTag: "Before Fajr" | "After Iftar" | "Morning" | "Night";
+  timeTag: "Before Fajr" | "After Iftar" | "Morning" | "Afternoon" | "Night";
   active: boolean;
 }
 
@@ -42,12 +51,40 @@ export interface DoctorNote {
   createdAt: string;
 }
 
+export interface FastingLog {
+  id: string;
+  date: string;
+  suhoorTime: string;
+  iftarTime: string;
+  hydrationGlasses: number;
+  energyLevel: number;
+  notes: string;
+}
+
+export interface Vital {
+  id: string;
+  date: string;
+  type: string;
+  value: string;
+  unit: string;
+}
+
+export interface UserSettings {
+  name: string;
+  conditions: string[];
+  ramadanMode: boolean;
+}
+
 const KEYS = {
-  HEALTH_LOGS: "seha_health_logs",
-  MEDICATIONS: "seha_medications",
-  MEDICATION_LOGS: "seha_medication_logs",
-  APPOINTMENTS: "seha_appointments",
-  DOCTOR_NOTES: "seha_doctor_notes",
+  HEALTH_LOGS: "fir_health_logs",
+  SYMPTOMS: "fir_symptoms",
+  MEDICATIONS: "fir_medications",
+  MEDICATION_LOGS: "fir_medication_logs",
+  APPOINTMENTS: "fir_appointments",
+  DOCTOR_NOTES: "fir_doctor_notes",
+  FASTING_LOGS: "fir_fasting_logs",
+  VITALS: "fir_vitals",
+  SETTINGS: "fir_settings",
 };
 
 async function getItem<T>(key: string): Promise<T[]> {
@@ -77,10 +114,24 @@ export const healthLogStorage = {
   },
   delete: async (id: string) => {
     const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
-    await setItem(
-      KEYS.HEALTH_LOGS,
-      logs.filter((l) => l.id !== id),
-    );
+    await setItem(KEYS.HEALTH_LOGS, logs.filter((l) => l.id !== id));
+  },
+};
+
+export const symptomStorage = {
+  getAll: () => getItem<Symptom>(KEYS.SYMPTOMS),
+  getByDate: async (date: string) => {
+    const all = await getItem<Symptom>(KEYS.SYMPTOMS);
+    return all.filter((s) => s.date === date);
+  },
+  save: async (symptom: Omit<Symptom, "id">) => {
+    const all = await getItem<Symptom>(KEYS.SYMPTOMS);
+    all.push({ ...symptom, id: Crypto.randomUUID() });
+    await setItem(KEYS.SYMPTOMS, all);
+  },
+  delete: async (id: string) => {
+    const all = await getItem<Symptom>(KEYS.SYMPTOMS);
+    await setItem(KEYS.SYMPTOMS, all.filter((s) => s.id !== id));
   },
 };
 
@@ -101,10 +152,7 @@ export const medicationStorage = {
   },
   delete: async (id: string) => {
     const meds = await getItem<Medication>(KEYS.MEDICATIONS);
-    await setItem(
-      KEYS.MEDICATIONS,
-      meds.filter((m) => m.id !== id),
-    );
+    await setItem(KEYS.MEDICATIONS, meds.filter((m) => m.id !== id));
   },
 };
 
@@ -122,12 +170,7 @@ export const medicationLogStorage = {
     if (existing >= 0) {
       logs[existing].taken = !logs[existing].taken;
     } else {
-      logs.push({
-        id: Crypto.randomUUID(),
-        medicationId,
-        date,
-        taken: true,
-      });
+      logs.push({ id: Crypto.randomUUID(), medicationId, date, taken: true });
     }
     await setItem(KEYS.MEDICATION_LOGS, logs);
   },
@@ -150,10 +193,7 @@ export const appointmentStorage = {
   },
   delete: async (id: string) => {
     const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
-    await setItem(
-      KEYS.APPOINTMENTS,
-      apts.filter((a) => a.id !== id),
-    );
+    await setItem(KEYS.APPOINTMENTS, apts.filter((a) => a.id !== id));
   },
 };
 
@@ -161,26 +201,54 @@ export const doctorNoteStorage = {
   getAll: () => getItem<DoctorNote>(KEYS.DOCTOR_NOTES),
   save: async (note: Omit<DoctorNote, "id" | "createdAt">) => {
     const notes = await getItem<DoctorNote>(KEYS.DOCTOR_NOTES);
-    notes.push({
-      ...note,
-      id: Crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    });
+    notes.push({ ...note, id: Crypto.randomUUID(), createdAt: new Date().toISOString() });
     await setItem(KEYS.DOCTOR_NOTES, notes);
-  },
-  update: async (id: string, text: string) => {
-    const notes = await getItem<DoctorNote>(KEYS.DOCTOR_NOTES);
-    const idx = notes.findIndex((n) => n.id === id);
-    if (idx >= 0) {
-      notes[idx].text = text;
-      await setItem(KEYS.DOCTOR_NOTES, notes);
-    }
   },
   delete: async (id: string) => {
     const notes = await getItem<DoctorNote>(KEYS.DOCTOR_NOTES);
-    await setItem(
-      KEYS.DOCTOR_NOTES,
-      notes.filter((n) => n.id !== id),
-    );
+    await setItem(KEYS.DOCTOR_NOTES, notes.filter((n) => n.id !== id));
+  },
+};
+
+export const fastingLogStorage = {
+  getAll: () => getItem<FastingLog>(KEYS.FASTING_LOGS),
+  getByDate: async (date: string) => {
+    const all = await getItem<FastingLog>(KEYS.FASTING_LOGS);
+    return all.find((f) => f.date === date);
+  },
+  save: async (log: Omit<FastingLog, "id">) => {
+    const all = await getItem<FastingLog>(KEYS.FASTING_LOGS);
+    const existing = all.findIndex((f) => f.date === log.date);
+    if (existing >= 0) {
+      all[existing] = { ...all[existing], ...log };
+    } else {
+      all.push({ ...log, id: Crypto.randomUUID() });
+    }
+    await setItem(KEYS.FASTING_LOGS, all);
+  },
+};
+
+export const vitalStorage = {
+  getAll: () => getItem<Vital>(KEYS.VITALS),
+  save: async (vital: Omit<Vital, "id">) => {
+    const all = await getItem<Vital>(KEYS.VITALS);
+    all.push({ ...vital, id: Crypto.randomUUID() });
+    await setItem(KEYS.VITALS, all);
+  },
+  delete: async (id: string) => {
+    const all = await getItem<Vital>(KEYS.VITALS);
+    await setItem(KEYS.VITALS, all.filter((v) => v.id !== id));
+  },
+};
+
+export const settingsStorage = {
+  get: async (): Promise<UserSettings> => {
+    const raw = await AsyncStorage.getItem(KEYS.SETTINGS);
+    return raw
+      ? JSON.parse(raw)
+      : { name: "", conditions: [], ramadanMode: false };
+  },
+  save: async (settings: UserSettings) => {
+    await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
   },
 };
