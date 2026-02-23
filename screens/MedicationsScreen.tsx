@@ -73,6 +73,8 @@ export default function MedicationsScreen() {
   const [formTimeTag, setFormTimeTag] = useState<Medication["timeTag"]>("Morning");
   const [formEmoji, setFormEmoji] = useState("");
   const [formDoses, setFormDoses] = useState("1");
+  const [tempInput, setTempInput] = useState("");
+  const [showTempModal, setShowTempModal] = useState(false);
 
   const loadData = useCallback(async () => {
     let meds = await medicationStorage.getAll();
@@ -202,6 +204,80 @@ export default function MedicationsScreen() {
   }, 0);
 
   const isHydrocortisone = (med: Medication) => med.name === "Hydrocortisone";
+
+  const SICK_SYMPTOMS = ["Nausea", "Vomiting", "Diarrhea", "Dizziness", "Fatigue", "Headache", "Chills", "Body aches", "Fever", "Loss of appetite"];
+  const HYDRATION_GOAL = 2000;
+
+  const updateSickData = async (updates: Partial<SickModeData>) => {
+    const current = sickData || await sickModeStorage.get();
+    const updated = { ...current, ...updates };
+    await sickModeStorage.save(updated);
+    setSickData(updated);
+  };
+
+  const addHydration = async (ml: number) => {
+    const current = sickData?.hydrationMl || 0;
+    await updateSickData({ hydrationMl: current + ml });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const toggleFoodItem = async (key: "lightMeal" | "saltySnack" | "liquidCalories") => {
+    const current = sickData?.foodChecklist || { lightMeal: false, saltySnack: false, liquidCalories: false };
+    await updateSickData({ foodChecklist: { ...current, [key]: !current[key] } });
+    Haptics.selectionAsync();
+  };
+
+  const toggleRestItem = async (key: "lying" | "napping" | "screenBreak") => {
+    const current = sickData?.restChecklist || { lying: false, napping: false, screenBreak: false };
+    await updateSickData({ restChecklist: { ...current, [key]: !current[key] } });
+    Haptics.selectionAsync();
+  };
+
+  const toggleSickSymptom = async (symptom: string) => {
+    const current = sickData?.symptoms || [];
+    const updated = current.includes(symptom) ? current.filter((s) => s !== symptom) : [...current, symptom];
+    await updateSickData({ symptoms: updated });
+    Haptics.selectionAsync();
+  };
+
+  const addTemperature = async () => {
+    const val = parseFloat(tempInput);
+    if (isNaN(val)) return;
+    const current = sickData?.temperatures || [];
+    const now = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    await updateSickData({ temperatures: [...current, { time: now, value: val }] });
+    setTempInput("");
+    setShowTempModal(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (val >= 100 && !settings.sickMode) {
+      Alert.alert("High Temperature", "Your temperature is ≥ 100°F. Consider activating Sick Mode in Settings.");
+    }
+  };
+
+  const takePRN = async (med: string) => {
+    const current = sickData?.prnDoses || [];
+    const now = new Date().toISOString();
+    await updateSickData({ prnDoses: [...current, { med, time: now }] });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const getLastPRNTime = (med: string): Date | null => {
+    const doses = sickData?.prnDoses?.filter((d) => d.med === med) || [];
+    if (doses.length === 0) return null;
+    return new Date(doses[doses.length - 1].time);
+  };
+
+  const getPRNCountdown = (med: string, intervalHours: number): string | null => {
+    const last = getLastPRNTime(med);
+    if (!last) return null;
+    const nextAllowed = new Date(last.getTime() + intervalHours * 60 * 60 * 1000);
+    const now = new Date();
+    if (now >= nextAllowed) return null;
+    const diff = nextAllowed.getTime() - now.getTime();
+    const hrs = Math.floor(diff / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    return `${hrs}h ${mins}m`;
+  };
 
   const doseLabels = (med: Medication): string[] => {
     const count = getDoseCount(med);
@@ -352,7 +428,177 @@ export default function MedicationsScreen() {
             })}
           </View>
         ))}
+
+        {isSickMode && sickData && (
+          <View style={styles.protocolSection}>
+            <View style={styles.protocolHeader}>
+              <Ionicons name="shield" size={20} color={C.red} />
+              <Text style={styles.protocolTitle}>Sick Mode Protocol</Text>
+            </View>
+
+            <View style={styles.protocolCard}>
+              <View style={styles.protocolCardHeader}>
+                <Text style={{ fontSize: 16 }}>💧</Text>
+                <Text style={styles.protocolCardTitle}>Hydration</Text>
+                <Text style={styles.protocolMeta}>{sickData.hydrationMl} / {HYDRATION_GOAL} mL</Text>
+              </View>
+              <View style={styles.hydrationBar}>
+                <View style={[styles.hydrationFill, { width: `${Math.min(100, (sickData.hydrationMl / HYDRATION_GOAL) * 100)}%` }]} />
+              </View>
+              <View style={styles.hydrationBtns}>
+                {[250, 500].map((ml) => (
+                  <Pressable key={ml} style={styles.hydrationBtn} onPress={() => addHydration(ml)}>
+                    <Ionicons name="add" size={14} color={C.tint} />
+                    <Text style={styles.hydrationBtnText}>{ml} mL</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.protocolCard}>
+              <View style={styles.protocolCardHeader}>
+                <Text style={{ fontSize: 16 }}>🍽️</Text>
+                <Text style={styles.protocolCardTitle}>Food Checklist</Text>
+              </View>
+              {([
+                { key: "lightMeal" as const, label: "Light meal", icon: "restaurant-outline" },
+                { key: "saltySnack" as const, label: "Salty snack", icon: "nutrition-outline" },
+                { key: "liquidCalories" as const, label: "Liquid calories", icon: "water-outline" },
+              ]).map(({ key, label, icon }) => (
+                <Pressable key={key} style={styles.checkRow} onPress={() => toggleFoodItem(key)}>
+                  <Ionicons
+                    name={sickData.foodChecklist[key] ? "checkmark-circle" : "ellipse-outline"}
+                    size={22}
+                    color={sickData.foodChecklist[key] ? C.green : C.textTertiary}
+                  />
+                  <Ionicons name={icon as any} size={16} color={C.textSecondary} />
+                  <Text style={[styles.checkLabel, sickData.foodChecklist[key] && { color: C.green }]}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.protocolCard}>
+              <View style={styles.protocolCardHeader}>
+                <Text style={{ fontSize: 16 }}>💊</Text>
+                <Text style={styles.protocolCardTitle}>PRN Medication</Text>
+              </View>
+              {(() => {
+                const countdown = getPRNCountdown("Tylenol", 4);
+                const lastDose = getLastPRNTime("Tylenol");
+                return (
+                  <View>
+                    <View style={styles.prnRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.prnName}>Tylenol (Acetaminophen)</Text>
+                        <Text style={styles.prnDose}>500 mg · Every 4 hours as needed</Text>
+                        {lastDose && (
+                          <Text style={styles.prnLastDose}>
+                            Last dose: {lastDose.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                          </Text>
+                        )}
+                      </View>
+                      {countdown ? (
+                        <View style={styles.prnCountdown}>
+                          <Ionicons name="time-outline" size={14} color={C.orange} />
+                          <Text style={styles.prnCountdownText}>{countdown}</Text>
+                        </View>
+                      ) : (
+                        <Pressable style={styles.prnTakeBtn} onPress={() => takePRN("Tylenol")}>
+                          <Text style={styles.prnTakeBtnText}>Take</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+                );
+              })()}
+            </View>
+
+            <View style={styles.protocolCard}>
+              <View style={styles.protocolCardHeader}>
+                <Text style={{ fontSize: 16 }}>🌡️</Text>
+                <Text style={styles.protocolCardTitle}>Temperature</Text>
+                <Pressable style={styles.tempAddBtn} onPress={() => setShowTempModal(true)}>
+                  <Ionicons name="add" size={16} color={C.tint} />
+                </Pressable>
+              </View>
+              {(sickData.temperatures || []).length === 0 && (
+                <Text style={styles.protocolEmpty}>No readings yet. Tap + to log temperature.</Text>
+              )}
+              {(sickData.temperatures || []).slice(-5).reverse().map((t, i) => (
+                <View key={i} style={styles.tempRow}>
+                  <Text style={styles.tempTime}>{t.time}</Text>
+                  <Text style={[styles.tempValue, t.value >= 100 && { color: C.red }]}>
+                    {t.value}°F {t.value >= 100 ? "⚠️" : ""}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.protocolCard}>
+              <View style={styles.protocolCardHeader}>
+                <Text style={{ fontSize: 16 }}>😴</Text>
+                <Text style={styles.protocolCardTitle}>Rest Checklist</Text>
+              </View>
+              {([
+                { key: "lying" as const, label: "Lying down / resting" },
+                { key: "napping" as const, label: "Took a nap" },
+                { key: "screenBreak" as const, label: "Screen break taken" },
+              ]).map(({ key, label }) => (
+                <Pressable key={key} style={styles.checkRow} onPress={() => toggleRestItem(key)}>
+                  <Ionicons
+                    name={sickData.restChecklist[key] ? "checkmark-circle" : "ellipse-outline"}
+                    size={22}
+                    color={sickData.restChecklist[key] ? C.green : C.textTertiary}
+                  />
+                  <Text style={[styles.checkLabel, sickData.restChecklist[key] && { color: C.green }]}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.protocolCard}>
+              <View style={styles.protocolCardHeader}>
+                <Text style={{ fontSize: 16 }}>🩺</Text>
+                <Text style={styles.protocolCardTitle}>Quick Symptoms</Text>
+              </View>
+              <View style={styles.symptomGrid}>
+                {SICK_SYMPTOMS.map((s) => {
+                  const active = sickData.symptoms?.includes(s);
+                  return (
+                    <Pressable key={s} style={[styles.symptomChip, active && styles.symptomChipActive]} onPress={() => toggleSickSymptom(s)}>
+                      <Text style={[styles.symptomChipText, active && { color: C.red }]}>{s}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        )}
       </ScrollView>
+
+      <Modal visible={showTempModal} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => setShowTempModal(false)}>
+          <Pressable style={styles.modal} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Log Temperature</Text>
+            <Text style={styles.label}>Temperature (°F)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. 98.6"
+              placeholderTextColor={C.textTertiary}
+              value={tempInput}
+              onChangeText={setTempInput}
+              keyboardType="decimal-pad"
+            />
+            <View style={styles.modalActions}>
+              <Pressable style={styles.cancelBtn} onPress={() => setShowTempModal(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={[styles.confirmBtn, !tempInput.trim() && { opacity: 0.5 }]} onPress={addTemperature} disabled={!tempInput.trim()}>
+                <Text style={styles.confirmText}>Log</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal visible={showModal} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowModal(false)}>
@@ -506,4 +752,35 @@ const styles = StyleSheet.create({
   nudgeBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: "#fff" },
   nudgeDismiss: { paddingVertical: 10 },
   nudgeDismissText: { fontFamily: "Inter_500Medium", fontSize: 13, color: C.textTertiary },
+  protocolSection: { marginTop: 12, paddingTop: 20, borderTopWidth: 1, borderTopColor: "rgba(255,69,58,0.2)" },
+  protocolHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
+  protocolTitle: { fontFamily: "Inter_700Bold", fontSize: 18, color: C.red, letterSpacing: -0.3 },
+  protocolCard: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: "rgba(255,69,58,0.15)" },
+  protocolCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  protocolCardTitle: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: C.text, flex: 1 },
+  protocolMeta: { fontFamily: "Inter_500Medium", fontSize: 12, color: C.textSecondary },
+  protocolEmpty: { fontFamily: "Inter_400Regular", fontSize: 13, color: C.textTertiary },
+  hydrationBar: { height: 8, borderRadius: 4, backgroundColor: "rgba(10,132,255,0.15)", marginBottom: 12, overflow: "hidden" },
+  hydrationFill: { height: "100%", backgroundColor: C.tint, borderRadius: 4 },
+  hydrationBtns: { flexDirection: "row", gap: 8 },
+  hydrationBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, borderRadius: 10, backgroundColor: C.tintLight, borderWidth: 1, borderColor: "rgba(10,132,255,0.2)" },
+  hydrationBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: C.tint },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  checkLabel: { fontFamily: "Inter_500Medium", fontSize: 14, color: C.text, flex: 1 },
+  prnRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  prnName: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: C.text, marginBottom: 2 },
+  prnDose: { fontFamily: "Inter_400Regular", fontSize: 12, color: C.textSecondary },
+  prnLastDose: { fontFamily: "Inter_400Regular", fontSize: 11, color: C.textTertiary, marginTop: 4 },
+  prnCountdown: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: C.orangeLight },
+  prnCountdownText: { fontFamily: "Inter_600SemiBold", fontSize: 12, color: C.orange },
+  prnTakeBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: C.green },
+  prnTakeBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: "#fff" },
+  tempAddBtn: { width: 28, height: 28, borderRadius: 7, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
+  tempRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
+  tempTime: { fontFamily: "Inter_400Regular", fontSize: 13, color: C.textSecondary },
+  tempValue: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: C.text },
+  symptomGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  symptomChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
+  symptomChipActive: { borderColor: "rgba(255,69,58,0.4)", backgroundColor: "rgba(255,69,58,0.1)" },
+  symptomChipText: { fontFamily: "Inter_500Medium", fontSize: 12, color: C.textSecondary },
 });
