@@ -24,6 +24,10 @@ export interface Medication {
   name: string;
   dosage: string;
   frequency: string;
+  unit?: string;
+  route?: string;
+  emoji?: string;
+  doses?: number;
   timeTag: "Before Fajr" | "After Iftar" | "Morning" | "Afternoon" | "Night";
   active: boolean;
 }
@@ -31,8 +35,20 @@ export interface Medication {
 export interface MedicationLog {
   id: string;
   medicationId: string;
+  doseIndex?: number;
   date: string;
   taken: boolean;
+}
+
+export interface SickModeData {
+  active: boolean;
+  startedAt?: string;
+  hydrationMl: number;
+  foodChecklist: { lightMeal: boolean; saltySnack: boolean; liquidCalories: boolean };
+  restChecklist: { lying: boolean; napping: boolean; screenBreak: boolean };
+  symptoms: string[];
+  temperatures: { time: string; value: number }[];
+  prnDoses: { med: string; time: string }[];
 }
 
 export interface Appointment {
@@ -109,6 +125,7 @@ export interface UserSettings {
   name: string;
   conditions: string[];
   ramadanMode: boolean;
+  sickMode: boolean;
 }
 
 const KEYS = {
@@ -121,6 +138,7 @@ const KEYS = {
   FASTING_LOGS: "fir_fasting_logs",
   VITALS: "fir_vitals",
   SETTINGS: "fir_settings",
+  SICK_MODE: "fir_sick_mode",
   DOCUMENTS: "fir_documents",
   INSIGHTS: "fir_insights",
   MED_COMPARISONS: "fir_med_comparisons",
@@ -201,15 +219,15 @@ export const medicationLogStorage = {
     const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
     return logs.filter((l) => l.date === date);
   },
-  toggle: async (medicationId: string, date: string) => {
+  toggle: async (medicationId: string, date: string, doseIndex?: number) => {
     const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
     const existing = logs.findIndex(
-      (l) => l.medicationId === medicationId && l.date === date,
+      (l) => l.medicationId === medicationId && l.date === date && (l.doseIndex ?? 0) === (doseIndex ?? 0),
     );
     if (existing >= 0) {
       logs[existing].taken = !logs[existing].taken;
     } else {
-      logs.push({ id: Crypto.randomUUID(), medicationId, date, taken: true });
+      logs.push({ id: Crypto.randomUUID(), medicationId, doseIndex: doseIndex ?? 0, date, taken: true });
     }
     await setItem(KEYS.MEDICATION_LOGS, logs);
   },
@@ -283,12 +301,34 @@ export const vitalStorage = {
 export const settingsStorage = {
   get: async (): Promise<UserSettings> => {
     const raw = await AsyncStorage.getItem(KEYS.SETTINGS);
-    return raw
-      ? JSON.parse(raw)
-      : { name: "", conditions: [], ramadanMode: false };
+    const defaults: UserSettings = { name: "", conditions: [], ramadanMode: false, sickMode: false };
+    return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
   },
   save: async (settings: UserSettings) => {
     await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+  },
+};
+
+const DEFAULT_SICK_MODE: SickModeData = {
+  active: false,
+  hydrationMl: 0,
+  foodChecklist: { lightMeal: false, saltySnack: false, liquidCalories: false },
+  restChecklist: { lying: false, napping: false, screenBreak: false },
+  symptoms: [],
+  temperatures: [],
+  prnDoses: [],
+};
+
+export const sickModeStorage = {
+  get: async (): Promise<SickModeData> => {
+    const raw = await AsyncStorage.getItem(KEYS.SICK_MODE);
+    return raw ? { ...DEFAULT_SICK_MODE, ...JSON.parse(raw) } : { ...DEFAULT_SICK_MODE };
+  },
+  save: async (data: SickModeData) => {
+    await AsyncStorage.setItem(KEYS.SICK_MODE, JSON.stringify(data));
+  },
+  reset: async () => {
+    await AsyncStorage.setItem(KEYS.SICK_MODE, JSON.stringify(DEFAULT_SICK_MODE));
   },
 };
 
