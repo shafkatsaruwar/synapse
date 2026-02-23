@@ -10,14 +10,23 @@ import { medicationStorage, medicationLogStorage, type Medication, type Medicati
 import { getToday } from "@/lib/date-utils";
 
 const C = Colors.dark;
-const TIME_TAGS: Medication["timeTag"][] = ["Before Fajr", "After Iftar", "Morning", "Afternoon", "Night"];
-const TAG_COLORS: Record<string, { bg: string; text: string }> = {
-  "Before Fajr": { bg: C.accentLight, text: C.accent },
-  "After Iftar": { bg: C.orangeLight, text: C.orange },
-  Morning: { bg: C.tintLight, text: C.tint },
-  Afternoon: { bg: C.yellowLight, text: C.yellow },
-  Night: { bg: C.purpleLight, text: C.purple },
+const TIME_TAGS: Medication["timeTag"][] = ["Morning", "Afternoon", "Night", "Before Fajr", "After Iftar"];
+const TAG_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
+  Morning: { bg: C.tintLight, text: C.tint, icon: "sunny-outline" },
+  Afternoon: { bg: C.yellowLight, text: C.yellow, icon: "partly-sunny-outline" },
+  Night: { bg: C.purpleLight, text: C.purple, icon: "moon-outline" },
+  "Before Fajr": { bg: C.accentLight, text: C.accent, icon: "moon-outline" },
+  "After Iftar": { bg: C.orangeLight, text: C.orange, icon: "restaurant-outline" },
 };
+
+const DEFAULT_MEDICATIONS: Omit<Medication, "id">[] = [
+  { name: "Testosterone Cypionate", dosage: "50 mg (0.5 mL) IM injection", frequency: "Once weekly", timeTag: "Morning", active: true },
+  { name: "Sograya (Semaglutide)", dosage: "10 mg / 1.5 mL SubQ injection", frequency: "Once weekly", timeTag: "Morning", active: true },
+  { name: "Levothyroxine", dosage: "200 mcg tablet", frequency: "Daily, before breakfast", timeTag: "Morning", active: true },
+  { name: "Fluticasone/Salmeterol (Advair)", dosage: "250-50 mcg diskus inhaler, 1 puff", frequency: "Twice daily (morning & bedtime)", timeTag: "Morning", active: true },
+  { name: "Hydrocortisone", dosage: "5 mg tablet (3 morning + 1 afternoon)", frequency: "Daily", timeTag: "Morning", active: true },
+  { name: "Simethicone", dosage: "80 mg chewable tablet", frequency: "As needed for gas", timeTag: "Afternoon", active: true },
+];
 
 export default function MedicationsScreen() {
   const insets = useSafeAreaInsets();
@@ -30,10 +39,19 @@ export default function MedicationsScreen() {
   const [showModal, setShowModal] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDosage, setNewDosage] = useState("");
+  const [newFrequency, setNewFrequency] = useState("");
   const [newTimeTag, setNewTimeTag] = useState<Medication["timeTag"]>("Morning");
+  const [nudgeMedId, setNudgeMedId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    const [meds, logs] = await Promise.all([medicationStorage.getAll(), medicationLogStorage.getByDate(today)]);
+    let meds = await medicationStorage.getAll();
+    if (meds.length === 0) {
+      for (const def of DEFAULT_MEDICATIONS) {
+        await medicationStorage.save(def);
+      }
+      meds = await medicationStorage.getAll();
+    }
+    const logs = await medicationLogStorage.getByDate(today);
     setMedications(meds);
     setMedLogs(logs);
   }, [today]);
@@ -42,16 +60,40 @@ export default function MedicationsScreen() {
 
   const handleAdd = async () => {
     if (!newName.trim()) return;
-    await medicationStorage.save({ name: newName.trim(), dosage: newDosage.trim(), timeTag: newTimeTag, active: true });
+    await medicationStorage.save({ name: newName.trim(), dosage: newDosage.trim(), frequency: newFrequency.trim(), timeTag: newTimeTag, active: true });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setNewName(""); setNewDosage(""); setNewTimeTag("Morning"); setShowModal(false);
+    setNewName(""); setNewDosage(""); setNewFrequency(""); setNewTimeTag("Morning"); setShowModal(false);
     loadData();
   };
 
-  const handleToggle = async (medId: string) => {
-    await medicationLogStorage.toggle(medId, today);
-    Haptics.selectionAsync();
-    loadData();
+  const handleTaken = async (medId: string) => {
+    const log = medLogs.find((l) => l.medicationId === medId);
+    if (log?.taken) {
+      await medicationLogStorage.toggle(medId, today);
+      Haptics.selectionAsync();
+      loadData();
+    } else {
+      await medicationLogStorage.toggle(medId, today);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      loadData();
+    }
+  };
+
+  const handleNotYet = (medId: string) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    setNudgeMedId(medId);
+  };
+
+  const handleAlrightTookIt = async () => {
+    if (nudgeMedId) {
+      const log = medLogs.find((l) => l.medicationId === nudgeMedId);
+      if (!log?.taken) {
+        await medicationLogStorage.toggle(nudgeMedId, today);
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setNudgeMedId(null);
+      loadData();
+    }
   };
 
   const handleDelete = async (med: Medication) => {
@@ -68,6 +110,9 @@ export default function MedicationsScreen() {
     tag, meds: medications.filter((m) => m.timeTag === tag && m.active),
   })).filter((g) => g.meds.length > 0);
 
+  const takenCount = medications.filter((m) => m.active && isTaken(m.id)).length;
+  const totalActive = medications.filter((m) => m.active).length;
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -81,12 +126,18 @@ export default function MedicationsScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Medications</Text>
-            <Text style={styles.subtitle}>{medications.filter((m) => m.active).length} active</Text>
+            <Text style={styles.subtitle}>{takenCount}/{totalActive} taken today</Text>
           </View>
-          <Pressable style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => setShowModal(true)}>
+          <Pressable testID="add-medication" style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => setShowModal(true)}>
             <Ionicons name="add" size={20} color="#fff" />
           </Pressable>
         </View>
+
+        {totalActive > 0 && (
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: `${totalActive > 0 ? (takenCount / totalActive) * 100 : 0}%` }]} />
+          </View>
+        )}
 
         {grouped.length === 0 && (
           <View style={styles.empty}>
@@ -99,23 +150,41 @@ export default function MedicationsScreen() {
         {grouped.map(({ tag, meds }) => (
           <View key={tag} style={{ marginBottom: 20 }}>
             <View style={[styles.tagBadge, { backgroundColor: TAG_COLORS[tag].bg }]}>
+              <Ionicons name={TAG_COLORS[tag].icon as any} size={12} color={TAG_COLORS[tag].text} />
               <Text style={[styles.tagText, { color: TAG_COLORS[tag].text }]}>{tag}</Text>
             </View>
             {meds.map((med) => {
               const taken = isTaken(med.id);
               return (
-                <Pressable key={med.id} style={[styles.medCard, taken && styles.medCardTaken]} onPress={() => handleToggle(med.id)}>
-                  <View style={[styles.check, taken && { backgroundColor: C.tint, borderColor: C.tint }]}>
-                    {taken && <Ionicons name="checkmark" size={13} color="#fff" />}
+                <View key={med.id} style={[styles.medCard, taken && styles.medCardTaken]}>
+                  <View style={styles.medInfo}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.medName, taken && styles.medNameTaken]}>{med.name}</Text>
+                      {!!med.dosage && <Text style={styles.medDose}>{med.dosage}</Text>}
+                      {!!med.frequency && <Text style={styles.medFreq}>{med.frequency}</Text>}
+                    </View>
+                    <Pressable onPress={() => handleDelete(med)} hitSlop={12}>
+                      <Ionicons name="trash-outline" size={16} color={C.textTertiary} />
+                    </Pressable>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.medName, taken && { textDecorationLine: "line-through", color: C.textSecondary }]}>{med.name}</Text>
-                    {!!med.dosage && <Text style={styles.medDose}>{med.dosage}</Text>}
-                  </View>
-                  <Pressable onPress={() => handleDelete(med)} hitSlop={12}>
-                    <Ionicons name="trash-outline" size={16} color={C.textTertiary} />
-                  </Pressable>
-                </Pressable>
+
+                  {taken ? (
+                    <Pressable style={styles.takenBanner} onPress={() => handleTaken(med.id)}>
+                      <Ionicons name="checkmark-circle" size={18} color={C.green} />
+                      <Text style={styles.takenText}>Taken</Text>
+                    </Pressable>
+                  ) : (
+                    <View style={styles.actionRow}>
+                      <Pressable style={styles.yesBtn} onPress={() => handleTaken(med.id)} testID={`taken-${med.name}`}>
+                        <Ionicons name="checkmark" size={16} color="#fff" />
+                        <Text style={styles.yesBtnText}>Yes, took it</Text>
+                      </Pressable>
+                      <Pressable style={styles.notYetBtn} onPress={() => handleNotYet(med.id)} testID={`notyet-${med.name}`}>
+                        <Text style={styles.notYetText}>Not yet</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
               );
             })}
           </View>
@@ -129,8 +198,10 @@ export default function MedicationsScreen() {
             <Text style={styles.label}>Name</Text>
             <TextInput style={styles.input} placeholder="e.g. Metformin" placeholderTextColor={C.textTertiary} value={newName} onChangeText={setNewName} />
             <Text style={styles.label}>Dosage</Text>
-            <TextInput style={styles.input} placeholder="e.g. 500mg" placeholderTextColor={C.textTertiary} value={newDosage} onChangeText={setNewDosage} />
-            <Text style={styles.label}>Time</Text>
+            <TextInput style={styles.input} placeholder="e.g. 500mg tablet" placeholderTextColor={C.textTertiary} value={newDosage} onChangeText={setNewDosage} />
+            <Text style={styles.label}>Frequency</Text>
+            <TextInput style={styles.input} placeholder="e.g. Once daily" placeholderTextColor={C.textTertiary} value={newFrequency} onChangeText={setNewFrequency} />
+            <Text style={styles.label}>Time of Day</Text>
             <View style={styles.tagPicker}>
               {TIME_TAGS.map((tag) => (
                 <Pressable key={tag} style={[styles.tagOpt, newTimeTag === tag && { backgroundColor: TAG_COLORS[tag].bg, borderColor: TAG_COLORS[tag].text }]} onPress={() => { setNewTimeTag(tag); Haptics.selectionAsync(); }}>
@@ -145,6 +216,26 @@ export default function MedicationsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal visible={!!nudgeMedId} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.nudgeCard}>
+            <Text style={styles.nudgeEmoji}>😤</Text>
+            <Text style={styles.nudgeText}>What, you expecting an invite from Amma?</Text>
+            <Pressable
+              style={styles.nudgeBtn}
+              testID="alright-took-it"
+              onPress={handleAlrightTookIt}
+            >
+              <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              <Text style={styles.nudgeBtnText}>alright, alright, took it</Text>
+            </Pressable>
+            <Pressable style={styles.nudgeDismiss} onPress={() => setNudgeMedId(null)}>
+              <Text style={styles.nudgeDismissText}>I really haven't yet</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -152,20 +243,31 @@ export default function MedicationsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 },
   title: { fontFamily: "Inter_700Bold", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   subtitle: { fontFamily: "Inter_400Regular", fontSize: 14, color: C.textSecondary },
   addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+  progressBar: { height: 4, borderRadius: 2, backgroundColor: C.surfaceElevated, marginBottom: 24 },
+  progressFill: { height: 4, borderRadius: 2, backgroundColor: C.green },
   empty: { alignItems: "center", paddingVertical: 60, gap: 8 },
   emptyTitle: { fontFamily: "Inter_600SemiBold", fontSize: 17, color: C.text, marginTop: 8 },
   emptyDesc: { fontFamily: "Inter_400Regular", fontSize: 13, color: C.textTertiary },
-  tagBadge: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
+  tagBadge: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
   tagText: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
-  medCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 6, borderWidth: 1, borderColor: C.border, gap: 12 },
-  medCardTaken: { borderColor: "rgba(10,132,255,0.2)", backgroundColor: C.tintLight },
-  check: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: C.border, alignItems: "center", justifyContent: "center" },
-  medName: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: C.text },
-  medDose: { fontFamily: "Inter_400Regular", fontSize: 12, color: C.textSecondary, marginTop: 1 },
+  medCard: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border },
+  medCardTaken: { borderColor: "rgba(48,209,88,0.25)", backgroundColor: "rgba(48,209,88,0.05)" },
+  medInfo: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 12 },
+  medName: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: C.text, marginBottom: 2 },
+  medNameTaken: { color: C.textSecondary },
+  medDose: { fontFamily: "Inter_400Regular", fontSize: 12, color: C.textSecondary, marginTop: 2 },
+  medFreq: { fontFamily: "Inter_500Medium", fontSize: 11, color: C.tint, marginTop: 3 },
+  actionRow: { flexDirection: "row", gap: 8 },
+  yesBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: C.green },
+  yesBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: "#fff" },
+  notYetBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  notYetText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: C.textSecondary },
+  takenBanner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(48,209,88,0.1)" },
+  takenText: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: C.green },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
   modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 380, borderWidth: 1, borderColor: C.border },
   modalTitle: { fontFamily: "Inter_700Bold", fontSize: 18, color: C.text, marginBottom: 20 },
@@ -179,4 +281,11 @@ const styles = StyleSheet.create({
   cancelText: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: C.textSecondary },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.tint, alignItems: "center" },
   confirmText: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: "#fff" },
+  nudgeCard: { backgroundColor: C.surface, borderRadius: 20, padding: 28, width: "100%", maxWidth: 340, borderWidth: 1, borderColor: C.border, alignItems: "center" },
+  nudgeEmoji: { fontSize: 44, marginBottom: 16 },
+  nudgeText: { fontFamily: "Inter_600SemiBold", fontSize: 16, color: C.text, textAlign: "center", lineHeight: 22, marginBottom: 24 },
+  nudgeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.green, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, width: "100%", marginBottom: 10 },
+  nudgeBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: "#fff" },
+  nudgeDismiss: { paddingVertical: 10 },
+  nudgeDismissText: { fontFamily: "Inter_500Medium", fontSize: 13, color: C.textTertiary },
 });

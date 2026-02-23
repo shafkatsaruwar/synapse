@@ -23,6 +23,7 @@ export interface Medication {
   id: string;
   name: string;
   dosage: string;
+  frequency: string;
   timeTag: "Before Fajr" | "After Iftar" | "Morning" | "Afternoon" | "Night";
   active: boolean;
 }
