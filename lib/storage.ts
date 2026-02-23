@@ -290,3 +290,88 @@ export const settingsStorage = {
     await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
   },
 };
+
+export const documentStorage = {
+  getAll: () => getItem<DocumentExtraction>(KEYS.DOCUMENTS),
+  save: async (doc: Omit<DocumentExtraction, "id">) => {
+    const all = await getItem<DocumentExtraction>(KEYS.DOCUMENTS);
+    const newDoc = { ...doc, id: Crypto.randomUUID() };
+    all.push(newDoc);
+    await setItem(KEYS.DOCUMENTS, all);
+    return newDoc;
+  },
+  delete: async (id: string) => {
+    const all = await getItem<DocumentExtraction>(KEYS.DOCUMENTS);
+    await setItem(KEYS.DOCUMENTS, all.filter((d) => d.id !== id));
+  },
+};
+
+export const insightStorage = {
+  getAll: () => getItem<HealthInsight>(KEYS.INSIGHTS),
+  getLatest: async () => {
+    const all = await getItem<HealthInsight>(KEYS.INSIGHTS);
+    return all.sort((a, b) => b.date.localeCompare(a.date))[0];
+  },
+  save: async (insight: Omit<HealthInsight, "id">) => {
+    const all = await getItem<HealthInsight>(KEYS.INSIGHTS);
+    const newInsight = { ...insight, id: Crypto.randomUUID() };
+    all.push(newInsight);
+    await setItem(KEYS.INSIGHTS, all);
+    return newInsight;
+  },
+  deleteAll: async () => {
+    await setItem(KEYS.INSIGHTS, []);
+  },
+};
+
+export const medComparisonStorage = {
+  getAll: () => getItem<MedComparison>(KEYS.MED_COMPARISONS),
+  save: async (comp: Omit<MedComparison, "id">) => {
+    const all = await getItem<MedComparison>(KEYS.MED_COMPARISONS);
+    const newComp = { ...comp, id: Crypto.randomUUID() };
+    all.push(newComp);
+    await setItem(KEYS.MED_COMPARISONS, all);
+    return newComp;
+  },
+  delete: async (id: string) => {
+    const all = await getItem<MedComparison>(KEYS.MED_COMPARISONS);
+    await setItem(KEYS.MED_COMPARISONS, all.filter((c) => c.id !== id));
+  },
+};
+
+export const exportAllData = async () => {
+  const [healthLogs, symptoms, medications, medLogs, appointments, doctorNotes, fastingLogs, vitals, settings, documents, insights] = await Promise.all([
+    healthLogStorage.getAll(),
+    symptomStorage.getAll(),
+    medicationStorage.getAll(),
+    medicationLogStorage.getAll(),
+    appointmentStorage.getAll(),
+    doctorNoteStorage.getAll(),
+    fastingLogStorage.getAll(),
+    vitalStorage.getAll(),
+    settingsStorage.get(),
+    documentStorage.getAll(),
+    insightStorage.getAll(),
+  ]);
+  return {
+    exportDate: new Date().toISOString(),
+    appVersion: "1.0",
+    profile: settings,
+    healthLogs,
+    symptoms,
+    medications,
+    medicationLogs: medLogs,
+    appointments,
+    doctorNotes,
+    fastingLogs,
+    vitals,
+    documents,
+    insights,
+  };
+};
+
+export const clearAllData = async () => {
+  await Promise.all(
+    Object.values(KEYS).map((key) => AsyncStorage.removeItem(key))
+  );
+};
