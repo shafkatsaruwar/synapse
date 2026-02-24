@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
   welcome: { marginBottom: 20 },
   greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
-  hijriDate: { fontWeight: "600", fontSize: 14, color: "#3C2415", marginBottom: 6 },
+  hijriDate: { fontWeight: "600", fontSize: 14, color: "#3C2415", marginBottom: 20 },
   sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
   priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 20 },
   priorityGridItem: { width: "48%", marginBottom: 12 },
