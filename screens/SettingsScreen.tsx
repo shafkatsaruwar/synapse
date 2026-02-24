@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { settingsStorage, vitalStorage, sickModeStorage, allergyStorage, clearAllData, type UserSettings, type Vital, type AllergyInfo } from "@/lib/storage";
+import { settingsStorage, vitalStorage, allergyStorage, clearAllData, type UserSettings, type Vital, type AllergyInfo } from "@/lib/storage";
 
 const C = Colors.dark;
 
@@ -140,38 +140,6 @@ export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
             </View>
             <View style={[styles.toggle, settings.highContrast && styles.toggleActive]}>
               <View style={[styles.toggleThumb, settings.highContrast && styles.toggleThumbActive]} />
-            </View>
-          </View>
-        </Pressable>
-
-        <Pressable
-          style={[styles.card, settings.sickMode && { borderColor: "rgba(255,69,58,0.4)", backgroundColor: "rgba(255,69,58,0.06)" }]}
-          testID="sick-mode-toggle"
-          onPress={async () => {
-            const next = !settings.sickMode;
-            setSettings((p) => ({ ...p, sickMode: next }));
-            setSaved(false);
-            Haptics.selectionAsync();
-            if (!next) { await sickModeStorage.reset(); }
-            else { const d = await sickModeStorage.get(); await sickModeStorage.save({ ...d, active: true, startedAt: new Date().toISOString() }); }
-          }}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: settings.sickMode }}
-        >
-          <View style={styles.toggleHeader}>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text style={[styles.sectionTitle, settings.sickMode && { color: C.red }]}>Sick Mode</Text>
-                {settings.sickMode && (
-                  <View style={{ backgroundColor: C.red, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
-                    <Text style={{ fontWeight: "700", fontSize: 9, color: "#fff", letterSpacing: 1 }}>ACTIVE</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.desc}>Activate stress dosing protocol for adrenal crisis</Text>
-            </View>
-            <View style={[styles.toggle, settings.sickMode && { backgroundColor: C.red }]}>
-              <View style={[styles.toggleThumb, settings.sickMode && styles.toggleThumbActive]} />
             </View>
           </View>
         </Pressable>
