@@ -140,6 +140,15 @@ export interface MedComparison {
   summary: string;
 }
 
+export interface HealthCondition {
+  id: string;
+  name: string;
+  source: "database" | "custom";
+  dateAdded: string;
+  notes?: string;
+  requiresStressDose?: boolean;
+}
+
 export interface UserSettings {
   name: string;
   conditions: string[];
@@ -164,6 +173,7 @@ const KEYS = {
   INSIGHTS: "fir_insights",
   MED_COMPARISONS: "fir_med_comparisons",
   ALLERGY_INFO: "fir_allergy_info",
+  CONDITIONS: "fir_conditions",
 };
 
 async function getItem<T>(key: string): Promise<T[]> {
@@ -419,6 +429,29 @@ export const allergyStorage = {
   },
   save: async (data: AllergyInfo) => {
     await AsyncStorage.setItem(KEYS.ALLERGY_INFO, JSON.stringify(data));
+  },
+};
+
+export const conditionStorage = {
+  getAll: () => getItem<HealthCondition>(KEYS.CONDITIONS),
+  save: async (data: Omit<HealthCondition, "id">) => {
+    const items = await getItem<HealthCondition>(KEYS.CONDITIONS);
+    const id = `cond_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    items.push({ ...data, id });
+    await setItem(KEYS.CONDITIONS, items);
+    return id;
+  },
+  update: async (id: string, updates: Partial<HealthCondition>) => {
+    const items = await getItem<HealthCondition>(KEYS.CONDITIONS);
+    const idx = items.findIndex(c => c.id === id);
+    if (idx >= 0) {
+      items[idx] = { ...items[idx], ...updates };
+      await setItem(KEYS.CONDITIONS, items);
+    }
+  },
+  delete: async (id: string) => {
+    const items = await getItem<HealthCondition>(KEYS.CONDITIONS);
+    await setItem(KEYS.CONDITIONS, items.filter(c => c.id !== id));
   },
 };
 

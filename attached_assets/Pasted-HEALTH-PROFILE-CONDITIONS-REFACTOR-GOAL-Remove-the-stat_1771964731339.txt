@@ -1,0 +1,123 @@
+HEALTH PROFILE – CONDITIONS (REFACTOR)
+
+GOAL:
+Remove the static preset “Conditions” chip list from Settings and replace it with a dynamic, searchable, user-managed Conditions system.
+
+CHANGES:
+
+1) REMOVE OLD UI
+- Delete the preset chip grid for conditions from Settings.
+- Conditions should no longer be selectable from onboarding.
+
+2) NEW NAVIGATION STRUCTURE
+Settings → Health Profile → Conditions
+
+Create a new screen: HealthProfileConditionsScreen
+
+3) CONDITIONS SCREEN UI
+
+If user has no conditions:
+- Show empty state text: “No conditions added”
+- Show primary button: “+ Add Condition”
+
+If user has conditions:
+- Show them as a vertical list (not chips)
+  Each item:
+    • Condition name
+    • Optional notes indicator
+    • Edit / Delete action
+
+Floating or bottom button:
++ Add Condition
+
+4) ADD CONDITION FLOW
+
+On tap “Add Condition”:
+Open a modal with:
+
+A) Search input at top
+Placeholder: “Search conditions”
+
+B) Search results list (from local dataset for now)
+
+C) “Add custom condition” option when no exact match
+
+Selecting a condition saves it to the user profile.
+
+5) DATA SOURCE (PHASE 1 – LOCAL)
+
+Create a local JSON dataset:
+conditions.json
+
+Structure:
+[
+  {
+    "id": "icd_xxxxx",
+    "name": "Culler-Jones Syndrome"
+  },
+  {
+    "id": "icd_xxxxx",
+    "name": "Hypothyroidism"
+  }
+]
+
+This will simulate WHO / ICD data for now.
+
+6) SAVED CONDITION DATA MODEL
+
+Each saved condition should store:
+
+{
+  id: string
+  name: string
+  source: "database" | "custom"
+  dateAdded: timestamp
+  notes?: string
+  requiresStressDose?: boolean
+}
+
+7) AFTER USER SELECTS A CONDITION
+
+If this is a new condition:
+Ask:
+
+“Does this condition require stress dosing when you are sick?”
+
+Toggle:
+Yes / No
+
+Save this value in the condition object.
+
+8) EDIT CONDITION
+
+User can:
+- Add / edit notes
+- Toggle stress dose requirement
+- Delete condition
+
+9) STORAGE
+
+Persist conditions in the same storage system used for:
+medications / symptoms (AsyncStorage or current state store).
+
+Create:
+healthProfile.conditions
+
+10) FUTURE READY
+
+Keep search logic abstracted so the local JSON can later be replaced by a real WHO / ICD API without changing UI.
+
+11) ACCESSIBILITY
+
+- All buttons minimum height 44px
+- Support dynamic text
+- Screen reader labels for:
+  Add Condition
+  Edit Condition
+  Delete Condition
+  Stress dose toggle
+
+OUT OF SCOPE (DO NOT IMPLEMENT NOW):
+- API integration
+- AI parsing
+- Condition-based analytics

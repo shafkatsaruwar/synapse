@@ -6,21 +6,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { settingsStorage, vitalStorage, allergyStorage, clearAllData, type UserSettings, type Vital, type AllergyInfo } from "@/lib/storage";
+import { settingsStorage, vitalStorage, allergyStorage, conditionStorage, clearAllData, type UserSettings, type Vital, type AllergyInfo, type HealthCondition } from "@/lib/storage";
 
 const C = Colors.dark;
 
-const COMMON_CONDITIONS = [
-  "Diabetes", "Hypertension", "Asthma", "Arthritis", "IBS",
-  "Thyroid", "Migraine", "PCOS", "Heart Disease", "Anemia",
-  "Chronic Fatigue", "Fibromyalgia",
-];
-
 interface SettingsScreenProps {
   onResetApp?: () => void;
+  onNavigate?: (screen: string) => void;
 }
 
-export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
+export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -39,6 +34,7 @@ export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
     noTreatmentConsequence: "",
   });
   const [allergySaved, setAllergySaved] = useState(true);
+  const [conditionsCount, setConditionsCount] = useState(0);
 
   const handleResetApp = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -48,10 +44,11 @@ export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
   };
 
   const loadData = useCallback(async () => {
-    const [s, v, a] = await Promise.all([settingsStorage.get(), vitalStorage.getAll(), allergyStorage.get()]);
+    const [s, v, a, conds] = await Promise.all([settingsStorage.get(), vitalStorage.getAll(), allergyStorage.get(), conditionStorage.getAll()]);
     setSettings(s);
     setVitals(v.sort((a, b) => b.date.localeCompare(a.date)));
     setAllergy(a);
+    setConditionsCount(conds.length);
   }, []);
 
   React.useEffect(() => { loadData(); }, [loadData]);
@@ -61,15 +58,6 @@ export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaved(true);
     setAllergySaved(true);
-  };
-
-  const toggleCondition = (c: string) => {
-    setSettings((prev) => ({
-      ...prev,
-      conditions: prev.conditions.includes(c) ? prev.conditions.filter((x) => x !== c) : [...prev.conditions, c],
-    }));
-    setSaved(false);
-    Haptics.selectionAsync();
   };
 
   const handleAddVital = async () => {
@@ -97,15 +85,24 @@ export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Conditions</Text>
-          <Text style={styles.desc}>Select any conditions you manage</Text>
-          <View style={styles.chipGrid}>
-            {COMMON_CONDITIONS.map((c) => (
-              <Pressable key={c} style={[styles.chip, settings.conditions.includes(c) && { backgroundColor: C.tintLight, borderColor: C.tint }]} onPress={() => toggleCondition(c)} accessibilityRole="button" accessibilityLabel={c} accessibilityState={{ selected: settings.conditions.includes(c) }}>
-                <Text style={[styles.chipText, settings.conditions.includes(c) && { color: C.tint }]}>{c}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <Text style={styles.sectionTitle}>Health Profile</Text>
+          <Pressable
+            style={styles.profileRow}
+            onPress={() => onNavigate?.("healthprofileconditions")}
+            accessibilityRole="button"
+            accessibilityLabel={`Conditions, ${conditionsCount} added`}
+          >
+            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
+              <Ionicons name="clipboard-outline" size={16} color={C.tint} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.profileRowTitle}>Conditions</Text>
+              <Text style={styles.profileRowDesc}>
+                {conditionsCount > 0 ? `${conditionsCount} condition${conditionsCount !== 1 ? "s" : ""} added` : "None added yet"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+          </Pressable>
         </View>
 
         <Pressable
@@ -323,9 +320,10 @@ const styles = StyleSheet.create({
   desc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 14 },
   label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
   input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border },
-  chipGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
-  chipText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
+  profileRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, minHeight: 50 },
+  profileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  profileRowTitle: { fontWeight: "600", fontSize: 14, color: C.text },
+  profileRowDesc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
   toggleHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   toggle: { width: 48, height: 28, borderRadius: 14, backgroundColor: C.surfaceElevated, justifyContent: "center", paddingHorizontal: 3 },
   toggleActive: { backgroundColor: C.tint },

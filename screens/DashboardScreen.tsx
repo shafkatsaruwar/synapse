@@ -25,6 +25,7 @@ import {
   fastingLogStorage,
   vitalStorage,
   settingsStorage,
+  conditionStorage,
   type HealthLog,
   type Medication,
   type MedicationLog,
@@ -33,6 +34,7 @@ import {
   type FastingLog,
   type Vital,
   type UserSettings,
+  type HealthCondition,
 } from "@/lib/storage";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
@@ -98,12 +100,13 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
   const [todaySymptoms, setTodaySymptoms] = useState<Symptom[]>([]);
   const [fastingLog, setFastingLog] = useState<FastingLog | undefined>();
   const [vitals, setVitals] = useState<Vital[]>([]);
+  const [healthConditions, setHealthConditions] = useState<HealthCondition[]>([]);
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
   const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [log, meds, ml, apts, symp, fl, vit, sett] = await Promise.all([
+    const [log, meds, ml, apts, symp, fl, vit, sett, conds] = await Promise.all([
       healthLogStorage.getByDate(today),
       medicationStorage.getAll(),
       medicationLogStorage.getByDate(today),
@@ -112,6 +115,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
       fastingLogStorage.getByDate(today),
       vitalStorage.getAll(),
       settingsStorage.get(),
+      conditionStorage.getAll(),
     ]);
     setTodayLog(log);
     setMedications(meds.filter((m) => m.active));
@@ -121,6 +125,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
     setFastingLog(fl);
     setVitals(vit);
     setSettings(sett);
+    setHealthConditions(conds);
     setLoaded(true);
   }, [today]);
 
@@ -363,13 +368,13 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
             </View>
             <Text style={styles.cardLabel}>Vitals & Conditions</Text>
           </View>
-          {settings.conditions.length > 0 || recentVitals.length > 0 ? (
+          {healthConditions.length > 0 || recentVitals.length > 0 ? (
             <View>
-              {settings.conditions.length > 0 && (
+              {healthConditions.length > 0 && (
                 <View style={styles.conditionsRow}>
-                  {settings.conditions.slice(0, 3).map((c, i) => (
-                    <View key={i} style={styles.conditionChip}>
-                      <Text style={styles.conditionText}>{c}</Text>
+                  {healthConditions.slice(0, 3).map((c) => (
+                    <View key={c.id} style={styles.conditionChip}>
+                      <Text style={styles.conditionText}>{c.name}</Text>
                     </View>
                   ))}
                 </View>

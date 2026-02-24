@@ -10,8 +10,8 @@ import ViewShot, { captureRef } from "react-native-view-shot";
 import Colors from "@/constants/colors";
 import {
   healthLogStorage, medicationStorage, medicationLogStorage, appointmentStorage,
-  doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage,
-  type HealthLog, type Medication, type MedicationLog, type Appointment, type DoctorNote, type Symptom, type UserSettings, type SickModeData,
+  doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage,
+  type HealthLog, type Medication, type MedicationLog, type Appointment, type DoctorNote, type Symptom, type UserSettings, type SickModeData, type HealthCondition,
 } from "@/lib/storage";
 import { getDaysAgo, formatDate, getToday } from "@/lib/date-utils";
 
@@ -37,16 +37,17 @@ export default function ReportsScreen() {
   const [notes, setNotes] = useState<DoctorNote[]>([]);
   const [symptoms, setSymptoms] = useState<Symptom[]>([]);
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
+  const [healthConditions, setHealthConditions] = useState<HealthCondition[]>([]);
   const [sickMode, setSickMode] = useState<SickModeData | null>(null);
   const [range, setRange] = useState<7 | 30>(7);
   const [exporting, setExporting] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [l, m, ml, a, n, s, st, sm] = await Promise.all([
+    const [l, m, ml, a, n, s, st, sm, conds] = await Promise.all([
       healthLogStorage.getAll(), medicationStorage.getAll(), medicationLogStorage.getAll(),
-      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), sickModeStorage.get(),
+      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), sickModeStorage.get(), conditionStorage.getAll(),
     ]);
-    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setSickMode(sm);
+    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setSickMode(sm); setHealthConditions(conds);
   }, []);
 
   React.useEffect(() => { loadData(); }, [loadData]);
@@ -118,7 +119,7 @@ export default function ReportsScreen() {
   const generateSummaryText = () => {
     let r = `HEALTH SUMMARY REPORT\n`;
     r += `Patient: ${settings.name || "Not set"}\n`;
-    r += `Conditions: ${settings.conditions.length > 0 ? settings.conditions.join(", ") : "None listed"}\n`;
+    r += `Conditions: ${healthConditions.length > 0 ? healthConditions.map(c => c.name).join(", ") : "None listed"}\n`;
     r += `Period: Last ${range} days (${formatDate(cutoff)} \u2013 ${formatDate(today)})\n\n`;
     r += `DAILY AVERAGES\n`;
     r += `Energy: ${avgEnergy.toFixed(1)}/5 | Mood: ${avgMood.toFixed(1)}/5 | Sleep: ${avgSleep.toFixed(1)}/5\n`;
@@ -264,9 +265,9 @@ export default function ReportsScreen() {
           <Text style={styles.summaryHeaderSub}>
             {settings.name || "Patient"} \u2022 Last {range} days
           </Text>
-          {settings.conditions.length > 0 && (
+          {healthConditions.length > 0 && (
             <Text style={styles.summaryHeaderConditions}>
-              Conditions: {settings.conditions.join(", ")}
+              Conditions: {healthConditions.map(c => c.name).join(", ")}
             </Text>
           )}
         </View>

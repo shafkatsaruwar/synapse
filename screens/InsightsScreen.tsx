@@ -8,7 +8,7 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import {
   healthLogStorage, symptomStorage, medicationStorage, medicationLogStorage, vitalStorage,
-  fastingLogStorage, settingsStorage, documentStorage, insightStorage,
+  fastingLogStorage, settingsStorage, documentStorage, insightStorage, conditionStorage,
   type HealthInsight,
 } from "@/lib/storage";
 import { getHealthInsights } from "@/lib/api";
@@ -38,7 +38,7 @@ export default function InsightsScreen() {
     try {
       setLoading(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const [healthLogs, symptoms, medications, medLogs, vitals, fastingLogs, settings, documents] = await Promise.all([
+      const [healthLogs, symptoms, medications, medLogs, vitals, fastingLogs, settings, documents, conds] = await Promise.all([
         healthLogStorage.getAll(),
         symptomStorage.getAll(),
         medicationStorage.getAll(),
@@ -47,11 +47,12 @@ export default function InsightsScreen() {
         fastingLogStorage.getAll(),
         settingsStorage.get(),
         documentStorage.getAll(),
+        conditionStorage.getAll(),
       ]);
 
       const result = await getHealthInsights({
         healthLogs, symptoms, medications: medications.filter((m) => m.active), medLogs, vitals, fastingLogs,
-        conditions: settings.conditions, documents,
+        conditions: conds.map(c => c.name), documents,
       });
 
       const saved = await insightStorage.save({

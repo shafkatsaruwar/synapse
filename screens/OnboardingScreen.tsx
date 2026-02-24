@@ -103,7 +103,7 @@ function GlowDot({ active, done }: { active: boolean; done: boolean }) {
   );
 }
 
-const TOTAL_STEPS = 12;
+const TOTAL_STEPS = 11;
 
 const founderImage = require("../assets/images/founder.png");
 
@@ -114,13 +114,10 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [animKey, setAnimKey] = useState(0);
 
   const [userName, setUserName] = useState("");
-  const [conditions, setConditions] = useState<string[]>([]);
-  const [conditionInput, setConditionInput] = useState("");
   const [meds, setMeds] = useState<OnboardingMed[]>([]);
   const [medName, setMedName] = useState("");
   const [medDosage, setMedDosage] = useState("");
   const [showMedFields, setShowMedFields] = useState(false);
-  const [showCondFields, setShowCondFields] = useState(false);
 
   const screenOpacity = useRef(new Animated.Value(1)).current;
   const completionScale = useRef(new Animated.Value(0)).current;
@@ -136,10 +133,6 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       return () => clearTimeout(t);
     }
     if (step === 10) {
-      const t = setTimeout(() => setShowCondFields(true), 600);
-      return () => clearTimeout(t);
-    }
-    if (step === 11) {
       Animated.sequence([
         Animated.parallel([
           Animated.spring(completionScale, { toValue: 1, friction: 5, tension: 60, useNativeDriver: true }),
@@ -157,7 +150,6 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       setStep(next);
       setAnimKey(k => k + 1);
       setShowMedFields(false);
-      setShowCondFields(false);
       screenOpacity.setValue(0);
       Animated.timing(screenOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
     });
@@ -167,18 +159,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     if (step < TOTAL_STEPS - 1) animateTransition(step + 1);
   };
 
-  const addCondition = () => {
-    const trimmed = conditionInput.trim();
-    if (trimmed && !conditions.includes(trimmed)) {
-      setConditions([...conditions, trimmed]);
-      setConditionInput("");
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-  };
 
-  const removeCondition = (c: string) => {
-    setConditions(conditions.filter(x => x !== c));
-  };
 
   const addMed = () => {
     const n = medName.trim();
@@ -201,7 +182,6 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     await settingsStorage.save({
       ...settings,
       name: userName.trim(),
-      conditions,
       onboardingCompleted: true,
     });
     for (const m of meds) {
@@ -223,12 +203,12 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   };
 
   const getButtonLabel = () => {
-    if (step === 11) return "Wanna See Where This Takes Us?";
+    if (step === 10) return "Wanna See Where This Takes Us?";
     return "Continue";
   };
 
   const handleContinue = () => {
-    if (step === 11) {
+    if (step === 10) {
       handleFinish();
     } else {
       goNext();
@@ -446,43 +426,6 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </ScrollView>
   );
 
-  const renderConditions = () => (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.setupScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" key={animKey}>
-      <AnimatedLine text="Your conditions" delay={0} style={styles.setupTitle} color={C.text} />
-      <AnimatedLine text="What do you manage?" delay={300} style={styles.setupSub} color={C.textSecondary} />
-
-      {showCondFields && (
-        <AnimatedView delay={0} style={styles.fieldBlock}>
-          <View style={styles.inputRow}>
-            <TextInput
-              style={[styles.fieldInput, { flex: 1 }]}
-              placeholder="e.g. Adrenal Insufficiency"
-              placeholderTextColor={C.textTertiary}
-              value={conditionInput}
-              onChangeText={setConditionInput}
-              onSubmitEditing={addCondition}
-              returnKeyType="done"
-            />
-            <Pressable style={[styles.addBtn, !conditionInput.trim() && { opacity: 0.3 }]} onPress={addCondition} disabled={!conditionInput.trim()}>
-              <Ionicons name="add" size={20} color="#fff" />
-            </Pressable>
-          </View>
-          <View style={styles.condChipsWrap}>
-            {conditions.map(c => (
-              <Pressable key={c} style={styles.condChip} onPress={() => removeCondition(c)}>
-                <Text style={styles.condChipText}>{c}</Text>
-                <Ionicons name="close" size={14} color={C.textSecondary} />
-              </Pressable>
-            ))}
-          </View>
-          {conditions.length === 0 && (
-            <Text style={styles.fieldHint}>You can always update these later.</Text>
-          )}
-        </AnimatedView>
-      )}
-    </ScrollView>
-  );
-
   const renderCompletion = () => (
     <View style={styles.completionCenter} key={animKey}>
       <Animated.View style={[styles.completionCircle, { transform: [{ scale: completionScale }], opacity: completionOpacity }]}>
@@ -501,12 +444,11 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     if (step >= 2 && step <= 7) return renderStorySlide(step - 2);
     if (step === 8) return renderNameInput();
     if (step === 9) return renderMedications();
-    if (step === 10) return renderConditions();
-    if (step === 11) return renderCompletion();
+    if (step === 10) return renderCompletion();
     return null;
   };
 
-  const buttonDelay = step === 0 ? 1200 : step === 1 ? 1800 : step >= 2 && step <= 7 ? 1800 : step === 11 ? 1600 : 1000;
+  const buttonDelay = step === 0 ? 1200 : step === 1 ? 1800 : step >= 2 && step <= 7 ? 1800 : step === 10 ? 1600 : 1000;
 
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
