@@ -228,6 +228,7 @@ export default function DailyLogScreen() {
               const isToday = dateStr === todayStr;
               const hasLog = loggedDates.has(dateStr);
               const hijriDay = ramadanMode ? getHijriDay(dateStr) : undefined;
+              const isDisabled = dateStr !== todayStr;
 
               return (
                 <Pressable
@@ -236,12 +237,14 @@ export default function DailyLogScreen() {
                     styles.dayCell,
                     { width: cellSize, height: cellSize },
                     isToday && styles.todayCell,
+                    isDisabled && styles.disabledCell,
                   ]}
-                  onPress={() => openDayLog(day)}
+                  onPress={isDisabled ? undefined : () => openDayLog(day)}
+                  disabled={isDisabled}
                   accessibilityRole="button"
                   accessibilityLabel={`${new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" })}${hasLog ? ", logged" : ""}${isToday ? ", today" : ""}`}
                 >
-                  <Text style={[styles.dayNumber, isToday && styles.todayText]}>{day}</Text>
+                  <Text style={[styles.dayNumber, isToday && styles.todayText, isDisabled && styles.disabledText]}>{day}</Text>
                   {hijriDay !== undefined && (
                     <Text style={styles.hijriText}>{hijriDay}</Text>
                   )}
@@ -422,6 +425,12 @@ const styles = StyleSheet.create({
   todayText: {
     fontWeight: "700",
     color: C.tint,
+  },
+  disabledCell: {
+    opacity: 0.4,
+  },
+  disabledText: {
+    color: C.textTertiary,
   },
   hijriText: {
     fontWeight: "500",
