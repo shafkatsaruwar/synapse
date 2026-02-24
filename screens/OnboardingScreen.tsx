@@ -110,7 +110,7 @@ function GlowDot({ active, done }: { active: boolean; done: boolean }) {
 
 const TOTAL_STEPS = 11;
 
-const founderImage = require("@assets/images/founder.png");
+const founderImage = require("../assets/images/founder.png");
 
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const insets = useSafeAreaInsets();
