@@ -246,7 +246,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const renderWelcome = () => (
     <View style={styles.welcomeCenter} key={animKey}>
       <AnimatedView delay={0}>
-        <Image source={brainLogo} style={styles.brainLogo} />
+        <View style={styles.brainLogoCard}>
+          <Image source={brainLogo} style={styles.brainLogo} />
+        </View>
       </AnimatedView>
       <AnimatedLine text="Synapse" delay={400} style={styles.welcomeTitle} color={C.text} />
       <AnimatedLine text="Built by a real patient, for real patients" delay={800} style={styles.welcomeSub} color={C.textSecondary} />
@@ -520,7 +522,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background, paddingHorizontal: 28 },
+  container: { flex: 1, backgroundColor: "#F4E6D4", paddingHorizontal: 28 },
   body: { flex: 1, justifyContent: "center" },
   footer: { gap: 16, paddingBottom: 8 },
 
@@ -530,11 +532,15 @@ const styles = StyleSheet.create({
     position: "absolute", width: 14, height: 14, borderRadius: 7,
     backgroundColor: MAROON_LIGHT,
   },
-  dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "rgba(128,0,32,0.2)" },
+  dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "rgba(128,0,32,0.3)" },
   dotActive: { width: 10, height: 10, borderRadius: 5, backgroundColor: MAROON },
-  dotDone: { backgroundColor: "rgba(128,0,32,0.4)" },
+  dotDone: { backgroundColor: "rgba(128,0,32,0.3)" },
 
   welcomeCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
+  brainLogoCard: {
+    width: 200, height: 200, borderRadius: 28, backgroundColor: "#EAD7C0",
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
+  },
   brainLogo: { width: 180, height: 180, resizeMode: "contain" },
   welcomeTitle: {
     fontWeight: "700", fontSize: 36, textAlign: "center",
