@@ -196,31 +196,44 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
     </PriorityCard>
   );
 
-  const renderRamadanCard = () => (
-    <PriorityCard color="#6B6B6B" icon="moon" label="Ramadan" onPress={() => onNavigate("ramadan")}>
-      {fastingLog ? (
-        <View>
-          <View style={styles.priLogRow}>
-            <View style={styles.priLogItem}>
-              <Text style={styles.priLogLabel}>Suhoor</Text>
-              <Text style={styles.priLogValue}>{fastingLog.suhoorTime || "--"}</Text>
-            </View>
-            <View style={styles.priLogDivider} />
-            <View style={styles.priLogItem}>
-              <Text style={styles.priLogLabel}>Iftar</Text>
-              <Text style={styles.priLogValue}>{fastingLog.iftarTime || "--"}</Text>
-            </View>
+  const renderRamadanCard = () => {
+    if (isSickMode) {
+      return (
+        <PriorityCard color="#8B8B8B" icon="moon" label="Ramadan" onPress={() => onNavigate("ramadan")}>
+          <View>
+            <Text style={[styles.priEmpty, { fontSize: 14, lineHeight: 20 }]}>Focus on recovery today.</Text>
+            <Text style={[styles.priMeta, { marginTop: 6 }]}>Your health comes first</Text>
           </View>
-          <Text style={styles.priMeta}>{fastingLog.hydrationGlasses} glasses of water</Text>
-        </View>
-      ) : (
-        <View>
-          <Text style={styles.priEmpty}>No fasting log</Text>
-          <Text style={[styles.priMeta, { marginTop: 6 }]}>Tap to log today</Text>
-        </View>
-      )}
-    </PriorityCard>
-  );
+        </PriorityCard>
+      );
+    }
+
+    return (
+      <PriorityCard color="#6B6B6B" icon="moon" label="Ramadan" onPress={() => onNavigate("ramadan")}>
+        {fastingLog ? (
+          <View>
+            <View style={styles.priLogRow}>
+              <View style={styles.priLogItem}>
+                <Text style={styles.priLogLabel}>Suhoor</Text>
+                <Text style={styles.priLogValue}>{fastingLog.suhoorTime || "--"}</Text>
+              </View>
+              <View style={styles.priLogDivider} />
+              <View style={styles.priLogItem}>
+                <Text style={styles.priLogLabel}>Iftar</Text>
+                <Text style={styles.priLogValue}>{fastingLog.iftarTime || "--"}</Text>
+              </View>
+            </View>
+            <Text style={styles.priMeta}>{fastingLog.hydrationGlasses} glasses of water</Text>
+          </View>
+        ) : (
+          <View>
+            <Text style={styles.priEmpty}>No fasting log</Text>
+            <Text style={[styles.priMeta, { marginTop: 6 }]}>Tap to log today</Text>
+          </View>
+        )}
+      </PriorityCard>
+    );
+  };
 
   const renderDailyLogCard = () => (
     <PriorityCard color={PRIORITY_COLORS.dailylog} icon="heart" label="Daily Log" onPress={() => onNavigate("log")}>
