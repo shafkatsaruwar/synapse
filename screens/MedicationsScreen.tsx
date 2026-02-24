@@ -603,7 +603,7 @@ export default function MedicationsScreen() {
 
               <Text style={styles.label}>Time of Day</Text>
               <View style={styles.tagPicker}>
-                {TIME_TAGS.map((tag) => (
+                {TIME_TAGS.filter(tag => settings.ramadanMode || (tag !== "Before Fajr" && tag !== "After Iftar")).map((tag) => (
                   <Pressable key={tag} style={[styles.tagOpt, formTimeTag === tag && { backgroundColor: TAG_COLORS[tag].bg, borderColor: TAG_COLORS[tag].text }]} onPress={() => { setFormTimeTag(tag); Haptics.selectionAsync(); }}>
                     <Text style={[styles.tagOptText, formTimeTag === tag && { color: TAG_COLORS[tag].text }]}>{tag}</Text>
                   </Pressable>
