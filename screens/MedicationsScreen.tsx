@@ -14,7 +14,7 @@ import {
 import { getToday } from "@/lib/date-utils";
 
 const C = Colors.dark;
-const TIME_TAGS: Medication["timeTag"][] = ["Morning", "Afternoon", "Night", "Before Fajr", "After Iftar"];
+const TIME_TAGS: string[] = ["Morning", "Afternoon", "Night", "Before Fajr", "After Iftar"];
 const TAG_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
   Morning: { bg: C.tintLight, text: C.tint, icon: "sunny-outline" },
   Afternoon: { bg: C.yellowLight, text: C.yellow, icon: "partly-sunny-outline" },
@@ -62,7 +62,7 @@ export default function MedicationsScreen() {
   const [formUnit, setFormUnit] = useState("");
   const [formRoute, setFormRoute] = useState("");
   const [formFreq, setFormFreq] = useState("");
-  const [formTimeTag, setFormTimeTag] = useState<Medication["timeTag"]>("Morning");
+  const [formTimeTags, setFormTimeTags] = useState<string[]>(["Morning"]);
   const [formEmoji, setFormEmoji] = useState("");
   const [formDoses, setFormDoses] = useState("1");
   const [formHasStressDose, setFormHasStressDose] = useState(false);
@@ -89,7 +89,7 @@ export default function MedicationsScreen() {
   const openAddModal = () => {
     setEditingMed(null);
     setFormName(""); setFormDose(""); setFormUnit(""); setFormRoute("");
-    setFormFreq(""); setFormTimeTag("Morning"); setFormEmoji(""); setFormDoses("1");
+    setFormFreq(""); setFormTimeTags(["Morning"]); setFormEmoji(""); setFormDoses("1");
     setFormHasStressDose(false); setFormStressDoseAmount(""); setFormStressDoseFrequency("");
     setFormStressDoseDurationDays(""); setFormStressDoseInstructions("");
     setShowModal(true);
@@ -102,7 +102,7 @@ export default function MedicationsScreen() {
     setFormUnit(med.unit || "");
     setFormRoute(med.route || "");
     setFormFreq(med.frequency);
-    setFormTimeTag(med.timeTag);
+    setFormTimeTags(Array.isArray(med.timeTag) ? med.timeTag : [med.timeTag]);
     setFormEmoji(med.emoji || "");
     setFormDoses(String(med.doses || 1));
     setFormHasStressDose(med.hasStressDose || false);
@@ -118,7 +118,7 @@ export default function MedicationsScreen() {
     const parsedDuration = parseInt(formStressDoseDurationDays);
     const data: Omit<Medication, "id"> = {
       name: formName.trim(), dosage: formDose.trim(), unit: formUnit.trim(),
-      route: formRoute.trim(), frequency: formFreq.trim(), timeTag: formTimeTag,
+      route: formRoute.trim(), frequency: formFreq.trim(), timeTag: formTimeTags.length === 1 ? formTimeTags[0] : formTimeTags,
       emoji: formEmoji || "", doses: Math.max(1, parseInt(formDoses) || 1), active: true,
       hasStressDose: formHasStressDose,
       stressDoseAmount: formHasStressDose ? formStressDoseAmount.trim() : undefined,
@@ -187,8 +187,9 @@ export default function MedicationsScreen() {
     return med.doses || 1;
   };
 
+  const getMedTags = (med: Medication): string[] => Array.isArray(med.timeTag) ? med.timeTag : [med.timeTag];
   const grouped = TIME_TAGS.map((tag) => ({
-    tag, meds: medications.filter((m) => m.timeTag === tag && m.active),
+    tag, meds: medications.filter((m) => getMedTags(m).includes(tag) && m.active),
   })).filter((g) => g.meds.length > 0);
 
   const totalDoses = medications.filter((m) => m.active).reduce((sum, m) => sum + getDoseCount(m), 0);
@@ -594,7 +595,7 @@ export default function MedicationsScreen() {
 
               <Text style={styles.label}>Daily Doses</Text>
               <View style={styles.doseCountRow}>
-                {[1, 2, 3, 4].map((n) => (
+                {[1, 2, 3, 4, 5, 6].map((n) => (
                   <Pressable key={n} style={[styles.doseCountBtn, formDoses === String(n) && styles.doseCountActive]} onPress={() => { setFormDoses(String(n)); Haptics.selectionAsync(); }}>
                     <Text style={[styles.doseCountText, formDoses === String(n) && styles.doseCountTextActive]}>{n}</Text>
                   </Pressable>
@@ -603,11 +604,23 @@ export default function MedicationsScreen() {
 
               <Text style={styles.label}>Time of Day</Text>
               <View style={styles.tagPicker}>
-                {TIME_TAGS.filter(tag => settings.ramadanMode || (tag !== "Before Fajr" && tag !== "After Iftar")).map((tag) => (
-                  <Pressable key={tag} style={[styles.tagOpt, formTimeTag === tag && { backgroundColor: TAG_COLORS[tag].bg, borderColor: TAG_COLORS[tag].text }]} onPress={() => { setFormTimeTag(tag); Haptics.selectionAsync(); }}>
-                    <Text style={[styles.tagOptText, formTimeTag === tag && { color: TAG_COLORS[tag].text }]}>{tag}</Text>
-                  </Pressable>
-                ))}
+                {TIME_TAGS.filter(tag => settings.ramadanMode || (tag !== "Before Fajr" && tag !== "After Iftar")).map((tag) => {
+                  const selected = formTimeTags.includes(tag);
+                  return (
+                    <Pressable key={tag} style={[styles.tagOpt, selected && { backgroundColor: TAG_COLORS[tag].bg, borderColor: TAG_COLORS[tag].text }]} onPress={() => {
+                      setFormTimeTags(prev => {
+                        if (prev.includes(tag)) {
+                          const next = prev.filter(t => t !== tag);
+                          return next.length > 0 ? next : [tag];
+                        }
+                        return [...prev, tag];
+                      });
+                      Haptics.selectionAsync();
+                    }}>
+                      <Text style={[styles.tagOptText, selected && { color: TAG_COLORS[tag].text }]}>{tag}</Text>
+                    </Pressable>
+                  );
+                })}
               </View>
 
               <View style={styles.stressDoseSection}>
@@ -730,8 +743,8 @@ const styles = StyleSheet.create({
   emojiGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 16 },
   emojiOpt: { width: 40, height: 40, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
   emojiOptActive: { borderColor: C.tint, backgroundColor: C.tintLight },
-  doseCountRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
-  doseCountBtn: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  doseCountRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
+  doseCountBtn: { minWidth: 44, paddingHorizontal: 14, alignItems: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
   doseCountActive: { backgroundColor: C.tintLight, borderColor: C.tint },
   doseCountText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
   doseCountTextActive: { color: C.tint },

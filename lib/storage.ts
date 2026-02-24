@@ -29,7 +29,7 @@ export interface Medication {
   route?: string;
   emoji?: string;
   doses?: number;
-  timeTag: "Before Fajr" | "After Iftar" | "Morning" | "Afternoon" | "Night";
+  timeTag: string | string[];
   active: boolean;
   hasStressDose?: boolean;
   stressDoseAmount?: string;

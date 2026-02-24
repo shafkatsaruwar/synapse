@@ -68,7 +68,7 @@ export default function DocumentsScreen() {
         const activeMeds = currentMeds.filter((m) => m.active);
         if (activeMeds.length > 0) {
           const comparison = await compareMedications(
-            activeMeds.map((m) => ({ name: m.name, dosage: m.dosage, frequency: m.timeTag })),
+            activeMeds.map((m) => ({ name: m.name, dosage: m.dosage, frequency: Array.isArray(m.timeTag) ? m.timeTag.join(", ") : m.timeTag })),
             analysis.medications
           );
           await medComparisonStorage.save({

@@ -131,7 +131,7 @@ export default function ReportsScreen() {
     else r += `  None\n`;
     r += `\nMEDICATIONS\n`;
     r += `Active: ${activeMeds.length} | Adherence: ${adherence}% | Missed: ${missedDoses}\n`;
-    activeMeds.forEach((m) => { r += `  - ${m.name} ${m.dosage} (${m.timeTag})\n`; });
+    activeMeds.forEach((m) => { r += `  - ${m.name} ${m.dosage} (${Array.isArray(m.timeTag) ? m.timeTag.join(", ") : m.timeTag})\n`; });
     r += `\nAPPOINTMENTS IN RANGE (${recentAppointments.length})\n`;
     if (recentAppointments.length > 0) recentAppointments.forEach((a) => { r += `  ${formatDate(a.date)} - ${a.doctorName} (${a.specialty})\n`; });
     else r += `  None\n`;
@@ -308,7 +308,7 @@ export default function ReportsScreen() {
           <Text style={styles.summaryBlockTitle}>Medications ({activeMeds.length} active)</Text>
           <Text style={styles.summaryItem}>Adherence: {adherence}% | Missed doses: {missedDoses}</Text>
           {activeMeds.map((m) => (
-            <Text key={m.id} style={styles.summaryItem}>{m.name} {m.dosage} ({m.timeTag})</Text>
+            <Text key={m.id} style={styles.summaryItem}>{m.name} {m.dosage} ({Array.isArray(m.timeTag) ? m.timeTag.join(", ") : m.timeTag})</Text>
           ))}
         </View>
 
