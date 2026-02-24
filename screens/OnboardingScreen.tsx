@@ -7,8 +7,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import SynapseLogo from "@/components/SynapseLogo";
 import { settingsStorage, medicationStorage } from "@/lib/storage";
+
+const brainLogo = require("../assets/images/brain-logo.jpeg");
 
 const C = Colors.dark;
 
@@ -245,7 +246,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const renderWelcome = () => (
     <View style={styles.welcomeCenter} key={animKey}>
       <AnimatedView delay={0}>
-        <SynapseLogo size={180} color={MAROON} />
+        <Image source={brainLogo} style={styles.brainLogo} />
       </AnimatedView>
       <AnimatedLine text="Synapse" delay={400} style={styles.welcomeTitle} color={C.text} />
       <AnimatedLine text="Built by a real patient, for real patients" delay={800} style={styles.welcomeSub} color={C.textSecondary} />
@@ -534,6 +535,7 @@ const styles = StyleSheet.create({
   dotDone: { backgroundColor: "rgba(128,0,32,0.4)" },
 
   welcomeCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
+  brainLogo: { width: 180, height: 180, resizeMode: "contain" },
   welcomeTitle: {
     fontWeight: "700", fontSize: 36, textAlign: "center",
     letterSpacing: -0.5, marginBottom: 12, marginTop: 24,
