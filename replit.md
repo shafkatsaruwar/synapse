@@ -73,10 +73,11 @@ Design preferences: Apple-inspired, calm, minimal warm beige/maroon UI. Not play
 - 2026-02-23: Added symptoms tracking with frequency analysis
 - 2026-02-23: Added vitals monitoring in Settings
 - 2026-02-23: Added health report generation and sharing
-- 2026-02-23: Added Sick Mode with stress dosing protocol (3x Hydrocortisone), guided recovery section
+- 2026-02-23: Added Sick Mode with guided recovery section
 - 2026-02-23: Rebuilt Medications screen with emoji support, editable cards via modal, multi-dose tracking (AM/PM), dose-based progress bar
-- 2026-02-23: Added Recovery Protocol section: hydration tracker (2000mL goal), food/rest checklists, PRN Tylenol with 4hr countdown, temperature logging with fever alerts, symptom toggles
+- 2026-02-23: Added Recovery Protocol section: hydration tracker (2000mL goal), food/rest checklists, temperature logging with fever alerts, symptom toggles
 - 2026-02-23: Added warning color theme — red banner on Dashboard when Sick Mode active, red medication card with "Stress Dosing" label
 - 2026-02-23: Storage layer updated with SickModeData interface, sickMode field in UserSettings, doseIndex in MedicationLog
-- 2026-02-23: Dedicated SickModeScreen recovery dashboard: replaces Dashboard when active, stress dosing card, temperature logger, recovery checklist with progress bar, "I'm better" exit button, manual activation from Dashboard, auto-trigger on fever ≥100°F, dimmed non-essential nav
+- 2026-02-23: Dedicated SickModeScreen recovery dashboard: replaces Dashboard when active, temperature logger, recovery checklist with progress bar, "I'm better" exit button, manual activation from Dashboard, auto-trigger on fever ≥100°F, dimmed non-essential nav
+- 2026-02-24: User-defined stress dosing: Medication model gains hasStressDose/stressDoseAmount/stressDoseFrequency/stressDoseDurationDays/stressDoseInstructions fields; Add/Edit modal has "Sick Day / Stress Dose" toggle section; SickModeScreen dynamically shows stress dose cards for any med with hasStressDose=true; removed ALL hard-coded Hydrocortisone and Tylenol PRN references from MedicationsScreen and SickModeScreen; added safety disclaimer
 - 2026-02-23: Added first-launch onboarding flow (12 screens): Welcome, Name input, Health Setup (medications + conditions), 6-screen founder story with progress dots. Saves onboardingCompleted flag to skip on subsequent launches

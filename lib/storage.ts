@@ -31,6 +31,11 @@ export interface Medication {
   doses?: number;
   timeTag: "Before Fajr" | "After Iftar" | "Morning" | "Afternoon" | "Night";
   active: boolean;
+  hasStressDose?: boolean;
+  stressDoseAmount?: string;
+  stressDoseFrequency?: string;
+  stressDoseDurationDays?: number;
+  stressDoseInstructions?: string;
 }
 
 export interface MedicationLog {

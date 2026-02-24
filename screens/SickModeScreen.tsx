@@ -166,25 +166,17 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
     }
   };
 
-  const hydrocortisone = medications.find(m => m.name === "Hydrocortisone");
-  const hydroDoses = hydrocortisone ? (hydrocortisone.doses || 1) * 3 : 0;
+  const stressMeds = medications.filter(m => m.hasStressDose);
 
-  const isDoseTaken = (medId: string, doseIdx: number) =>
-    medLogs.some(l => l.medicationId === medId && (l.doseIndex ?? 0) === doseIdx && l.taken);
+  const getStressDosesTakenToday = (medId: string) =>
+    medLogs.filter(l => l.medicationId === medId && l.taken).length;
 
-  const handleStressDose = async () => {
-    if (!hydrocortisone) return;
-    for (let i = 0; i < hydroDoses; i++) {
-      if (!isDoseTaken(hydrocortisone.id, i)) {
-        await medicationLogStorage.toggle(hydrocortisone.id, today, i);
-        break;
-      }
-    }
+  const handleStressDoseLog = async (med: Medication) => {
+    const takenCount = getStressDosesTakenToday(med.id);
+    await medicationLogStorage.toggle(med.id, today, takenCount);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     loadData();
   };
-
-  const hydroTaken = hydrocortisone ? Array.from({ length: hydroDoses }, (_, i) => isDoseTaken(hydrocortisone.id, i)).filter(Boolean).length : 0;
 
   const addHydration = async (ml: number) => {
     if (!sickData) return;
@@ -200,19 +192,6 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
     await sickModeStorage.save(updated);
     setSickData(updated);
     Haptics.selectionAsync();
-  };
-
-  const takeTylenol = async () => {
-    if (!sickData) return;
-    const last = sickData.prnDoses.filter(d => d.med === "Tylenol").slice(-1)[0];
-    if (last) {
-      const elapsed = (Date.now() - new Date(last.time).getTime()) / 3600000;
-      if (elapsed < 4) return;
-    }
-    const updated = { ...sickData, prnDoses: [...sickData.prnDoses, { med: "Tylenol", time: new Date().toISOString() }] };
-    await sickModeStorage.save(updated);
-    setSickData(updated);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const toggleRest = async () => {
@@ -242,29 +221,14 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
     onDeactivate();
   };
 
-  const getTylenolCountdown = (): string | null => {
-    if (!sickData) return null;
-    const last = sickData.prnDoses.filter(d => d.med === "Tylenol").slice(-1)[0];
-    if (!last) return null;
-    const elapsed = (Date.now() - new Date(last.time).getTime()) / 60000;
-    if (elapsed >= 240) return null;
-    const remaining = 240 - elapsed;
-    const h = Math.floor(remaining / 60);
-    const m = Math.floor(remaining % 60);
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
-  };
-
-  const tylenolTaken = sickData ? sickData.prnDoses.filter(d => d.med === "Tylenol").length > 0 : false;
-  const tylenolCountdown = getTylenolCountdown();
-
   const completedActions = [
     sickData && sickData.hydrationMl >= 250,
     sickData?.foodChecklist.lightMeal,
-    tylenolTaken,
+    stressMeds.length > 0 && stressMeds.every(m => getStressDosesTakenToday(m.id) > 0),
     sickData?.restChecklist.lying,
     sickData && (sickData.temperatures || []).length > 0,
   ].filter(Boolean).length;
-  const totalActions = 5;
+  const totalActions = stressMeds.length > 0 ? 5 : 4;
 
   const latestTemp = sickData?.temperatures?.slice(-1)[0];
   const isRecovery = sickData?.recoveryMode === true;
@@ -331,37 +295,61 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
           </View>
         </View>
 
-        {hydrocortisone && (
-          <View style={[styles.stressCard, isRecovery && { backgroundColor: "rgba(45,125,70,0.08)", borderColor: "rgba(45,125,70,0.25)" }]}>
-            <View style={styles.stressHeader}>
-              <Ionicons name="flash" size={24} color={isRecovery ? C.green : C.orange} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.stressTitle}>Hydrocortisone</Text>
-                <Text style={[styles.stressDose, { color: isRecovery ? C.green : C.red }]}>
-                  {hydrocortisone.dosage} x 3 = {parseFloat(hydrocortisone.dosage) * 3} {hydrocortisone.unit || "mg"} total
-                </Text>
-              </View>
-              <View style={[styles.stressBadge, isRecovery && { backgroundColor: C.green }]}>
-                <Text style={styles.stressBadgeText}>STRESS</Text>
-              </View>
-            </View>
-            <View style={styles.stressDoseTracker}>
-              {Array.from({ length: hydroDoses }, (_, i) => (
-                <View key={i} style={[styles.stressDot, isDoseTaken(hydrocortisone.id, i) && styles.stressDotDone]} />
-              ))}
-            </View>
-            <Text style={styles.stressDoseCount}>{hydroTaken} of {hydroDoses} doses taken</Text>
-            {hydroTaken < hydroDoses ? (
-              <Pressable style={[styles.stressTakeBtn, isRecovery && { backgroundColor: C.green }]} onPress={handleStressDose} accessibilityRole="button" accessibilityLabel={`Mark stress dose taken, ${hydroTaken} of ${hydroDoses} taken`}>
-                <Ionicons name="medkit" size={16} color="#fff" style={{ marginRight: 6 }} />
-                <Text style={styles.stressTakeBtnText}>Stress dose taken</Text>
-              </Pressable>
-            ) : (
-              <View style={styles.stressDoneRow}>
-                <Ionicons name="checkmark-circle" size={18} color={C.green} />
-                <Text style={styles.stressDoneText}>All stress doses taken</Text>
-              </View>
-            )}
+        {stressMeds.length > 0 && (
+          <View style={{ marginBottom: 20 }}>
+            <Text style={styles.checklistTitle}>Stress Dosing</Text>
+            <Text style={styles.stressSectionSubtext}>
+              You have stress dosing instructions for {stressMeds.length} medication{stressMeds.length > 1 ? "s" : ""}.
+            </Text>
+            {stressMeds.map(med => {
+              const takenToday = getStressDosesTakenToday(med.id);
+              return (
+                <View key={med.id} style={[styles.stressCard, isRecovery && { backgroundColor: "rgba(45,125,70,0.08)", borderColor: "rgba(45,125,70,0.25)" }]}>
+                  <View style={styles.stressHeader}>
+                    <Ionicons name="flash" size={24} color={isRecovery ? C.green : C.orange} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.stressTitle}>{med.name}</Text>
+                      {med.stressDoseAmount ? (
+                        <Text style={[styles.stressDose, { color: isRecovery ? C.green : C.red }]}>
+                          {med.stressDoseAmount}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={[styles.stressBadge, isRecovery && { backgroundColor: C.green }]}>
+                      <Text style={styles.stressBadgeText}>STRESS</Text>
+                    </View>
+                  </View>
+                  {med.stressDoseFrequency ? (
+                    <View style={styles.stressDetailRow}>
+                      <Ionicons name="time-outline" size={14} color={C.textSecondary} />
+                      <Text style={styles.stressDetailText}>{med.stressDoseFrequency}</Text>
+                    </View>
+                  ) : null}
+                  {med.stressDoseDurationDays ? (
+                    <View style={styles.stressDetailRow}>
+                      <Ionicons name="calendar-outline" size={14} color={C.textSecondary} />
+                      <Text style={styles.stressDetailText}>For {med.stressDoseDurationDays} day{med.stressDoseDurationDays > 1 ? "s" : ""}</Text>
+                    </View>
+                  ) : null}
+                  {med.stressDoseInstructions ? (
+                    <View style={styles.stressDetailRow}>
+                      <Ionicons name="information-circle-outline" size={14} color={C.textSecondary} />
+                      <Text style={styles.stressDetailText}>{med.stressDoseInstructions}</Text>
+                    </View>
+                  ) : null}
+                  <Text style={styles.stressDoseCount}>{takenToday} stress dose{takenToday !== 1 ? "s" : ""} logged today</Text>
+                  <Pressable
+                    style={[styles.stressTakeBtn, isRecovery && { backgroundColor: C.green }]}
+                    onPress={() => handleStressDoseLog(med)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Mark stress dose taken for ${med.name}, ${takenToday} taken today`}
+                  >
+                    <Ionicons name="medkit" size={16} color="#fff" style={{ marginRight: 6 }} />
+                    <Text style={styles.stressTakeBtnText}>Dose taken</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -434,28 +422,6 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
             size={24}
             color={sickData.foodChecklist.lightMeal ? C.green : C.textTertiary}
           />
-        </Pressable>
-
-        <Pressable style={[styles.actionCard, !!tylenolCountdown && { opacity: 0.7 }]} onPress={takeTylenol} disabled={!!tylenolCountdown} accessibilityRole="button" accessibilityLabel={`${isRecovery ? "Fever medication" : "Take Tylenol"}${tylenolCountdown ? `, wait ${tylenolCountdown}` : ""}`}>
-          <Ionicons name="medkit-outline" size={24} color={isRecovery ? C.cyan : "#D45B5B"} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.actionLabel}>{isRecovery ? "Fever medication" : "Take Tylenol"}</Text>
-            <Text style={styles.actionMeta}>
-              {tylenolCountdown ? `Wait ${tylenolCountdown}` : tylenolTaken ? "Ready for next dose" : isRecovery ? "Take if needed" : "Mark as taken"}
-            </Text>
-          </View>
-          {tylenolTaken ? (
-            <Ionicons name="checkmark-circle" size={24} color={C.green} />
-          ) : tylenolCountdown ? (
-            <View style={styles.countdownBadge}>
-              <Ionicons name="time-outline" size={14} color={C.orange} />
-              <Text style={styles.countdownText}>{tylenolCountdown}</Text>
-            </View>
-          ) : (
-            <View style={styles.actionTap}>
-              <Text style={styles.actionTapText}>Take</Text>
-            </View>
-          )}
         </Pressable>
 
         <Pressable style={styles.actionCard} onPress={toggleRest} accessibilityRole="checkbox" accessibilityState={{ checked: sickData.restChecklist.lying }} accessibilityLabel={isRecovery ? "Get some rest" : "Rest"}>
@@ -583,10 +549,10 @@ const styles = StyleSheet.create({
   stressDose: { fontWeight: "400", fontSize: 12, color: C.red, marginTop: 2 },
   stressBadge: { backgroundColor: C.red, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
   stressBadgeText: { fontWeight: "700", fontSize: 10, color: "#fff", letterSpacing: 1 },
-  stressDoseTracker: { flexDirection: "row", gap: 6, marginBottom: 8 },
-  stressDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "rgba(255,69,58,0.2)" },
-  stressDotDone: { backgroundColor: C.green },
-  stressDoseCount: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginBottom: 12 },
+  stressSectionSubtext: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginBottom: 12 },
+  stressDetailRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  stressDetailText: { fontWeight: "400", fontSize: 13, color: C.textSecondary, flex: 1 },
+  stressDoseCount: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginBottom: 12, marginTop: 4 },
   stressTakeBtn: {
     backgroundColor: C.red, borderRadius: 12, paddingVertical: 14, alignItems: "center",
     flexDirection: "row", justifyContent: "center",

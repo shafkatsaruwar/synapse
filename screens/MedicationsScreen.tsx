@@ -65,6 +65,11 @@ export default function MedicationsScreen() {
   const [formTimeTag, setFormTimeTag] = useState<Medication["timeTag"]>("Morning");
   const [formEmoji, setFormEmoji] = useState("");
   const [formDoses, setFormDoses] = useState("1");
+  const [formHasStressDose, setFormHasStressDose] = useState(false);
+  const [formStressDoseAmount, setFormStressDoseAmount] = useState("");
+  const [formStressDoseFrequency, setFormStressDoseFrequency] = useState("");
+  const [formStressDoseDurationDays, setFormStressDoseDurationDays] = useState("");
+  const [formStressDoseInstructions, setFormStressDoseInstructions] = useState("");
   const [tempInput, setTempInput] = useState("");
   const [showTempModal, setShowTempModal] = useState(false);
 
@@ -85,6 +90,8 @@ export default function MedicationsScreen() {
     setEditingMed(null);
     setFormName(""); setFormDose(""); setFormUnit(""); setFormRoute("");
     setFormFreq(""); setFormTimeTag("Morning"); setFormEmoji(""); setFormDoses("1");
+    setFormHasStressDose(false); setFormStressDoseAmount(""); setFormStressDoseFrequency("");
+    setFormStressDoseDurationDays(""); setFormStressDoseInstructions("");
     setShowModal(true);
   };
 
@@ -98,15 +105,26 @@ export default function MedicationsScreen() {
     setFormTimeTag(med.timeTag);
     setFormEmoji(med.emoji || "");
     setFormDoses(String(med.doses || 1));
+    setFormHasStressDose(med.hasStressDose || false);
+    setFormStressDoseAmount(med.stressDoseAmount || "");
+    setFormStressDoseFrequency(med.stressDoseFrequency || "");
+    setFormStressDoseDurationDays(med.stressDoseDurationDays ? String(med.stressDoseDurationDays) : "");
+    setFormStressDoseInstructions(med.stressDoseInstructions || "");
     setShowModal(true);
   };
 
   const handleSave = async () => {
     if (!formName.trim()) return;
+    const parsedDuration = parseInt(formStressDoseDurationDays);
     const data: Omit<Medication, "id"> = {
       name: formName.trim(), dosage: formDose.trim(), unit: formUnit.trim(),
       route: formRoute.trim(), frequency: formFreq.trim(), timeTag: formTimeTag,
       emoji: formEmoji || "", doses: Math.max(1, parseInt(formDoses) || 1), active: true,
+      hasStressDose: formHasStressDose,
+      stressDoseAmount: formHasStressDose ? formStressDoseAmount.trim() : undefined,
+      stressDoseFrequency: formHasStressDose ? formStressDoseFrequency.trim() : undefined,
+      stressDoseDurationDays: formHasStressDose && !isNaN(parsedDuration) ? parsedDuration : undefined,
+      stressDoseInstructions: formHasStressDose ? formStressDoseInstructions.trim() : undefined,
     };
     if (editingMed) {
       await medicationStorage.update(editingMed.id, data);
@@ -166,9 +184,7 @@ export default function MedicationsScreen() {
 
   const getDoseCount = (med?: Medication | null) => {
     if (!med) return 1;
-    const base = med.doses || 1;
-    if (isSickMode && med.name === "Hydrocortisone") return base * 3;
-    return base;
+    return med.doses || 1;
   };
 
   const grouped = TIME_TAGS.map((tag) => ({
@@ -184,8 +200,6 @@ export default function MedicationsScreen() {
     }
     return sum + taken;
   }, 0);
-
-  const isHydrocortisone = (med: Medication) => med.name === "Hydrocortisone";
 
   const SICK_SYMPTOMS = ["Nausea", "Vomiting", "Diarrhea", "Dizziness", "Fatigue", "Headache", "Chills", "Body aches", "Fever", "Loss of appetite"];
   const HYDRATION_GOAL = 2000;
@@ -236,31 +250,6 @@ export default function MedicationsScreen() {
     }
   };
 
-  const takePRN = async (med: string) => {
-    const current = sickData?.prnDoses || [];
-    const now = new Date().toISOString();
-    await updateSickData({ prnDoses: [...current, { med, time: now }] });
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  };
-
-  const getLastPRNTime = (med: string): Date | null => {
-    const doses = sickData?.prnDoses?.filter((d) => d.med === med) || [];
-    if (doses.length === 0) return null;
-    return new Date(doses[doses.length - 1].time);
-  };
-
-  const getPRNCountdown = (med: string, intervalHours: number): string | null => {
-    const last = getLastPRNTime(med);
-    if (!last) return null;
-    const nextAllowed = new Date(last.getTime() + intervalHours * 60 * 60 * 1000);
-    const now = new Date();
-    if (now >= nextAllowed) return null;
-    const diff = nextAllowed.getTime() - now.getTime();
-    const hrs = Math.floor(diff / 3600000);
-    const mins = Math.floor((diff % 3600000) / 60000);
-    return `${hrs}h ${mins}m`;
-  };
-
   const getReadAloudText = useCallback(() => {
     const parts: string[] = [];
     parts.push(`${takenDoses} of ${totalDoses} doses taken today.`);
@@ -277,9 +266,6 @@ export default function MedicationsScreen() {
   const doseLabels = (med: Medication): string[] => {
     const count = getDoseCount(med);
     if (count === 1) return ["Dose"];
-    if (isHydrocortisone(med) && isSickMode) {
-      return Array.from({ length: count }, (_, i) => `Stress Dose ${i + 1}`);
-    }
     if (count === 2) return ["AM Dose", "PM Dose"];
     return Array.from({ length: count }, (_, i) => `Dose ${i + 1}`);
   };
@@ -338,7 +324,6 @@ export default function MedicationsScreen() {
               const allTaken = Array.from({ length: doseCount }, (_, i) => isDoseTaken(med.id, i)).every(Boolean);
               const labels = doseLabels(med);
               const emoji = getAutoEmoji(med);
-              const isStressDosing = isSickMode && isHydrocortisone(med);
 
               return (
                 <Pressable
@@ -346,7 +331,6 @@ export default function MedicationsScreen() {
                   style={[
                     styles.medCard,
                     allTaken && styles.medCardTaken,
-                    isStressDosing && styles.medCardStress,
                   ]}
                   onPress={() => openEditModal(med)}
                 >
@@ -355,17 +339,11 @@ export default function MedicationsScreen() {
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                         <Text style={{ fontSize: 18 }}>{emoji}</Text>
                         <Text style={[styles.medName, allTaken && styles.medNameTaken]}>{med.name}</Text>
-                        {isStressDosing && (
-                          <View style={styles.stressBadge}>
-                            <Text style={styles.stressBadgeText}>STRESS DOSING</Text>
-                          </View>
-                        )}
                       </View>
                       {!!med.dosage && (
                         <Text style={styles.medDose}>
                           {med.dosage}{med.unit && !med.dosage.includes(med.unit) ? ` ${med.unit}` : ""}
                           {med.route ? ` · ${med.route}` : ""}
-                          {isStressDosing ? " (3x dose)" : ""}
                         </Text>
                       )}
                       {!!med.frequency && <Text style={styles.medFreq}>{med.frequency}</Text>}
@@ -383,7 +361,7 @@ export default function MedicationsScreen() {
                       </Pressable>
                     ) : (
                       <View style={styles.actionRow}>
-                        <Pressable style={[styles.yesBtn, isStressDosing && { backgroundColor: C.red }]} onPress={() => handleDoseToggle(med.id, 0)} testID={`taken-${med.name}`} accessibilityRole="button" accessibilityLabel={`Mark ${med.name} as taken`}>
+                        <Pressable style={styles.yesBtn} onPress={() => handleDoseToggle(med.id, 0)} testID={`taken-${med.name}`} accessibilityRole="button" accessibilityLabel={`Mark ${med.name} as taken`}>
                           <Ionicons name="checkmark" size={16} color="#fff" />
                           <Text style={styles.yesBtnText}>Yes, took it</Text>
                         </Pressable>
@@ -407,7 +385,7 @@ export default function MedicationsScreen() {
                             <Ionicons
                               name={taken ? "checkmark-circle" : "close-circle-outline"}
                               size={20}
-                              color={taken ? C.green : (isStressDosing ? C.red : C.textTertiary)}
+                              color={taken ? C.green : C.textTertiary}
                             />
                             <Text style={[styles.doseLabel, taken && { color: C.green }]}>{labels[i]}</Text>
                             <Text style={{ fontSize: 11, fontWeight: "600" as const, color: taken ? C.green : C.textTertiary }}>
@@ -428,6 +406,15 @@ export default function MedicationsScreen() {
             })}
           </View>
         ))}
+
+        {medications.length > 0 && (
+          <View style={styles.safetyNote}>
+            <Ionicons name="information-circle-outline" size={14} color={C.textTertiary} />
+            <Text style={styles.safetyNoteText}>
+              This information should match your doctor's instructions. This app does not prescribe medications.
+            </Text>
+          </View>
+        )}
 
         {isSickMode && sickData && (
           <View style={styles.protocolSection}>
@@ -475,42 +462,6 @@ export default function MedicationsScreen() {
                   <Text style={[styles.checkLabel, sickData.foodChecklist[key] && { color: C.green }]}>{label}</Text>
                 </Pressable>
               ))}
-            </View>
-
-            <View style={styles.protocolCard}>
-              <View style={styles.protocolCardHeader}>
-                <Text style={{ fontSize: 16 }}>💊</Text>
-                <Text style={styles.protocolCardTitle}>PRN Medication</Text>
-              </View>
-              {(() => {
-                const countdown = getPRNCountdown("Tylenol", 4);
-                const lastDose = getLastPRNTime("Tylenol");
-                return (
-                  <View>
-                    <View style={styles.prnRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.prnName}>Tylenol (Acetaminophen)</Text>
-                        <Text style={styles.prnDose}>500 mg · Every 4 hours as needed</Text>
-                        {lastDose && (
-                          <Text style={styles.prnLastDose}>
-                            Last dose: {lastDose.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                          </Text>
-                        )}
-                      </View>
-                      {countdown ? (
-                        <View style={styles.prnCountdown}>
-                          <Ionicons name="time-outline" size={14} color={C.orange} />
-                          <Text style={styles.prnCountdownText}>{countdown}</Text>
-                        </View>
-                      ) : (
-                        <Pressable style={styles.prnTakeBtn} onPress={() => takePRN("Tylenol")} accessibilityRole="button" accessibilityLabel="Take Tylenol">
-                          <Text style={styles.prnTakeBtnText}>Take</Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  </View>
-                );
-              })()}
             </View>
 
             <View style={styles.protocolCard}>
@@ -659,6 +610,39 @@ export default function MedicationsScreen() {
                 ))}
               </View>
 
+              <View style={styles.stressDoseSection}>
+                <Text style={[styles.label, { fontSize: 13, fontWeight: "600" as const, marginBottom: 10 }]}>Sick Day / Stress Dose</Text>
+                <Pressable
+                  style={styles.stressDoseToggle}
+                  onPress={() => { setFormHasStressDose(!formHasStressDose); Haptics.selectionAsync(); }}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: formHasStressDose }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.stressDoseToggleText}>Do you take a different dose of this medication when you are sick?</Text>
+                  </View>
+                  <View style={[styles.toggleTrack, formHasStressDose && styles.toggleTrackActive]}>
+                    <View style={[styles.toggleThumb, formHasStressDose && styles.toggleThumbActive]} />
+                  </View>
+                </Pressable>
+
+                {formHasStressDose && (
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={styles.label}>Stress dose amount</Text>
+                    <TextInput style={styles.input} placeholder="e.g. 15 mg" placeholderTextColor={C.textTertiary} value={formStressDoseAmount} onChangeText={setFormStressDoseAmount} />
+
+                    <Text style={styles.label}>How often?</Text>
+                    <TextInput style={styles.input} placeholder="e.g. every 6 hours" placeholderTextColor={C.textTertiary} value={formStressDoseFrequency} onChangeText={setFormStressDoseFrequency} />
+
+                    <Text style={styles.label}>For how many days? (optional)</Text>
+                    <TextInput style={styles.input} placeholder="e.g. 3" placeholderTextColor={C.textTertiary} value={formStressDoseDurationDays} onChangeText={setFormStressDoseDurationDays} keyboardType="number-pad" />
+
+                    <Text style={styles.label}>Special instructions (optional)</Text>
+                    <TextInput style={[styles.input, { minHeight: 60, textAlignVertical: "top" }]} placeholder="e.g. take with food, call doctor if vomiting" placeholderTextColor={C.textTertiary} value={formStressDoseInstructions} onChangeText={setFormStressDoseInstructions} multiline />
+                  </View>
+                )}
+              </View>
+
               <View style={styles.modalActions}>
                 <Pressable style={styles.cancelBtn} onPress={() => setShowModal(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
                 <Pressable style={[styles.confirmBtn, !formName.trim() && { opacity: 0.5 }]} onPress={handleSave} disabled={!formName.trim()}>
@@ -710,14 +694,20 @@ const styles = StyleSheet.create({
   tagText: { fontWeight: "600", fontSize: 12 },
   medCard: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border },
   medCardTaken: { borderColor: "rgba(48,209,88,0.25)", backgroundColor: "rgba(48,209,88,0.05)" },
-  medCardStress: { borderColor: "rgba(255,69,58,0.4)", backgroundColor: "rgba(255,69,58,0.06)" },
+  safetyNote: { flexDirection: "row", alignItems: "flex-start", gap: 6, paddingVertical: 12, paddingHorizontal: 4, marginBottom: 8 },
+  safetyNoteText: { flex: 1, fontWeight: "400", fontSize: 11, color: C.textTertiary, lineHeight: 16 },
+  stressDoseSection: { marginBottom: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.border },
+  stressDoseToggle: { flexDirection: "row", alignItems: "center", gap: 12 },
+  stressDoseToggleText: { fontWeight: "400", fontSize: 13, color: C.text, lineHeight: 18 },
+  toggleTrack: { width: 44, height: 26, borderRadius: 13, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, justifyContent: "center", paddingHorizontal: 2 },
+  toggleTrackActive: { backgroundColor: C.tint, borderColor: C.tint },
+  toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff" },
+  toggleThumbActive: { alignSelf: "flex-end" },
   medInfo: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 12 },
   medName: { fontWeight: "600", fontSize: 15, color: C.text },
   medNameTaken: { color: C.textSecondary },
   medDose: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 4, marginLeft: 26 },
   medFreq: { fontWeight: "500", fontSize: 11, color: C.tint, marginTop: 3, marginLeft: 26 },
-  stressBadge: { backgroundColor: C.red, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  stressBadgeText: { fontWeight: "700", fontSize: 8, color: "#fff", letterSpacing: 0.8 },
   actionRow: { flexDirection: "row", gap: 8 },
   yesBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: C.green },
   yesBtnText: { fontWeight: "600", fontSize: 13, color: "#fff" },
@@ -775,14 +765,6 @@ const styles = StyleSheet.create({
   hydrationBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
   checkRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   checkLabel: { fontWeight: "500", fontSize: 14, color: C.text, flex: 1 },
-  prnRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  prnName: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 2 },
-  prnDose: { fontWeight: "400", fontSize: 12, color: C.textSecondary },
-  prnLastDose: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 4 },
-  prnCountdown: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: C.orangeLight },
-  prnCountdownText: { fontWeight: "600", fontSize: 12, color: C.orange },
-  prnTakeBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: C.green },
-  prnTakeBtnText: { fontWeight: "600", fontSize: 13, color: "#fff" },
   tempAddBtn: { width: 28, height: 28, borderRadius: 7, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
   tempRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
   tempTime: { fontWeight: "400", fontSize: 13, color: C.textSecondary },
