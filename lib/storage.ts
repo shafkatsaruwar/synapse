@@ -303,7 +303,7 @@ export const vitalStorage = {
 export const settingsStorage = {
   get: async (): Promise<UserSettings> => {
     const raw = await AsyncStorage.getItem(KEYS.SETTINGS);
-    const defaults: UserSettings = { name: "", conditions: [], ramadanMode: false, sickMode: false };
+    const defaults: UserSettings = { name: "", conditions: [], ramadanMode: true, sickMode: false };
     return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
   },
   save: async (settings: UserSettings) => {
