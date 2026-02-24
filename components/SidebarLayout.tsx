@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   brandText: {
-    fontFamily: "Inter_700Bold",
+    fontWeight: "700",
     fontSize: 20,
     color: C.text,
     letterSpacing: -0.5,
@@ -263,13 +263,13 @@ const styles = StyleSheet.create({
     backgroundColor: C.sidebarActive,
   },
   navLabel: {
-    fontFamily: "Inter_500Medium",
+    fontWeight: "500",
     fontSize: 14,
     color: C.textTertiary,
   },
   navLabelActive: {
     color: C.text,
-    fontFamily: "Inter_600SemiBold",
+    fontWeight: "600",
   },
   sidebarFooter: {
     paddingBottom: 20,
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sidebarVersion: {
-    fontFamily: "Inter_400Regular",
+    fontWeight: "400",
     fontSize: 11,
     color: C.textTertiary,
     paddingHorizontal: 12,
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     minWidth: 64,
   },
   mobileNavLabel: {
-    fontFamily: "Inter_500Medium",
+    fontWeight: "500",
     fontSize: 10,
     color: C.textTertiary,
     marginTop: 3,
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   moreTitle: {
-    fontFamily: "Inter_600SemiBold",
+    fontWeight: "600",
     fontSize: 18,
     color: C.text,
     marginBottom: 20,
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   moreLabel: {
-    fontFamily: "Inter_500Medium",
+    fontWeight: "500",
     fontSize: 11,
     color: C.textSecondary,
     textAlign: "center",

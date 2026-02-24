@@ -543,11 +543,11 @@ const styles = StyleSheet.create({
   welcomeCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
   welcomeEmoji: { fontSize: 230, textAlign: "center", marginBottom: 28 },
   welcomeTitle: {
-    fontFamily: "Inter_700Bold", fontSize: 28, textAlign: "center",
+    fontWeight: "700", fontSize: 28, textAlign: "center",
     letterSpacing: -0.5, marginBottom: 12,
   },
   welcomeSub: {
-    fontFamily: "Inter_400Regular", fontSize: 16, textAlign: "center",
+    fontWeight: "400", fontSize: 16, textAlign: "center",
     lineHeight: 24, paddingHorizontal: 10,
   },
 
@@ -558,59 +558,59 @@ const styles = StyleSheet.create({
   },
   photoImage: { width: "100%", height: "100%", resizeMode: "cover" },
   founderTitle: {
-    fontFamily: "Inter_700Bold", fontSize: 28, textAlign: "center",
+    fontWeight: "700", fontSize: 28, textAlign: "center",
     letterSpacing: -0.5, marginBottom: 20,
   },
   founderSub: {
-    fontFamily: "Inter_400Regular", fontSize: 16, textAlign: "center",
+    fontWeight: "400", fontSize: 16, textAlign: "center",
     lineHeight: 24, color: C.textSecondary,
   },
 
   storyCenter: { flex: 1, justifyContent: "center", paddingHorizontal: 4 },
   storyLine: {
-    fontFamily: "Inter_600SemiBold", fontSize: 24, lineHeight: 34,
+    fontWeight: "600", fontSize: 24, lineHeight: 34,
     letterSpacing: -0.3,
   },
   storyList: { marginTop: 24, gap: 18 },
   storyListRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   storyEmoji: { fontSize: 22 },
-  storyListText: { fontFamily: "Inter_500Medium", fontSize: 17, color: C.text, flex: 1 },
+  storyListText: { fontWeight: "500", fontSize: 17, color: C.text, flex: 1 },
   storyDivider: {
     width: 40, height: 2, backgroundColor: "rgba(255,255,255,0.12)",
     marginVertical: 24,
   },
   storyFooter: {
-    fontFamily: "Inter_500Medium", fontSize: 17, lineHeight: 26,
+    fontWeight: "500", fontSize: 17, lineHeight: 26,
     marginTop: 8,
   },
 
   inputCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
   nameTitle: {
-    fontFamily: "Inter_700Bold", fontSize: 26, textAlign: "center",
+    fontWeight: "700", fontSize: 26, textAlign: "center",
     letterSpacing: -0.5, marginBottom: 28,
   },
   nameInput: {
-    fontFamily: "Inter_500Medium", fontSize: 22, color: C.text, textAlign: "center",
+    fontWeight: "500", fontSize: 22, color: C.text, textAlign: "center",
     borderBottomWidth: 2, borderBottomColor: ACCENT_COLORS.green, paddingVertical: 14,
     width: 260,
   },
   nameHint: {
-    fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center", marginTop: 14,
+    fontWeight: "400", fontSize: 13, textAlign: "center", marginTop: 14,
   },
 
   setupScroll: { paddingTop: 20, paddingBottom: 40 },
   setupTitle: {
-    fontFamily: "Inter_700Bold", fontSize: 26, letterSpacing: -0.5,
+    fontWeight: "700", fontSize: 26, letterSpacing: -0.5,
     textAlign: "center", marginBottom: 8,
   },
   setupSub: {
-    fontFamily: "Inter_400Regular", fontSize: 15, textAlign: "center",
+    fontWeight: "400", fontSize: 15, textAlign: "center",
     marginBottom: 28, lineHeight: 22,
   },
   fieldBlock: { gap: 2 },
   inputRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
   fieldInput: {
-    fontFamily: "Inter_400Regular", fontSize: 15, color: C.text,
+    fontWeight: "400", fontSize: 15, color: C.text,
     backgroundColor: C.surface, borderRadius: 14, padding: 14,
     borderWidth: 1, borderColor: C.border,
   },
@@ -619,7 +619,7 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   fieldHint: {
-    fontFamily: "Inter_400Regular", fontSize: 13, color: C.textTertiary,
+    fontWeight: "400", fontSize: 13, color: C.textTertiary,
     textAlign: "center", marginTop: 16,
   },
 
@@ -630,8 +630,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: C.border,
   },
   medChipEmoji: { fontSize: 20 },
-  medChipName: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: C.text },
-  medChipDose: { fontFamily: "Inter_400Regular", fontSize: 13, color: C.textSecondary, marginTop: 2 },
+  medChipName: { fontWeight: "600", fontSize: 15, color: C.text },
+  medChipDose: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 2 },
 
   condChipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
   condChip: {
@@ -639,7 +639,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10,
     borderWidth: 1, borderColor: C.border,
   },
-  condChipText: { fontFamily: "Inter_500Medium", fontSize: 14, color: C.text },
+  condChipText: { fontWeight: "500", fontSize: 14, color: C.text },
 
   completionCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
   completionCircle: {
@@ -648,11 +648,11 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   completionTitle: {
-    fontFamily: "Inter_700Bold", fontSize: 32, textAlign: "center",
+    fontWeight: "700", fontSize: 32, textAlign: "center",
     letterSpacing: -0.5, marginBottom: 8,
   },
   completionSub: {
-    fontFamily: "Inter_400Regular", fontSize: 17, textAlign: "center",
+    fontWeight: "400", fontSize: 17, textAlign: "center",
     lineHeight: 24,
   },
 
@@ -660,5 +660,5 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     backgroundColor: ACCENT_COLORS.blue, borderRadius: 16, paddingVertical: 18,
   },
-  continueBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 17, color: "#fff" },
+  continueBtnText: { fontWeight: "600", fontSize: 17, color: "#fff" },
 });
