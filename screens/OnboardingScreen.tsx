@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform,
-  useWindowDimensions, Animated, Image,
+  useWindowDimensions, Animated, Image, StatusBar,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -495,6 +495,11 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#F4E6D4"
+        translucent={false}
+      />
       <Animated.View style={[styles.body, { opacity: screenOpacity }]}>
         {renderContent()}
       </Animated.View>
