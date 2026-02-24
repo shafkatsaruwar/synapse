@@ -42,15 +42,6 @@ function getAutoEmoji(med: Medication): string {
   return "💊";
 }
 
-const DEFAULT_MEDICATIONS: Omit<Medication, "id">[] = [
-  { name: "Testosterone Cypionate", dosage: "50 mg", unit: "mg", route: "IM injection", frequency: "Once weekly", timeTag: "Morning", active: true, doses: 1, emoji: "💉" },
-  { name: "Sograya (Semaglutide)", dosage: "10 mg", unit: "mg", route: "SubQ injection", frequency: "Once weekly", timeTag: "Morning", active: true, doses: 1, emoji: "💉" },
-  { name: "Levothyroxine", dosage: "200 mcg", unit: "mcg", route: "tablet", frequency: "Daily, before breakfast", timeTag: "Morning", active: true, doses: 1, emoji: "💊" },
-  { name: "Fluticasone/Salmeterol (Advair)", dosage: "250-50 mcg", unit: "mcg", route: "diskus inhaler", frequency: "Twice daily (morning & bedtime)", timeTag: "Morning", active: true, doses: 2, emoji: "🫁" },
-  { name: "Hydrocortisone", dosage: "5 mg", unit: "mg", route: "tablet", frequency: "Daily (AM + PM)", timeTag: "Morning", active: true, doses: 2, emoji: "⚡" },
-  { name: "Simethicone", dosage: "80 mg", unit: "mg", route: "chewable tablet", frequency: "As needed, with Levothyroxine", timeTag: "Morning", active: true, doses: 1, emoji: "💊" },
-];
-
 export default function MedicationsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -77,17 +68,7 @@ export default function MedicationsScreen() {
   const [showTempModal, setShowTempModal] = useState(false);
 
   const loadData = useCallback(async () => {
-    let meds = await medicationStorage.getAll();
-    const defaultNames = DEFAULT_MEDICATIONS.map((d) => d.name);
-    const hasAllDefaults = defaultNames.every((n) => meds.some((m) => m.name === n));
-    if (meds.length === 0 || !hasAllDefaults) {
-      for (const def of DEFAULT_MEDICATIONS) {
-        if (!meds.some((m) => m.name === def.name)) {
-          await medicationStorage.save(def);
-        }
-      }
-      meds = await medicationStorage.getAll();
-    }
+    const meds = await medicationStorage.getAll();
     const logs = await medicationLogStorage.getByDate(today);
     const s = await settingsStorage.get();
     const sd = await sickModeStorage.get();
