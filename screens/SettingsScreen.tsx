@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { settingsStorage, vitalStorage, sickModeStorage, type UserSettings, type Vital } from "@/lib/storage";
+import { settingsStorage, vitalStorage, sickModeStorage, clearAllData, type UserSettings, type Vital } from "@/lib/storage";
 
 const C = Colors.dark;
 
@@ -17,10 +17,10 @@ const COMMON_CONDITIONS = [
 ];
 
 interface SettingsScreenProps {
-  onResetOnboarding?: () => void;
+  onResetApp?: () => void;
 }
 
-export default function SettingsScreen({ onResetOnboarding }: SettingsScreenProps) {
+export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -32,6 +32,14 @@ export default function SettingsScreen({ onResetOnboarding }: SettingsScreenProp
   const [vitalType, setVitalType] = useState("");
   const [vitalValue, setVitalValue] = useState("");
   const [vitalUnit, setVitalUnit] = useState("");
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const handleResetApp = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    await clearAllData();
+    setShowResetConfirm(false);
+    if (onResetApp) onResetApp();
+  };
 
   const loadData = useCallback(async () => {
     const [s, v] = await Promise.all([settingsStorage.get(), vitalStorage.getAll()]);
@@ -166,14 +174,14 @@ export default function SettingsScreen({ onResetOnboarding }: SettingsScreenProp
           <Text style={styles.saveBtnText}>{saved ? "Saved" : "Save Settings"}</Text>
         </Pressable>
 
-        {onResetOnboarding && (
+        {onResetApp && (
           <Pressable
-            style={({ pressed }) => [styles.resetOnboardingBtn, { opacity: pressed ? 0.7 : 1 }]}
-            onPress={onResetOnboarding}
-            testID="reset-onboarding"
+            style={({ pressed }) => [styles.resetAppBtn, { opacity: pressed ? 0.8 : 1 }]}
+            onPress={() => setShowResetConfirm(true)}
+            testID="reset-app"
           >
-            <Ionicons name="refresh-outline" size={16} color={C.textTertiary} />
-            <Text style={styles.resetOnboardingText}>Reset onboarding for testing</Text>
+            <Ionicons name="trash-outline" size={16} color={C.red} />
+            <Text style={styles.resetAppText}>Reset App</Text>
           </Pressable>
         )}
       </ScrollView>
@@ -191,6 +199,24 @@ export default function SettingsScreen({ onResetOnboarding }: SettingsScreenProp
             <View style={styles.modalActions}>
               <Pressable style={styles.cancelBtn} onPress={() => setShowVitalModal(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
               <Pressable style={[styles.confirmBtn, (!vitalType.trim() || !vitalValue.trim()) && { opacity: 0.5 }]} onPress={handleAddVital} disabled={!vitalType.trim() || !vitalValue.trim()}><Text style={styles.confirmText}>Add</Text></Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={showResetConfirm} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => setShowResetConfirm(false)}>
+          <Pressable style={styles.resetModal} onPress={() => {}}>
+            <Text style={styles.resetEmoji}>⚠️</Text>
+            <Text style={styles.resetTitle}>Are you sure?</Text>
+            <Text style={styles.resetDesc}>This will delete all your data.</Text>
+            <View style={styles.modalActions}>
+              <Pressable style={styles.cancelBtn} onPress={() => setShowResetConfirm(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.resetConfirmBtn} onPress={handleResetApp}>
+                <Text style={styles.resetConfirmText}>Reset</Text>
+              </Pressable>
             </View>
           </Pressable>
         </Pressable>
@@ -236,6 +262,12 @@ const styles = StyleSheet.create({
   cancelText: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: C.textSecondary },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.cyan, alignItems: "center" },
   confirmText: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: "#fff" },
-  resetOnboardingBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 24, paddingVertical: 12 },
-  resetOnboardingText: { fontFamily: "Inter_400Regular", fontSize: 13, color: C.textTertiary },
+  resetAppBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 28, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: C.red + "30" },
+  resetAppText: { fontFamily: "Inter_500Medium", fontSize: 14, color: C.red },
+  resetModal: { backgroundColor: C.surface, borderRadius: 22, padding: 28, width: "100%", maxWidth: 320, borderWidth: 1, borderColor: C.border, alignItems: "center" },
+  resetEmoji: { fontSize: 56, marginBottom: 16 },
+  resetTitle: { fontFamily: "Inter_700Bold", fontSize: 20, color: C.text, marginBottom: 8, textAlign: "center" },
+  resetDesc: { fontFamily: "Inter_400Regular", fontSize: 15, color: C.textSecondary, textAlign: "center", marginBottom: 24, lineHeight: 22 },
+  resetConfirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.red, alignItems: "center" },
+  resetConfirmText: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: "#fff" },
 });

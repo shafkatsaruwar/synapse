@@ -56,10 +56,10 @@ export default function MainScreen() {
     setRefreshKey((k) => k + 1);
   };
 
-  const handleResetOnboarding = async () => {
-    const settings = await settingsStorage.get();
-    await settingsStorage.save({ ...settings, onboardingCompleted: false });
+  const handleResetApp = () => {
     setShowOnboarding(true);
+    setActiveScreen("dashboard");
+    setSickMode(false);
   };
 
   if (showOnboarding === null) return <View style={styles.container} />;
@@ -98,7 +98,7 @@ export default function MainScreen() {
       case "privacy":
         return <PrivacyScreen />;
       case "settings":
-        return <SettingsScreen onResetOnboarding={handleResetOnboarding} />;
+        return <SettingsScreen onResetApp={handleResetApp} />;
       default:
         return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} onActivateSickMode={handleActivateSickMode} />;
     }
