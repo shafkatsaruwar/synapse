@@ -98,7 +98,7 @@ export default function MainScreen() {
       case "privacy":
         return <PrivacyScreen />;
       case "settings":
-        return <SettingsScreen />;
+        return <SettingsScreen onResetOnboarding={handleResetOnboarding} />;
       default:
         return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} onActivateSickMode={handleActivateSickMode} />;
     }
@@ -106,7 +106,7 @@ export default function MainScreen() {
 
   return (
     <View style={styles.container}>
-      <SidebarLayout activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen} onNavigate={handleNavigate} sickMode={sickMode} onResetOnboarding={handleResetOnboarding}>
+      <SidebarLayout activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen} onNavigate={handleNavigate} sickMode={sickMode}>
         {renderScreen()}
       </SidebarLayout>
     </View>

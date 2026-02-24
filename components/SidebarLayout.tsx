@@ -49,7 +49,6 @@ interface SidebarLayoutProps {
   onNavigate: (screen: string) => void;
   children: React.ReactNode;
   sickMode?: boolean;
-  onResetOnboarding?: () => void;
 }
 
 export default function SidebarLayout({
@@ -57,7 +56,6 @@ export default function SidebarLayout({
   onNavigate,
   children,
   sickMode,
-  onResetOnboarding,
 }: SidebarLayoutProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -162,19 +160,6 @@ export default function SidebarLayout({
                 })}
               </View>
 
-              {onResetOnboarding && (
-                <Pressable
-                  style={styles.resetOnboardingBtn}
-                  onPress={() => {
-                    setMoreOpen(false);
-                    onResetOnboarding();
-                  }}
-                  testID="reset-onboarding"
-                >
-                  <Ionicons name="refresh-outline" size={18} color={C.textSecondary} />
-                  <Text style={styles.resetOnboardingText}>Reset onboarding for testing</Text>
-                </Pressable>
-              )}
             </Pressable>
           </Pressable>
         </Modal>
@@ -392,20 +377,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: C.textSecondary,
     textAlign: "center",
-  },
-  resetOnboardingBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
-    borderTopColor: C.border,
-  },
-  resetOnboardingText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    color: C.textSecondary,
   },
 });

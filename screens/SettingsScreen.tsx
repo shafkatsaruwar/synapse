@@ -16,7 +16,11 @@ const COMMON_CONDITIONS = [
   "Chronic Fatigue", "Fibromyalgia",
 ];
 
-export default function SettingsScreen() {
+interface SettingsScreenProps {
+  onResetOnboarding?: () => void;
+}
+
+export default function SettingsScreen({ onResetOnboarding }: SettingsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -161,6 +165,17 @@ export default function SettingsScreen() {
           <Ionicons name={saved ? "checkmark-circle" : "save-outline"} size={18} color="#fff" />
           <Text style={styles.saveBtnText}>{saved ? "Saved" : "Save Settings"}</Text>
         </Pressable>
+
+        {onResetOnboarding && (
+          <Pressable
+            style={({ pressed }) => [styles.resetOnboardingBtn, { opacity: pressed ? 0.7 : 1 }]}
+            onPress={onResetOnboarding}
+            testID="reset-onboarding"
+          >
+            <Ionicons name="refresh-outline" size={16} color={C.textTertiary} />
+            <Text style={styles.resetOnboardingText}>Reset onboarding for testing</Text>
+          </Pressable>
+        )}
       </ScrollView>
 
       <Modal visible={showVitalModal} transparent animationType="fade">
@@ -221,4 +236,6 @@ const styles = StyleSheet.create({
   cancelText: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: C.textSecondary },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.cyan, alignItems: "center" },
   confirmText: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: "#fff" },
+  resetOnboardingBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 24, paddingVertical: 12 },
+  resetOnboardingText: { fontFamily: "Inter_400Regular", fontSize: 13, color: C.textTertiary },
 });
