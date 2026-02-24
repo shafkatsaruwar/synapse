@@ -228,7 +228,9 @@ export default function DailyLogScreen() {
               const isToday = dateStr === todayStr;
               const hasLog = loggedDates.has(dateStr);
               const hijriDay = ramadanMode ? getHijriDay(dateStr) : undefined;
-              const isDisabled = dateStr !== todayStr;
+              const isFuture = dateStr > todayStr;
+              const isPast = dateStr < todayStr;
+              const isDisabled = isPast;
 
               return (
                 <Pressable
@@ -242,7 +244,7 @@ export default function DailyLogScreen() {
                   onPress={isDisabled ? undefined : () => openDayLog(day)}
                   disabled={isDisabled}
                   accessibilityRole="button"
-                  accessibilityLabel={`${new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" })}${hasLog ? ", logged" : ""}${isToday ? ", today" : ""}`}
+                  accessibilityLabel={`${new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" })}${hasLog ? ", logged" : ""}${isToday ? ", today" : ""}${isFuture ? ", future date" : ""}`}
                 >
                   <Text style={[styles.dayNumber, isToday && styles.todayText, isDisabled && styles.disabledText]}>{day}</Text>
                   {hijriDay !== undefined && (
@@ -298,48 +300,56 @@ export default function DailyLogScreen() {
               </Pressable>
             </View>
 
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              style={styles.modalScroll}
-            >
-              <View style={styles.formCard}>
-                {renderSlider("Energy", energy, setEnergy, energyLabels, C.tint)}
-                {renderSlider("Mood", mood, setMood, moodLabels, C.purple)}
-                {renderSlider("Sleep", sleep, setSleep, sleepLabels, C.cyan)}
+            {selectedDate && selectedDate > todayStr ? (
+              <View style={styles.futureMessage}>
+                <Text style={styles.futureEmoji}>🌱</Text>
+                <Text style={styles.futureTitle}>Come back tomorrow to log your day</Text>
+                <Text style={styles.futureSubtitle}>You can't live it before it happens.</Text>
               </View>
-
-              <View style={styles.formCard}>
-                <Text style={styles.sectionTitle}>Notes</Text>
-                <TextInput
-                  style={styles.notesInput}
-                  placeholder="How are you feeling?"
-                  placeholderTextColor={C.textTertiary}
-                  value={notes}
-                  onChangeText={(t) => {
-                    setNotes(t);
-                    setSaved(false);
-                  }}
-                  multiline
-                  textAlignVertical="top"
-                  accessibilityLabel="Notes"
-                />
-              </View>
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.saveBtn,
-                  saved && styles.saveBtnSaved,
-                  { opacity: pressed ? 0.85 : 1 },
-                ]}
-                onPress={handleSave}
-                accessibilityRole="button"
-                accessibilityLabel={saved ? "Log saved" : "Save log"}
+            ) : (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                style={styles.modalScroll}
               >
-                <Ionicons name={saved ? "checkmark-circle" : "save-outline"} size={18} color="#fff" />
-                <Text style={styles.saveBtnText}>{saved ? "Saved" : "Save Log"}</Text>
-              </Pressable>
-            </ScrollView>
+                <View style={styles.formCard}>
+                  {renderSlider("Energy", energy, setEnergy, energyLabels, C.tint)}
+                  {renderSlider("Mood", mood, setMood, moodLabels, C.purple)}
+                  {renderSlider("Sleep", sleep, setSleep, sleepLabels, C.cyan)}
+                </View>
+
+                <View style={styles.formCard}>
+                  <Text style={styles.sectionTitle}>Notes</Text>
+                  <TextInput
+                    style={styles.notesInput}
+                    placeholder="How are you feeling?"
+                    placeholderTextColor={C.textTertiary}
+                    value={notes}
+                    onChangeText={(t) => {
+                      setNotes(t);
+                      setSaved(false);
+                    }}
+                    multiline
+                    textAlignVertical="top"
+                    accessibilityLabel="Notes"
+                  />
+                </View>
+
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.saveBtn,
+                    saved && styles.saveBtnSaved,
+                    { opacity: pressed ? 0.85 : 1 },
+                  ]}
+                  onPress={handleSave}
+                  accessibilityRole="button"
+                  accessibilityLabel={saved ? "Log saved" : "Save log"}
+                >
+                  <Ionicons name={saved ? "checkmark-circle" : "save-outline"} size={18} color="#fff" />
+                  <Text style={styles.saveBtnText}>{saved ? "Saved" : "Save Log"}</Text>
+                </Pressable>
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>
@@ -431,6 +441,30 @@ const styles = StyleSheet.create({
   },
   disabledText: {
     color: C.textTertiary,
+  },
+  futureMessage: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+  },
+  futureEmoji: {
+    fontSize: 36,
+    marginBottom: 16,
+  },
+  futureTitle: {
+    fontWeight: "600",
+    fontSize: 18,
+    color: C.text,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  futureSubtitle: {
+    fontWeight: "400",
+    fontSize: 14,
+    color: C.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
   },
   hijriText: {
     fontWeight: "500",
