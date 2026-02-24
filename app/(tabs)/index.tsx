@@ -13,6 +13,7 @@ import DocumentsScreen from "@/screens/DocumentsScreen";
 import InsightsScreen from "@/screens/InsightsScreen";
 import PrivacyScreen from "@/screens/PrivacyScreen";
 import SickModeScreen from "@/screens/SickModeScreen";
+import RamadanScreen from "@/screens/RamadanScreen";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import { settingsStorage } from "@/lib/storage";
 import Colors from "@/constants/colors";
@@ -95,6 +96,8 @@ export default function MainScreen() {
         return <AppointmentsScreen />;
       case "reports":
         return <ReportsScreen />;
+      case "ramadan":
+        return <RamadanScreen />;
       case "privacy":
         return <PrivacyScreen />;
       case "settings":

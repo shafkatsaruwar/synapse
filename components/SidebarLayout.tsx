@@ -39,7 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "settings", label: "Settings", icon: "settings-outline", iconActive: "settings" },
 ];
 
-const PRIMARY_KEYS = ["dashboard", "log", "healthdata"];
+const PRIMARY_KEYS = ["dashboard", "healthdata", "medications"];
 const PRIMARY_ITEMS = NAV_ITEMS.filter((n) => PRIMARY_KEYS.includes(n.key));
 const MORE_ITEMS = NAV_ITEMS.filter((n) => !PRIMARY_KEYS.includes(n.key));
 

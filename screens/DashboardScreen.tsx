@@ -190,7 +190,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
   );
 
   const renderRamadanCard = () => (
-    <PriorityCard color="#6B6B6B" icon="moon" label="Ramadan" onPress={() => onNavigate("log")}>
+    <PriorityCard color="#6B6B6B" icon="moon" label="Ramadan" onPress={() => onNavigate("ramadan")}>
       {fastingLog ? (
         <View>
           <View style={styles.priLogRow}>
