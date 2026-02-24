@@ -65,6 +65,10 @@ function PriorityCard({ color, icon, label, onPress, children }: { color: string
       onPress={() => { Haptics.selectionAsync(); onPress(); }}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      accessibilityLabel={`${label} card`}
+      accessibilityRole="button"
+      accessibilityHint={`Opens ${label} screen`}
+      style={{ minHeight: 44 }}
     >
       <Animated.View style={[styles.priorityCard, { backgroundColor: color, transform: [{ scale }] }]}>
         <View style={styles.priorityHeader}>
@@ -292,13 +296,16 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             onActivateSickMode?.();
           }}
+          accessibilityLabel="Activate Sick Mode"
+          accessibilityRole="button"
+          accessibilityHint="Activates stress dosing protocol for adrenal crisis"
         >
           <Ionicons name="shield-outline" size={16} color={C.red} />
           <Text style={styles.sickModeActivateBtnText}>Activate Sick Mode</Text>
         </Pressable>
       )}
 
-      <View style={styles.welcome}>
+      <View style={styles.welcome} accessibilityRole="header">
         <Text style={styles.greetingText}>
           {greeting}{settings.name ? `, ${settings.name}` : ""}
         </Text>
@@ -324,7 +331,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
       </View>
 
       <View style={[styles.grid, isWide && styles.gridWide]}>
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("symptoms")}>
+        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("symptoms")} accessibilityLabel={`Symptoms, ${todaySymptoms.length} today`} accessibilityRole="button" accessibilityHint="Opens symptoms tracker">
           <View style={styles.cardHeader}>
             <View style={[styles.cardIcon, { backgroundColor: C.orangeLight }]}>
               <Ionicons name="pulse" size={16} color={C.orange} />
@@ -348,7 +355,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
           )}
         </Pressable>
 
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("settings")}>
+        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("settings")} accessibilityLabel="Vitals and Conditions" accessibilityRole="button" accessibilityHint="Opens vitals and conditions settings">
           <View style={styles.cardHeader}>
             <View style={[styles.cardIcon, { backgroundColor: C.cyanLight }]}>
               <Ionicons name="fitness" size={16} color={C.cyan} />
@@ -380,7 +387,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
           )}
         </Pressable>
 
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("healthdata")}>
+        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("healthdata")} accessibilityLabel="Health Trends" accessibilityRole="button" accessibilityHint="Track weight, blood pressure, blood sugar, sleep and more">
           <View style={[styles.cardHeader, { marginBottom: 0 }]}>
             <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
               <Ionicons name="analytics" size={16} color={C.accent} />
@@ -394,7 +401,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
           </View>
         </Pressable>
 
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("documents")}>
+        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("documents")} accessibilityLabel="Document Scanner" accessibilityRole="button" accessibilityHint="Upload lab reports and prescriptions for AI extraction">
           <View style={[styles.cardHeader, { marginBottom: 0 }]}>
             <View style={[styles.cardIcon, { backgroundColor: C.pinkLight }]}>
               <Ionicons name="scan" size={16} color={C.pink} />
@@ -408,7 +415,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
           </View>
         </Pressable>
 
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("insights")}>
+        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("insights")} accessibilityLabel="AI Health Insights" accessibilityRole="button" accessibilityHint="Get personalized analysis of your health patterns">
           <View style={[styles.cardHeader, { marginBottom: 0 }]}>
             <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
               <Ionicons name="sparkles" size={16} color={C.accent} />
@@ -422,7 +429,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
           </View>
         </Pressable>
 
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("reports")}>
+        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("reports")} accessibilityLabel="Generate Report" accessibilityRole="button" accessibilityHint="Create a health summary for your doctor visit">
           <View style={[styles.cardHeader, { marginBottom: 0 }]}>
             <View style={[styles.cardIcon, { backgroundColor: C.greenLight }]}>
               <Ionicons name="document-text" size={16} color={C.green} />

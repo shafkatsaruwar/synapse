@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import ReadAloudButton from "@/components/ReadAloudButton";
 import {
   medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage,
   type Medication, type MedicationLog, type UserSettings, type SickModeData,
@@ -260,6 +261,19 @@ export default function MedicationsScreen() {
     return `${hrs}h ${mins}m`;
   };
 
+  const getReadAloudText = useCallback(() => {
+    const parts: string[] = [];
+    parts.push(`${takenDoses} of ${totalDoses} doses taken today.`);
+    medications.filter(m => m.active).forEach(med => {
+      const dc = getDoseCount(med);
+      let taken = 0;
+      for (let i = 0; i < dc; i++) { if (isDoseTaken(med.id, i)) taken++; }
+      const status = taken === dc ? "taken" : `${taken} of ${dc} taken`;
+      parts.push(`${med.name}, ${med.dosage}${med.unit ? " " + med.unit : ""}, ${status}.`);
+    });
+    return parts.join(" ");
+  }, [medications, medLogs, takenDoses, totalDoses]);
+
   const doseLabels = (med: Medication): string[] => {
     const count = getDoseCount(med);
     if (count === 1) return ["Dose"];
@@ -294,7 +308,7 @@ export default function MedicationsScreen() {
             <Text style={[styles.title, isSickMode && { color: "#FF6B6B" }]}>Medications</Text>
             <Text style={styles.subtitle}>{takenDoses}/{totalDoses} doses taken today</Text>
           </View>
-          <Pressable testID="add-medication" style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={openAddModal}>
+          <Pressable testID="add-medication" style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={openAddModal} accessibilityRole="button" accessibilityLabel="Add medication" hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}>
             <Ionicons name="add" size={20} color="#fff" />
           </Pressable>
         </View>
@@ -356,24 +370,24 @@ export default function MedicationsScreen() {
                       )}
                       {!!med.frequency && <Text style={styles.medFreq}>{med.frequency}</Text>}
                     </View>
-                    <Pressable onPress={() => handleDelete(med)} hitSlop={12}>
+                    <Pressable onPress={() => handleDelete(med)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Remove ${med.name}`}>
                       <Ionicons name="trash-outline" size={16} color={C.textTertiary} />
                     </Pressable>
                   </View>
 
                   {doseCount === 1 ? (
                     allTaken ? (
-                      <Pressable style={styles.takenBanner} onPress={() => handleDoseToggle(med.id, 0)}>
+                      <Pressable style={styles.takenBanner} onPress={() => handleDoseToggle(med.id, 0)} accessibilityRole="button" accessibilityLabel={`${med.name} taken, tap to undo`}>
                         <Ionicons name="checkmark-circle" size={18} color={C.green} />
                         <Text style={styles.takenText}>Taken</Text>
                       </Pressable>
                     ) : (
                       <View style={styles.actionRow}>
-                        <Pressable style={[styles.yesBtn, isStressDosing && { backgroundColor: C.red }]} onPress={() => handleDoseToggle(med.id, 0)} testID={`taken-${med.name}`}>
+                        <Pressable style={[styles.yesBtn, isStressDosing && { backgroundColor: C.red }]} onPress={() => handleDoseToggle(med.id, 0)} testID={`taken-${med.name}`} accessibilityRole="button" accessibilityLabel={`Mark ${med.name} as taken`}>
                           <Ionicons name="checkmark" size={16} color="#fff" />
                           <Text style={styles.yesBtnText}>Yes, took it</Text>
                         </Pressable>
-                        <Pressable style={styles.notYetBtn} onPress={() => handleNotYet(med.id)} testID={`notyet-${med.name}`}>
+                        <Pressable style={styles.notYetBtn} onPress={() => handleNotYet(med.id)} testID={`notyet-${med.name}`} accessibilityRole="button" accessibilityLabel={`Skip ${med.name} for now`}>
                           <Text style={styles.notYetText}>Not yet</Text>
                         </Pressable>
                       </View>
@@ -387,13 +401,18 @@ export default function MedicationsScreen() {
                             key={i}
                             style={[styles.doseRow, taken && styles.doseRowTaken]}
                             onPress={() => handleDoseToggle(med.id, i)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${med.name} ${labels[i]}, ${taken ? "taken" : "missed"}`}
                           >
                             <Ionicons
-                              name={taken ? "checkmark-circle" : "ellipse-outline"}
+                              name={taken ? "checkmark-circle" : "close-circle-outline"}
                               size={20}
                               color={taken ? C.green : (isStressDosing ? C.red : C.textTertiary)}
                             />
                             <Text style={[styles.doseLabel, taken && { color: C.green }]}>{labels[i]}</Text>
+                            <Text style={{ fontSize: 11, fontWeight: "600" as const, color: taken ? C.green : C.textTertiary }}>
+                              {taken ? "Taken" : "Missed"}
+                            </Text>
                             {!taken && (
                               <Pressable style={styles.doseNotYet} onPress={() => handleNotYet(med.id)}>
                                 <Text style={styles.doseNotYetText}>skip</Text>
@@ -428,7 +447,7 @@ export default function MedicationsScreen() {
               </View>
               <View style={styles.hydrationBtns}>
                 {[250, 500].map((ml) => (
-                  <Pressable key={ml} style={styles.hydrationBtn} onPress={() => addHydration(ml)}>
+                  <Pressable key={ml} style={styles.hydrationBtn} onPress={() => addHydration(ml)} accessibilityRole="button" accessibilityLabel={`Add ${ml} millilitres of water`}>
                     <Ionicons name="add" size={14} color={C.tint} />
                     <Text style={styles.hydrationBtnText}>{ml} mL</Text>
                   </Pressable>
@@ -446,7 +465,7 @@ export default function MedicationsScreen() {
                 { key: "saltySnack" as const, label: "Salty snack", icon: "nutrition-outline" },
                 { key: "liquidCalories" as const, label: "Liquid calories", icon: "water-outline" },
               ]).map(({ key, label, icon }) => (
-                <Pressable key={key} style={styles.checkRow} onPress={() => toggleFoodItem(key)}>
+                <Pressable key={key} style={styles.checkRow} onPress={() => toggleFoodItem(key)} accessibilityRole="checkbox" accessibilityState={{ checked: sickData.foodChecklist[key] }} accessibilityLabel={label}>
                   <Ionicons
                     name={sickData.foodChecklist[key] ? "checkmark-circle" : "ellipse-outline"}
                     size={22}
@@ -484,7 +503,7 @@ export default function MedicationsScreen() {
                           <Text style={styles.prnCountdownText}>{countdown}</Text>
                         </View>
                       ) : (
-                        <Pressable style={styles.prnTakeBtn} onPress={() => takePRN("Tylenol")}>
+                        <Pressable style={styles.prnTakeBtn} onPress={() => takePRN("Tylenol")} accessibilityRole="button" accessibilityLabel="Take Tylenol">
                           <Text style={styles.prnTakeBtnText}>Take</Text>
                         </Pressable>
                       )}
@@ -498,7 +517,7 @@ export default function MedicationsScreen() {
               <View style={styles.protocolCardHeader}>
                 <Text style={{ fontSize: 16 }}>🌡️</Text>
                 <Text style={styles.protocolCardTitle}>Temperature</Text>
-                <Pressable style={styles.tempAddBtn} onPress={() => setShowTempModal(true)}>
+                <Pressable style={styles.tempAddBtn} onPress={() => setShowTempModal(true)} accessibilityRole="button" accessibilityLabel="Log temperature">
                   <Ionicons name="add" size={16} color={C.tint} />
                 </Pressable>
               </View>
@@ -508,9 +527,15 @@ export default function MedicationsScreen() {
               {(sickData.temperatures || []).slice(-5).reverse().map((t, i) => (
                 <View key={i} style={styles.tempRow}>
                   <Text style={styles.tempTime}>{t.time}</Text>
-                  <Text style={[styles.tempValue, t.value >= 100 && { color: C.red }]}>
-                    {t.value}°F {t.value >= 100 ? "⚠️" : ""}
-                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Ionicons name="thermometer-outline" size={14} color={t.value >= 102 ? C.red : t.value >= 100 ? C.orange : C.green} />
+                    <Text style={[styles.tempValue, t.value >= 100 && { color: t.value >= 102 ? C.red : C.orange }]}>
+                      {t.value}°F
+                    </Text>
+                    <Text style={{ fontSize: 11, fontWeight: "500" as const, color: t.value >= 102 ? C.red : t.value >= 100 ? C.orange : C.green }}>
+                      {t.value >= 102 ? "High Fever" : t.value >= 100 ? "Fever" : "Normal"}
+                    </Text>
+                  </View>
                 </View>
               ))}
             </View>
@@ -660,6 +685,8 @@ export default function MedicationsScreen() {
           </View>
         </View>
       </Modal>
+
+      <ReadAloudButton getText={getReadAloudText} />
     </View>
   );
 }

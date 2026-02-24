@@ -87,7 +87,7 @@ export default function HealthDataScreen() {
       }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Health Data</Text>
-          <Pressable testID="add-health-data" style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => setShowAdd(true)}>
+          <Pressable testID="add-health-data" style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => setShowAdd(true)} accessibilityRole="button" accessibilityLabel="Add health data" hitSlop={{ top: 4, bottom: 4 }}>
             <Ionicons name="add" size={20} color="#fff" />
             <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>Add</Text>
           </Pressable>
@@ -95,7 +95,7 @@ export default function HealthDataScreen() {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRow}>
           {CATEGORIES.map((c) => (
-            <Pressable key={c.key} style={[styles.catChip, selected === c.key && { backgroundColor: c.color + "22", borderColor: c.color }]} onPress={() => { setSelected(c.key); Haptics.selectionAsync(); }}>
+            <Pressable key={c.key} style={[styles.catChip, selected === c.key && { backgroundColor: c.color + "22", borderColor: c.color }]} onPress={() => { setSelected(c.key); Haptics.selectionAsync(); }} accessibilityRole="button" accessibilityLabel={c.label} accessibilityState={{ selected: selected === c.key }}>
               <Ionicons name={c.icon as any} size={14} color={selected === c.key ? c.color : C.textSecondary} />
               <Text style={[styles.catText, selected === c.key && { color: c.color }]}>{c.label}</Text>
             </Pressable>
@@ -104,7 +104,7 @@ export default function HealthDataScreen() {
 
         <View style={styles.rangeRow}>
           {([7, 14, 30] as const).map((r) => (
-            <Pressable key={r} style={[styles.rangeBtn, range === r && styles.rangeBtnActive]} onPress={() => setRange(r)}>
+            <Pressable key={r} style={[styles.rangeBtn, range === r && styles.rangeBtnActive]} onPress={() => setRange(r)} accessibilityRole="button" accessibilityLabel={`${r} day range`} accessibilityState={{ selected: range === r }}>
               <Text style={[styles.rangeText, range === r && styles.rangeTextActive]}>{r}d</Text>
             </Pressable>
           ))}

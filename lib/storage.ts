@@ -44,12 +44,25 @@ export interface MedicationLog {
 export interface SickModeData {
   active: boolean;
   startedAt?: string;
+  recoveryMode?: boolean;
+  checkInTimer?: string;
+  lastCheckIn?: string;
   hydrationMl: number;
   foodChecklist: { lightMeal: boolean; saltySnack: boolean; liquidCalories: boolean };
   restChecklist: { lying: boolean; napping: boolean; screenBreak: boolean };
   symptoms: string[];
   temperatures: { time: string; value: number }[];
   prnDoses: { med: string; time: string }[];
+}
+
+export interface AllergyInfo {
+  hasAllergies: boolean;
+  allergyName: string;
+  reactionDescription: string;
+  hasEpiPen: boolean;
+  primaryEpiPenLocation: string;
+  backupEpiPenLocation: string;
+  noTreatmentConsequence: string;
 }
 
 export interface Appointment {
@@ -127,6 +140,7 @@ export interface UserSettings {
   conditions: string[];
   ramadanMode: boolean;
   sickMode: boolean;
+  highContrast?: boolean;
   onboardingCompleted?: boolean;
 }
 
@@ -144,6 +158,7 @@ const KEYS = {
   DOCUMENTS: "fir_documents",
   INSIGHTS: "fir_insights",
   MED_COMPARISONS: "fir_med_comparisons",
+  ALLERGY_INFO: "fir_allergy_info",
 };
 
 async function getItem<T>(key: string): Promise<T[]> {
@@ -379,6 +394,26 @@ export const medComparisonStorage = {
   delete: async (id: string) => {
     const all = await getItem<MedComparison>(KEYS.MED_COMPARISONS);
     await setItem(KEYS.MED_COMPARISONS, all.filter((c) => c.id !== id));
+  },
+};
+
+const DEFAULT_ALLERGY_INFO: AllergyInfo = {
+  hasAllergies: false,
+  allergyName: "",
+  reactionDescription: "",
+  hasEpiPen: false,
+  primaryEpiPenLocation: "",
+  backupEpiPenLocation: "",
+  noTreatmentConsequence: "",
+};
+
+export const allergyStorage = {
+  get: async (): Promise<AllergyInfo> => {
+    const raw = await AsyncStorage.getItem(KEYS.ALLERGY_INFO);
+    return raw ? { ...DEFAULT_ALLERGY_INFO, ...JSON.parse(raw) } : { ...DEFAULT_ALLERGY_INFO };
+  },
+  save: async (data: AllergyInfo) => {
+    await AsyncStorage.setItem(KEYS.ALLERGY_INFO, JSON.stringify(data));
   },
 };
 

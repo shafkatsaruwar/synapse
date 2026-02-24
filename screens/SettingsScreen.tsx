@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { settingsStorage, vitalStorage, sickModeStorage, clearAllData, type UserSettings, type Vital } from "@/lib/storage";
+import { settingsStorage, vitalStorage, sickModeStorage, allergyStorage, clearAllData, type UserSettings, type Vital, type AllergyInfo } from "@/lib/storage";
 
 const C = Colors.dark;
 
@@ -33,6 +33,12 @@ export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
   const [vitalValue, setVitalValue] = useState("");
   const [vitalUnit, setVitalUnit] = useState("");
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [allergy, setAllergy] = useState<AllergyInfo>({
+    hasAllergies: false, allergyName: "", reactionDescription: "",
+    hasEpiPen: false, primaryEpiPenLocation: "", backupEpiPenLocation: "",
+    noTreatmentConsequence: "",
+  });
+  const [allergySaved, setAllergySaved] = useState(true);
 
   const handleResetApp = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -42,17 +48,19 @@ export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
   };
 
   const loadData = useCallback(async () => {
-    const [s, v] = await Promise.all([settingsStorage.get(), vitalStorage.getAll()]);
+    const [s, v, a] = await Promise.all([settingsStorage.get(), vitalStorage.getAll(), allergyStorage.get()]);
     setSettings(s);
     setVitals(v.sort((a, b) => b.date.localeCompare(a.date)));
+    setAllergy(a);
   }, []);
 
   React.useEffect(() => { loadData(); }, [loadData]);
 
   const handleSave = async () => {
-    await settingsStorage.save(settings);
+    await Promise.all([settingsStorage.save(settings), allergyStorage.save(allergy)]);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaved(true);
+    setAllergySaved(true);
   };
 
   const toggleCondition = (c: string) => {
@@ -93,7 +101,7 @@ export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
           <Text style={styles.desc}>Select any conditions you manage</Text>
           <View style={styles.chipGrid}>
             {COMMON_CONDITIONS.map((c) => (
-              <Pressable key={c} style={[styles.chip, settings.conditions.includes(c) && { backgroundColor: C.tintLight, borderColor: C.tint }]} onPress={() => toggleCondition(c)}>
+              <Pressable key={c} style={[styles.chip, settings.conditions.includes(c) && { backgroundColor: C.tintLight, borderColor: C.tint }]} onPress={() => toggleCondition(c)} accessibilityRole="button" accessibilityLabel={c} accessibilityState={{ selected: settings.conditions.includes(c) }}>
                 <Text style={[styles.chipText, settings.conditions.includes(c) && { color: C.tint }]}>{c}</Text>
               </Pressable>
             ))}
@@ -114,6 +122,24 @@ export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
             </View>
             <View style={[styles.toggle, settings.ramadanMode && styles.toggleActive]}>
               <View style={[styles.toggleThumb, settings.ramadanMode && styles.toggleThumbActive]} />
+            </View>
+          </View>
+        </Pressable>
+
+        <Pressable
+          style={styles.card}
+          testID="high-contrast-toggle"
+          onPress={() => { setSettings((p) => ({ ...p, highContrast: !p.highContrast })); setSaved(false); Haptics.selectionAsync(); }}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: !!settings.highContrast }}
+        >
+          <View style={styles.toggleHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>High Contrast</Text>
+              <Text style={styles.desc}>Increase contrast for better readability</Text>
+            </View>
+            <View style={[styles.toggle, settings.highContrast && styles.toggleActive]}>
+              <View style={[styles.toggleThumb, settings.highContrast && styles.toggleThumbActive]} />
             </View>
           </View>
         </Pressable>
@@ -153,7 +179,7 @@ export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
         <View style={styles.card}>
           <View style={styles.vitalsHeader}>
             <Text style={styles.sectionTitle}>Vitals</Text>
-            <Pressable style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => setShowVitalModal(true)}>
+            <Pressable style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => setShowVitalModal(true)} accessibilityRole="button" accessibilityLabel="Add vital" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
               <Ionicons name="add" size={18} color="#fff" />
             </Pressable>
           </View>
@@ -169,9 +195,101 @@ export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
           ))}
         </View>
 
-        <Pressable style={({ pressed }) => [styles.saveBtn, saved && styles.saveBtnSaved, { opacity: pressed ? 0.85 : 1 }]} onPress={handleSave}>
-          <Ionicons name={saved ? "checkmark-circle" : "save-outline"} size={18} color="#fff" />
-          <Text style={styles.saveBtnText}>{saved ? "Saved" : "Save Settings"}</Text>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Allergy & Emergency Info</Text>
+          <Text style={styles.desc}>Important information for emergencies</Text>
+
+          <Pressable
+            style={styles.toggleHeader}
+            onPress={() => { setAllergy((p) => ({ ...p, hasAllergies: !p.hasAllergies })); setSaved(false); setAllergySaved(false); Haptics.selectionAsync(); }}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: allergy.hasAllergies }}
+          >
+            <Text style={[styles.label, { flex: 1, marginBottom: 0 }]}>Do you have allergies?</Text>
+            <View style={[styles.toggle, allergy.hasAllergies && styles.toggleActive]}>
+              <View style={[styles.toggleThumb, allergy.hasAllergies && styles.toggleThumbActive]} />
+            </View>
+          </Pressable>
+
+          {allergy.hasAllergies && (
+            <View style={{ marginTop: 14 }}>
+              <Text style={styles.label}>Allergy Name</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Peanuts, Penicillin"
+                placeholderTextColor={C.textTertiary}
+                value={allergy.allergyName}
+                onChangeText={(t) => { setAllergy((p) => ({ ...p, allergyName: t })); setSaved(false); setAllergySaved(false); }}
+                accessibilityLabel="Allergy name"
+              />
+              <View style={{ height: 12 }} />
+              <Text style={styles.label}>Reaction Description</Text>
+              <TextInput
+                style={[styles.input, { minHeight: 60, textAlignVertical: "top" }]}
+                placeholder="Describe the allergic reaction"
+                placeholderTextColor={C.textTertiary}
+                value={allergy.reactionDescription}
+                onChangeText={(t) => { setAllergy((p) => ({ ...p, reactionDescription: t })); setSaved(false); setAllergySaved(false); }}
+                multiline
+                accessibilityLabel="Reaction description"
+              />
+            </View>
+          )}
+
+          <View style={{ height: 16 }} />
+
+          <Pressable
+            style={styles.toggleHeader}
+            onPress={() => { setAllergy((p) => ({ ...p, hasEpiPen: !p.hasEpiPen })); setSaved(false); setAllergySaved(false); Haptics.selectionAsync(); }}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: allergy.hasEpiPen }}
+          >
+            <Text style={[styles.label, { flex: 1, marginBottom: 0 }]}>Do you carry an EpiPen?</Text>
+            <View style={[styles.toggle, allergy.hasEpiPen && styles.toggleActive]}>
+              <View style={[styles.toggleThumb, allergy.hasEpiPen && styles.toggleThumbActive]} />
+            </View>
+          </Pressable>
+
+          {allergy.hasEpiPen && (
+            <View style={{ marginTop: 14 }}>
+              <Text style={styles.label}>Primary EpiPen Location</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Left pocket, backpack"
+                placeholderTextColor={C.textTertiary}
+                value={allergy.primaryEpiPenLocation}
+                onChangeText={(t) => { setAllergy((p) => ({ ...p, primaryEpiPenLocation: t })); setSaved(false); setAllergySaved(false); }}
+                accessibilityLabel="Primary EpiPen location"
+              />
+              <View style={{ height: 12 }} />
+              <Text style={styles.label}>Backup EpiPen Location</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Car glove box, office desk"
+                placeholderTextColor={C.textTertiary}
+                value={allergy.backupEpiPenLocation}
+                onChangeText={(t) => { setAllergy((p) => ({ ...p, backupEpiPenLocation: t })); setSaved(false); setAllergySaved(false); }}
+                accessibilityLabel="Backup EpiPen location"
+              />
+            </View>
+          )}
+
+          <View style={{ height: 16 }} />
+          <Text style={styles.label}>What happens if no treatment is given?</Text>
+          <TextInput
+            style={[styles.input, { minHeight: 60, textAlignVertical: "top" }]}
+            placeholder="Describe consequences of no treatment"
+            placeholderTextColor={C.textTertiary}
+            value={allergy.noTreatmentConsequence}
+            onChangeText={(t) => { setAllergy((p) => ({ ...p, noTreatmentConsequence: t })); setSaved(false); setAllergySaved(false); }}
+            multiline
+            accessibilityLabel="Consequences of no treatment"
+          />
+        </View>
+
+        <Pressable style={({ pressed }) => [styles.saveBtn, (saved && allergySaved) && styles.saveBtnSaved, { opacity: pressed ? 0.85 : 1 }]} onPress={handleSave} accessibilityRole="button" accessibilityLabel={(saved && allergySaved) ? "Settings saved" : "Save settings"}>
+          <Ionicons name={(saved && allergySaved) ? "checkmark-circle" : "save-outline"} size={18} color="#fff" />
+          <Text style={styles.saveBtnText}>{(saved && allergySaved) ? "Saved" : "Save Settings"}</Text>
         </Pressable>
 
         {onResetApp && (
@@ -179,6 +297,9 @@ export default function SettingsScreen({ onResetApp }: SettingsScreenProps) {
             style={({ pressed }) => [styles.resetAppBtn, { opacity: pressed ? 0.8 : 1 }]}
             onPress={() => setShowResetConfirm(true)}
             testID="reset-app"
+            accessibilityRole="button"
+            accessibilityLabel="Reset app"
+            accessibilityHint="Erases all data and returns to onboarding"
           >
             <Ionicons name="trash-outline" size={16} color={C.red} />
             <Text style={styles.resetAppText}>Reset App</Text>

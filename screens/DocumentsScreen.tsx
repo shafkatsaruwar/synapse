@@ -122,7 +122,7 @@ export default function DocumentsScreen() {
         <Text style={styles.title}>Documents</Text>
         <Text style={styles.subtitle}>Upload medical documents for AI-powered extraction</Text>
 
-        <Pressable style={({ pressed }) => [styles.uploadCard, { opacity: pressed ? 0.9 : 1 }]} onPress={pickAndAnalyze} disabled={loading}>
+        <Pressable style={({ pressed }) => [styles.uploadCard, { opacity: pressed ? 0.9 : 1 }]} onPress={pickAndAnalyze} disabled={loading} accessibilityRole="button" accessibilityLabel="Upload document" accessibilityHint="Pick a photo of a lab report, prescription, or doctor note for AI analysis">
           {loading ? (
             <View style={styles.loadingContent}>
               <ActivityIndicator size="large" color={C.tint} />
@@ -148,7 +148,7 @@ export default function DocumentsScreen() {
         )}
 
         {documents.map((doc) => (
-          <Pressable key={doc.id} style={({ pressed }) => [styles.docCard, { opacity: pressed ? 0.9 : 1 }]} onPress={() => setSelectedDoc(doc)}>
+          <Pressable key={doc.id} style={({ pressed }) => [styles.docCard, { opacity: pressed ? 0.9 : 1 }]} onPress={() => setSelectedDoc(doc)} accessibilityRole="button" accessibilityLabel={`Document from ${formatDate(doc.date)}, ${doc.summary}`}>
             <View style={styles.docHeader}>
               <View style={styles.docIconWrap}>
                 <Ionicons name="document-text" size={20} color={C.tint} />
@@ -172,11 +172,11 @@ export default function DocumentsScreen() {
       <Modal visible={!!selectedDoc} transparent animationType="slide">
         <View style={styles.modalFull}>
           <View style={[styles.modalHeader, { paddingTop: Platform.OS === "web" ? 67 : insets.top + 8 }]}>
-            <Pressable onPress={() => setSelectedDoc(null)} style={styles.backBtn}>
+            <Pressable onPress={() => setSelectedDoc(null)} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back" hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
               <Ionicons name="arrow-back" size={22} color={C.text} />
             </Pressable>
             <Text style={styles.modalHeaderTitle}>Document Details</Text>
-            <Pressable onPress={() => selectedDoc && handleDelete(selectedDoc.id)} style={styles.deleteBtn}>
+            <Pressable onPress={() => selectedDoc && handleDelete(selectedDoc.id)} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete document" hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}>
               <Ionicons name="trash-outline" size={20} color={C.red} />
             </Pressable>
           </View>
@@ -320,7 +320,7 @@ export default function DocumentsScreen() {
               </View>
             )}
 
-            <Pressable style={styles.compCloseBtn} onPress={() => setShowComparison(false)}>
+            <Pressable style={styles.compCloseBtn} onPress={() => setShowComparison(false)} accessibilityRole="button" accessibilityLabel="Dismiss medication comparison">
               <Text style={styles.compCloseText}>Got it</Text>
             </Pressable>
           </Pressable>

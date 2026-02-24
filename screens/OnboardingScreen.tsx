@@ -389,6 +389,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           autoFocus
           returnKeyType="done"
           onSubmitEditing={() => { if (canContinue()) goNext(); }}
+          accessibilityLabel="Your name"
         />
       </AnimatedView>
       <AnimatedLine text="Stored only on your device." delay={700} style={styles.nameHint} color={C.textTertiary} />
@@ -528,6 +529,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
             ]}
             onPress={handleContinue}
             disabled={!canContinue()}
+            accessibilityRole="button"
+            accessibilityLabel={getButtonLabel()}
           >
             <Text style={styles.continueBtnText}>{getButtonLabel()}</Text>
             <Ionicons name="arrow-forward" size={18} color="#fff" />

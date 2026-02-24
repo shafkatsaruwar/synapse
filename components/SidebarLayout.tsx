@@ -88,6 +88,9 @@ export default function SidebarLayout({
                   style={[styles.mobileNavItem, dimmed && { opacity: 0.35 }]}
                   onPress={() => onNavigate(item.key)}
                   testID={`tab-${item.key}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.label}
+                  accessibilityState={{ selected: active }}
                 >
                   <Ionicons
                     name={active ? item.iconActive : item.icon}
@@ -105,6 +108,9 @@ export default function SidebarLayout({
               style={styles.mobileNavItem}
               onPress={() => setMoreOpen(true)}
               testID="tab-more"
+              accessibilityRole="button"
+              accessibilityLabel="More navigation options"
+              accessibilityState={{ selected: moreIsActive }}
             >
               <Ionicons
                 name={moreIsActive ? "ellipsis-horizontal-circle" : "ellipsis-horizontal-circle-outline"}
@@ -145,6 +151,9 @@ export default function SidebarLayout({
                         setMoreOpen(false);
                       }}
                       testID={`more-${item.key}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={item.label}
+                      accessibilityState={{ selected: active }}
                     >
                       <View style={[styles.moreIconWrap, active && { backgroundColor: (sickMode ? C.red : C.accent) + "22" }]}>
                         <Ionicons
@@ -185,6 +194,9 @@ export default function SidebarLayout({
                 key={item.key}
                 style={[styles.navItem, active && styles.navItemActive, dimmed && { opacity: 0.35 }]}
                 onPress={() => onNavigate(item.key)}
+                accessibilityRole="button"
+                accessibilityLabel={item.label}
+                accessibilityState={{ selected: active }}
               >
                 <Ionicons
                   name={active ? item.iconActive : item.icon}

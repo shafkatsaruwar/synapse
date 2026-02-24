@@ -181,6 +181,9 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
         <Pressable
           style={[styles.toggleBtn, fasted === true && styles.toggleBtnActive]}
           onPress={() => { setFasted(true); setSkipReason(null); setShowTempInput(false); setFeverTemp(""); Haptics.selectionAsync(); }}
+          accessibilityRole="button"
+          accessibilityLabel="Fasted today"
+          accessibilityState={{ selected: fasted === true }}
         >
           <Ionicons name={fasted === true ? "checkmark-circle" : "ellipse-outline"} size={20} color={fasted === true ? "#fff" : C.textSecondary} />
           <Text style={[styles.toggleText, fasted === true && styles.toggleTextActive]}>Fasted</Text>
@@ -188,6 +191,9 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
         <Pressable
           style={[styles.toggleBtn, fasted === false && styles.toggleBtnInactive]}
           onPress={() => { setFasted(false); Haptics.selectionAsync(); }}
+          accessibilityRole="button"
+          accessibilityLabel="Not fasting today"
+          accessibilityState={{ selected: fasted === false }}
         >
           <Ionicons name={fasted === false ? "close-circle" : "ellipse-outline"} size={20} color={fasted === false ? C.text : C.textSecondary} />
           <Text style={[styles.toggleText, fasted === false && { color: C.text }]}>Not today</Text>
@@ -203,6 +209,9 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
                 key={r.key}
                 style={[styles.reasonChip, skipReason === r.key && styles.reasonChipActive]}
                 onPress={() => handleSelectReason(r.key)}
+                accessibilityRole="button"
+                accessibilityLabel={r.label}
+                accessibilityState={{ selected: skipReason === r.key }}
               >
                 <Ionicons name={r.icon as any} size={18} color={skipReason === r.key ? "#fff" : C.textSecondary} />
                 <Text style={[styles.reasonChipText, skipReason === r.key && styles.reasonChipTextActive]}>{r.label}</Text>
@@ -225,7 +234,7 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
                 <Text style={styles.tempUnit}>°F</Text>
               </View>
               {feverTemp && parseFloat(feverTemp) >= 100 && (
-                <Pressable style={styles.feverWarningBtn} onPress={handleTempSubmit}>
+                <Pressable style={styles.feverWarningBtn} onPress={handleTempSubmit} accessibilityRole="button" accessibilityLabel="Activate Sick Mode for fever" accessibilityHint="Activates stress dosing and recovery tracking">
                   <Ionicons name="warning" size={16} color="#fff" />
                   <Text style={styles.feverWarningBtnText}>Fever detected — Activate Sick Mode</Text>
                 </Pressable>
@@ -299,6 +308,10 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
                 key={g}
                 style={[styles.hydrationGlass, g <= hydration && styles.hydrationGlassActive]}
                 onPress={() => { setHydration(g); Haptics.selectionAsync(); }}
+                accessibilityRole="adjustable"
+                accessibilityLabel={`${g} glasses of water`}
+                accessibilityState={{ selected: g <= hydration }}
+                hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}
               >
                 <Ionicons name="water" size={18} color={g <= hydration ? "#fff" : C.textTertiary} />
               </Pressable>
@@ -313,6 +326,10 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
                   key={e}
                   style={[styles.energySegment, e <= energy && styles.energySegmentActive]}
                   onPress={() => { setEnergy(e); Haptics.selectionAsync(); }}
+                  accessibilityRole="adjustable"
+                  accessibilityLabel={`Energy level ${e}, ${ENERGY_LABELS[e - 1]}`}
+                  accessibilityState={{ selected: e === energy }}
+                  hitSlop={{ top: 16, bottom: 16 }}
                 />
               ))}
             </View>
@@ -336,6 +353,8 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
         <Pressable
           style={[styles.saveBtn, saved && styles.saveBtnSaved]}
           onPress={handleSave}
+          accessibilityRole="button"
+          accessibilityLabel={saved ? "Fasting log saved" : "Save fasting log"}
         >
           <Ionicons name={saved ? "checkmark-circle" : "save-outline"} size={18} color="#fff" />
           <Text style={styles.saveBtnText}>{saved ? "Saved" : "Save Log"}</Text>

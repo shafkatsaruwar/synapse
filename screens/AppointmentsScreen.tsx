@@ -33,9 +33,9 @@ function CalendarView({ appointments, selectedDate, onSelectDate }: { appointmen
   return (
     <View style={calStyles.cal}>
       <View style={calStyles.calHeader}>
-        <Pressable onPress={prevMonth} hitSlop={12}><Ionicons name="chevron-back" size={18} color={C.textSecondary} /></Pressable>
-        <Text style={calStyles.calMonth}>{monthName}</Text>
-        <Pressable onPress={nextMonth} hitSlop={12}><Ionicons name="chevron-forward" size={18} color={C.textSecondary} /></Pressable>
+        <Pressable onPress={prevMonth} hitSlop={12} accessibilityRole="button" accessibilityLabel="Previous month"><Ionicons name="chevron-back" size={18} color={C.textSecondary} /></Pressable>
+        <Text style={calStyles.calMonth} accessibilityRole="header">{monthName}</Text>
+        <Pressable onPress={nextMonth} hitSlop={12} accessibilityRole="button" accessibilityLabel="Next month"><Ionicons name="chevron-forward" size={18} color={C.textSecondary} /></Pressable>
       </View>
       <View style={calStyles.calWeekRow}>
         {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
@@ -50,7 +50,7 @@ function CalendarView({ appointments, selectedDate, onSelectDate }: { appointmen
           const hasApt = aptDates.has(dateStr);
           const isSelected = dateStr === selectedDate;
           return (
-            <Pressable key={i} style={[calStyles.calCell, isSelected && calStyles.calCellSelected, isToday && !isSelected && calStyles.calCellToday]} onPress={() => onSelectDate(dateStr)}>
+            <Pressable key={i} style={[calStyles.calCell, isSelected && calStyles.calCellSelected, isToday && !isSelected && calStyles.calCellToday]} onPress={() => onSelectDate(dateStr)} accessibilityRole="button" accessibilityLabel={`${new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" })}${hasApt ? ", has appointment" : ""}${isToday ? ", today" : ""}`} accessibilityState={{ selected: isSelected }}>
               <Text style={[calStyles.calDay, isSelected && { color: "#fff" }, isToday && !isSelected && { color: C.tint }]}>{day}</Text>
               {hasApt && <View style={[calStyles.calDot, isSelected && { backgroundColor: "#fff" }]} />}
             </Pressable>
@@ -145,16 +145,16 @@ export default function AppointmentsScreen() {
       }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Appointments</Text>
-          <Pressable style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => tab === "calendar" ? setShowAptModal(true) : setShowNoteModal(true)}>
+          <Pressable style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => tab === "calendar" ? setShowAptModal(true) : setShowNoteModal(true)} accessibilityRole="button" accessibilityLabel={tab === "calendar" ? "Add appointment" : "Add doctor note"} hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}>
             <Ionicons name="add" size={20} color="#fff" />
           </Pressable>
         </View>
 
         <View style={styles.tabRow}>
-          <Pressable style={[styles.tabBtn, tab === "calendar" && styles.tabBtnActive]} onPress={() => setTab("calendar")}>
+          <Pressable style={[styles.tabBtn, tab === "calendar" && styles.tabBtnActive]} onPress={() => setTab("calendar")} accessibilityRole="button" accessibilityLabel="Calendar" accessibilityState={{ selected: tab === "calendar" }}>
             <Text style={[styles.tabText, tab === "calendar" && styles.tabTextActive]}>Calendar</Text>
           </Pressable>
-          <Pressable style={[styles.tabBtn, tab === "notes" && styles.tabBtnActive]} onPress={() => setTab("notes")}>
+          <Pressable style={[styles.tabBtn, tab === "notes" && styles.tabBtnActive]} onPress={() => setTab("notes")} accessibilityRole="button" accessibilityLabel="Doctor Notes" accessibilityState={{ selected: tab === "notes" }}>
             <Text style={[styles.tabText, tab === "notes" && styles.tabTextActive]}>Doctor Notes</Text>
           </Pressable>
         </View>
@@ -185,7 +185,7 @@ export default function AppointmentsScreen() {
                           </>}
                         </View>
                       </View>
-                      <Pressable onPress={() => handleDeleteApt(apt)} hitSlop={12}><Ionicons name="trash-outline" size={16} color={C.textTertiary} /></Pressable>
+                      <Pressable onPress={() => handleDeleteApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Delete appointment with ${apt.doctorName}`}><Ionicons name="trash-outline" size={16} color={C.textTertiary} /></Pressable>
                     </View>
                   ))}
                 </View>
@@ -199,7 +199,7 @@ export default function AppointmentsScreen() {
                 <View style={{ marginTop: 20 }}>
                   <Text style={styles.sectionLabel}>Upcoming</Text>
                   {upcoming.slice(0, 5).map((apt) => (
-                    <Pressable key={apt.id} style={styles.aptCard} onPress={() => setSelectedDate(apt.date)} onLongPress={() => handleDeleteApt(apt)}>
+                    <Pressable key={apt.id} style={styles.aptCard} onPress={() => setSelectedDate(apt.date)} onLongPress={() => handleDeleteApt(apt)} accessibilityRole="button" accessibilityLabel={`${apt.doctorName}${apt.specialty ? `, ${apt.specialty}` : ""}, ${formatDate(apt.date)}`} accessibilityHint="Tap to view, long press to delete">
                       <View style={styles.aptDateBadge}>
                         <Text style={styles.aptDateDay}>{new Date(apt.date + "T00:00:00").getDate()}</Text>
                         <Text style={styles.aptDateMonth}>{new Date(apt.date + "T00:00:00").toLocaleDateString("en-US", { month: "short" })}</Text>
@@ -227,7 +227,7 @@ export default function AppointmentsScreen() {
               <View key={note.id} style={styles.noteCard}>
                 <View style={styles.noteBullet}><Text style={styles.noteBulletNum}>{i + 1}</Text></View>
                 <Text style={styles.noteText}>{note.text}</Text>
-                <Pressable onPress={() => handleDeleteNote(note)} hitSlop={12}><Ionicons name="close-circle-outline" size={16} color={C.textTertiary} /></Pressable>
+                <Pressable onPress={() => handleDeleteNote(note)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Delete note"><Ionicons name="close-circle-outline" size={16} color={C.textTertiary} /></Pressable>
               </View>
             ))}
           </>

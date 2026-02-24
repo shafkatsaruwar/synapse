@@ -93,7 +93,7 @@ export default function InsightsScreen() {
       <Text style={styles.title}>Health Insights</Text>
       <Text style={styles.subtitle}>AI-powered analysis of your health patterns</Text>
 
-      <Pressable style={({ pressed }) => [styles.generateBtn, { opacity: pressed ? 0.85 : 1 }, loading && { opacity: 0.6 }]} onPress={generateInsights} disabled={loading || !hasData}>
+      <Pressable style={({ pressed }) => [styles.generateBtn, { opacity: pressed ? 0.85 : 1 }, loading && { opacity: 0.6 }]} onPress={generateInsights} disabled={loading || !hasData} accessibilityRole="button" accessibilityLabel={loading ? "Analyzing your data" : "Generate new insights"} accessibilityHint="Runs AI analysis on your health patterns">
         {loading ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (

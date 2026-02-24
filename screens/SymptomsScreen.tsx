@@ -107,7 +107,7 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
             <Text style={styles.title}>Symptoms</Text>
             <Text style={styles.subtitle}>{todaySymptoms.length} today</Text>
           </View>
-          <Pressable style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => setShowModal(true)}>
+          <Pressable style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => setShowModal(true)} accessibilityRole="button" accessibilityLabel="Log symptom" hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}>
             <Ionicons name="add" size={20} color="#fff" />
           </Pressable>
         </View>
@@ -138,7 +138,7 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
                   <Text style={[styles.sevText, { color: sevColor(s.severity) }]}>{sevLabel(s.severity)}</Text>
                   {!!s.notes && <Text style={styles.symptomNotes}>{s.notes}</Text>}
                 </View>
-                <Pressable onPress={() => handleDelete(s)} hitSlop={12}>
+                <Pressable onPress={() => handleDelete(s)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Remove ${s.name}`}>
                   <Ionicons name="close-circle-outline" size={18} color={C.textTertiary} />
                 </Pressable>
               </View>
@@ -186,12 +186,12 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
             <Text style={styles.label}>Select or type a symptom</Text>
             <View style={styles.chipGrid}>
               {COMMON_SYMPTOMS.map((s) => (
-                <Pressable key={s} style={[styles.chip, selectedSymptom === s && { backgroundColor: C.tintLight, borderColor: C.tint }]} onPress={() => { setSelectedSymptom(selectedSymptom === s ? "" : s); setCustomSymptom(""); Haptics.selectionAsync(); }}>
+                <Pressable key={s} style={[styles.chip, selectedSymptom === s && { backgroundColor: C.tintLight, borderColor: C.tint }]} onPress={() => { setSelectedSymptom(selectedSymptom === s ? "" : s); setCustomSymptom(""); Haptics.selectionAsync(); }} accessibilityRole="button" accessibilityLabel={s} accessibilityState={{ selected: selectedSymptom === s }}>
                   <Text style={[styles.chipText, selectedSymptom === s && { color: C.tint }]}>{s}</Text>
                 </Pressable>
               ))}
             </View>
-            <TextInput style={styles.input} placeholder="Or type custom symptom" placeholderTextColor={C.textTertiary} value={customSymptom} onChangeText={(t) => { setCustomSymptom(t); setSelectedSymptom(""); }} />
+            <TextInput style={styles.input} placeholder="Or type custom symptom" placeholderTextColor={C.textTertiary} value={customSymptom} onChangeText={(t) => { setCustomSymptom(t); setSelectedSymptom(""); }} accessibilityLabel="Custom symptom name" />
 
             {isFeverSelected && (
               <View style={styles.feverInputWrap}>
@@ -218,17 +218,17 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
             <Text style={styles.label}>Severity</Text>
             <View style={styles.sevPicker}>
               {[1, 2, 3, 4, 5].map((i) => (
-                <Pressable key={i} style={[styles.sevPickBtn, severity === i && { backgroundColor: sevColor(i) + "22", borderColor: sevColor(i) }]} onPress={() => { setSeverity(i); Haptics.selectionAsync(); }}>
+                <Pressable key={i} style={[styles.sevPickBtn, severity === i && { backgroundColor: sevColor(i) + "22", borderColor: sevColor(i) }]} onPress={() => { setSeverity(i); Haptics.selectionAsync(); }} accessibilityRole="button" accessibilityLabel={`Severity ${i}, ${sevLabel(i)}`} accessibilityState={{ selected: severity === i }}>
                   <Text style={[styles.sevPickNum, severity === i && { color: sevColor(i) }]}>{i}</Text>
                   <Text style={[styles.sevPickLabel, severity === i && { color: sevColor(i) }]}>{sevLabel(i)}</Text>
                 </Pressable>
               ))}
             </View>
             <Text style={styles.label}>Notes (optional)</Text>
-            <TextInput style={[styles.input, { minHeight: 60 }]} placeholder="Additional details..." placeholderTextColor={C.textTertiary} value={notes} onChangeText={setNotes} multiline textAlignVertical="top" />
+            <TextInput style={[styles.input, { minHeight: 60 }]} placeholder="Additional details..." placeholderTextColor={C.textTertiary} value={notes} onChangeText={setNotes} multiline textAlignVertical="top" accessibilityLabel="Symptom notes" />
             <View style={styles.modalActions}>
-              <Pressable style={styles.cancelBtn} onPress={() => setShowModal(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
-              <Pressable style={[styles.confirmBtn, !(selectedSymptom || customSymptom.trim()) && { opacity: 0.5 }]} onPress={handleAdd} disabled={!(selectedSymptom || customSymptom.trim())}><Text style={styles.confirmText}>Log</Text></Pressable>
+              <Pressable style={styles.cancelBtn} onPress={() => setShowModal(false)} accessibilityRole="button" accessibilityLabel="Cancel"><Text style={styles.cancelText}>Cancel</Text></Pressable>
+              <Pressable style={[styles.confirmBtn, !(selectedSymptom || customSymptom.trim()) && { opacity: 0.5 }]} onPress={handleAdd} disabled={!(selectedSymptom || customSymptom.trim())} accessibilityRole="button" accessibilityLabel="Log symptom"><Text style={styles.confirmText}>Log</Text></Pressable>
             </View>
           </Pressable>
         </Pressable>
@@ -242,11 +242,11 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
             </View>
             <Text style={styles.feverAlertTitle}>Stress dose recommended</Text>
             <Text style={styles.feverAlertDesc}>A temperature of 100°F or higher was recorded. Activating Sick Mode will triple your Hydrocortisone dose and start the recovery protocol.</Text>
-            <Pressable style={styles.feverAlertBtn} onPress={handleActivateSickMode}>
+            <Pressable style={styles.feverAlertBtn} onPress={handleActivateSickMode} accessibilityRole="button" accessibilityLabel="Activate Sick Mode" accessibilityHint="Triples Hydrocortisone dose and starts recovery protocol">
               <Ionicons name="shield" size={18} color="#fff" />
               <Text style={styles.feverAlertBtnText}>Activate Sick Mode</Text>
             </Pressable>
-            <Pressable style={styles.feverAlertDismiss} onPress={() => setShowFeverAlert(false)}>
+            <Pressable style={styles.feverAlertDismiss} onPress={() => setShowFeverAlert(false)} accessibilityRole="button" accessibilityLabel="Dismiss fever alert">
               <Text style={styles.feverAlertDismissText}>Not now</Text>
             </Pressable>
           </View>

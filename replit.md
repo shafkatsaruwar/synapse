@@ -22,7 +22,9 @@ Design preferences: Apple-inspired, calm, minimal warm beige/maroon UI. Not play
 - **Data Persistence (Client)**: AsyncStorage (`@react-native-async-storage/async-storage`) via a custom storage abstraction in `lib/storage.ts`. Each entity type (HealthLog, Symptom, Medication, MedicationLog, Appointment, DoctorNote, FastingLog, Vital, UserSettings) has its own storage helper
 - **Server Communication**: TanStack React Query with a custom `apiRequest` helper in `lib/query-client.ts` that calls the Express backend. Uses `expo/fetch` for network requests
 - **Fonts**: San Francisco system font (no custom font imports — uses fontWeight for system font rendering)
-- **UI Libraries**: react-native-gesture-handler, react-native-reanimated, react-native-safe-area-context, react-native-screens, expo-haptics, expo-blur, expo-linear-gradient, expo-image, react-native-svg
+- **UI Libraries**: react-native-gesture-handler, react-native-reanimated, react-native-safe-area-context, react-native-screens, expo-haptics, expo-blur, expo-linear-gradient, expo-image, react-native-svg, react-native-view-shot, expo-sharing, expo-speech
+- **Accessibility**: `lib/accessibility.ts` provides `useAccessibility()` hook (highContrast, reduceMotion, colors). `constants/colors.ts` has both `dark` and `highContrast` color sets. All interactive elements have accessibilityLabel/Role. Min 44x44 touch targets. Color-blind safe indicators (icons + text, not color alone)
+- **Text-to-Speech**: `components/ReadAloudButton.tsx` — reusable floating TTS button using expo-speech, used on Reports, SickMode, Medications screens
 - **Styling**: Warm beige/maroon theme (defined in `constants/colors.ts`), uses StyleSheet.create patterns, responsive layouts with `useWindowDimensions` (breakpoint at 768px for wide/desktop layouts)
 
 ### Backend (Express)
@@ -51,6 +53,13 @@ Design preferences: Apple-inspired, calm, minimal warm beige/maroon UI. Not play
 5. **System font**: Uses San Francisco system font via fontWeight (no custom font imports needed).
 
 ## Recent Changes
+- 2026-02-24: Sick Mode follow-up: 2-hour check-in timer with temperature input; <99°F → Recovery Mode (green UI, gentle messaging); ≥102°F → doctor alert; else continues tracking
+- 2026-02-24: Health Summary Report: 7/30 day range, chronological timeline, PNG export via react-native-view-shot + expo-sharing
+- 2026-02-24: Daily Log calendar view: monthly grid, logged day indicators, Hijri dates when Ramadan mode on, tap day to open log form
+- 2026-02-24: Allergy & Emergency Info section in Settings: allergy toggle, EpiPen locations, no-treatment consequences
+- 2026-02-24: Accessibility foundation: accessibilityLabel/Role on all interactive elements, 44x44 min touch targets, High Contrast mode toggle, reduce motion support, color-blind safe indicators (icons+text), dynamic text scaling
+- 2026-02-24: Text-to-Speech: ReadAloudButton on Reports, Sick Mode, Medications screens using expo-speech
+- 2026-02-24: Storage updated: AllergyInfo interface + allergyStorage, SickModeData gains recoveryMode/checkInTimer/lastCheckIn, UserSettings gains highContrast
 - 2026-02-24: Rebranded app from "Fir" to "Synapse" with new visual identity
 - 2026-02-24: Implemented warm beige (#FDF1E5) background and maroon (#800020) accent color system
 - 2026-02-24: Created SynapseLogo component: minimal synapse icon with two circles and connecting signal line using SVG

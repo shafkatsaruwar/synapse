@@ -112,7 +112,7 @@ export default function PrivacyScreen() {
 
       <Text style={styles.sectionTitle}>Data Management</Text>
 
-      <Pressable style={({ pressed }) => [styles.actionBtn, { opacity: pressed ? 0.85 : 1 }]} onPress={handleExport} disabled={exporting}>
+      <Pressable style={({ pressed }) => [styles.actionBtn, { opacity: pressed ? 0.85 : 1 }]} onPress={handleExport} disabled={exporting} accessibilityRole="button" accessibilityLabel="Export all data" accessibilityHint="Downloads a JSON file with all your health data">
         <View style={[styles.actionIcon, { backgroundColor: C.tintLight }]}>
           <Ionicons name="download-outline" size={20} color={C.tint} />
         </View>
@@ -123,7 +123,7 @@ export default function PrivacyScreen() {
         <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
       </Pressable>
 
-      <Pressable style={({ pressed }) => [styles.actionBtn, styles.dangerAction, { opacity: pressed ? 0.85 : 1 }]} onPress={handleClear}>
+      <Pressable style={({ pressed }) => [styles.actionBtn, styles.dangerAction, { opacity: pressed ? 0.85 : 1 }]} onPress={handleClear} accessibilityRole="button" accessibilityLabel="Delete all data" accessibilityHint="Permanently deletes all data from this device">
         <View style={[styles.actionIcon, { backgroundColor: C.redLight }]}>
           <Ionicons name="trash-outline" size={20} color={C.red} />
         </View>
