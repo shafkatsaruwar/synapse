@@ -56,6 +56,12 @@ export default function MainScreen() {
     setRefreshKey((k) => k + 1);
   };
 
+  const handleResetOnboarding = async () => {
+    const settings = await settingsStorage.get();
+    await settingsStorage.save({ ...settings, onboardingCompleted: false });
+    setShowOnboarding(true);
+  };
+
   if (showOnboarding === null) return <View style={styles.container} />;
 
   if (showOnboarding) {
@@ -100,7 +106,7 @@ export default function MainScreen() {
 
   return (
     <View style={styles.container}>
-      <SidebarLayout activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen} onNavigate={handleNavigate} sickMode={sickMode}>
+      <SidebarLayout activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen} onNavigate={handleNavigate} sickMode={sickMode} onResetOnboarding={handleResetOnboarding}>
         {renderScreen()}
       </SidebarLayout>
     </View>
