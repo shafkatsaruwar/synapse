@@ -243,10 +243,24 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
+  const handleSkipToMain = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const settings = await settingsStorage.get();
+    await settingsStorage.save({
+      ...settings,
+      name: "Test User",
+      conditions: [],
+      onboardingCompleted: true,
+    });
+    onComplete();
+  };
+
   const renderWelcome = () => (
     <View style={styles.welcomeCenter} key={animKey}>
       <AnimatedView delay={0}>
-        <Image source={brainLogo} style={styles.brainLogo} />
+        <Pressable onPress={handleSkipToMain}>
+          <Image source={brainLogo} style={styles.brainLogo} />
+        </Pressable>
       </AnimatedView>
       <AnimatedLine text="Synapse" delay={400} style={styles.welcomeTitle} color={C.text} />
       <AnimatedLine text="Built by a real patient, for real patients" delay={800} style={styles.welcomeSub} color={C.textSecondary} />
