@@ -34,6 +34,7 @@ import {
   type UserSettings,
 } from "@/lib/storage";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
+import { getTodayRamadan } from "@/constants/ramadan-timetable";
 
 const C = Colors.dark;
 
@@ -147,6 +148,12 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
 
   const dateObj = new Date();
   const greeting = dateObj.getHours() < 12 ? "Good morning" : dateObj.getHours() < 17 ? "Good afternoon" : "Good evening";
+
+  const ramadanDay = getTodayRamadan(today);
+  const ordinalSuffix = (n: number) => {
+    if (n >= 11 && n <= 13) return "th";
+    switch (n % 10) { case 1: return "st"; case 2: return "nd"; case 3: return "rd"; default: return "th"; }
+  };
 
   const recentVitals = vitals
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -287,6 +294,11 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
         </Text>
       </View>
 
+      {settings.ramadanMode && ramadanDay && (
+        <Text style={styles.hijriDate}>
+          {ramadanDay.hijriDay}{ordinalSuffix(ramadanDay.hijriDay)} Ramadan, 1447 AH
+        </Text>
+      )}
       <Text style={styles.sectionLabel}>Today</Text>
 
       <View style={styles.priorityGrid}>
@@ -423,6 +435,7 @@ const styles = StyleSheet.create({
   welcome: { marginBottom: 20 },
   greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
+  hijriDate: { fontWeight: "600", fontSize: 14, color: "#3C2415", marginBottom: 6 },
   sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
   priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 20 },
   priorityGridItem: { width: "48%", marginBottom: 12 },
