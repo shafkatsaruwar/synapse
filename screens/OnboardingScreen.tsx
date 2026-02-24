@@ -539,7 +539,7 @@ const styles = StyleSheet.create({
   dotDone: { backgroundColor: "rgba(255,255,255,0.35)" },
 
   welcomeCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
-  welcomeEmoji: { fontSize: 130, textAlign: "center", marginBottom: 28 },
+  welcomeEmoji: { fontSize: 230, textAlign: "center", marginBottom: 28 },
   welcomeTitle: {
     fontFamily: "Inter_700Bold", fontSize: 28, textAlign: "center",
     letterSpacing: -0.5, marginBottom: 12,
