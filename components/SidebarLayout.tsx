@@ -68,13 +68,6 @@ export default function SidebarLayout({
   if (!isWide) {
     return (
       <View style={styles.mobileContainer}>
-        <View style={[styles.mobileHeader, { paddingTop: Platform.OS === "web" ? 67 : insets.top + 8 }]}>
-          <View style={styles.mobileHeaderInner}>
-            <SynapseLogo size={28} color={C.accent} />
-            <Text style={styles.mobileHeaderTitle}>Synapse</Text>
-          </View>
-        </View>
-
         <View style={[styles.mobileContent, { paddingBottom: 72 + (Platform.OS === "web" ? 34 : insets.bottom) }]}>
           {children}
         </View>
