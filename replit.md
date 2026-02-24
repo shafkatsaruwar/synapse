@@ -7,7 +7,7 @@ Synapse is a personal health tracking mobile application built with Expo (React 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
-Design preferences: Apple-inspired, calm, minimal warm beige/maroon UI. Not playful, not cartoonish, not 90s UI. Emphasis on calm, intelligent, emotionally supportive interface. San Francisco system font (no custom font imports — uses fontWeight for system font rendering). Warm beige (#FAE8D1) background, maroon (#800020) accent color. Cards have beige background, thin maroon border, light shadow, rounded corners. Primary buttons: maroon bg/white text. Secondary buttons: beige bg/maroon border/maroon text. Black primary text, soft dark brown secondary text.
+Design preferences: Apple-inspired, calm, minimal warm beige/maroon UI. Not playful, not cartoonish, not 90s UI. Emphasis on calm, intelligent, emotionally supportive interface. San Francisco system font (no custom font imports — uses fontWeight for system font rendering). Warm beige (#FDF1E5) background, maroon (#800020) accent color. Cards have beige background, thin maroon border, light shadow, rounded corners. Primary buttons: maroon bg/white text. Secondary buttons: beige bg/maroon border/maroon text. Black primary text, soft dark brown secondary text.
 
 ## System Architecture
 
@@ -46,13 +46,13 @@ Design preferences: Apple-inspired, calm, minimal warm beige/maroon UI. Not play
 ### Key Design Decisions
 1. **Client-side storage vs. server database**: Health data is stored locally on the device using AsyncStorage rather than synced to the server. Provides offline-first capability.
 2. **Single screen with sidebar navigation**: Instead of using expo-router's native navigation for each screen, the app uses a single route with a sidebar component that conditionally renders screens.
-3. **Warm beige/maroon theme**: Color constants define beige background (#FAE8D1) with maroon (#800020) accent. Cards, buttons, and UI elements use this warm palette.
+3. **Warm beige/maroon theme**: Color constants define beige background (#FDF1E5) with maroon (#800020) accent. Cards, buttons, and UI elements use this warm palette.
 4. **Responsive layout**: Sidebar on wide screens (768px+), bottom tabs on mobile.
 5. **System font**: Uses San Francisco system font via fontWeight (no custom font imports needed).
 
 ## Recent Changes
 - 2026-02-24: Rebranded app from "Fir" to "Synapse" with new visual identity
-- 2026-02-24: Implemented warm beige (#FAE8D1) background and maroon (#800020) accent color system
+- 2026-02-24: Implemented warm beige (#FDF1E5) background and maroon (#800020) accent color system
 - 2026-02-24: Created SynapseLogo component: minimal synapse icon with two circles and connecting signal line using SVG
 - 2026-02-24: Migrated typography from Inter font family to San Francisco system font
 - 2026-02-24: Updated design system: beige cards with thin maroon borders, maroon primary buttons, beige secondary buttons

@@ -1,6 +1,6 @@
 const Colors = {
   dark: {
-    background: "#FAE8D1",
+    background: "#FDF1E5",
     surface: "#F5E0C8",
     surfaceElevated: "#F0D8BC",
     surfaceHover: "#EBCFAF",
