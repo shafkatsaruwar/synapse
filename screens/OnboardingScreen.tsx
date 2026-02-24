@@ -108,7 +108,7 @@ function GlowDot({ active, done }: { active: boolean; done: boolean }) {
   );
 }
 
-const TOTAL_STEPS = 11;
+const TOTAL_STEPS = 12;
 
 const founderImage = require("../assets/images/founder.png");
 
@@ -136,15 +136,15 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
 
   useEffect(() => {
-    if (step === 8) {
+    if (step === 9) {
       const t = setTimeout(() => setShowMedFields(true), 600);
       return () => clearTimeout(t);
     }
-    if (step === 9) {
+    if (step === 10) {
       const t = setTimeout(() => setShowCondFields(true), 600);
       return () => clearTimeout(t);
     }
-    if (step === 10) {
+    if (step === 11) {
       Animated.sequence([
         Animated.parallel([
           Animated.spring(completionScale, { toValue: 1, friction: 5, tension: 60, useNativeDriver: true }),
@@ -223,18 +223,18 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   };
 
   const canContinue = () => {
-    if (step === 7) return userName.trim().length > 0;
+    if (step === 8) return userName.trim().length > 0;
     return true;
   };
 
   const getButtonLabel = () => {
-    if (step === 6) return "Enter Fir";
-    if (step === 10) return "Let's go";
+    if (step === 7) return "Enter Fir";
+    if (step === 11) return "Let's go";
     return "Continue";
   };
 
   const handleContinue = () => {
-    if (step === 10) {
+    if (step === 11) {
       handleFinish();
     } else {
       goNext();
@@ -246,6 +246,14 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       {Array.from({ length: TOTAL_STEPS }, (_, i) => (
         <GlowDot key={i} active={i === step} done={i < step} />
       ))}
+    </View>
+  );
+
+  const renderWelcome = () => (
+    <View style={styles.welcomeCenter} key={animKey}>
+      <AnimatedLine text="🌲" delay={0} style={styles.welcomeEmoji} />
+      <AnimatedLine text="Hello, Welcome to Fir" delay={400} style={styles.welcomeTitle} color={C.text} />
+      <AnimatedLine text="Built by a real patient, for real patients" delay={800} style={styles.welcomeSub} color={C.textSecondary} />
     </View>
   );
 
@@ -477,16 +485,17 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   );
 
   const renderContent = () => {
-    if (step === 0) return renderFounderIntro();
-    if (step >= 1 && step <= 6) return renderStorySlide(step - 1);
-    if (step === 7) return renderNameInput();
-    if (step === 8) return renderMedications();
-    if (step === 9) return renderConditions();
-    if (step === 10) return renderCompletion();
+    if (step === 0) return renderWelcome();
+    if (step === 1) return renderFounderIntro();
+    if (step >= 2 && step <= 7) return renderStorySlide(step - 2);
+    if (step === 8) return renderNameInput();
+    if (step === 9) return renderMedications();
+    if (step === 10) return renderConditions();
+    if (step === 11) return renderCompletion();
     return null;
   };
 
-  const buttonDelay = step === 0 ? 1800 : step >= 1 && step <= 6 ? 1800 : step === 10 ? 1600 : 1000;
+  const buttonDelay = step === 0 ? 1200 : step === 1 ? 1800 : step >= 2 && step <= 7 ? 1800 : step === 11 ? 1600 : 1000;
 
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
@@ -501,14 +510,14 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
             style={[
               styles.continueBtn,
               !canContinue() && { opacity: 0.35 },
-              step === 10 && { backgroundColor: ACCENT_COLORS.green },
-              step === 6 && { backgroundColor: ACCENT_COLORS.green },
+              step === 11 && { backgroundColor: ACCENT_COLORS.green },
+              step === 7 && { backgroundColor: ACCENT_COLORS.green },
             ]}
             onPress={handleContinue}
             disabled={!canContinue()}
           >
             <Text style={styles.continueBtnText}>{getButtonLabel()}</Text>
-            {step < 10 && step !== 6 && <Ionicons name="arrow-forward" size={18} color="#fff" />}
+            {step < 11 && step !== 7 && <Ionicons name="arrow-forward" size={18} color="#fff" />}
           </Pressable>
         </AnimatedView>
       </View>
@@ -530,6 +539,17 @@ const styles = StyleSheet.create({
   dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "rgba(255,255,255,0.15)" },
   dotActive: { width: 10, height: 10, borderRadius: 5, backgroundColor: ACCENT_COLORS.green },
   dotDone: { backgroundColor: "rgba(255,255,255,0.35)" },
+
+  welcomeCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
+  welcomeEmoji: { fontSize: 64, textAlign: "center", marginBottom: 24 },
+  welcomeTitle: {
+    fontFamily: "Inter_700Bold", fontSize: 28, textAlign: "center",
+    letterSpacing: -0.5, marginBottom: 12,
+  },
+  welcomeSub: {
+    fontFamily: "Inter_400Regular", fontSize: 16, textAlign: "center",
+    lineHeight: 24, paddingHorizontal: 10,
+  },
 
   photoCircle: {
     width: 120, height: 120, borderRadius: 60, overflow: "hidden",
