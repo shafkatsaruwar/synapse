@@ -432,7 +432,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 24 },
   sickModeActivateBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-end", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(255,69,58,0.08)", borderWidth: 1, borderColor: "rgba(255,69,58,0.2)", marginBottom: 8 },
   sickModeActivateBtnText: { fontWeight: "600", fontSize: 12, color: C.red },
-  welcome: { marginBottom: 20 },
+  welcome: { marginBottom: 8 },
   greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
   hijriDate: { fontWeight: "600", fontSize: 14, color: "#3C2415", marginBottom: 20 },
