@@ -4,7 +4,7 @@ import {
   useWindowDimensions, Animated, Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { settingsStorage, medicationStorage } from "@/lib/storage";
@@ -250,7 +250,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
   const renderWelcome = () => (
     <View style={styles.welcomeCenter} key={animKey}>
-      <AnimatedLine text="🌲" delay={0} style={styles.welcomeEmoji} />
+      <AnimatedView delay={0}>
+        <MaterialCommunityIcons name="heart-pulse" size={230} color={ACCENT_COLORS.green} />
+      </AnimatedView>
       <AnimatedLine text="Hello, Welcome to Fir" delay={400} style={styles.welcomeTitle} color={C.text} />
       <AnimatedLine text="Built by a real patient, for real patients" delay={800} style={styles.welcomeSub} color={C.textSecondary} />
     </View>
