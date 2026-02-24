@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { featureFlags } from "@/constants/feature-flags";
 import Colors from "@/constants/colors";
 import {
   healthLogStorage,
@@ -401,21 +402,24 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
           </View>
         </Pressable>
 
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("documents")} accessibilityLabel="Document Scanner" accessibilityRole="button" accessibilityHint="Upload lab reports and prescriptions for AI extraction">
-          <View style={[styles.cardHeader, { marginBottom: 0 }]}>
-            <View style={[styles.cardIcon, { backgroundColor: C.pinkLight }]}>
-              <Ionicons name="scan" size={16} color={C.pink} />
+        {featureFlags.documentScannerEnabled && (
+          <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("documents")} accessibilityLabel="Document Scanner" accessibilityRole="button" accessibilityHint="Upload lab reports and prescriptions for AI extraction">
+            <View style={[styles.cardHeader, { marginBottom: 0 }]}>
+              <View style={[styles.cardIcon, { backgroundColor: C.pinkLight }]}>
+                <Ionicons name="scan" size={16} color={C.pink} />
+              </View>
+              <Text style={styles.cardLabel}>Document Scanner</Text>
             </View>
-            <Text style={styles.cardLabel}>Document Scanner</Text>
-          </View>
-          <Text style={styles.reportDesc}>Upload lab reports and prescriptions for AI extraction</Text>
-          <View style={styles.reportBtn}>
-            <Ionicons name="arrow-forward" size={16} color={C.tint} />
-            <Text style={styles.reportBtnText}>Scan Documents</Text>
-          </View>
-        </Pressable>
+            <Text style={styles.reportDesc}>Upload lab reports and prescriptions for AI extraction</Text>
+            <View style={styles.reportBtn}>
+              <Ionicons name="arrow-forward" size={16} color={C.tint} />
+              <Text style={styles.reportBtnText}>Scan Documents</Text>
+            </View>
+          </Pressable>
+        )}
 
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("insights")} accessibilityLabel="AI Health Insights" accessibilityRole="button" accessibilityHint="Get personalized analysis of your health patterns">
+        {featureFlags.documentScannerEnabled && (
+          <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("insights")} accessibilityLabel="AI Health Insights" accessibilityRole="button" accessibilityHint="Get personalized analysis of your health patterns">
           <View style={[styles.cardHeader, { marginBottom: 0 }]}>
             <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
               <Ionicons name="sparkles" size={16} color={C.accent} />
@@ -428,6 +432,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
             <Text style={styles.reportBtnText}>View Insights</Text>
           </View>
         </Pressable>
+        )}
 
         <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("reports")} accessibilityLabel="Generate Report" accessibilityRole="button" accessibilityHint="Create a health summary for your doctor visit">
           <View style={[styles.cardHeader, { marginBottom: 0 }]}>

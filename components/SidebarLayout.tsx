@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import SynapseLogo from "@/components/SynapseLogo";
+import { featureFlags } from "@/constants/feature-flags";
 
 const C = Colors.dark;
 
@@ -31,8 +32,10 @@ const NAV_ITEMS: NavItem[] = [
   { key: "healthdata", label: "Health Data", icon: "analytics-outline", iconActive: "analytics" },
   { key: "medications", label: "Medications", icon: "medical-outline", iconActive: "medical" },
   { key: "symptoms", label: "Symptoms", icon: "pulse-outline", iconActive: "pulse" },
-  { key: "documents", label: "Documents", icon: "scan-outline", iconActive: "scan" },
-  { key: "insights", label: "Insights", icon: "sparkles-outline", iconActive: "sparkles" },
+  ...(featureFlags.documentScannerEnabled ? [
+    { key: "documents", label: "Documents", icon: "scan-outline", iconActive: "scan" },
+    { key: "insights", label: "Insights", icon: "sparkles-outline", iconActive: "sparkles" },
+  ] : []) as NavItem[],
   { key: "appointments", label: "Appointments", icon: "calendar-outline", iconActive: "calendar" },
   { key: "reports", label: "Reports", icon: "document-text-outline", iconActive: "document-text" },
   { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
