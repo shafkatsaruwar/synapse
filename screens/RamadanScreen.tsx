@@ -8,12 +8,13 @@ import {
   TextInput,
   Platform,
   useWindowDimensions,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { fastingLogStorage, type FastingLog } from "@/lib/storage";
+import { fastingLogStorage, settingsStorage, sickModeStorage, type FastingLog } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
 
@@ -21,7 +22,20 @@ const C = Colors.dark;
 
 const ENERGY_LABELS = ["Low", "Fair", "Good", "Great", "Excellent"];
 
-export default function RamadanScreen() {
+const SKIP_REASONS = [
+  { key: "period", label: "Period", icon: "water-outline" },
+  { key: "sick", label: "Feeling unwell", icon: "medkit-outline" },
+  { key: "fever", label: "Fever", icon: "thermometer-outline" },
+  { key: "travel", label: "Travelling", icon: "airplane-outline" },
+  { key: "medical", label: "Medical reason", icon: "medical-outline" },
+  { key: "other", label: "Other", icon: "ellipsis-horizontal-outline" },
+];
+
+interface RamadanScreenProps {
+  onActivateSickMode?: () => void;
+}
+
+export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -37,6 +51,11 @@ export default function RamadanScreen() {
   const [notes, setNotes] = useState("");
   const [saved, setSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
+
+  const [skipReason, setSkipReason] = useState<string | null>(null);
+  const [skipNotes, setSkipNotes] = useState("");
+  const [feverTemp, setFeverTemp] = useState("");
+  const [showTempInput, setShowTempInput] = useState(false);
 
   const loadData = useCallback(async () => {
     const fl = await fastingLogStorage.getByDate(today);
@@ -61,10 +80,56 @@ export default function RamadanScreen() {
       iftarTime,
       hydrationGlasses: hydration,
       energyLevel: energy,
-      notes,
+      notes: fasted === false
+        ? `Not fasting: ${SKIP_REASONS.find(r => r.key === skipReason)?.label || "Unknown"}${skipNotes ? ` — ${skipNotes}` : ""}${feverTemp ? ` (Temp: ${feverTemp}°F)` : ""}`
+        : notes,
     });
     setSaved(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleSelectReason = (key: string) => {
+    setSkipReason(key);
+    Haptics.selectionAsync();
+    if (key === "fever") {
+      setShowTempInput(true);
+    } else {
+      setShowTempInput(false);
+      setFeverTemp("");
+    }
+  };
+
+  const handleTempSubmit = async () => {
+    const temp = parseFloat(feverTemp);
+    if (!isNaN(temp) && temp >= 100) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        "Fever Detected",
+        `Your temperature is ${feverTemp}°F. This will activate Sick Mode for stress dosing and recovery tracking.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Activate Sick Mode",
+            style: "destructive",
+            onPress: async () => {
+              const settings = await settingsStorage.get();
+              await settingsStorage.save({ ...settings, sickMode: true });
+              await sickModeStorage.save({
+                active: true,
+                startedAt: new Date().toISOString(),
+                hydrationMl: 0,
+                foodChecklist: { lightMeal: false, saltySnack: false, liquidCalories: false },
+                restChecklist: { lying: false, napping: false, screenBreak: false },
+                symptoms: ["fever"],
+                temperatures: [{ time: new Date().toISOString(), value: temp }],
+                prnDoses: [],
+              });
+              if (onActivateSickMode) onActivateSickMode();
+            },
+          },
+        ]
+      );
+    }
   };
 
   const dateObj = new Date(today + "T12:00:00");
@@ -115,7 +180,7 @@ export default function RamadanScreen() {
       <View style={styles.toggleRow}>
         <Pressable
           style={[styles.toggleBtn, fasted === true && styles.toggleBtnActive]}
-          onPress={() => { setFasted(true); Haptics.selectionAsync(); }}
+          onPress={() => { setFasted(true); setSkipReason(null); setShowTempInput(false); setFeverTemp(""); Haptics.selectionAsync(); }}
         >
           <Ionicons name={fasted === true ? "checkmark-circle" : "ellipse-outline"} size={20} color={fasted === true ? "#fff" : C.textSecondary} />
           <Text style={[styles.toggleText, fasted === true && styles.toggleTextActive]}>Fasted</Text>
@@ -129,7 +194,65 @@ export default function RamadanScreen() {
         </Pressable>
       </View>
 
-      {fasted !== false && (
+      {fasted === false && (
+        <View style={styles.skipSection}>
+          <Text style={styles.skipQuestion}>Why aren't you fasting today?</Text>
+          <View style={styles.reasonGrid}>
+            {SKIP_REASONS.map((r) => (
+              <Pressable
+                key={r.key}
+                style={[styles.reasonChip, skipReason === r.key && styles.reasonChipActive]}
+                onPress={() => handleSelectReason(r.key)}
+              >
+                <Ionicons name={r.icon as any} size={18} color={skipReason === r.key ? "#fff" : C.textSecondary} />
+                <Text style={[styles.reasonChipText, skipReason === r.key && styles.reasonChipTextActive]}>{r.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {showTempInput && (
+            <View style={styles.tempSection}>
+              <Text style={styles.tempLabel}>What's your temperature?</Text>
+              <View style={styles.tempInputRow}>
+                <TextInput
+                  style={styles.tempInput}
+                  value={feverTemp}
+                  onChangeText={setFeverTemp}
+                  placeholder="e.g. 101.2"
+                  placeholderTextColor={C.textTertiary}
+                  keyboardType="decimal-pad"
+                />
+                <Text style={styles.tempUnit}>°F</Text>
+              </View>
+              {feverTemp && parseFloat(feverTemp) >= 100 && (
+                <Pressable style={styles.feverWarningBtn} onPress={handleTempSubmit}>
+                  <Ionicons name="warning" size={16} color="#fff" />
+                  <Text style={styles.feverWarningBtnText}>Fever detected — Activate Sick Mode</Text>
+                </Pressable>
+              )}
+              {feverTemp && parseFloat(feverTemp) > 0 && parseFloat(feverTemp) < 100 && (
+                <View style={styles.tempOkay}>
+                  <Ionicons name="checkmark-circle" size={16} color="#2D7D46" />
+                  <Text style={styles.tempOkayText}>Temperature is below fever range</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          <Text style={styles.skipNotesLabel}>Notes (optional)</Text>
+          <TextInput
+            style={styles.skipNotesInput}
+            value={skipNotes}
+            onChangeText={setSkipNotes}
+            placeholder="Anything you'd like to note..."
+            placeholderTextColor={C.textTertiary}
+            multiline
+            textAlignVertical="top"
+          />
+        </View>
+      )}
+
+      {fasted !== false && fasted !== null && (
         <>
           <View style={styles.timesRow}>
             <View style={styles.timeField}>
@@ -209,13 +332,15 @@ export default function RamadanScreen() {
         </>
       )}
 
-      <Pressable
-        style={[styles.saveBtn, saved && styles.saveBtnSaved]}
-        onPress={handleSave}
-      >
-        <Ionicons name={saved ? "checkmark-circle" : "save-outline"} size={18} color="#fff" />
-        <Text style={styles.saveBtnText}>{saved ? "Saved" : "Save Log"}</Text>
-      </Pressable>
+      {fasted !== null && (
+        <Pressable
+          style={[styles.saveBtn, saved && styles.saveBtnSaved]}
+          onPress={handleSave}
+        >
+          <Ionicons name={saved ? "checkmark-circle" : "save-outline"} size={18} color="#fff" />
+          <Text style={styles.saveBtnText}>{saved ? "Saved" : "Save Log"}</Text>
+        </Pressable>
+      )}
     </ScrollView>
   );
 }
@@ -243,6 +368,43 @@ const styles = StyleSheet.create({
   toggleBtnInactive: { backgroundColor: C.surface, borderColor: C.border },
   toggleText: { fontWeight: "600", fontSize: 16, color: C.textSecondary },
   toggleTextActive: { color: "#fff" },
+
+  skipSection: { marginBottom: 24 },
+  skipQuestion: { fontWeight: "600", fontSize: 16, color: C.text, marginBottom: 14 },
+  reasonGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 },
+  reasonChip: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingVertical: 12, paddingHorizontal: 16, borderRadius: 14,
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+  },
+  reasonChipActive: { backgroundColor: "#800020", borderColor: "#800020" },
+  reasonChipText: { fontWeight: "500", fontSize: 14, color: C.textSecondary },
+  reasonChipTextActive: { color: "#fff" },
+
+  tempSection: { marginBottom: 16 },
+  tempLabel: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 10 },
+  tempInputRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  tempInput: {
+    flex: 1, fontWeight: "500", fontSize: 18, color: C.text,
+    backgroundColor: C.surface, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: C.border,
+  },
+  tempUnit: { fontWeight: "600", fontSize: 18, color: C.textSecondary },
+  feverWarningBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "#CC2222", borderRadius: 12, paddingVertical: 14, marginBottom: 4,
+  },
+  feverWarningBtnText: { fontWeight: "600", fontSize: 14, color: "#fff" },
+  tempOkay: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+  tempOkayText: { fontWeight: "500", fontSize: 13, color: "#2D7D46" },
+
+  skipNotesLabel: { fontWeight: "500", fontSize: 14, color: C.textSecondary, marginBottom: 8 },
+  skipNotesInput: {
+    fontWeight: "400", fontSize: 15, color: C.text,
+    backgroundColor: C.surface, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: C.border,
+    minHeight: 70,
+  },
 
   timesRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
   timeField: { flex: 1 },

@@ -97,7 +97,7 @@ export default function MainScreen() {
       case "reports":
         return <ReportsScreen />;
       case "ramadan":
-        return <RamadanScreen />;
+        return <RamadanScreen onActivateSickMode={handleActivateSickMode} />;
       case "privacy":
         return <PrivacyScreen />;
       case "settings":
