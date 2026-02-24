@@ -4,22 +4,16 @@ import {
   useWindowDimensions, Animated, Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import SynapseLogo from "@/components/SynapseLogo";
 import { settingsStorage, medicationStorage } from "@/lib/storage";
 
 const C = Colors.dark;
 
-const ACCENT_COLORS = {
-  green: "#30D158",
-  greenGlow: "rgba(48,209,88,0.35)",
-  blue: "#0A84FF",
-  purple: "#BF5AF2",
-  orange: "#FF9F0A",
-  pink: "#FF375F",
-  teal: "#64D2FF",
-};
+const MAROON = "#800020";
+const MAROON_LIGHT = "rgba(128,0,32,0.12)";
 
 interface OnboardingScreenProps {
   onComplete: () => void;
@@ -251,9 +245,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const renderWelcome = () => (
     <View style={styles.welcomeCenter} key={animKey}>
       <AnimatedView delay={0}>
-        <MaterialCommunityIcons name="heart-pulse" size={230} color={ACCENT_COLORS.green} />
+        <SynapseLogo size={180} color={MAROON} />
       </AnimatedView>
-      <AnimatedLine text="Hello, Welcome to Fir" delay={400} style={styles.welcomeTitle} color={C.text} />
+      <AnimatedLine text="Synapse" delay={400} style={styles.welcomeTitle} color={C.text} />
       <AnimatedLine text="Built by a real patient, for real patients" delay={800} style={styles.welcomeSub} color={C.textSecondary} />
     </View>
   );
@@ -265,7 +259,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           <Image source={founderImage} style={styles.photoImage} />
         </View>
       </AnimatedView>
-      <AnimatedLine text="Why Fir exists" delay={300} style={styles.founderTitle} color={ACCENT_COLORS.green} />
+      <AnimatedLine text="Why Synapse exists" delay={300} style={styles.founderTitle} color={MAROON} />
       <AnimatedLine text="This app was not built in a boardroom." delay={600} style={styles.founderSub} />
       <AnimatedLine text="It was built from a hospital bed," delay={900} style={styles.founderSub} />
       <AnimatedLine text="from years of managing a condition" delay={1200} style={styles.founderSub} />
@@ -277,7 +271,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     {
       lines: [
         { text: "The app you are about to use", delay: 0, color: C.text },
-        { text: "was built for survival.", delay: 400, color: ACCENT_COLORS.orange },
+        { text: "was built for survival.", delay: 400, color: MAROON },
       ],
     },
     {
@@ -286,7 +280,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         { text: "that require lifelong medication.", delay: 400, color: C.text },
         { text: "", delay: 600, color: C.text },
         { text: "Missing a dose is not small.", delay: 800, color: C.textSecondary },
-        { text: "It is dangerous.", delay: 1100, color: ACCENT_COLORS.pink },
+        { text: "It is dangerous.", delay: 1100, color: C.red },
       ],
     },
     {
@@ -296,7 +290,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         { text: "Every symptom is a decision.", delay: 800, color: C.text },
         { text: "", delay: 1000, color: C.text },
         { text: "This is not fitness.", delay: 1200, color: C.textSecondary },
-        { text: "This is stability.", delay: 1500, color: ACCENT_COLORS.blue },
+        { text: "This is stability.", delay: 1500, color: MAROON },
       ],
     },
     {
@@ -306,7 +300,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         { text: "I needed something", delay: 500, color: C.text },
         { text: "that tracks life-saving routines.", delay: 800, color: C.text },
         { text: "", delay: 1000, color: C.text },
-        { text: "So I built it.", delay: 1300, color: ACCENT_COLORS.teal },
+        { text: "So I built it.", delay: 1300, color: MAROON },
       ],
     },
     {
@@ -319,17 +313,17 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         { emoji: "🧠", text: "Brain fog and fatigue", delay: 1000 },
         { emoji: "🩺", text: "The need for structure", delay: 1300 },
       ],
-      footer: { text: "Because I live it.", delay: 1700, color: ACCENT_COLORS.purple },
+      footer: { text: "Because I live it.", delay: 1700, color: MAROON },
     },
     {
       lines: [
-        { text: "Fir is not just an app.", delay: 0, color: C.text },
+        { text: "Synapse is not just an app.", delay: 0, color: C.text },
         { text: "", delay: 200, color: C.text },
         { text: "It is the system", delay: 500, color: C.text },
         { text: "I depend on every day.", delay: 800, color: C.text },
       ],
       divider: true,
-      footer: { text: "Built by a patient.\nFor patients who cannot afford mistakes.", delay: 1400, color: ACCENT_COLORS.green },
+      footer: { text: "Built by a patient.\nFor patients who cannot afford mistakes.", delay: 1400, color: MAROON },
     },
   ];
 
@@ -368,7 +362,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         text={userName.trim() ? `Nice to meet you, ${userName.trim()}` : "What should I call you?"}
         delay={0}
         style={styles.nameTitle}
-        color={userName.trim() ? ACCENT_COLORS.green : C.text}
+        color={userName.trim() ? MAROON : C.text}
       />
       <AnimatedView delay={400}>
         <TextInput
@@ -480,7 +474,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           <Ionicons name="checkmark" size={48} color="#fff" />
         </Animated.View>
       </Animated.View>
-      <AnimatedLine text="Fir is ready." delay={800} style={styles.completionTitle} color={ACCENT_COLORS.green} />
+      <AnimatedLine text="Synapse is ready." delay={800} style={styles.completionTitle} color={MAROON} />
       <AnimatedLine text="Ready to take care of you." delay={1200} style={styles.completionSub} color={C.textSecondary} />
     </View>
   );
@@ -511,7 +505,6 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
             style={[
               styles.continueBtn,
               !canContinue() && { opacity: 0.35 },
-              step === 11 && { backgroundColor: ACCENT_COLORS.green },
             ]}
             onPress={handleContinue}
             disabled={!canContinue()}
@@ -526,7 +519,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000", paddingHorizontal: 28 },
+  container: { flex: 1, backgroundColor: C.background, paddingHorizontal: 28 },
   body: { flex: 1, justifyContent: "center" },
   footer: { gap: 16, paddingBottom: 8 },
 
@@ -534,26 +527,25 @@ const styles = StyleSheet.create({
   dotContainer: { width: 14, height: 14, alignItems: "center", justifyContent: "center" },
   dotGlow: {
     position: "absolute", width: 14, height: 14, borderRadius: 7,
-    backgroundColor: ACCENT_COLORS.greenGlow,
+    backgroundColor: MAROON_LIGHT,
   },
-  dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "rgba(255,255,255,0.15)" },
-  dotActive: { width: 10, height: 10, borderRadius: 5, backgroundColor: ACCENT_COLORS.green },
-  dotDone: { backgroundColor: "rgba(255,255,255,0.35)" },
+  dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "rgba(128,0,32,0.2)" },
+  dotActive: { width: 10, height: 10, borderRadius: 5, backgroundColor: MAROON },
+  dotDone: { backgroundColor: "rgba(128,0,32,0.4)" },
 
   welcomeCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
-  welcomeEmoji: { fontSize: 230, textAlign: "center", marginBottom: 28 },
   welcomeTitle: {
-    fontWeight: "700", fontSize: 28, textAlign: "center",
-    letterSpacing: -0.5, marginBottom: 12,
+    fontWeight: "700", fontSize: 36, textAlign: "center",
+    letterSpacing: -0.5, marginBottom: 12, marginTop: 24,
   },
   welcomeSub: {
-    fontWeight: "400", fontSize: 16, textAlign: "center",
-    lineHeight: 24, paddingHorizontal: 10,
+    fontWeight: "400", fontSize: 18, textAlign: "center",
+    lineHeight: 28, paddingHorizontal: 10,
   },
 
   photoCircle: {
     width: 120, height: 120, borderRadius: 60, overflow: "hidden",
-    borderWidth: 3, borderColor: ACCENT_COLORS.green,
+    borderWidth: 3, borderColor: MAROON,
     alignSelf: "center", marginBottom: 28,
   },
   photoImage: { width: "100%", height: "100%", resizeMode: "cover" },
@@ -562,64 +554,64 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5, marginBottom: 20,
   },
   founderSub: {
-    fontWeight: "400", fontSize: 16, textAlign: "center",
-    lineHeight: 24, color: C.textSecondary,
+    fontWeight: "400", fontSize: 18, textAlign: "center",
+    lineHeight: 28, color: C.textSecondary,
   },
 
   storyCenter: { flex: 1, justifyContent: "center", paddingHorizontal: 4 },
   storyLine: {
-    fontWeight: "600", fontSize: 24, lineHeight: 34,
+    fontWeight: "600", fontSize: 26, lineHeight: 38,
     letterSpacing: -0.3,
   },
   storyList: { marginTop: 24, gap: 18 },
   storyListRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   storyEmoji: { fontSize: 22 },
-  storyListText: { fontWeight: "500", fontSize: 17, color: C.text, flex: 1 },
+  storyListText: { fontWeight: "500", fontSize: 18, color: C.text, flex: 1 },
   storyDivider: {
-    width: 40, height: 2, backgroundColor: "rgba(255,255,255,0.12)",
+    width: 40, height: 2, backgroundColor: "rgba(128,0,32,0.2)",
     marginVertical: 24,
   },
   storyFooter: {
-    fontWeight: "500", fontSize: 17, lineHeight: 26,
+    fontWeight: "500", fontSize: 18, lineHeight: 28,
     marginTop: 8,
   },
 
   inputCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
   nameTitle: {
-    fontWeight: "700", fontSize: 26, textAlign: "center",
+    fontWeight: "700", fontSize: 28, textAlign: "center",
     letterSpacing: -0.5, marginBottom: 28,
   },
   nameInput: {
     fontWeight: "500", fontSize: 22, color: C.text, textAlign: "center",
-    borderBottomWidth: 2, borderBottomColor: ACCENT_COLORS.green, paddingVertical: 14,
+    borderBottomWidth: 2, borderBottomColor: MAROON, paddingVertical: 14,
     width: 260,
   },
   nameHint: {
-    fontWeight: "400", fontSize: 13, textAlign: "center", marginTop: 14,
+    fontWeight: "400", fontSize: 14, textAlign: "center", marginTop: 14,
   },
 
   setupScroll: { paddingTop: 20, paddingBottom: 40 },
   setupTitle: {
-    fontWeight: "700", fontSize: 26, letterSpacing: -0.5,
+    fontWeight: "700", fontSize: 28, letterSpacing: -0.5,
     textAlign: "center", marginBottom: 8,
   },
   setupSub: {
-    fontWeight: "400", fontSize: 15, textAlign: "center",
-    marginBottom: 28, lineHeight: 22,
+    fontWeight: "400", fontSize: 16, textAlign: "center",
+    marginBottom: 28, lineHeight: 24,
   },
   fieldBlock: { gap: 2 },
   inputRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
   fieldInput: {
-    fontWeight: "400", fontSize: 15, color: C.text,
+    fontWeight: "400", fontSize: 16, color: C.text,
     backgroundColor: C.surface, borderRadius: 14, padding: 14,
     borderWidth: 1, borderColor: C.border,
   },
   addBtn: {
-    width: 48, borderRadius: 14, backgroundColor: ACCENT_COLORS.blue,
+    width: 48, borderRadius: 14, backgroundColor: MAROON,
     alignItems: "center", justifyContent: "center",
   },
   fieldHint: {
-    fontWeight: "400", fontSize: 13, color: C.textTertiary,
+    fontWeight: "400", fontSize: 14, color: C.textTertiary,
     textAlign: "center", marginTop: 16,
   },
 
@@ -630,8 +622,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: C.border,
   },
   medChipEmoji: { fontSize: 20 },
-  medChipName: { fontWeight: "600", fontSize: 15, color: C.text },
-  medChipDose: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 2 },
+  medChipName: { fontWeight: "600", fontSize: 16, color: C.text },
+  medChipDose: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginTop: 2 },
 
   condChipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
   condChip: {
@@ -639,12 +631,12 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10,
     borderWidth: 1, borderColor: C.border,
   },
-  condChipText: { fontWeight: "500", fontSize: 14, color: C.text },
+  condChipText: { fontWeight: "500", fontSize: 15, color: C.text },
 
   completionCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
   completionCircle: {
     width: 100, height: 100, borderRadius: 50,
-    backgroundColor: ACCENT_COLORS.green, alignItems: "center", justifyContent: "center",
+    backgroundColor: MAROON, alignItems: "center", justifyContent: "center",
     marginBottom: 32,
   },
   completionTitle: {
@@ -652,13 +644,13 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5, marginBottom: 8,
   },
   completionSub: {
-    fontWeight: "400", fontSize: 17, textAlign: "center",
-    lineHeight: 24,
+    fontWeight: "400", fontSize: 18, textAlign: "center",
+    lineHeight: 28,
   },
 
   continueBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: ACCENT_COLORS.blue, borderRadius: 16, paddingVertical: 18,
+    backgroundColor: MAROON, borderRadius: 16, paddingVertical: 18,
   },
   continueBtnText: { fontWeight: "600", fontSize: 17, color: "#fff" },
 });

@@ -362,7 +362,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0A0000" },
+  container: { flex: 1, backgroundColor: "#F5D5D0" },
   content: { paddingHorizontal: 24 },
   warningHeader: {
     flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20,

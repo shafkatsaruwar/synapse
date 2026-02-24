@@ -24,7 +24,7 @@ export default function PrivacyScreen() {
       const jsonStr = JSON.stringify(data, null, 2);
       await Share.share({
         message: jsonStr,
-        title: "Fir Health Data Export",
+        title: "Synapse Health Data Export",
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {

@@ -271,7 +271,7 @@ export default function MedicationsScreen() {
   };
 
   return (
-    <View style={[styles.container, isSickMode && { backgroundColor: "#1A0A0A" }]}>
+    <View style={[styles.container, isSickMode && { backgroundColor: "#F5D5D0" }]}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[styles.content, {

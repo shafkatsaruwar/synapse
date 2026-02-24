@@ -38,9 +38,9 @@ import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 const C = Colors.dark;
 
 const PRIORITY_COLORS = {
-  medications: "#0A84FF",
-  appointments: "#BF5AF2",
-  dailylog: "#30D158",
+  medications: "#800020",
+  appointments: "#6B3FA0",
+  dailylog: "#2D7D46",
 };
 
 interface DashboardScreenProps {
@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   sickModeActivateBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-end", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(255,69,58,0.08)", borderWidth: 1, borderColor: "rgba(255,69,58,0.2)", marginBottom: 8 },
-  sickModeActivateBtnText: { fontWeight: "600", fontSize: 12, color: "#FF453A" },
+  sickModeActivateBtnText: { fontWeight: "600", fontSize: 12, color: C.red },
   welcome: { marginBottom: 20 },
   greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     padding: 16,
     aspectRatio: 1.1,
     justifyContent: "space-between",
-    boxShadow: "0px 4px 16px rgba(0,0,0,0.3)",
+    boxShadow: "0px 4px 16px rgba(0,0,0,0.08)",
   },
   priorityHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   priorityIconWrap: { width: 28, height: 28, borderRadius: 7, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },

@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
+import SynapseLogo from "@/components/SynapseLogo";
 
 const C = Colors.dark;
 
@@ -67,6 +68,13 @@ export default function SidebarLayout({
   if (!isWide) {
     return (
       <View style={styles.mobileContainer}>
+        <View style={[styles.mobileHeader, { paddingTop: Platform.OS === "web" ? 67 : insets.top + 8 }]}>
+          <View style={styles.mobileHeaderInner}>
+            <SynapseLogo size={28} color={C.accent} />
+            <Text style={styles.mobileHeaderTitle}>Synapse</Text>
+          </View>
+        </View>
+
         <View style={[styles.mobileContent, { paddingBottom: 72 + (Platform.OS === "web" ? 34 : insets.bottom) }]}>
           {children}
         </View>
@@ -91,9 +99,9 @@ export default function SidebarLayout({
                   <Ionicons
                     name={active ? item.iconActive : item.icon}
                     size={22}
-                    color={active ? (sickMode ? C.red : C.tint) : C.textTertiary}
+                    color={active ? (sickMode ? C.red : C.accent) : C.textTertiary}
                   />
-                  <Text style={[styles.mobileNavLabel, active && { color: sickMode ? C.red : C.tint }]}>
+                  <Text style={[styles.mobileNavLabel, active && { color: sickMode ? C.red : C.accent }]}>
                     {item.label}
                   </Text>
                 </Pressable>
@@ -108,9 +116,9 @@ export default function SidebarLayout({
               <Ionicons
                 name={moreIsActive ? "ellipsis-horizontal-circle" : "ellipsis-horizontal-circle-outline"}
                 size={22}
-                color={moreIsActive ? C.tint : C.textTertiary}
+                color={moreIsActive ? C.accent : C.textTertiary}
               />
-              <Text style={[styles.mobileNavLabel, moreIsActive && { color: C.tint }]}>
+              <Text style={[styles.mobileNavLabel, moreIsActive && { color: C.accent }]}>
                 More
               </Text>
             </Pressable>
@@ -145,14 +153,14 @@ export default function SidebarLayout({
                       }}
                       testID={`more-${item.key}`}
                     >
-                      <View style={[styles.moreIconWrap, active && { backgroundColor: (sickMode ? C.red : C.tint) + "22" }]}>
+                      <View style={[styles.moreIconWrap, active && { backgroundColor: (sickMode ? C.red : C.accent) + "22" }]}>
                         <Ionicons
                           name={active ? item.iconActive : item.icon}
                           size={22}
-                          color={active ? (sickMode ? C.red : C.tint) : C.textSecondary}
+                          color={active ? (sickMode ? C.red : C.accent) : C.textSecondary}
                         />
                       </View>
-                      <Text style={[styles.moreLabel, active && { color: sickMode ? C.red : C.tint }]}>
+                      <Text style={[styles.moreLabel, active && { color: sickMode ? C.red : C.accent }]}>
                         {item.label}
                       </Text>
                     </Pressable>
@@ -171,10 +179,8 @@ export default function SidebarLayout({
     <View style={styles.container}>
       <View style={[styles.sidebar, { paddingTop: Platform.OS === "web" ? 40 : insets.top + 16 }]}>
         <View style={styles.brand}>
-          <View style={styles.brandIcon}>
-            <Ionicons name="leaf" size={18} color={C.tint} />
-          </View>
-          <Text style={styles.brandText}>Fir</Text>
+          <SynapseLogo size={32} color={C.accent} />
+          <Text style={styles.brandText}>Synapse</Text>
         </View>
 
         <View style={styles.navList}>
@@ -190,7 +196,7 @@ export default function SidebarLayout({
                 <Ionicons
                   name={active ? item.iconActive : item.icon}
                   size={18}
-                  color={active ? (sickMode ? C.red : C.text) : C.textTertiary}
+                  color={active ? (sickMode ? C.red : C.accent) : C.textTertiary}
                 />
                 <Text
                   style={[styles.navLabel, active && styles.navLabelActive, active && sickMode && { color: C.red }]}
@@ -204,7 +210,7 @@ export default function SidebarLayout({
 
         <View style={styles.sidebarFooter}>
           <View style={styles.sidebarDivider} />
-          <Text style={styles.sidebarVersion}>Fir v1.0</Text>
+          <Text style={styles.sidebarVersion}>Synapse v1.0</Text>
         </View>
       </View>
       <View style={styles.main}>{children}</View>
@@ -232,14 +238,6 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 12,
     paddingBottom: 28,
-  },
-  brandIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: C.tintLight,
-    alignItems: "center",
-    justifyContent: "center",
   },
   brandText: {
     fontWeight: "700",
@@ -293,6 +291,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: C.background,
   },
+  mobileHeader: {
+    backgroundColor: C.background,
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  mobileHeaderInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  mobileHeaderTitle: {
+    fontWeight: "700",
+    fontSize: 20,
+    color: C.text,
+    letterSpacing: -0.3,
+  },
   mobileContent: {
     flex: 1,
   },
@@ -301,7 +322,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "rgba(0,0,0,0.92)",
+    backgroundColor: C.surface,
     borderTopWidth: 1,
     borderTopColor: C.border,
   },
@@ -324,15 +345,18 @@ const styles = StyleSheet.create({
   },
   moreOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.3)",
     justifyContent: "flex-end",
   },
   moreSheet: {
-    backgroundColor: C.surface,
+    backgroundColor: C.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 12,
     paddingHorizontal: 24,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: C.border,
   },
   moreHandle: {
     width: 36,
@@ -361,13 +385,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   moreItemActive: {
-    backgroundColor: C.tint + "10",
+    backgroundColor: C.accent + "10",
   },
   moreIconWrap: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: C.border + "60",
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 6,
