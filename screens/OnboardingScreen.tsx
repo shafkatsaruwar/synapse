@@ -228,8 +228,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   };
 
   const getButtonLabel = () => {
-    if (step === 7) return "Enter Fir";
-    if (step === 11) return "Let's go";
+    if (step === 11) return "Wanna See Where This Takes Us?";
     return "Continue";
   };
 
@@ -511,13 +510,12 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
               styles.continueBtn,
               !canContinue() && { opacity: 0.35 },
               step === 11 && { backgroundColor: ACCENT_COLORS.green },
-              step === 7 && { backgroundColor: ACCENT_COLORS.green },
             ]}
             onPress={handleContinue}
             disabled={!canContinue()}
           >
             <Text style={styles.continueBtnText}>{getButtonLabel()}</Text>
-            {step < 11 && step !== 7 && <Ionicons name="arrow-forward" size={18} color="#fff" />}
+            <Ionicons name="arrow-forward" size={18} color="#fff" />
           </Pressable>
         </AnimatedView>
       </View>
