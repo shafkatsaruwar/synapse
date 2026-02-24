@@ -189,6 +189,32 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
     </PriorityCard>
   );
 
+  const renderRamadanCard = () => (
+    <PriorityCard color="#6B6B6B" icon="moon" label="Ramadan" onPress={() => onNavigate("log")}>
+      {fastingLog ? (
+        <View>
+          <View style={styles.priLogRow}>
+            <View style={styles.priLogItem}>
+              <Text style={styles.priLogLabel}>Suhoor</Text>
+              <Text style={styles.priLogValue}>{fastingLog.suhoorTime || "--"}</Text>
+            </View>
+            <View style={styles.priLogDivider} />
+            <View style={styles.priLogItem}>
+              <Text style={styles.priLogLabel}>Iftar</Text>
+              <Text style={styles.priLogValue}>{fastingLog.iftarTime || "--"}</Text>
+            </View>
+          </View>
+          <Text style={styles.priMeta}>{fastingLog.hydrationGlasses} glasses of water</Text>
+        </View>
+      ) : (
+        <View>
+          <Text style={styles.priEmpty}>No fasting log</Text>
+          <Text style={[styles.priMeta, { marginTop: 6 }]}>Tap to log today</Text>
+        </View>
+      )}
+    </PriorityCard>
+  );
+
   const renderDailyLogCard = () => (
     <PriorityCard color={PRIORITY_COLORS.dailylog} icon="heart" label="Daily Log" onPress={() => onNavigate("log")}>
       {todayLog ? (
@@ -267,6 +293,9 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
         <View style={styles.priorityGridItem}>{renderMedicationsCard()}</View>
         <View style={styles.priorityGridItem}>{renderAppointmentsCard()}</View>
         <View style={styles.priorityGridItem}>{renderDailyLogCard()}</View>
+        {settings.ramadanMode && (
+          <View style={styles.priorityGridItem}>{renderRamadanCard()}</View>
+        )}
       </View>
 
       <View style={[styles.grid, isWide && styles.gridWide]}>
@@ -290,47 +319,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
           ) : (
             <View style={styles.cardEmpty}>
               <Text style={styles.cardEmptyText}>No symptoms today</Text>
-            </View>
-          )}
-        </Pressable>
-
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("log")}>
-          <View style={styles.cardHeader}>
-            <View style={[styles.cardIcon, { backgroundColor: C.yellowLight }]}>
-              <Ionicons name="moon" size={16} color={C.yellow} />
-            </View>
-            <Text style={styles.cardLabel}>Fasting / Ramadan</Text>
-          </View>
-          {fastingLog ? (
-            <View>
-              <View style={styles.fastingRow}>
-                <View style={styles.fastingItem}>
-                  <Text style={styles.fastingLabel}>Suhoor</Text>
-                  <Text style={styles.fastingValue}>{fastingLog.suhoorTime || "--"}</Text>
-                </View>
-                <View style={styles.fastingDivider} />
-                <View style={styles.fastingItem}>
-                  <Text style={styles.fastingLabel}>Iftar</Text>
-                  <Text style={styles.fastingValue}>{fastingLog.iftarTime || "--"}</Text>
-                </View>
-                <View style={styles.fastingDivider} />
-                <View style={styles.fastingItem}>
-                  <Text style={styles.fastingLabel}>Water</Text>
-                  <Text style={styles.fastingValue}>{fastingLog.hydrationGlasses} gl</Text>
-                </View>
-              </View>
-              <View style={styles.energyRow}>
-                <Text style={styles.fastingLabel}>Energy</Text>
-                <View style={styles.energyDots}>
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <View key={i} style={[styles.energyDot, i <= fastingLog.energyLevel && { backgroundColor: C.yellow }]} />
-                  ))}
-                </View>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.cardEmpty}>
-              <Text style={styles.cardEmptyText}>{settings.ramadanMode ? "No fasting log today" : "Enable Ramadan mode in Settings"}</Text>
             </View>
           )}
         </Pressable>
