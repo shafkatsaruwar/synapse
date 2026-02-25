@@ -14,7 +14,9 @@ import InsightsScreen from "@/screens/InsightsScreen";
 import PrivacyScreen from "@/screens/PrivacyScreen";
 import SickModeScreen from "@/screens/SickModeScreen";
 import RamadanScreen from "@/screens/RamadanScreen";
+import HealthProfileScreen from "@/screens/HealthProfileScreen";
 import HealthProfileConditionsScreen from "@/screens/HealthProfileConditionsScreen";
+import AllergyScreen from "@/screens/AllergyScreen";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import AuthScreen from "@/screens/AuthScreen";
 import { settingsStorage } from "@/lib/storage";
@@ -102,8 +104,12 @@ export default function MainScreen() {
         return <RamadanScreen onActivateSickMode={handleActivateSickMode} />;
       case "privacy":
         return <PrivacyScreen />;
+      case "healthprofile":
+        return <HealthProfileScreen onBack={() => handleNavigate("settings")} onNavigate={handleNavigate} />;
       case "healthprofileconditions":
-        return <HealthProfileConditionsScreen onBack={() => handleNavigate("settings")} />;
+        return <HealthProfileConditionsScreen onBack={() => handleNavigate("healthprofile")} />;
+      case "allergy":
+        return <AllergyScreen onBack={() => handleNavigate("healthprofile")} />;
       case "auth":
         return <AuthScreen onBack={() => handleNavigate("settings")} onSuccess={() => handleNavigate("settings")} />;
       case "settings":
