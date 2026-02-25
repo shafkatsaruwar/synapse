@@ -383,14 +383,16 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
       {showMedFields && (
         <AnimatedView delay={0} style={styles.fieldBlock}>
-          <View style={styles.inputRow}>
+          <View style={{ marginBottom: 10 }}>
             <TextInput
-              style={[styles.fieldInput, { flex: 2 }]}
+              style={styles.fieldInput}
               placeholder="Medication name"
               placeholderTextColor={C.textTertiary}
               value={medName}
               onChangeText={setMedName}
             />
+          </View>
+          <View style={styles.inputRow}>
             <TextInput
               style={[styles.fieldInput, { flex: 1 }]}
               placeholder="Dosage"
