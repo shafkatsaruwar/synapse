@@ -284,6 +284,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
         {
           paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16),
           paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
+          ...(isWide && { alignSelf: "stretch" }),
         },
       ]}
       showsVerticalScrollIndicator={false}
@@ -328,11 +329,11 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
       <Text style={styles.sectionLabel}>Today</Text>
 
       <View style={[styles.priorityGrid, { gap: 12 }]}>
-        <View style={[styles.priorityGridItem, isWide ? { width: "48%" } : { width: "100%" }]}>{renderMedicationsCard()}</View>
-        <View style={[styles.priorityGridItem, isWide ? { width: "48%" } : { width: "100%" }]}>{renderAppointmentsCard()}</View>
-        <View style={[styles.priorityGridItem, isWide ? { width: "48%" } : { width: "100%" }]}>{renderDailyLogCard()}</View>
+        <View style={[styles.priorityGridItem, isWide ? { flex: 1, flexBasis: "48%" } : { width: "100%" }]}>{renderMedicationsCard()}</View>
+        <View style={[styles.priorityGridItem, isWide ? { flex: 1, flexBasis: "48%" } : { width: "100%" }]}>{renderAppointmentsCard()}</View>
+        <View style={[styles.priorityGridItem, isWide ? { flex: 1, flexBasis: "48%" } : { width: "100%" }]}>{renderDailyLogCard()}</View>
         {settings.ramadanMode && (
-          <View style={[styles.priorityGridItem, isWide ? { width: "48%" } : { width: "100%" }]}>{renderRamadanCard()}</View>
+          <View style={[styles.priorityGridItem, isWide ? { flex: 1, flexBasis: "48%" } : { width: "100%" }]}>{renderRamadanCard()}</View>
         )}
       </View>
 
@@ -467,7 +468,7 @@ const styles = StyleSheet.create({
   dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
   hijriDate: { fontWeight: "600", fontSize: 14, color: "#3C2415", marginBottom: 20 },
   sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
-  priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 20 },
+  priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 20, width: "100%" },
   priorityGridItem: { marginBottom: 12 },
   priorityCard: {
     borderRadius: 16,
