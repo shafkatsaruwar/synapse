@@ -147,16 +147,24 @@ export default function ReportsScreen() {
     setExporting(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
+      const isWeb = Platform.OS === "web";
       const uri = await captureRef(summaryRef, {
         format: "png",
         quality: 1,
-        result: "tmpfile",
+        result: isWeb ? "data-uri" : "tmpfile",
       });
-      const available = await Sharing.isAvailableAsync();
-      if (available) {
-        await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "Share Health Summary" });
+      if (isWeb && typeof uri === "string" && uri.startsWith("data:")) {
+        const a = document.createElement("a");
+        a.href = uri;
+        a.download = "health-summary.png";
+        a.click();
       } else {
-        Alert.alert("Sharing not available", "Sharing is not supported on this device.");
+        const available = await Sharing.isAvailableAsync();
+        if (available) {
+          await Sharing.shareAsync(uri as string, { mimeType: "image/png", dialogTitle: "Share Health Summary" });
+        } else {
+          Alert.alert("Sharing not available", "Sharing is not supported on this device.");
+        }
       }
     } catch (e: any) {
       Alert.alert("Export failed", e?.message || "Could not export summary.");
@@ -262,9 +270,6 @@ export default function ReportsScreen() {
       <View ref={summaryRef} collapsable={false} style={styles.summaryCapture}>
         <View style={styles.summaryHeader}>
           <Text style={styles.summaryHeaderTitle}>Health Summary Report</Text>
-          <Text style={styles.summaryHeaderSub}>
-            {settings.name || "Patient"} \u2022 Last {range} days
-          </Text>
           {healthConditions.length > 0 && (
             <Text style={styles.summaryHeaderConditions}>
               Conditions: {healthConditions.map(c => c.name).join(", ")}
@@ -398,7 +403,6 @@ const styles = StyleSheet.create({
   summaryCapture: { backgroundColor: "#FFFAF5", borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
   summaryHeader: { marginBottom: 16, borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 12 },
   summaryHeaderTitle: { fontWeight: "700", fontSize: 18, color: C.tint, letterSpacing: -0.3 },
-  summaryHeaderSub: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginTop: 4 },
   summaryHeaderConditions: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2 },
   summaryStatsRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
   summaryStatBox: { flex: 1, backgroundColor: C.surface, borderRadius: 10, padding: 10, alignItems: "center" },

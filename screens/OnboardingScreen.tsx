@@ -125,6 +125,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [meds, setMeds] = useState<OnboardingMed[]>([]);
   const [medName, setMedName] = useState("");
   const [medDosage, setMedDosage] = useState("");
+  const [medUnit, setMedUnit] = useState<"mg" | "mcg" | "ml">("mg");
   const [showMedFields, setShowMedFields] = useState(false);
 
   const screenOpacity = useRef(new Animated.Value(1)).current;
@@ -173,7 +174,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     const n = medName.trim();
     const d = medDosage.trim();
     if (n) {
-      setMeds([...meds, { name: n, dosage: d || "as prescribed" }]);
+      const dosageStr = d ? `${d} ${medUnit}` : "as prescribed";
+      setMeds([...meds, { name: n, dosage: dosageStr }]);
       setMedName("");
       setMedDosage("");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -219,14 +221,20 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     if (step === 10) {
       handleFinish();
     } else if (step === 8) {
-      if (authEmail.trim() && authPassword) {
-        handleAuthSubmit();
-      } else {
-        goNext();
-      }
+      const canSubmit = authMode === "signup"
+        ? authFirstName.trim() && authEmail.trim() && authPassword
+        : authEmail.trim() && authPassword;
+      if (canSubmit) handleAuthSubmit();
     } else {
       goNext();
     }
+  };
+
+  const canContinueAccountStep = () => {
+    if (step !== 8) return true;
+    return authMode === "signup"
+      ? !!(authFirstName.trim() && authEmail.trim() && authPassword)
+      : !!(authEmail.trim() && authPassword);
   };
 
   const renderDots = () => (
@@ -370,6 +378,10 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       setAuthError("Enter email and password.");
       return;
     }
+    if (authMode === "signup" && !authFirstName.trim()) {
+      setAuthError("Enter your first and last name.");
+      return;
+    }
     if (authMode === "signup" && authPassword.length < 6) {
       setAuthError("Password must be at least 6 characters.");
       return;
@@ -397,7 +409,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         <AnimatedView delay={300}>
           <TextInput
             style={styles.nameInput}
-            placeholder="First name (optional)"
+            placeholder="First and last name"
             placeholderTextColor={C.textTertiary}
             value={authFirstName}
             onChangeText={setAuthFirstName}
@@ -431,9 +443,6 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           {authMode === "signup" ? "Already have an account? Log in" : "Don't have an account? Sign up"}
         </Text>
       </Pressable>
-      <Pressable onPress={goNext} style={styles.skipLinkWrap}>
-        <Text style={styles.skipLink}>Skip for now</Text>
-      </Pressable>
     </KeyboardAvoidingView>
   );
 
@@ -466,6 +475,17 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
             <Pressable style={[styles.addBtn, !medName.trim() && { opacity: 0.3 }]} onPress={addMed} disabled={!medName.trim()}>
               <Ionicons name="add" size={20} color="#fff" />
             </Pressable>
+          </View>
+          <View style={styles.unitRow}>
+            {(["mg", "mcg", "ml"] as const).map((u) => (
+              <Pressable
+                key={u}
+                style={[styles.unitChip, medUnit === u && styles.unitChipActive]}
+                onPress={() => { setMedUnit(u); Haptics.selectionAsync(); }}
+              >
+                <Text style={[styles.unitChipText, medUnit === u && styles.unitChipTextActive]}>{u}</Text>
+              </Pressable>
+            ))}
           </View>
           {meds.map((m, i) => (
             <AnimatedView key={`${m.name}-${i}`} delay={0} style={styles.medChipRow}>
@@ -530,10 +550,10 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           <Pressable
             style={[
               styles.continueBtn,
-              (!canContinue() || (step === 8 && authLoading)) && { opacity: 0.35 },
+              (!(step === 8 ? canContinueAccountStep() : canContinue()) || (step === 8 && authLoading)) && { opacity: 0.35 },
             ]}
             onPress={handleContinue}
-            disabled={!canContinue() || (step === 8 && authLoading)}
+            disabled={!(step === 8 ? canContinueAccountStep() : canContinue()) || (step === 8 && authLoading)}
             accessibilityRole="button"
             accessibilityLabel={getButtonLabel()}
           >
@@ -625,10 +645,6 @@ const styles = StyleSheet.create({
   logInLink: {
     fontWeight: "600", fontSize: 14, color: C.cyan, textAlign: "center",
   },
-  skipLinkWrap: { marginTop: 12 },
-  skipLink: {
-    fontWeight: "400", fontSize: 13, color: C.textTertiary, textAlign: "center",
-  },
 
   setupScroll: { paddingTop: 20, paddingBottom: 40 },
   setupTitle: {
@@ -650,6 +666,14 @@ const styles = StyleSheet.create({
     width: 48, borderRadius: 14, backgroundColor: MAROON,
     alignItems: "center", justifyContent: "center",
   },
+  unitRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
+  unitChip: {
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
+    borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
+  },
+  unitChipActive: { borderColor: MAROON, backgroundColor: MAROON_LIGHT },
+  unitChipText: { fontWeight: "500", fontSize: 14, color: C.textSecondary },
+  unitChipTextActive: { color: MAROON, fontWeight: "600" },
   fieldHint: {
     fontWeight: "400", fontSize: 14, color: C.textTertiary,
     textAlign: "center", marginTop: 16,

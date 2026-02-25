@@ -327,12 +327,12 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
       )}
       <Text style={styles.sectionLabel}>Today</Text>
 
-      <View style={styles.priorityGrid}>
-        <View style={styles.priorityGridItem}>{renderMedicationsCard()}</View>
-        <View style={styles.priorityGridItem}>{renderAppointmentsCard()}</View>
-        <View style={styles.priorityGridItem}>{renderDailyLogCard()}</View>
+      <View style={[styles.priorityGrid, { gap: 12 }]}>
+        <View style={[styles.priorityGridItem, isWide ? { width: "48%" } : { width: "100%" }]}>{renderMedicationsCard()}</View>
+        <View style={[styles.priorityGridItem, isWide ? { width: "48%" } : { width: "100%" }]}>{renderAppointmentsCard()}</View>
+        <View style={[styles.priorityGridItem, isWide ? { width: "48%" } : { width: "100%" }]}>{renderDailyLogCard()}</View>
         {settings.ramadanMode && (
-          <View style={styles.priorityGridItem}>{renderRamadanCard()}</View>
+          <View style={[styles.priorityGridItem, isWide ? { width: "48%" } : { width: "100%" }]}>{renderRamadanCard()}</View>
         )}
       </View>
 
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
   hijriDate: { fontWeight: "600", fontSize: 14, color: "#3C2415", marginBottom: 20 },
   sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
   priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 20 },
-  priorityGridItem: { width: "48%", marginBottom: 12 },
+  priorityGridItem: { marginBottom: 12 },
   priorityCard: {
     borderRadius: 16,
     padding: 16,

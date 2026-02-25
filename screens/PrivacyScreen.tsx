@@ -137,7 +137,7 @@ export default function PrivacyScreen() {
       <View style={styles.infoCard}>
         <Ionicons name="information-circle-outline" size={16} color={C.textTertiary} />
         <Text style={styles.infoText}>
-          Fir is designed with a privacy-first approach. Your health data never leaves your device unless you explicitly export it. AI features only process data when you click the generate button.
+          Synapse is designed with a privacy-first approach. Your health data never leaves your device unless you explicitly export it. AI features only process data when you click the generate button.
         </Text>
       </View>
     </ScrollView>
