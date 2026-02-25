@@ -1,12 +1,13 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform,
-  useWindowDimensions, Animated, Image, StatusBar,
+  useWindowDimensions, Animated, Image, StatusBar, KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { useAuth } from "@/contexts/AuthContext";
 import { settingsStorage, medicationStorage } from "@/lib/storage";
 
 const brainLogo = require("../assets/images/brain-logo.jpeg");
@@ -110,10 +111,17 @@ const founderImage = require("../assets/images/founder.png");
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { signIn, signUp, user } = useAuth();
   const [step, setStep] = useState(0);
   const [animKey, setAnimKey] = useState(0);
 
-  const [userName, setUserName] = useState("");
+  const [authMode, setAuthMode] = useState<"signup" | "signin">("signup");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authFirstName, setAuthFirstName] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+
   const [meds, setMeds] = useState<OnboardingMed[]>([]);
   const [medName, setMedName] = useState("");
   const [medDosage, setMedDosage] = useState("");
@@ -179,9 +187,10 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const handleFinish = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const settings = await settingsStorage.get();
+    const displayName = user?.user_metadata?.first_name ?? user?.email?.split("@")[0] ?? "";
     await settingsStorage.save({
       ...settings,
-      name: userName.trim(),
+      name: displayName,
       onboardingCompleted: true,
     });
     for (const m of meds) {
@@ -198,7 +207,6 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   };
 
   const canContinue = () => {
-    if (step === 8) return userName.trim().length > 0;
     return true;
   };
 
@@ -210,6 +218,12 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const handleContinue = () => {
     if (step === 10) {
       handleFinish();
+    } else if (step === 8) {
+      if (authEmail.trim() && authPassword) {
+        handleAuthSubmit();
+      } else {
+        goNext();
+      }
     } else {
       goNext();
     }
@@ -351,29 +365,76 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     );
   };
 
-  const renderNameInput = () => (
-    <View style={styles.inputCenter} key={animKey}>
-      <AnimatedLine
-        text={userName.trim() ? `Nice to meet you, ${userName.trim()}` : "What should I call you?"}
-        delay={0}
-        style={styles.nameTitle}
-        color={userName.trim() ? MAROON : C.text}
-      />
-      <AnimatedView delay={400}>
+  const handleAuthSubmit = async () => {
+    if (!authEmail.trim() || !authPassword) {
+      setAuthError("Enter email and password.");
+      return;
+    }
+    if (authMode === "signup" && authPassword.length < 6) {
+      setAuthError("Password must be at least 6 characters.");
+      return;
+    }
+    setAuthError("");
+    setAuthLoading(true);
+    const { error } = authMode === "signup"
+      ? await signUp(authEmail.trim(), authPassword, authFirstName.trim() ? { first_name: authFirstName.trim() } : undefined)
+      : await signIn(authEmail.trim(), authPassword);
+    setAuthLoading(false);
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    goNext();
+  };
+
+  const renderSignUpStep = () => (
+    <KeyboardAvoidingView style={styles.inputCenter} behavior={Platform.OS === "ios" ? "padding" : undefined} key={animKey}>
+      <AnimatedLine text={authMode === "signup" ? "Create your account" : "Welcome back"} delay={0} style={styles.nameTitle} color={C.text} />
+      <AnimatedLine text="Sign in to back up your data across devices." delay={200} style={styles.nameHint} color={C.textSecondary} />
+      {authError ? <Text style={styles.authError}>{authError}</Text> : null}
+      {authMode === "signup" && (
+        <AnimatedView delay={300}>
+          <TextInput
+            style={styles.nameInput}
+            placeholder="First name (optional)"
+            placeholderTextColor={C.textTertiary}
+            value={authFirstName}
+            onChangeText={setAuthFirstName}
+            autoCapitalize="words"
+          />
+        </AnimatedView>
+      )}
+      <AnimatedView delay={authMode === "signup" ? 400 : 300}>
         <TextInput
           style={styles.nameInput}
-          placeholder="Your name"
+          placeholder="Email"
           placeholderTextColor={C.textTertiary}
-          value={userName}
-          onChangeText={setUserName}
-          autoFocus
-          returnKeyType="done"
-          onSubmitEditing={() => { if (canContinue()) goNext(); }}
-          accessibilityLabel="Your name"
+          value={authEmail}
+          onChangeText={(t) => { setAuthEmail(t); setAuthError(""); }}
+          keyboardType="email-address"
+          autoCapitalize="none"
         />
       </AnimatedView>
-      <AnimatedLine text="Stored only on your device." delay={700} style={styles.nameHint} color={C.textTertiary} />
-    </View>
+      <AnimatedView delay={500}>
+        <TextInput
+          style={styles.nameInput}
+          placeholder={authMode === "signup" ? "Password (min 6 characters)" : "Password"}
+          placeholderTextColor={C.textTertiary}
+          value={authPassword}
+          onChangeText={(t) => { setAuthPassword(t); setAuthError(""); }}
+          secureTextEntry
+        />
+      </AnimatedView>
+      <Pressable onPress={() => { setAuthMode(authMode === "signup" ? "signin" : "signup"); setAuthError(""); }} style={styles.logInLinkWrap}>
+        <Text style={styles.logInLink}>
+          {authMode === "signup" ? "Already have an account? Log in" : "Don't have an account? Sign up"}
+        </Text>
+      </Pressable>
+      <Pressable onPress={goNext} style={styles.skipLinkWrap}>
+        <Text style={styles.skipLink}>Skip for now</Text>
+      </Pressable>
+    </KeyboardAvoidingView>
   );
 
   const renderMedications = () => (
@@ -444,7 +505,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     if (step === 0) return renderWelcome();
     if (step === 1) return renderFounderIntro();
     if (step >= 2 && step <= 7) return renderStorySlide(step - 2);
-    if (step === 8) return renderNameInput();
+    if (step === 8) return renderSignUpStep();
     if (step === 9) return renderMedications();
     if (step === 10) return renderCompletion();
     return null;
@@ -469,10 +530,10 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           <Pressable
             style={[
               styles.continueBtn,
-              !canContinue() && { opacity: 0.35 },
+              (!canContinue() || (step === 8 && authLoading)) && { opacity: 0.35 },
             ]}
             onPress={handleContinue}
-            disabled={!canContinue()}
+            disabled={!canContinue() || (step === 8 && authLoading)}
             accessibilityRole="button"
             accessibilityLabel={getButtonLabel()}
           >
@@ -555,7 +616,18 @@ const styles = StyleSheet.create({
     width: 260,
   },
   nameHint: {
-    fontWeight: "400", fontSize: 14, textAlign: "center", marginTop: 14,
+    fontWeight: "400", fontSize: 14, textAlign: "center", marginTop: 14, marginBottom: 8,
+  },
+  authError: {
+    fontWeight: "500", fontSize: 13, color: C.red, textAlign: "center", marginTop: 12, marginBottom: 4,
+  },
+  logInLinkWrap: { marginTop: 16 },
+  logInLink: {
+    fontWeight: "600", fontSize: 14, color: C.cyan, textAlign: "center",
+  },
+  skipLinkWrap: { marginTop: 12 },
+  skipLink: {
+    fontWeight: "400", fontSize: 13, color: C.textTertiary, textAlign: "center",
   },
 
   setupScroll: { paddingTop: 20, paddingBottom: 40 },

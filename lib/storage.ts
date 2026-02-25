@@ -455,8 +455,43 @@ export const conditionStorage = {
   },
 };
 
-export const exportAllData = async () => {
-  const [healthLogs, symptoms, medications, medLogs, appointments, doctorNotes, fastingLogs, vitals, settings, documents, insights] = await Promise.all([
+export type ExportPayload = {
+  exportDate: string;
+  appVersion: string;
+  profile: UserSettings;
+  healthLogs: HealthLog[];
+  symptoms: Symptom[];
+  medications: Medication[];
+  medicationLogs: MedicationLog[];
+  appointments: Appointment[];
+  doctorNotes: DoctorNote[];
+  fastingLogs: FastingLog[];
+  vitals: Vital[];
+  documents: DocumentExtraction[];
+  insights: HealthInsight[];
+  allergy?: AllergyInfo;
+  conditions?: HealthCondition[];
+  sickMode?: SickModeData;
+  medComparisons?: MedComparison[];
+};
+
+export const exportAllData = async (): Promise<ExportPayload> => {
+  const [
+    healthLogs,
+    symptoms,
+    medications,
+    medLogs,
+    appointments,
+    doctorNotes,
+    fastingLogs,
+    vitals,
+    settings,
+    documents,
+    insights,
+    allergy,
+    conditions,
+    sickMode,
+  ] = await Promise.all([
     healthLogStorage.getAll(),
     symptomStorage.getAll(),
     medicationStorage.getAll(),
@@ -468,7 +503,11 @@ export const exportAllData = async () => {
     settingsStorage.get(),
     documentStorage.getAll(),
     insightStorage.getAll(),
+    allergyStorage.get(),
+    conditionStorage.getAll(),
+    sickModeStorage.get(),
   ]);
+  const medComparisons = await medComparisonStorage.getAll();
   return {
     exportDate: new Date().toISOString(),
     appVersion: "1.0",
@@ -483,7 +522,30 @@ export const exportAllData = async () => {
     vitals,
     documents,
     insights,
+    allergy,
+    conditions,
+    sickMode,
+    medComparisons,
   };
+};
+
+export const importAllData = async (payload: ExportPayload): Promise<void> => {
+  await clearAllData();
+  await settingsStorage.save(payload.profile);
+  if (payload.allergy) await allergyStorage.save(payload.allergy);
+  if (payload.sickMode) await sickModeStorage.save(payload.sickMode);
+  await setItem(KEYS.HEALTH_LOGS, payload.healthLogs);
+  await setItem(KEYS.SYMPTOMS, payload.symptoms);
+  await setItem(KEYS.MEDICATIONS, payload.medications);
+  await setItem(KEYS.MEDICATION_LOGS, payload.medicationLogs);
+  await setItem(KEYS.APPOINTMENTS, payload.appointments);
+  await setItem(KEYS.DOCTOR_NOTES, payload.doctorNotes);
+  await setItem(KEYS.FASTING_LOGS, payload.fastingLogs);
+  await setItem(KEYS.VITALS, payload.vitals);
+  await setItem(KEYS.DOCUMENTS, payload.documents ?? []);
+  await setItem(KEYS.INSIGHTS, payload.insights ?? []);
+  await setItem(KEYS.MED_COMPARISONS, payload.medComparisons ?? []);
+  await setItem(KEYS.CONDITIONS, payload.conditions ?? []);
 };
 
 export const clearAllData = async () => {

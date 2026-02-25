@@ -16,6 +16,7 @@ import SickModeScreen from "@/screens/SickModeScreen";
 import RamadanScreen from "@/screens/RamadanScreen";
 import HealthProfileConditionsScreen from "@/screens/HealthProfileConditionsScreen";
 import OnboardingScreen from "@/screens/OnboardingScreen";
+import AuthScreen from "@/screens/AuthScreen";
 import { settingsStorage } from "@/lib/storage";
 import Colors from "@/constants/colors";
 
@@ -103,6 +104,8 @@ export default function MainScreen() {
         return <PrivacyScreen />;
       case "healthprofileconditions":
         return <HealthProfileConditionsScreen onBack={() => handleNavigate("settings")} />;
+      case "auth":
+        return <AuthScreen onBack={() => handleNavigate("settings")} onSuccess={() => handleNavigate("settings")} />;
       case "settings":
         return <SettingsScreen onResetApp={handleResetApp} onNavigate={handleNavigate} />;
       default:
