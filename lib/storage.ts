@@ -155,7 +155,7 @@ export interface UserSettings {
   ramadanMode: boolean;
   sickMode: boolean;
   highContrast?: boolean;
-  onboardingCompleted?: boolean;
+  onboardingCompleted?: true;
 }
 
 const KEYS = {

@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Synapse",
-    "slug": "synapse-health",
+    "slug": "synapse",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -15,7 +15,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.myapp"
+      "bundleIdentifier": "com.myapp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.myapp",
@@ -27,7 +30,8 @@
       }
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "output": "static"
     },
     "plugins": [
       [
@@ -42,6 +46,15 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": "https://replit.com/"
+      },
+      "eas": {
+        "projectId": "2ae7d5f4-1514-408d-b1ec-250da7c8ccfa"
+      }
+    },
+    "owner": "mohammedsaruwars-organization"
   }
 }
