@@ -158,6 +158,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
 
   const dateObj = new Date();
   const greeting = dateObj.getHours() < 12 ? "Good morning" : dateObj.getHours() < 17 ? "Good afternoon" : "Good evening";
+  const displayFirstName = settings.name?.trim() ? settings.name.trim().split(/\s+/)[0] : "";
 
   const ramadanDay = getTodayRamadan(today);
   const ordinalSuffix = (n: number) => {
@@ -314,7 +315,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
 
       <View style={styles.welcome} accessibilityRole="header">
         <Text style={styles.greetingText}>
-          {greeting}{settings.name ? `, ${settings.name}` : ""}
+          {greeting}{displayFirstName ? `, ${displayFirstName}` : ""}
         </Text>
         <Text style={styles.dateText}>
           {dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
