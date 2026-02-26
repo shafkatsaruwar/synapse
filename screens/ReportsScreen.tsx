@@ -10,10 +10,10 @@ import ViewShot, { captureRef } from "react-native-view-shot";
 import Colors from "@/constants/colors";
 import {
   healthLogStorage, medicationStorage, medicationLogStorage, appointmentStorage,
-  doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage,
-  type HealthLog, type Medication, type MedicationLog, type Appointment, type DoctorNote, type Symptom, type UserSettings, type SickModeData, type HealthCondition,
+  doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage, eatingStorage,
+  type HealthLog, type Medication, type MedicationLog, type Appointment, type DoctorNote, type Symptom, type UserSettings, type SickModeData, type HealthCondition, type EatingEntry,
 } from "@/lib/storage";
-import { getDaysAgo, formatDate, getToday } from "@/lib/date-utils";
+import { getDaysAgo, formatDate, formatDateWithYear, getToday } from "@/lib/date-utils";
 
 const C = Colors.dark;
 
@@ -39,15 +39,16 @@ export default function ReportsScreen() {
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
   const [healthConditions, setHealthConditions] = useState<HealthCondition[]>([]);
   const [sickMode, setSickMode] = useState<SickModeData | null>(null);
+  const [eatingEntries, setEatingEntries] = useState<EatingEntry[]>([]);
   const [range, setRange] = useState<7 | 30>(7);
   const [exporting, setExporting] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [l, m, ml, a, n, s, st, sm, conds] = await Promise.all([
+    const [l, m, ml, a, n, s, st, sm, conds, eating] = await Promise.all([
       healthLogStorage.getAll(), medicationStorage.getAll(), medicationLogStorage.getAll(),
-      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), sickModeStorage.get(), conditionStorage.getAll(),
+      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), sickModeStorage.get(), conditionStorage.getAll(), eatingStorage.getAll(),
     ]);
-    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setSickMode(sm); setHealthConditions(conds);
+    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setSickMode(sm); setHealthConditions(conds); setEatingEntries(eating);
   }, []);
 
   React.useEffect(() => { loadData(); }, [loadData]);
@@ -73,6 +74,7 @@ export default function ReportsScreen() {
 
   const feverEvents = recentSymptoms.filter((s) => s.temperature && s.temperature >= 99);
   const recentAppointments = appointments.filter((a) => a.date >= cutoff && a.date <= today);
+  const recentEating = eatingEntries.filter((e) => e.date >= cutoff && e.date <= today).sort((a, b) => b.date.localeCompare(a.date));
 
   const buildChronologicalEvents = (): SummaryEvent[] => {
     const events: SummaryEvent[] = [];
@@ -136,6 +138,9 @@ export default function ReportsScreen() {
     r += `\nAPPOINTMENTS IN RANGE (${recentAppointments.length})\n`;
     if (recentAppointments.length > 0) recentAppointments.forEach((a) => { r += `  ${formatDate(a.date)} - ${a.doctorName} (${a.specialty})\n`; });
     else r += `  None\n`;
+    r += `\nEATING (${recentEating.length} entries)\n`;
+    if (recentEating.length > 0) recentEating.slice(0, 30).forEach((e) => { r += `  ${formatDate(e.date)}${e.time ? ` ${e.time}` : ""}: ${e.what} (${e.amount})\n`; });
+    else r += `  None logged\n`;
     if (sickMode?.active) {
       r += `\nSICK MODE: Active${sickMode.recoveryMode ? " (Recovery)" : ""}\n`;
     }
@@ -263,7 +268,7 @@ export default function ReportsScreen() {
       <View style={styles.summarySection}>
         <Text style={styles.sectionTitle}>Health Summary</Text>
         <Text style={styles.sectionSubtitle}>
-          {formatDate(cutoff)} \u2013 {formatDate(today)}
+          {formatDateWithYear(cutoff)} \u2013 {formatDateWithYear(today)}
         </Text>
       </View>
 
@@ -323,6 +328,13 @@ export default function ReportsScreen() {
           {recentAppointments.length > 0 ? recentAppointments.map((a) => (
             <Text key={a.id} style={styles.summaryItem}>{formatDate(a.date)} - {a.doctorName} ({a.specialty})</Text>
           )) : <Text style={styles.summaryItemEmpty}>None in this period</Text>}
+        </View>
+
+        <View style={styles.summaryBlock}>
+          <Text style={styles.summaryBlockTitle}>Eating ({recentEating.length} entries)</Text>
+          {recentEating.length > 0 ? recentEating.slice(0, 15).map((e) => (
+            <Text key={e.id} style={styles.summaryItem}>{formatDate(e.date)}: {e.what} ({e.amount})</Text>
+          )) : <Text style={styles.summaryItemEmpty}>None logged</Text>}
         </View>
 
         {sickMode?.active && (

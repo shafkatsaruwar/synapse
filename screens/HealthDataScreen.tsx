@@ -13,14 +13,14 @@ const C = Colors.dark;
 
 type Category = "weight" | "blood_pressure" | "blood_sugar" | "heart_rate" | "sleep" | "hydration" | "labs";
 
-const CATEGORIES: { key: Category; label: string; icon: string; color: string; unit: string }[] = [
-  { key: "weight", label: "Weight", icon: "scale-outline", color: C.cyan, unit: "kg" },
-  { key: "blood_pressure", label: "Blood Pressure", icon: "heart-outline", color: C.red, unit: "mmHg" },
-  { key: "blood_sugar", label: "Blood Sugar", icon: "water-outline", color: C.orange, unit: "mg/dL" },
-  { key: "heart_rate", label: "Heart Rate", icon: "pulse-outline", color: C.pink, unit: "bpm" },
-  { key: "sleep", label: "Sleep", icon: "moon-outline", color: C.purple, unit: "hours" },
-  { key: "hydration", label: "Hydration", icon: "cafe-outline", color: C.tint, unit: "glasses" },
-  { key: "labs", label: "Labs", icon: "flask-outline", color: C.green, unit: "" },
+const CATEGORIES: { key: Category; label: string; icon: string; color: string; unit: string; units: string[] }[] = [
+  { key: "weight", label: "Weight", icon: "scale-outline", color: C.cyan, unit: "kg", units: ["lbs", "kg", "stones"] },
+  { key: "blood_pressure", label: "Blood Pressure", icon: "heart-outline", color: C.red, unit: "mmHg", units: ["mmHg"] },
+  { key: "blood_sugar", label: "Blood Sugar", icon: "water-outline", color: C.orange, unit: "mg/dL", units: ["mg/dL", "mmol/L"] },
+  { key: "heart_rate", label: "Heart Rate", icon: "pulse-outline", color: C.pink, unit: "bpm", units: ["bpm"] },
+  { key: "sleep", label: "Sleep", icon: "moon-outline", color: C.purple, unit: "hours", units: ["hours"] },
+  { key: "hydration", label: "Hydration", icon: "cafe-outline", color: C.tint, unit: "glasses", units: ["glasses", "L", "ml"] },
+  { key: "labs", label: "Labs", icon: "flask-outline", color: C.green, unit: "", units: [] },
 ];
 
 export default function HealthDataScreen() {
@@ -36,6 +36,9 @@ export default function HealthDataScreen() {
   const [addValue, setAddValue] = useState("");
   const [addUnit, setAddUnit] = useState("");
   const [addLabel, setAddLabel] = useState("");
+  const [editingVital, setEditingVital] = useState<Vital | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [editUnit, setEditUnit] = useState("");
 
   const loadData = useCallback(async () => {
     const [v, l] = await Promise.all([vitalStorage.getAll(), healthLogStorage.getAll()]);
@@ -69,7 +72,7 @@ export default function HealthDataScreen() {
     if (!addValue.trim()) return;
     const today = getToday();
     const type = selected === "labs" ? addLabel.trim() : cat.label;
-    const unit = selected === "labs" ? addUnit.trim() : cat.unit;
+    const unit = selected === "labs" ? addUnit.trim() : (addUnit || cat.unit);
     await vitalStorage.save({ date: today, type, value: addValue.trim(), unit });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setAddValue("");
@@ -78,6 +81,31 @@ export default function HealthDataScreen() {
     setShowAdd(false);
     loadData();
   };
+
+  const openEdit = (v: Vital) => {
+    setEditingVital(v);
+    setEditValue(v.value);
+    setEditUnit(v.unit);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingVital || !editValue.trim()) return;
+    await vitalStorage.update(editingVital.id, { value: editValue.trim(), unit: editUnit.trim() || editingVital.unit });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setEditingVital(null);
+    loadData();
+  };
+
+  const handleDeleteVital = async () => {
+    if (!editingVital) return;
+    await vitalStorage.delete(editingVital.id);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setEditingVital(null);
+    loadData();
+  };
+
+  const editCategoryUnits = editingVital && CATEGORIES.find((c) => editingVital.type.toLowerCase().includes(c.key.replace("_", " ")) || editingVital.type === c.label);
+  const editUnits = editCategoryUnits?.units?.length ? editCategoryUnits.units : [editingVital?.unit || ""].filter(Boolean);
 
   return (
     <View style={styles.container}>
@@ -168,14 +196,17 @@ export default function HealthDataScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>History</Text>
-          {dataPoints.length === 0 ? (
+          {filteredVitals.length === 0 ? (
             <Text style={styles.emptyText}>No entries recorded</Text>
           ) : (
-            [...dataPoints].reverse().slice(0, 20).map((dp, i) => (
-              <View key={i} style={styles.histRow}>
-                <Text style={styles.histDate}>{formatDate(dp.date)}</Text>
-                <Text style={[styles.histVal, { color: cat.color }]}>{dp.label}</Text>
-              </View>
+            [...filteredVitals].reverse().slice(0, 20).map((v) => (
+              <Pressable key={v.id} style={({ pressed }) => [styles.histRow, pressed && { opacity: 0.7 }]} onPress={() => openEdit(v)} accessibilityRole="button" accessibilityLabel={`Edit ${v.value} ${v.unit}`}>
+                <Text style={styles.histDate}>{formatDate(v.date)}</Text>
+                <View style={styles.histValRow}>
+                  <Text style={[styles.histVal, { color: cat.color }]}>{v.value} {v.unit}</Text>
+                  <Ionicons name="pencil" size={14} color={C.textTertiary} />
+                </View>
+              </Pressable>
             ))
           )}
         </View>
@@ -193,15 +224,56 @@ export default function HealthDataScreen() {
             )}
             <Text style={styles.label}>Value</Text>
             <TextInput style={styles.modalInput} placeholder={selected === "blood_pressure" ? "120/80" : "Enter value"} placeholderTextColor={C.textTertiary} value={addValue} onChangeText={setAddValue} keyboardType={selected === "blood_pressure" ? "default" : "numeric"} />
-            {selected === "labs" && (
+            {selected === "labs" ? (
               <>
                 <Text style={styles.label}>Unit</Text>
                 <TextInput style={styles.modalInput} placeholder="e.g. %, mIU/L" placeholderTextColor={C.textTertiary} value={addUnit} onChangeText={setAddUnit} />
               </>
-            )}
+            ) : cat.units.length > 1 ? (
+              <>
+                <Text style={styles.label}>Unit</Text>
+                <View style={styles.unitRow}>
+                  {cat.units.map((u) => (
+                    <Pressable key={u} style={[styles.unitChip, (addUnit || cat.unit) === u && styles.unitChipActive]} onPress={() => setAddUnit(u)}>
+                      <Text style={[styles.unitChipText, (addUnit || cat.unit) === u && styles.unitChipTextActive]}>{u}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            ) : null}
             <View style={styles.modalActions}>
               <Pressable style={styles.cancelBtn} onPress={() => setShowAdd(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
               <Pressable style={[styles.confirmBtn, { backgroundColor: cat.color }, !addValue.trim() && { opacity: 0.5 }]} onPress={handleAdd} disabled={!addValue.trim()}>
+                <Text style={styles.confirmText}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={!!editingVital} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => setEditingVital(null)}>
+          <Pressable style={styles.modal} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Edit {editingVital?.type}</Text>
+            <Text style={styles.label}>Value</Text>
+            <TextInput style={styles.modalInput} placeholder="Enter value" placeholderTextColor={C.textTertiary} value={editValue} onChangeText={setEditValue} keyboardType="numeric" />
+            {editUnits.length > 1 ? (
+              <>
+                <Text style={styles.label}>Unit</Text>
+                <View style={styles.unitRow}>
+                  {editUnits.map((u) => (
+                    <Pressable key={u} style={[styles.unitChip, editUnit === u && styles.unitChipActive]} onPress={() => setEditUnit(u)}>
+                      <Text style={[styles.unitChipText, editUnit === u && styles.unitChipTextActive]}>{u}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            ) : null}
+            <View style={styles.modalActions}>
+              <Pressable style={[styles.cancelBtn, { borderWidth: 1, borderColor: C.red }]} onPress={handleDeleteVital}>
+                <Text style={[styles.cancelText, { color: C.red }]}>Delete</Text>
+              </Pressable>
+              <Pressable style={[styles.confirmBtn, { backgroundColor: cat.color }, !editValue.trim() && { opacity: 0.5 }]} onPress={handleSaveEdit} disabled={!editValue.trim()}>
                 <Text style={styles.confirmText}>Save</Text>
               </Pressable>
             </View>
@@ -242,9 +314,15 @@ const styles = StyleSheet.create({
   statValue: { fontWeight: "600", fontSize: 16, color: C.text },
   trendRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border },
   trendText: { fontWeight: "400", fontSize: 13, color: C.textSecondary },
-  histRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  histRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   histDate: { fontWeight: "400", fontSize: 13, color: C.textSecondary },
+  histValRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   histVal: { fontWeight: "600", fontSize: 14, color: C.text },
+  unitRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
+  unitChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
+  unitChipActive: { borderColor: C.tint, backgroundColor: C.tint + "18" },
+  unitChipText: { fontWeight: "500", fontSize: 14, color: C.textSecondary },
+  unitChipTextActive: { color: C.tint, fontWeight: "600" },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
   modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 380, borderWidth: 1, borderColor: C.border },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },

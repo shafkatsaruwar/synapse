@@ -105,6 +105,52 @@ export interface Vital {
   unit: string;
 }
 
+export interface MonthlyCheckIn {
+  id: string;
+  date: string;
+  bp?: string;
+  weight?: string;
+  weightUnit?: string;
+  height?: string;
+  heightUnit?: string;
+  heartRate?: string;
+  ecgNotes?: string;
+  mentalHealthNotes?: string;
+}
+
+export type EatingAmount = "small" | "medium" | "large";
+
+export interface EatingEntry {
+  id: string;
+  date: string;
+  time?: string;
+  what: string;
+  amount: EatingAmount;
+}
+
+export interface MentalHealthModeData {
+  active: boolean;
+  startedAt?: string;
+  hourlyCheckInTimer?: string;
+  lastCheckIn?: string;
+  whatsHappening?: string;
+  medsOnTime?: boolean;
+}
+
+export interface ComfortItem {
+  id: string;
+  label: string;
+}
+
+export interface Goal {
+  id: string;
+  title: string;
+  type: "meds_streak" | "custom";
+  targetDays?: number;
+  startDate?: string;
+  completedAt?: string;
+}
+
 export interface DocumentExtraction {
   id: string;
   date: string;
@@ -174,6 +220,11 @@ const KEYS = {
   MED_COMPARISONS: "fir_med_comparisons",
   ALLERGY_INFO: "fir_allergy_info",
   CONDITIONS: "fir_conditions",
+  MONTHLY_CHECK_INS: "fir_monthly_check_ins",
+  EATING_LOGS: "fir_eating_logs",
+  MENTAL_HEALTH_MODE: "fir_mental_health_mode",
+  COMFORT_ITEMS: "fir_comfort_items",
+  GOALS: "fir_goals",
 };
 
 async function getItem<T>(key: string): Promise<T[]> {
@@ -324,6 +375,13 @@ export const vitalStorage = {
     all.push({ ...vital, id: Crypto.randomUUID() });
     await setItem(KEYS.VITALS, all);
   },
+  update: async (id: string, updates: Partial<Omit<Vital, "id">>) => {
+    const all = await getItem<Vital>(KEYS.VITALS);
+    const idx = all.findIndex((v) => v.id === id);
+    if (idx === -1) return;
+    all[idx] = { ...all[idx], ...updates };
+    await setItem(KEYS.VITALS, all);
+  },
   delete: async (id: string) => {
     const all = await getItem<Vital>(KEYS.VITALS);
     await setItem(KEYS.VITALS, all.filter((v) => v.id !== id));
@@ -455,6 +513,99 @@ export const conditionStorage = {
   },
 };
 
+export const monthlyCheckInStorage = {
+  getAll: () => getItem<MonthlyCheckIn>(KEYS.MONTHLY_CHECK_INS),
+  getLatest: async () => {
+    const all = await getItem<MonthlyCheckIn>(KEYS.MONTHLY_CHECK_INS);
+    return all.sort((a, b) => b.date.localeCompare(a.date))[0];
+  },
+  save: async (data: Omit<MonthlyCheckIn, "id">) => {
+    const all = await getItem<MonthlyCheckIn>(KEYS.MONTHLY_CHECK_INS);
+    const newItem = { ...data, id: Crypto.randomUUID() };
+    all.push(newItem);
+    await setItem(KEYS.MONTHLY_CHECK_INS, all);
+    return newItem;
+  },
+  delete: async (id: string) => {
+    const all = await getItem<MonthlyCheckIn>(KEYS.MONTHLY_CHECK_INS);
+    await setItem(KEYS.MONTHLY_CHECK_INS, all.filter((c) => c.id !== id));
+  },
+};
+
+export const eatingStorage = {
+  getAll: () => getItem<EatingEntry>(KEYS.EATING_LOGS),
+  getByDateRange: async (from: string, to: string) => {
+    const all = await getItem<EatingEntry>(KEYS.EATING_LOGS);
+    return all.filter((e) => e.date >= from && e.date <= to).sort((a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || ""));
+  },
+  save: async (data: Omit<EatingEntry, "id">) => {
+    const all = await getItem<EatingEntry>(KEYS.EATING_LOGS);
+    const newItem = { ...data, id: Crypto.randomUUID() };
+    all.push(newItem);
+    await setItem(KEYS.EATING_LOGS, all);
+    return newItem;
+  },
+  delete: async (id: string) => {
+    const all = await getItem<EatingEntry>(KEYS.EATING_LOGS);
+    await setItem(KEYS.EATING_LOGS, all.filter((e) => e.id !== id));
+  },
+};
+
+const DEFAULT_MENTAL_HEALTH_MODE: MentalHealthModeData = {
+  active: false,
+};
+
+export const mentalHealthModeStorage = {
+  get: async (): Promise<MentalHealthModeData> => {
+    const raw = await AsyncStorage.getItem(KEYS.MENTAL_HEALTH_MODE);
+    return raw ? { ...DEFAULT_MENTAL_HEALTH_MODE, ...JSON.parse(raw) } : { ...DEFAULT_MENTAL_HEALTH_MODE };
+  },
+  save: async (data: MentalHealthModeData) => {
+    await AsyncStorage.setItem(KEYS.MENTAL_HEALTH_MODE, JSON.stringify(data));
+  },
+  reset: async () => {
+    await AsyncStorage.setItem(KEYS.MENTAL_HEALTH_MODE, JSON.stringify(DEFAULT_MENTAL_HEALTH_MODE));
+  },
+};
+
+export const comfortStorage = {
+  getAll: () => getItem<ComfortItem>(KEYS.COMFORT_ITEMS),
+  save: async (data: Omit<ComfortItem, "id">) => {
+    const all = await getItem<ComfortItem>(KEYS.COMFORT_ITEMS);
+    const newItem = { ...data, id: Crypto.randomUUID() };
+    all.push(newItem);
+    await setItem(KEYS.COMFORT_ITEMS, all);
+    return newItem;
+  },
+  delete: async (id: string) => {
+    const all = await getItem<ComfortItem>(KEYS.COMFORT_ITEMS);
+    await setItem(KEYS.COMFORT_ITEMS, all.filter((c) => c.id !== id));
+  },
+};
+
+export const goalStorage = {
+  getAll: () => getItem<Goal>(KEYS.GOALS),
+  save: async (data: Omit<Goal, "id">) => {
+    const all = await getItem<Goal>(KEYS.GOALS);
+    const newItem = { ...data, id: Crypto.randomUUID() };
+    all.push(newItem);
+    await setItem(KEYS.GOALS, all);
+    return newItem;
+  },
+  update: async (id: string, updates: Partial<Omit<Goal, "id">>) => {
+    const all = await getItem<Goal>(KEYS.GOALS);
+    const idx = all.findIndex((g) => g.id === id);
+    if (idx >= 0) {
+      all[idx] = { ...all[idx], ...updates };
+      await setItem(KEYS.GOALS, all);
+    }
+  },
+  delete: async (id: string) => {
+    const all = await getItem<Goal>(KEYS.GOALS);
+    await setItem(KEYS.GOALS, all.filter((g) => g.id !== id));
+  },
+};
+
 export type ExportPayload = {
   exportDate: string;
   appVersion: string;
@@ -473,6 +624,11 @@ export type ExportPayload = {
   conditions?: HealthCondition[];
   sickMode?: SickModeData;
   medComparisons?: MedComparison[];
+  monthlyCheckIns?: MonthlyCheckIn[];
+  eatingLogs?: EatingEntry[];
+  mentalHealthMode?: MentalHealthModeData;
+  comfortItems?: ComfortItem[];
+  goals?: Goal[];
 };
 
 export const exportAllData = async (): Promise<ExportPayload> => {
@@ -507,7 +663,14 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     conditionStorage.getAll(),
     sickModeStorage.get(),
   ]);
-  const medComparisons = await medComparisonStorage.getAll();
+  const [medComparisons, monthlyCheckIns, eatingLogs, mentalHealthMode, comfortItems, goals] = await Promise.all([
+    medComparisonStorage.getAll(),
+    monthlyCheckInStorage.getAll(),
+    eatingStorage.getAll(),
+    mentalHealthModeStorage.get(),
+    comfortStorage.getAll(),
+    goalStorage.getAll(),
+  ]);
   return {
     exportDate: new Date().toISOString(),
     appVersion: "1.0",
@@ -526,6 +689,11 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     conditions,
     sickMode,
     medComparisons,
+    monthlyCheckIns,
+    eatingLogs,
+    mentalHealthMode,
+    comfortItems,
+    goals,
   };
 };
 
@@ -546,6 +714,11 @@ export const importAllData = async (payload: ExportPayload): Promise<void> => {
   await setItem(KEYS.INSIGHTS, payload.insights ?? []);
   await setItem(KEYS.MED_COMPARISONS, payload.medComparisons ?? []);
   await setItem(KEYS.CONDITIONS, payload.conditions ?? []);
+  if (payload.monthlyCheckIns?.length) await setItem(KEYS.MONTHLY_CHECK_INS, payload.monthlyCheckIns);
+  if (payload.eatingLogs?.length) await setItem(KEYS.EATING_LOGS, payload.eatingLogs);
+  if (payload.mentalHealthMode?.active) await mentalHealthModeStorage.save(payload.mentalHealthMode);
+  if (payload.comfortItems?.length) await setItem(KEYS.COMFORT_ITEMS, payload.comfortItems);
+  if (payload.goals?.length) await setItem(KEYS.GOALS, payload.goals);
 };
 
 export const clearAllData = async () => {

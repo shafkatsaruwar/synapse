@@ -271,16 +271,11 @@ export default function MedicationsScreen() {
     return Array.from({ length: count }, (_, i) => `Dose ${i + 1}`);
   };
 
+  const topPad = isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16);
+
   return (
     <View style={[styles.container, isSickMode && { backgroundColor: "#F5D5D0" }]}>
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={[styles.content, {
-          paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16),
-          paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
-        }]}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={[styles.headerSticky, { paddingTop: topPad }]}>
         {isSickMode && (
           <View style={styles.sickBanner}>
             <View style={styles.sickBannerInner}>
@@ -289,7 +284,6 @@ export default function MedicationsScreen() {
             </View>
           </View>
         )}
-
         <View style={styles.header}>
           <View>
             <Text style={[styles.title, isSickMode && { color: "#FF6B6B" }]}>Medications</Text>
@@ -299,13 +293,20 @@ export default function MedicationsScreen() {
             <Ionicons name="add" size={20} color="#fff" />
           </Pressable>
         </View>
-
         {totalDoses > 0 && (
           <View style={[styles.progressBar, isSickMode && { backgroundColor: "rgba(255,69,58,0.15)" }]}>
             <View style={[styles.progressFill, { width: `${(takenDoses / totalDoses) * 100}%` }, isSickMode && { backgroundColor: C.red }]} />
           </View>
         )}
+      </View>
 
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.content, {
+          paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
+        }]}
+        showsVerticalScrollIndicator={false}
+      >
         {grouped.length === 0 && (
           <View style={styles.empty}>
             <Ionicons name="medical-outline" size={40} color={C.textTertiary} />
@@ -691,6 +692,7 @@ export default function MedicationsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
+  headerSticky: { paddingHorizontal: 24 },
   sickBanner: { marginBottom: 16, backgroundColor: "rgba(255,69,58,0.12)", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "rgba(255,69,58,0.3)" },
   sickBannerInner: { flexDirection: "row", alignItems: "center", gap: 8 },
   sickBannerText: { fontWeight: "600", fontSize: 13, color: C.red },

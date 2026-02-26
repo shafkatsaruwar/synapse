@@ -3,14 +3,13 @@ import {
   StyleSheet,
   Text,
   View,
-  ScrollView,
   Pressable,
   Platform,
-  RefreshControl,
   useWindowDimensions,
   Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { featureFlags } from "@/constants/feature-flags";
@@ -19,41 +18,36 @@ import {
   healthLogStorage,
   medicationStorage,
   medicationLogStorage,
-  sickModeStorage,
   appointmentStorage,
-  symptomStorage,
   fastingLogStorage,
-  vitalStorage,
   settingsStorage,
-  conditionStorage,
   type HealthLog,
   type Medication,
   type MedicationLog,
   type Appointment,
-  type Symptom,
   type FastingLog,
-  type Vital,
   type UserSettings,
-  type HealthCondition,
 } from "@/lib/storage";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
 
 const C = Colors.dark;
 
-const PRIORITY_COLORS = {
-  medications: "#800020",
-  appointments: "#6B3FA0",
-  dailylog: "#2D7D46",
+// Gradient pairs: [top (darker), bottom (lighter)]. Soft, desaturated, top-to-bottom.
+const PRIORITY_GRADIENTS: Record<string, [string, string]> = {
+  medications: ["#6B2835", "#8E5A5A"],
+  appointments: ["#4E3570", "#7B6B9E"],
+  dailylog: ["#2D5A3D", "#4A7C59"],
+  ramadan: ["#4A4A4A", "#6E6E6E"],
+  medicationsStress: ["#7B3535", "#9E6A6A"],
 };
 
 interface DashboardScreenProps {
   onNavigate: (screen: string) => void;
   onRefreshKey?: number;
-  onActivateSickMode?: () => void;
 }
 
-function PriorityCard({ color, icon, label, onPress, children }: { color: string; icon: string; label: string; onPress: () => void; children: React.ReactNode }) {
+function PriorityCard({ colors, icon, label, onPress, children }: { colors: [string, string]; icon: string; label: string; onPress: () => void; children: React.ReactNode }) {
   const scale = React.useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -73,21 +67,24 @@ function PriorityCard({ color, icon, label, onPress, children }: { color: string
       accessibilityHint={`Opens ${label} screen`}
       style={{ minHeight: 44 }}
     >
-      <Animated.View style={[styles.priorityCard, { backgroundColor: color, transform: [{ scale }] }]}>
-        <View style={styles.priorityHeader}>
-          <View style={styles.priorityIconWrap}>
-            <Ionicons name={icon as any} size={18} color="#fff" />
+      <Animated.View style={[styles.priorityCard, { transform: [{ scale }], overflow: "hidden" }]}>
+        <LinearGradient colors={colors} style={StyleSheet.absoluteFillObject} />
+        <View style={styles.priorityCardContent}>
+          <View style={styles.priorityHeader}>
+            <View style={styles.priorityIconWrap}>
+              <Ionicons name={icon as any} size={18} color="#fff" />
+            </View>
+            <Text style={styles.priorityLabel}>{label}</Text>
+            <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.6)" />
           </View>
-          <Text style={styles.priorityLabel}>{label}</Text>
-          <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.6)" />
+          {children}
         </View>
-        {children}
       </Animated.View>
     </Pressable>
   );
 }
 
-export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSickMode }: DashboardScreenProps) {
+export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -97,47 +94,31 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
   const [medications, setMedications] = useState<Medication[]>([]);
   const [medLogs, setMedLogs] = useState<MedicationLog[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [todaySymptoms, setTodaySymptoms] = useState<Symptom[]>([]);
   const [fastingLog, setFastingLog] = useState<FastingLog | undefined>();
-  const [vitals, setVitals] = useState<Vital[]>([]);
-  const [healthConditions, setHealthConditions] = useState<HealthCondition[]>([]);
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
-  const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [log, meds, ml, apts, symp, fl, vit, sett, conds] = await Promise.all([
+    const [log, meds, ml, apts, fl, sett] = await Promise.all([
       healthLogStorage.getByDate(today),
       medicationStorage.getAll(),
       medicationLogStorage.getByDate(today),
       appointmentStorage.getAll(),
-      symptomStorage.getByDate(today),
       fastingLogStorage.getByDate(today),
-      vitalStorage.getAll(),
       settingsStorage.get(),
-      conditionStorage.getAll(),
     ]);
     setTodayLog(log);
     setMedications(meds.filter((m) => m.active));
     setMedLogs(ml);
     setAppointments(apts.filter((a) => a.date >= today).sort((a, b) => a.date.localeCompare(b.date)));
-    setTodaySymptoms(symp);
     setFastingLog(fl);
-    setVitals(vit);
     setSettings(sett);
-    setHealthConditions(conds);
     setLoaded(true);
   }, [today]);
 
   React.useEffect(() => {
     loadData();
   }, [loadData, onRefreshKey]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  };
 
   const isSickMode = settings.sickMode;
   const getDoseCount = (med: Medication) => {
@@ -166,14 +147,10 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
     switch (n % 10) { case 1: return "st"; case 2: return "nd"; case 3: return "rd"; default: return "th"; }
   };
 
-  const recentVitals = vitals
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 4);
-
   const energyLabels = ["Low", "Fair", "Good", "Great", "Excellent"];
 
   const renderMedicationsCard = () => (
-    <PriorityCard color={isSickMode ? "#CC2222" : PRIORITY_COLORS.medications} icon="medical" label={isSickMode ? "Stress Dosing" : "Medications Today"} onPress={() => onNavigate("medications")}>
+    <PriorityCard colors={isSickMode ? PRIORITY_GRADIENTS.medicationsStress : PRIORITY_GRADIENTS.medications} icon="medical" label={isSickMode ? "Stress Dosing" : "Medications Today"} onPress={() => onNavigate("medications")}>
       {totalDoses > 0 ? (
         <View>
           <Text style={styles.priBigNum}>{takenDoses}<Text style={styles.priBigNumSub}>/{totalDoses}</Text></Text>
@@ -189,7 +166,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
   );
 
   const renderAppointmentsCard = () => (
-    <PriorityCard color={PRIORITY_COLORS.appointments} icon="calendar" label="Upcoming Appointments" onPress={() => onNavigate("appointments")}>
+    <PriorityCard colors={PRIORITY_GRADIENTS.appointments} icon="calendar" label="Upcoming Appointments" onPress={() => onNavigate("appointments")}>
       {nextApt ? (
         <View>
           <Text style={styles.priAptName}>{nextApt.doctorName}</Text>
@@ -210,7 +187,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
   const renderRamadanCard = () => {
     if (isSickMode) {
       return (
-        <PriorityCard color="#8B8B8B" icon="moon" label="Ramadan" onPress={() => onNavigate("ramadan")}>
+        <PriorityCard colors={PRIORITY_GRADIENTS.ramadan} icon="moon" label="Ramadan" onPress={() => onNavigate("ramadan")}>
           <View>
             <Text style={[styles.priEmpty, { fontSize: 14, lineHeight: 20 }]}>Focus on recovery today.</Text>
             <Text style={[styles.priMeta, { marginTop: 6 }]}>Your health comes first</Text>
@@ -220,7 +197,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
     }
 
     return (
-      <PriorityCard color="#6B6B6B" icon="moon" label="Ramadan" onPress={() => onNavigate("ramadan")}>
+      <PriorityCard colors={PRIORITY_GRADIENTS.ramadan} icon="moon" label="Ramadan" onPress={() => onNavigate("ramadan")}>
         {fastingLog ? (
           <View>
             <View style={styles.priLogRow}>
@@ -247,7 +224,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
   };
 
   const renderDailyLogCard = () => (
-    <PriorityCard color={PRIORITY_COLORS.dailylog} icon="heart" label="Daily Log" onPress={() => onNavigate("log")}>
+    <PriorityCard colors={PRIORITY_GRADIENTS.dailylog} icon="heart" label="Daily Log" onPress={() => onNavigate("log")}>
       {todayLog ? (
         <View>
           <View style={styles.priLogRow}>
@@ -278,41 +255,18 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
   );
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[
+    <View
+      style={[
+        styles.container,
         styles.content,
         {
-          paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16),
+          paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : 12),
           paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
-          ...(isWide && { alignSelf: "stretch" }),
+          paddingHorizontal: isWide ? 24 : 0,
+          ...(isWide && { alignSelf: "stretch" as const }),
         },
       ]}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />
-      }
     >
-      {!isSickMode && (
-        <Pressable
-          style={styles.sickModeActivateBtn}
-          onPress={async () => {
-            const s = await settingsStorage.get();
-            await settingsStorage.save({ ...s, sickMode: true });
-            const sd = await sickModeStorage.get();
-            await sickModeStorage.save({ ...sd, active: true, startedAt: new Date().toISOString() });
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            onActivateSickMode?.();
-          }}
-          accessibilityLabel="Activate Sick Mode"
-          accessibilityRole="button"
-          accessibilityHint="Activates stress dosing protocol for adrenal crisis"
-        >
-          <Ionicons name="shield-outline" size={16} color={C.red} />
-          <Text style={styles.sickModeActivateBtnText}>Activate Sick Mode</Text>
-        </Pressable>
-      )}
-
       <View style={styles.welcome} accessibilityRole="header">
         <Text style={styles.greetingText}>
           {greeting}{displayFirstName ? `, ${displayFirstName}` : ""}
@@ -330,85 +284,15 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
       <Text style={styles.sectionLabel}>Today</Text>
 
       <View style={[styles.priorityGrid, { gap: 12 }]}>
-        <View style={[styles.priorityGridItem, isWide ? { width: 260, maxWidth: 260 } : { width: "100%" }]}>{renderMedicationsCard()}</View>
-        <View style={[styles.priorityGridItem, isWide ? { width: 260, maxWidth: 260 } : { width: "100%" }]}>{renderAppointmentsCard()}</View>
-        <View style={[styles.priorityGridItem, isWide ? { width: 260, maxWidth: 260 } : { width: "100%" }]}>{renderDailyLogCard()}</View>
+        <View style={[styles.priorityGridItem, { width: isWide ? 260 : "48%" }]}>{renderMedicationsCard()}</View>
+        <View style={[styles.priorityGridItem, { width: isWide ? 260 : "48%" }]}>{renderAppointmentsCard()}</View>
+        <View style={[styles.priorityGridItem, { width: isWide ? 260 : "48%" }]}>{renderDailyLogCard()}</View>
         {settings.ramadanMode && (
-          <View style={[styles.priorityGridItem, isWide ? { width: 260, maxWidth: 260 } : { width: "100%" }]}>{renderRamadanCard()}</View>
+          <View style={[styles.priorityGridItem, { width: isWide ? 260 : "48%" }]}>{renderRamadanCard()}</View>
         )}
       </View>
 
       <View style={[styles.grid, isWide && styles.gridWide]}>
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("symptoms")} accessibilityLabel={`Symptoms, ${todaySymptoms.length} today`} accessibilityRole="button" accessibilityHint="Opens symptoms tracker">
-          <View style={styles.cardHeader}>
-            <View style={[styles.cardIcon, { backgroundColor: C.orangeLight }]}>
-              <Ionicons name="pulse" size={16} color={C.orange} />
-            </View>
-            <Text style={styles.cardLabel}>Symptoms</Text>
-          </View>
-          {todaySymptoms.length > 0 ? (
-            <View>
-              <Text style={styles.cardBigNum}>{todaySymptoms.length}</Text>
-              {todaySymptoms.slice(0, 3).map((s) => (
-                <View key={s.id} style={styles.symptomRow}>
-                  <View style={[styles.severityDot, { backgroundColor: s.severity >= 4 ? C.red : s.severity >= 2 ? C.orange : C.green }]} />
-                  <Text style={styles.symptomText} numberOfLines={1}>{s.name}</Text>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.cardEmpty}>
-              <Text style={styles.cardEmptyText}>No symptoms today</Text>
-            </View>
-          )}
-        </Pressable>
-
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("settings")} accessibilityLabel="Vitals and Conditions" accessibilityRole="button" accessibilityHint="Opens vitals and conditions settings">
-          <View style={styles.cardHeader}>
-            <View style={[styles.cardIcon, { backgroundColor: C.cyanLight }]}>
-              <Ionicons name="fitness" size={16} color={C.cyan} />
-            </View>
-            <Text style={styles.cardLabel}>Vitals & Conditions</Text>
-          </View>
-          {healthConditions.length > 0 || recentVitals.length > 0 ? (
-            <View>
-              {healthConditions.length > 0 && (
-                <View style={styles.conditionsRow}>
-                  {healthConditions.slice(0, 3).map((c) => (
-                    <View key={c.id} style={styles.conditionChip}>
-                      <Text style={styles.conditionText}>{c.name}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-              {recentVitals.slice(0, 2).map((v) => (
-                <View key={v.id} style={styles.vitalRow}>
-                  <Text style={styles.vitalType}>{v.type}</Text>
-                  <Text style={styles.vitalValue}>{v.value} {v.unit}</Text>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.cardEmpty}>
-              <Text style={styles.cardEmptyText}>Add conditions in Settings</Text>
-            </View>
-          )}
-        </Pressable>
-
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("healthdata")} accessibilityLabel="Health Trends" accessibilityRole="button" accessibilityHint="Track weight, blood pressure, blood sugar, sleep and more">
-          <View style={[styles.cardHeader, { marginBottom: 0 }]}>
-            <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
-              <Ionicons name="analytics" size={16} color={C.accent} />
-            </View>
-            <Text style={styles.cardLabel}>Health Trends</Text>
-          </View>
-          <Text style={styles.reportDesc}>Track weight, BP, blood sugar, sleep and more</Text>
-          <View style={styles.reportBtn}>
-            <Ionicons name="arrow-forward" size={16} color={C.tint} />
-            <Text style={styles.reportBtnText}>View Trends</Text>
-          </View>
-        </Pressable>
-
         {featureFlags.documentScannerEnabled && (
           <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("documents")} accessibilityLabel="Document Scanner" accessibilityRole="button" accessibilityHint="Upload lab reports and prescriptions for AI extraction">
             <View style={[styles.cardHeader, { marginBottom: 0 }]}>
@@ -455,28 +339,34 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
           </View>
         </Pressable>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
-  content: { paddingHorizontal: 24 },
-  sickModeActivateBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-end", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(255,69,58,0.08)", borderWidth: 1, borderColor: "rgba(255,69,58,0.2)", marginBottom: 8 },
-  sickModeActivateBtnText: { fontWeight: "600", fontSize: 12, color: C.red },
+  content: { paddingHorizontal: 24 }, // used when isWide; mobile uses inline 0 so layout's 16 applies
   welcome: { marginBottom: 8 },
   greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
   hijriDate: { fontWeight: "600", fontSize: 14, color: "#3C2415", marginBottom: 20 },
   sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
-  priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 20, width: "100%" },
+  priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 12, width: "100%" },
   priorityGridItem: { marginBottom: 12 },
   priorityCard: {
     borderRadius: 16,
-    padding: 16,
     aspectRatio: 1.1,
     justifyContent: "space-between",
-    boxShadow: "0px 4px 16px rgba(0,0,0,0.08)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  priorityCardContent: {
+    flex: 1,
+    padding: 16,
+    justifyContent: "space-between",
   },
   priorityHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   priorityIconWrap: { width: 28, height: 28, borderRadius: 7, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
@@ -510,9 +400,6 @@ const styles = StyleSheet.create({
   cardMeta: { fontWeight: "400", fontSize: 12, color: C.textSecondary },
   cardEmpty: { paddingVertical: 8 },
   cardEmptyText: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
-  symptomRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 },
-  severityDot: { width: 6, height: 6, borderRadius: 3 },
-  symptomText: { fontWeight: "400", fontSize: 13, color: C.textSecondary, flex: 1 },
   fastingRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
   fastingItem: { flex: 1, alignItems: "center" },
   fastingDivider: { width: 1, height: 28, backgroundColor: C.border },
@@ -521,12 +408,6 @@ const styles = StyleSheet.create({
   energyRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   energyDots: { flexDirection: "row", gap: 4 },
   energyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.surfaceElevated },
-  conditionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
-  conditionChip: { backgroundColor: C.surfaceElevated, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  conditionText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
-  vitalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
-  vitalType: { fontWeight: "400", fontSize: 13, color: C.textSecondary },
-  vitalValue: { fontWeight: "600", fontSize: 13, color: C.text },
   reportDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 14 },
   reportBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
   reportBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },

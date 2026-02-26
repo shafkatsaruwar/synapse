@@ -7,8 +7,8 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import {
-  medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage,
-  type Medication, type MedicationLog, type SickModeData,
+  medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage, comfortStorage,
+  type Medication, type MedicationLog, type SickModeData, type ComfortItem,
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { useAccessibility } from "@/lib/accessibility";
@@ -16,6 +16,7 @@ import { useAccessibility } from "@/lib/accessibility";
 const C = Colors.dark;
 const HYDRATION_GOAL = 2000;
 const CHECK_IN_INTERVAL_MS = 2 * 60 * 60 * 1000;
+const COMFORT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 interface SickModeScreenProps {
   onDeactivate: () => void;
@@ -50,14 +51,17 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
   const [checkInCountdown, setCheckInCountdown] = useState<number>(0);
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [checkInTemp, setCheckInTemp] = useState("");
+  const [comfortItems, setComfortItems] = useState<ComfortItem[]>([]);
   const countdownInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadData = useCallback(async () => {
-    const [meds, logs, sd] = await Promise.all([
+    const [meds, logs, sd, comfort] = await Promise.all([
       medicationStorage.getAll(),
       medicationLogStorage.getByDate(today),
       sickModeStorage.get(),
+      comfortStorage.getAll(),
     ]);
+    setComfortItems(comfort);
     setMedications(meds.filter(m => m.active));
     setMedLogs(logs);
 
@@ -135,6 +139,11 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
       setShowCheckInModal(false);
       setCheckInTemp("");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        "Sick mode turned down",
+        "Your temperature is under 99°F. Sick mode is now in recovery (not off). Keep up with hydration, food intake, and any fever meds as needed. Tap \"I'm all better\" when you're fully recovered.",
+        [{ text: "OK" }]
+      );
     } else if (val >= 102) {
       const updated: SickModeData = {
         ...sickData,
@@ -147,8 +156,8 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
       setShowCheckInModal(false);
       setCheckInTemp("");
       Alert.alert(
-        "High Fever Detected",
-        "Your temperature is " + val + "°F. Please contact a doctor ASAP.",
+        "High fever – see a doctor ASAP",
+        "Your temperature is " + val + "°F. Please contact a doctor or seek care as soon as possible.",
         [{ text: "OK" }]
       );
     } else {
@@ -294,6 +303,36 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
             <View style={[styles.progressFill, { width: `${(completedActions / totalActions) * 100}%` }]} />
           </View>
         </View>
+
+        {isRecovery && (
+          <View style={styles.recoveryRemindersCard}>
+            <Text style={styles.recoveryRemindersTitle}>Keep up with</Text>
+            <View style={styles.recoveryReminderRow}>
+              <Ionicons name="water-outline" size={18} color={C.green} />
+              <Text style={styles.recoveryReminderText}>Hydration</Text>
+            </View>
+            <View style={styles.recoveryReminderRow}>
+              <Ionicons name="nutrition-outline" size={18} color={C.green} />
+              <Text style={styles.recoveryReminderText}>Food intake</Text>
+            </View>
+            <View style={styles.recoveryReminderRow}>
+              <Ionicons name="medical-outline" size={18} color={C.green} />
+              <Text style={styles.recoveryReminderText}>Fever meds if prescribed</Text>
+            </View>
+          </View>
+        )}
+
+        {sickData.startedAt && comfortItems.length > 0 && (Date.now() - new Date(sickData.startedAt).getTime() < COMFORT_WINDOW_MS) && (
+          <View style={styles.comfortCard}>
+            <Text style={styles.comfortCardTitle}>Things that might help</Text>
+            {comfortItems.map((item) => (
+              <View key={item.id} style={styles.comfortRow}>
+                <Ionicons name="heart" size={16} color={C.tint} />
+                <Text style={styles.comfortRowText}>{item.label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {stressMeds.length > 0 && (
           <View style={{ marginBottom: 20 }}>
@@ -470,8 +509,8 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
             <View style={styles.modalIconRow}>
               <Ionicons name="medical" size={28} color={C.tint} />
             </View>
-            <Text style={styles.modalTitle}>How are you feeling now?</Text>
-            <Text style={styles.modalSubtitle}>It's been 2 hours. Let's check your temperature.</Text>
+            <Text style={styles.modalTitle}>How are you?</Text>
+            <Text style={styles.modalSubtitle}>2-hour check-in. Enter your current temperature (°F).</Text>
             <TextInput
               style={styles.modalInput}
               placeholder="Enter temperature (°F)"
@@ -540,6 +579,17 @@ const styles = StyleSheet.create({
   progressCount: { fontWeight: "700", fontSize: 13, color: C.green },
   progressBar: { height: 6, borderRadius: 3, backgroundColor: C.surfaceElevated, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 3, backgroundColor: C.green },
+  recoveryRemindersCard: {
+    backgroundColor: "rgba(45,125,70,0.1)", borderRadius: 14, padding: 16, marginBottom: 20,
+    borderWidth: 1, borderColor: "rgba(45,125,70,0.25)",
+  },
+  recoveryRemindersTitle: { fontWeight: "600", fontSize: 13, color: C.green, marginBottom: 10 },
+  recoveryReminderRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 },
+  recoveryReminderText: { fontWeight: "500", fontSize: 14, color: C.text },
+  comfortCard: { backgroundColor: C.tintLight, borderRadius: 14, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: C.tint + "40" },
+  comfortCardTitle: { fontWeight: "600", fontSize: 13, color: C.tint, marginBottom: 10 },
+  comfortRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+  comfortRowText: { fontWeight: "500", fontSize: 14, color: C.text },
   stressCard: {
     backgroundColor: "rgba(255,69,58,0.08)", borderRadius: 16, padding: 18, marginBottom: 20,
     borderWidth: 1, borderColor: "rgba(255,69,58,0.25)",

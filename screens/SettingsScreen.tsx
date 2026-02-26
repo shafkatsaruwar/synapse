@@ -3,7 +3,6 @@ import {
   StyleSheet,
   Text,
   View,
-  ScrollView,
   Pressable,
   Modal,
   Platform,
@@ -104,21 +103,15 @@ export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScree
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={[
+      <View
+        style={[
           styles.content,
-          {
-            paddingTop: isWide ? 40 : Platform.OS === "web" ? 67 : insets.top + 16,
-            paddingBottom: isWide ? 40 : Platform.OS === "web" ? 118 : insets.bottom + 100,
-          },
+          { flex: 1, paddingTop: isWide ? 40 : Platform.OS === "web" ? 67 : insets.top + 16, paddingBottom: isWide ? 40 : Platform.OS === "web" ? 118 : insets.bottom + 100 },
         ]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.title}>Settings</Text>
 
-        {/* ——— Account Section ——— */}
+        {/* ——— Account, Profile & Cloud Backup (combined) ——— */}
         <View style={styles.card}>
           {!user ? (
             <>
@@ -132,6 +125,7 @@ export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScree
               >
                 <Text style={styles.primaryBtnText}>Sign In</Text>
               </Pressable>
+              <Text style={[styles.localHint, { marginTop: 14 }]}>Data stored locally. Sign in to enable backup.</Text>
             </>
           ) : (
             <>
@@ -144,6 +138,9 @@ export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScree
                   <Text style={styles.profileRowDesc} numberOfLines={1}>
                     {user.email}
                   </Text>
+                  {createdDate && (
+                    <Text style={[styles.profileRowDesc, { marginTop: 2 }]}>Account created {createdDate}</Text>
+                  )}
                   {backupStatus?.hasBackup && (
                     <View style={styles.syncedBadge}>
                       <Ionicons name="checkmark-circle" size={12} color={C.green} />
@@ -152,43 +149,12 @@ export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScree
                   )}
                 </View>
               </View>
-              <View style={styles.accountActions}>
-                <Pressable style={styles.secondaryBtn} onPress={() => onNavigate?.("auth")}>
-                  <Text style={styles.secondaryBtnText}>Manage Account</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.outlineBtn}
-                  onPress={async () => {
-                    await signOut();
-                    Haptics.selectionAsync();
-                  }}
-                >
-                  <Text style={styles.outlineBtnText}>Sign Out</Text>
-                </Pressable>
-              </View>
-            </>
-          )}
-        </View>
-
-        {/* ——— Profile (read-only) ——— */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Profile</Text>
-          <Text style={styles.profileRowTitle}>{user ? displayName : (settings.name || "—")}</Text>
-          {createdDate && <Text style={styles.profileRowDesc}>Account created {createdDate}</Text>}
-        </View>
-
-        {/* ——— Cloud Backup ——— */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Cloud Backup</Text>
-          {!user ? (
-            <Text style={styles.desc}>Sign in to enable secure cloud backup.</Text>
-          ) : (
-            <>
+              <Text style={[styles.sectionTitle, { marginTop: 12, marginBottom: 4 }]}>Cloud Backup</Text>
               <Text style={styles.desc}>
                 {backupStatus?.hasBackup ? "Backup status: Synced" : "Backup status: Not synced"}
               </Text>
               {backupStatus?.lastSyncedAt && (
-                <Text style={[styles.profileRowDesc, { marginTop: 4 }]}>
+                <Text style={[styles.profileRowDesc, { marginTop: 2 }]}>
                   Last synced: {new Date(backupStatus.lastSyncedAt).toLocaleString()}
                 </Text>
               )}
@@ -208,13 +174,23 @@ export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScree
                   {restoreLoading ? <ActivityIndicator size="small" color={C.text} /> : <Text style={styles.outlineBtnText}>Restore from Cloud</Text>}
                 </Pressable>
               </View>
+              <View style={[styles.accountActions, { marginTop: 12 }]}>
+                <Pressable style={styles.secondaryBtn} onPress={() => onNavigate?.("auth")}>
+                  <Text style={styles.secondaryBtnText}>Manage Account</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.outlineBtn}
+                  onPress={async () => {
+                    await signOut();
+                    Haptics.selectionAsync();
+                  }}
+                >
+                  <Text style={styles.outlineBtnText}>Sign Out</Text>
+                </Pressable>
+              </View>
             </>
           )}
         </View>
-
-        {!user && (
-          <Text style={styles.localHint}>Data stored locally. Sign in to enable backup.</Text>
-        )}
 
         {/* ——— Health Profile ——— */}
         <View style={styles.card}>
@@ -302,7 +278,7 @@ export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScree
             <Text style={styles.resetAppText}>Reset App</Text>
           </Pressable>
         )}
-      </ScrollView>
+      </View>
 
       <Modal visible={showResetConfirm} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowResetConfirm(false)}>

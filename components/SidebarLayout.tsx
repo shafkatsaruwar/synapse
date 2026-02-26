@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,12 +8,15 @@ import {
   ScrollView,
   useWindowDimensions,
   Modal,
+  Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import SynapseLogo from "@/components/SynapseLogo";
 import { featureFlags } from "@/constants/feature-flags";
+import { useAuth } from "@/contexts/AuthContext";
+import { settingsStorage } from "@/lib/storage";
 
 const C = Colors.dark;
 
@@ -36,15 +39,26 @@ const NAV_ITEMS: NavItem[] = [
     { key: "documents", label: "Documents", icon: "scan-outline", iconActive: "scan" },
     { key: "insights", label: "Insights", icon: "sparkles-outline", iconActive: "sparkles" },
   ] : []) as NavItem[],
+  { key: "monthlycheckin", label: "Monthly check-in", icon: "fitness-outline", iconActive: "fitness" },
+  { key: "eating", label: "Eating", icon: "restaurant-outline", iconActive: "restaurant" },
+  { key: "mentalhealth", label: "Mental health day", icon: "heart-outline", iconActive: "heart" },
+  { key: "comfort", label: "Mood lifters", icon: "happy-outline", iconActive: "happy" },
+  { key: "goals", label: "Goals", icon: "flag-outline", iconActive: "flag" },
   { key: "appointments", label: "Appointments", icon: "calendar-outline", iconActive: "calendar" },
   { key: "reports", label: "Reports", icon: "document-text-outline", iconActive: "document-text" },
   { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
   { key: "settings", label: "Settings", icon: "settings-outline", iconActive: "settings" },
 ];
 
-const PRIMARY_KEYS = ["dashboard", "healthdata", "medications"];
+const PRIMARY_KEYS = ["dashboard", "healthdata", "symptoms"];
 const PRIMARY_ITEMS = NAV_ITEMS.filter((n) => PRIMARY_KEYS.includes(n.key));
 const MORE_ITEMS = NAV_ITEMS.filter((n) => !PRIMARY_KEYS.includes(n.key));
+
+const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
+  { title: "Primary", keys: ["log", "medications", "healthdata", "appointments"] },
+  { title: "Health & Insights", keys: ["reports", "monthlycheckin", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
+  { title: "System", keys: ["privacy", "settings"] },
+];
 
 const ESSENTIAL_SICK_KEYS = ["dashboard", "sickmode", "medications", "symptoms", "settings"];
 
@@ -53,6 +67,7 @@ interface SidebarLayoutProps {
   onNavigate: (screen: string) => void;
   children: React.ReactNode;
   sickMode?: boolean;
+  headerRight?: React.ReactNode;
 }
 
 export default function SidebarLayout({
@@ -60,17 +75,73 @@ export default function SidebarLayout({
   onNavigate,
   children,
   sickMode,
+  headerRight,
 }: SidebarLayoutProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const [moreOpen, setMoreOpen] = useState(false);
+  const drawerSlide = useRef(new Animated.Value(1)).current;
+  const { user, session, signOut } = useAuth();
+  const [settingsName, setSettingsName] = useState<string | undefined>(undefined);
 
   const moreIsActive = MORE_ITEMS.some((n) => n.key === activeScreen);
+  const isWideScreen = width >= 768;
+  const drawerWidth = Math.min(width * 0.78, isWideScreen ? 280 : 320);
+
+  useEffect(() => {
+    const load = async () => {
+      const s = await settingsStorage.get();
+      setSettingsName(s?.name);
+    };
+    load();
+  }, []);
+
+  const isSignedIn = Boolean(session ?? user);
+  const displayName = isSignedIn
+    ? (user?.user_metadata?.first_name ??
+       user?.user_metadata?.full_name?.split(" ")[0] ??
+       user?.email?.split("@")[0] ??
+       settingsName ??
+       "Guest")
+    : "Guest";
+  const email = user?.email ?? "";
+
+  useEffect(() => {
+    if (!isWide && moreOpen) {
+      Animated.spring(drawerSlide, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    }
+  }, [isWide, moreOpen, drawerSlide]);
+
+  const closeDrawer = useCallback(() => {
+    Animated.timing(drawerSlide, {
+      toValue: 1,
+      duration: 160,
+      useNativeDriver: true,
+    }).start(() => setMoreOpen(false));
+  }, [drawerSlide]);
 
   if (!isWide) {
     return (
       <View style={styles.mobileContainer}>
+        <View style={[styles.mobileHeaderRow, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 4 }]}>
+          <Pressable
+            style={styles.mobileMenuBtn}
+            onPress={() => setMoreOpen(true)}
+            testID="tab-more"
+            accessibilityRole="button"
+            accessibilityLabel="Open menu"
+          >
+            <Ionicons name="menu" size={26} color={C.text} />
+          </Pressable>
+          {headerRight != null ? headerRight : <View style={styles.mobileHeaderSpacer} />}
+        </View>
+
         <View style={[styles.mobileContent, { paddingBottom: 72 + (Platform.OS === "web" ? 34 : insets.bottom) }]}>
           {children}
         </View>
@@ -106,75 +177,149 @@ export default function SidebarLayout({
                 </Pressable>
               );
             })}
-
-            <Pressable
-              style={styles.mobileNavItem}
-              onPress={() => setMoreOpen(true)}
-              testID="tab-more"
-              accessibilityRole="button"
-              accessibilityLabel="More navigation options"
-              accessibilityState={{ selected: moreIsActive }}
-            >
-              <Ionicons
-                name={moreIsActive ? "ellipsis-horizontal-circle" : "ellipsis-horizontal-circle-outline"}
-                size={22}
-                color={moreIsActive ? C.accent : C.textTertiary}
-              />
-              <Text style={[styles.mobileNavLabel, moreIsActive && { color: C.accent }]}>
-                More
-              </Text>
-            </Pressable>
           </View>
         </View>
 
         <Modal
           visible={moreOpen}
           transparent
-          animationType="slide"
-          onRequestClose={() => setMoreOpen(false)}
+          animationType="fade"
+          onRequestClose={closeDrawer}
         >
-          <Pressable style={styles.moreOverlay} onPress={() => setMoreOpen(false)}>
+          <View style={styles.drawerContainer}>
             <Pressable
-              style={[styles.moreSheet, { paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 16 }]}
-              onPress={(e) => e.stopPropagation()}
+              style={styles.drawerOverlay}
+              onPress={closeDrawer}
+              accessibilityRole="button"
+              accessibilityLabel="Close menu"
+            />
+            <Animated.View
+              style={[
+                styles.drawerPanel,
+                {
+                  width: drawerWidth,
+                  paddingTop: Platform.OS === "web" ? 12 : insets.top + 8,
+                  paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 16,
+                  transform: [{ translateX: drawerSlide.interpolate({ inputRange: [0, 1], outputRange: [0, -drawerWidth] }) }],
+                },
+              ]}
             >
-              <View style={styles.moreHandle} />
-              <Text style={styles.moreTitle}>More</Text>
+              <ScrollView
+                style={styles.drawerScroll}
+                contentContainerStyle={styles.drawerScrollContent}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+              >
+                <View style={styles.drawerProfile}>
+                  <View style={styles.drawerAvatar}>
+                    <Text style={styles.drawerAvatarText}>
+                      {displayName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text style={styles.drawerProfileName} numberOfLines={1}>
+                    {displayName}
+                  </Text>
+                  {isSignedIn ? (
+                    <>
+                      {email ? (
+                        <Text style={styles.drawerProfileEmail} numberOfLines={1}>
+                          {email}
+                        </Text>
+                      ) : null}
+                      <Text style={styles.drawerProfileStatus}>Signed in</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.drawerProfileStatus}>Guest account</Text>
+                      <Pressable
+                        onPress={() => {
+                          closeDrawer();
+                          onNavigate("auth");
+                        }}
+                        style={styles.drawerSignInLink}
+                        accessibilityRole="button"
+                        accessibilityLabel="Sign in"
+                      >
+                        <Text style={styles.drawerSignInLinkText}>Sign in</Text>
+                      </Pressable>
+                    </>
+                  )}
+                </View>
 
-              <View style={styles.moreGrid}>
-                {MORE_ITEMS.map((item) => {
-                  const active = activeScreen === item.key;
-                  const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
+                {DRAWER_GROUPS.map((group) => {
+                  const navItems = group.keys
+                    .map((key) => NAV_ITEMS.find((n) => n.key === key))
+                    .filter((n): n is NavItem => n != null && MORE_ITEMS.some((m) => m.key === n.key));
+                  const items: NavItem[] =
+                    group.title === "System" && isSignedIn
+                      ? [...navItems, { key: "logout", label: "Logout", icon: "log-out-outline", iconActive: "log-out-outline" }]
+                      : navItems;
+                  if (items.length === 0) return null;
+                  const isFirstGroup = group.title === "Primary";
                   return (
-                    <Pressable
-                      key={item.key}
-                      style={[styles.moreItem, active && styles.moreItemActive, dimmed && { opacity: 0.35 }]}
-                      onPress={() => {
-                        onNavigate(item.key);
-                        setMoreOpen(false);
-                      }}
-                      testID={`more-${item.key}`}
-                      accessibilityRole="button"
-                      accessibilityLabel={item.label}
-                      accessibilityState={{ selected: active }}
+                    <View
+                      key={group.title}
+                      style={[styles.drawerGroup, isFirstGroup && styles.drawerGroupFirst]}
                     >
-                      <View style={[styles.moreIconWrap, active && { backgroundColor: (sickMode ? C.red : C.accent) + "22" }]}>
-                        <Ionicons
-                          name={active ? item.iconActive : item.icon}
-                          size={22}
-                          color={active ? (sickMode ? C.red : C.accent) : C.textSecondary}
-                        />
-                      </View>
-                      <Text style={[styles.moreLabel, active && { color: sickMode ? C.red : C.accent }]}>
-                        {item.label}
-                      </Text>
-                    </Pressable>
+                      <Text style={styles.drawerGroupTitle}>{group.title}</Text>
+                      {items.map((item) => {
+                        const isLogout = item.key === "logout";
+                        const active = !isLogout && activeScreen === item.key;
+                        const dimmed = !isLogout && sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
+                        const accentColor = sickMode ? C.red : C.accent;
+                        return (
+                          <Pressable
+                            key={item.key}
+                            style={({ pressed }) => [
+                              styles.drawerRow,
+                              active && [styles.drawerRowActive, { borderLeftColor: accentColor }],
+                              dimmed && { opacity: 0.35 },
+                              pressed && styles.drawerRowPressed,
+                            ]}
+                            onPress={() => {
+                              if (isLogout) {
+                                signOut();
+                                closeDrawer();
+                              } else {
+                                onNavigate(item.key);
+                                closeDrawer();
+                              }
+                            }}
+                            testID={isLogout ? "more-logout" : `more-${item.key}`}
+                            accessibilityRole="button"
+                            accessibilityLabel={item.label}
+                            accessibilityState={{ selected: active }}
+                          >
+                            <Ionicons
+                              name={item.icon}
+                              size={20}
+                              color={active ? accentColor : C.textSecondary}
+                              style={styles.drawerRowIcon}
+                            />
+                            <Text
+                              style={[styles.drawerRowLabel, active && { color: accentColor }]}
+                              numberOfLines={1}
+                            >
+                              {item.label}
+                            </Text>
+                            <Ionicons name="chevron-forward" size={16} color={C.textSecondary} />
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                   );
                 })}
-              </View>
 
-            </Pressable>
-          </Pressable>
+                <View style={styles.drawerFooter}>
+                  <View style={styles.drawerFooterDivider} />
+                  <View style={styles.drawerFooterContent}>
+                    <Ionicons name="heart" size={12} color={C.textTertiary} />
+                    <Text style={styles.drawerFooterText}>Stay well</Text>
+                  </View>
+                </View>
+              </ScrollView>
+            </Animated.View>
+          </View>
         </Modal>
       </View>
     );
@@ -300,31 +445,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: C.background,
   },
-  mobileHeader: {
-    backgroundColor: C.background,
-    paddingHorizontal: 20,
-    paddingBottom: 8,
+  mobileHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
+    backgroundColor: C.background,
   },
-  mobileHeaderInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  mobileMenuBtn: {
+    padding: 6,
+    marginLeft: -6,
   },
-  mobileHeaderTitle: {
-    fontWeight: "700",
-    fontSize: 20,
-    color: C.text,
-    letterSpacing: -0.3,
-  },
+  mobileHeaderSpacer: { width: 1, minWidth: 1 },
   mobileContent: {
     flex: 1,
+    paddingHorizontal: 8,
   },
   mobileNav: {
     position: "absolute",
@@ -352,65 +490,142 @@ const styles = StyleSheet.create({
     color: C.textTertiary,
     marginTop: 3,
   },
-  moreOverlay: {
+  drawerContainer: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "flex-end",
-  },
-  moreSheet: {
-    backgroundColor: C.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 12,
-    paddingHorizontal: 24,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: C.border,
-  },
-  moreHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: C.textTertiary,
-    alignSelf: "center",
-    marginBottom: 16,
-    opacity: 0.4,
-  },
-  moreTitle: {
-    fontWeight: "600",
-    fontSize: 18,
-    color: C.text,
-    marginBottom: 20,
-  },
-  moreGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
   },
-  moreItem: {
-    width: "30%",
-    alignItems: "center",
-    paddingVertical: 14,
-    borderRadius: 12,
+  drawerOverlay: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
   },
-  moreItemActive: {
-    backgroundColor: C.accent + "10",
+  drawerPanel: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: C.background,
+    borderRightWidth: 1,
+    borderRightColor: C.border,
+    paddingHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  moreIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  drawerScroll: {
+    flex: 1,
+  },
+  drawerScrollContent: {
+    flexGrow: 1,
+    paddingBottom: 8,
+  },
+  drawerProfile: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  drawerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: C.surface,
-    borderWidth: 1,
-    borderColor: C.border,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 6,
   },
-  moreLabel: {
-    fontWeight: "500",
+  drawerAvatarText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: C.accent,
+  },
+  drawerProfileName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: C.text,
+    marginBottom: 1,
+  },
+  drawerProfileEmail: {
+    fontSize: 12,
+    color: C.textTertiary,
+    marginBottom: 2,
+  },
+  drawerProfileStatus: {
     fontSize: 11,
-    color: C.textSecondary,
-    textAlign: "center",
+    color: C.textTertiary,
+  },
+  drawerSignInLink: {
+    alignSelf: "flex-start",
+    marginTop: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 0,
+  },
+  drawerSignInLinkText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: C.accent,
+  },
+  drawerGroup: {
+    marginTop: 14,
+    marginBottom: 10,
+  },
+  drawerGroupFirst: {
+    marginTop: 10,
+  },
+  drawerGroupTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: C.textTertiary,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
+  drawerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginBottom: 1,
+  },
+  drawerRowActive: {
+    backgroundColor: (C.accent + "12") as string,
+    borderLeftWidth: 3,
+    borderLeftColor: C.accent,
+    paddingLeft: 11,
+  },
+  drawerRowPressed: {
+    backgroundColor: C.surface,
+  },
+  drawerRowIcon: {
+    marginRight: 10,
+  },
+  drawerRowLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
+    color: C.text,
+  },
+  drawerFooter: {
+    marginTop: 6,
+    paddingBottom: 4,
+  },
+  drawerFooterDivider: {
+    height: 1,
+    backgroundColor: C.border,
+    marginBottom: 6,
+  },
+  drawerFooterContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 4,
+  },
+  drawerFooterText: {
+    fontSize: 11,
+    color: C.textTertiary,
   },
 });

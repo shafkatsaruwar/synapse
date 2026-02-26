@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, StyleSheet } from "react-native";
 import SidebarLayout from "@/components/SidebarLayout";
+import SickModeHeaderButton from "@/components/SickModeHeaderButton";
 import DashboardScreen from "@/screens/DashboardScreen";
 import DailyLogScreen from "@/screens/DailyLogScreen";
 import MedicationsScreen from "@/screens/MedicationsScreen";
 import SymptomsScreen from "@/screens/SymptomsScreen";
 import AppointmentsScreen from "@/screens/AppointmentsScreen";
+import MonthlyCheckInScreen from "@/screens/MonthlyCheckInScreen";
+import EatingScreen from "@/screens/EatingScreen";
+import MentalHealthModeScreen from "@/screens/MentalHealthModeScreen";
+import ComfortScreen from "@/screens/ComfortScreen";
+import GoalsScreen from "@/screens/GoalsScreen";
 import ReportsScreen from "@/screens/ReportsScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
 import HealthDataScreen from "@/screens/HealthDataScreen";
@@ -83,7 +89,7 @@ export default function MainScreen() {
 
     switch (activeScreen) {
       case "dashboard":
-        return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} onActivateSickMode={handleActivateSickMode} />;
+        return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
       case "log":
         return <DailyLogScreen key={refreshKey} />;
       case "healthdata":
@@ -96,6 +102,16 @@ export default function MainScreen() {
         return <DocumentsScreen />;
       case "insights":
         return <InsightsScreen />;
+      case "monthlycheckin":
+        return <MonthlyCheckInScreen />;
+      case "eating":
+        return <EatingScreen />;
+      case "mentalhealth":
+        return <MentalHealthModeScreen />;
+      case "comfort":
+        return <ComfortScreen />;
+      case "goals":
+        return <GoalsScreen />;
       case "appointments":
         return <AppointmentsScreen />;
       case "reports":
@@ -115,13 +131,18 @@ export default function MainScreen() {
       case "settings":
         return <SettingsScreen onResetApp={handleResetApp} onNavigate={handleNavigate} />;
       default:
-        return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} onActivateSickMode={handleActivateSickMode} />;
+        return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
     }
   };
 
   return (
     <View style={styles.container}>
-      <SidebarLayout activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen} onNavigate={handleNavigate} sickMode={sickMode}>
+      <SidebarLayout
+        activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
+        onNavigate={handleNavigate}
+        sickMode={sickMode}
+        headerRight={activeScreen === "dashboard" ? <SickModeHeaderButton onActivate={handleActivateSickMode} onNavigate={handleNavigate} refreshKey={refreshKey} /> : undefined}
+      >
         {renderScreen()}
       </SidebarLayout>
     </View>
