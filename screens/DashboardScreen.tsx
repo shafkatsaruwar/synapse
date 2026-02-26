@@ -329,11 +329,11 @@ export default function DashboardScreen({ onNavigate, onRefreshKey, onActivateSi
       <Text style={styles.sectionLabel}>Today</Text>
 
       <View style={[styles.priorityGrid, { gap: 12 }]}>
-        <View style={[styles.priorityGridItem, isWide ? { flex: 1, flexBasis: "48%" } : { width: "100%" }]}>{renderMedicationsCard()}</View>
-        <View style={[styles.priorityGridItem, isWide ? { flex: 1, flexBasis: "48%" } : { width: "100%" }]}>{renderAppointmentsCard()}</View>
-        <View style={[styles.priorityGridItem, isWide ? { flex: 1, flexBasis: "48%" } : { width: "100%" }]}>{renderDailyLogCard()}</View>
+        <View style={[styles.priorityGridItem, isWide ? { width: 260, maxWidth: 260 } : { width: "100%" }]}>{renderMedicationsCard()}</View>
+        <View style={[styles.priorityGridItem, isWide ? { width: 260, maxWidth: 260 } : { width: "100%" }]}>{renderAppointmentsCard()}</View>
+        <View style={[styles.priorityGridItem, isWide ? { width: 260, maxWidth: 260 } : { width: "100%" }]}>{renderDailyLogCard()}</View>
         {settings.ramadanMode && (
-          <View style={[styles.priorityGridItem, isWide ? { flex: 1, flexBasis: "48%" } : { width: "100%" }]}>{renderRamadanCard()}</View>
+          <View style={[styles.priorityGridItem, isWide ? { width: 260, maxWidth: 260 } : { width: "100%" }]}>{renderRamadanCard()}</View>
         )}
       </View>
 
