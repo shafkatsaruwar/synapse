@@ -7,6 +7,7 @@ import {
   Platform,
   useWindowDimensions,
   Animated,
+  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -254,19 +255,14 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     </PriorityCard>
   );
 
-  return (
-    <View
-      style={[
-        styles.container,
-        styles.content,
-        {
-          paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : 12),
-          paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
-          paddingHorizontal: isWide ? 24 : 0,
-          ...(isWide && { alignSelf: "stretch" as const }),
-        },
-      ]}
-    >
+  const contentPadding = {
+    paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : 12),
+    paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
+    paddingHorizontal: isWide ? 24 : 16,
+  };
+
+  const inner = (
+    <>
       <View style={styles.welcome} accessibilityRole="header">
         <Text style={styles.greetingText}>
           {greeting}{displayFirstName ? `, ${displayFirstName}` : ""}
@@ -339,12 +335,36 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           </View>
         </Pressable>
       </View>
+    </>
+  );
+
+  if (isWide) {
+    return (
+      <View style={[styles.container, styles.content, contentPadding, { alignSelf: "stretch" }]}>
+        {inner}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[contentPadding, styles.scrollViewContent]}
+        showsVerticalScrollIndicator={true}
+        bounces={true}
+        alwaysBounceVertical={true}
+      >
+        {inner}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
+  scrollView: { flex: 1 },
+  scrollViewContent: { flexGrow: 1 },
   content: { paddingHorizontal: 24 }, // used when isWide; mobile uses inline 0 so layout's 16 applies
   welcome: { marginBottom: 8 },
   greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },

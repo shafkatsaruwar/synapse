@@ -266,8 +266,11 @@ export default function MedicationsScreen() {
 
   const doseLabels = (med: Medication): string[] => {
     const count = getDoseCount(med);
+    const tags = getMedTags(med);
+    if (Array.isArray(tags) && tags.length === count) return tags;
     if (count === 1) return ["Dose"];
-    if (count === 2) return ["AM Dose", "PM Dose"];
+    if (count === 2) return ["Morning", "Afternoon"];
+    if (count === 3) return ["Morning", "Afternoon", "Night"];
     return Array.from({ length: count }, (_, i) => `Dose ${i + 1}`);
   };
 
@@ -604,6 +607,7 @@ export default function MedicationsScreen() {
               </View>
 
               <Text style={styles.label}>Time of Day</Text>
+              <Text style={[styles.medFreq, { marginBottom: 8 }]}>One dose per time — each is tracked separately</Text>
               <View style={styles.tagPicker}>
                 {TIME_TAGS.filter(tag => settings.ramadanMode || (tag !== "Before Fajr" && tag !== "After Iftar")).map((tag) => {
                   const selected = formTimeTags.includes(tag);
@@ -612,9 +616,13 @@ export default function MedicationsScreen() {
                       setFormTimeTags(prev => {
                         if (prev.includes(tag)) {
                           const next = prev.filter(t => t !== tag);
-                          return next.length > 0 ? next : [tag];
+                          const out = next.length > 0 ? next : [tag];
+                          setFormDoses(String(out.length));
+                          return out;
                         }
-                        return [...prev, tag];
+                        const out = [...prev, tag];
+                        setFormDoses(String(out.length));
+                        return out;
                       });
                       Haptics.selectionAsync();
                     }}>
