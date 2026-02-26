@@ -42,3 +42,22 @@ export async function compareMedications(currentMedications: any[], extractedMed
   if (!res.ok) throw new Error("Failed to compare medications");
   return res.json();
 }
+
+/** Send an email via Resend (requires RESEND_API_KEY on server / Vercel). */
+export async function sendEmail(options: {
+  to: string | string[];
+  subject: string;
+  html?: string;
+  from?: string;
+}) {
+  const res = await fetch(`${BASE}/api/send-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(options),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string })?.error || "Failed to send email");
+  }
+  return res.json();
+}

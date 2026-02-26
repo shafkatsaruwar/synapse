@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import express from "express";
 import { createServer, type Server } from "node:http";
 import OpenAI from "openai";
+import { Resend } from "resend";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -139,6 +140,33 @@ Match medications by name (accounting for brand/generic equivalents). Be conserv
     } catch (error: any) {
       console.error("Medication comparison error:", error?.message || error);
       res.status(500).json({ error: "Failed to compare medications" });
+    }
+  });
+
+  app.post("/api/send-email", express.json(), async (req: Request, res: Response) => {
+    try {
+      const apiKey = process.env.RESEND_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "RESEND_API_KEY is not set" });
+      }
+      const { to, subject, html, from } = req.body;
+      if (!to || !subject) {
+        return res.status(400).json({ error: "to and subject are required" });
+      }
+      const resend = new Resend(apiKey);
+      const { data, error } = await resend.emails.send({
+        from: from || "Synapse <onboarding@resend.dev>",
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        html: html || "<p>No content</p>",
+      });
+      if (error) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.json({ success: true, id: data?.id });
+    } catch (error: any) {
+      console.error("Send email error:", error?.message || error);
+      res.status(500).json({ error: "Failed to send email" });
     }
   });
 
