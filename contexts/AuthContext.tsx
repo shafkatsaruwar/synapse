@@ -43,10 +43,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = useCallback(
     async (email: string, password: string, metadata?: { first_name?: string }) => {
+      const appUrl = process.env.EXPO_PUBLIC_APP_URL?.trim();
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: metadata?.first_name ? { data: { first_name: metadata.first_name } } : undefined,
+        options: {
+          ...(metadata?.first_name ? { data: { first_name: metadata.first_name } } : {}),
+          ...(appUrl ? { emailRedirectTo: appUrl } : {}),
+        },
       });
       return { error: error ?? null };
     },
@@ -58,8 +62,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
+    const appUrl = process.env.EXPO_PUBLIC_APP_URL?.trim();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: undefined,
+      redirectTo: appUrl || undefined,
     });
     return { error: error ?? null };
   }, []);
