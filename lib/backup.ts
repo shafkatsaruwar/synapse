@@ -57,7 +57,9 @@ export async function backupNow(userId: string): Promise<{ error: Error | null }
       { user_id: userId, encrypted_blob: encrypted, updated_at: new Date().toISOString() },
       { onConflict: "user_id" }
     );
-    if (error) return { error };
+    if (error) {
+      return { error: new Error(error.message ?? "Backup failed") };
+    }
     await AsyncStorage.setItem(BACKUP_LAST_SYNC, new Date().toISOString());
     return { error: null };
   } catch (e) {

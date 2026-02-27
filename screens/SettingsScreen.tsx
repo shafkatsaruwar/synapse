@@ -8,6 +8,8 @@ import {
   Platform,
   useWindowDimensions,
   ActivityIndicator,
+  ScrollView,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -80,11 +82,22 @@ export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScree
   const handleBackupNow = async () => {
     if (!user?.id) return;
     setBackupLoading(true);
-    const { error } = await backupNow(user.id);
-    setBackupLoading(false);
-    if (error) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    getBackupStatus(user.id).then(setBackupStatus);
+    try {
+      const { error } = await backupNow(user.id);
+      if (error) {
+        Alert.alert(
+          "Backup failed",
+          error?.message ?? String(error),
+          [{ text: "OK" }]
+        );
+        return;
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const status = await getBackupStatus(user.id);
+      setBackupStatus(status);
+    } finally {
+      setBackupLoading(false);
+    }
   };
 
   const handleRestore = async () => {
@@ -101,13 +114,19 @@ export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScree
   const displayName = user?.user_metadata?.first_name ?? user?.email?.split("@")[0] ?? "—";
   const createdDate = user?.created_at ? new Date(user.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : null;
 
+  const contentPadding = {
+    paddingTop: isWide ? 40 : Platform.OS === "web" ? 67 : insets.top + 16,
+    paddingBottom: isWide ? 40 : Platform.OS === "web" ? 118 : insets.bottom + 100,
+    paddingHorizontal: 24,
+  };
+
   return (
     <View style={styles.container}>
-      <View
-        style={[
-          styles.content,
-          { flex: 1, paddingTop: isWide ? 40 : Platform.OS === "web" ? 67 : insets.top + 16, paddingBottom: isWide ? 40 : Platform.OS === "web" ? 118 : insets.bottom + 100 },
-        ]}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[contentPadding, styles.scrollViewContent]}
+        showsVerticalScrollIndicator={true}
+        bounces={true}
       >
         <Text style={styles.title}>Settings</Text>
 
@@ -278,7 +297,7 @@ export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScree
             <Text style={styles.resetAppText}>Reset App</Text>
           </Pressable>
         )}
-      </View>
+      </ScrollView>
 
       <Modal visible={showResetConfirm} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowResetConfirm(false)}>
@@ -321,7 +340,8 @@ export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScree
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
-  content: { paddingHorizontal: 24 },
+  scrollView: { flex: 1 },
+  scrollViewContent: { flexGrow: 1 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 24 },
   card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
   sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 4 },
