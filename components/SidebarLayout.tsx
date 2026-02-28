@@ -156,7 +156,13 @@ export default function SidebarLayout({
       <View
         style={[
           styles.mobileContent,
-          { paddingBottom: isWide ? (Platform.OS === "web" ? 34 : insets.bottom + 16) : 72 + (Platform.OS === "web" ? 34 : insets.bottom) },
+          {
+            paddingBottom: isWide
+              ? Platform.OS === "web" ? 34 : insets.bottom + 16
+              : primaryItemsFiltered.length > 0
+                ? (Platform.OS === "web" ? 88 : insets.bottom + 80)
+                : 24,
+          },
         ]}
       >
         {children}
@@ -166,7 +172,11 @@ export default function SidebarLayout({
         <View
           style={[
             styles.mobileNav,
-            { paddingBottom: Platform.OS === "web" ? 34 : insets.bottom },
+            {
+              bottom: Platform.OS === "web" ? 20 : insets.bottom + 12,
+              left: 20,
+              right: 20,
+            },
           ]}
         >
           <View style={styles.mobileNavContent}>
@@ -185,12 +195,9 @@ export default function SidebarLayout({
                 >
                   <Ionicons
                     name={active ? item.iconActive : item.icon}
-                    size={22}
+                    size={24}
                     color={active ? (sickMode ? C.red : C.accent) : C.textTertiary}
                   />
-                  <Text style={[styles.mobileNavLabel, active && { color: sickMode ? C.red : C.accent }]}>
-                    {item.label}
-                  </Text>
                 </Pressable>
               );
             })}
@@ -437,29 +444,32 @@ const styles = StyleSheet.create({
   },
   mobileNav: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: C.surface,
-    borderTopWidth: 1,
-    borderTopColor: C.border,
+    borderRadius: 28,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
   },
   mobileNavContent: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-around",
-    paddingTop: 8,
+    flex: 1,
   },
   mobileNavItem: {
     alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    minWidth: 64,
-  },
-  mobileNavLabel: {
-    fontWeight: "500",
-    fontSize: 10,
-    color: C.textTertiary,
-    marginTop: 3,
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 20,
   },
   drawerContainer: {
     flex: 1,
