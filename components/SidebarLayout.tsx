@@ -120,15 +120,17 @@ export default function SidebarLayout({
   const email = user?.email ?? "";
 
   useEffect(() => {
-    if (!isWide && moreOpen) {
+    if (moreOpen) {
       Animated.spring(drawerSlide, {
         toValue: 0,
         useNativeDriver: true,
         tension: 65,
         friction: 11,
       }).start();
+    } else {
+      drawerSlide.setValue(1);
     }
-  }, [isWide, moreOpen, drawerSlide]);
+  }, [moreOpen, drawerSlide]);
 
   const closeDrawer = useCallback(() => {
     Animated.timing(drawerSlide, {
