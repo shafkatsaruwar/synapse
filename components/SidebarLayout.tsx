@@ -84,18 +84,30 @@ export default function SidebarLayout({
   const drawerSlide = useRef(new Animated.Value(1)).current;
   const { user, session, signOut } = useAuth();
   const [settingsName, setSettingsName] = useState<string | undefined>(undefined);
+  const [enabledSections, setEnabledSections] = useState<string[] | undefined>(undefined);
 
   const moreIsActive = MORE_ITEMS.some((n) => n.key === activeScreen);
   const isWideScreen = width >= 768;
   const drawerWidth = Math.min(width * 0.78, isWideScreen ? 280 : 320);
 
-  useEffect(() => {
-    const load = async () => {
-      const s = await settingsStorage.get();
-      setSettingsName(s?.name);
-    };
-    load();
+  const loadSettings = useCallback(async () => {
+    const s = await settingsStorage.get();
+    setSettingsName(s?.name);
+    setEnabledSections(s?.enabledSections);
   }, []);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings, activeScreen]);
+
+  const alwaysNavKeys = ["dashboard", "medications", "settings", "privacy"];
+  const enabledKeysSet = new Set(
+    enabledSections !== undefined
+      ? [...alwaysNavKeys, ...enabledSections]
+      : NAV_ITEMS.map((n) => n.key)
+  );
+  const primaryItemsFiltered = PRIMARY_ITEMS.filter((n) => enabledKeysSet.has(n.key));
+  const moreItemsFiltered = MORE_ITEMS.filter((n) => enabledKeysSet.has(n.key));
 
   const isSignedIn = Boolean(session ?? user);
   const displayName = isSignedIn
@@ -126,26 +138,31 @@ export default function SidebarLayout({
     }).start(() => setMoreOpen(false));
   }, [drawerSlide]);
 
-  if (!isWide) {
-    return (
-      <View style={styles.mobileContainer}>
-        <View style={[styles.mobileHeaderRow, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 4 }]}>
-          <Pressable
-            style={styles.mobileMenuBtn}
-            onPress={() => setMoreOpen(true)}
-            testID="tab-more"
-            accessibilityRole="button"
-            accessibilityLabel="Open menu"
-          >
-            <Ionicons name="menu" size={26} color={C.text} />
-          </Pressable>
-          {headerRight != null ? headerRight : <View style={styles.mobileHeaderSpacer} />}
-        </View>
+  return (
+    <View style={styles.mobileContainer}>
+      <View style={[styles.mobileHeaderRow, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 4 }]}>
+        <Pressable
+          style={styles.mobileMenuBtn}
+          onPress={() => setMoreOpen(true)}
+          testID="tab-more"
+          accessibilityRole="button"
+          accessibilityLabel="Open menu"
+        >
+          <Ionicons name="menu" size={26} color={C.text} />
+        </Pressable>
+        {headerRight != null ? headerRight : <View style={styles.mobileHeaderSpacer} />}
+      </View>
 
-        <View style={[styles.mobileContent, { paddingBottom: 72 + (Platform.OS === "web" ? 34 : insets.bottom) }]}>
-          {children}
-        </View>
+      <View
+        style={[
+          styles.mobileContent,
+          { paddingBottom: isWide ? (Platform.OS === "web" ? 34 : insets.bottom + 16) : 72 + (Platform.OS === "web" ? 34 : insets.bottom) },
+        ]}
+      >
+        {children}
+      </View>
 
+      {!isWide && primaryItemsFiltered.length > 0 && (
         <View
           style={[
             styles.mobileNav,
@@ -153,7 +170,7 @@ export default function SidebarLayout({
           ]}
         >
           <View style={styles.mobileNavContent}>
-            {PRIMARY_ITEMS.map((item) => {
+            {primaryItemsFiltered.map((item) => {
               const active = activeScreen === item.key;
               const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
               return (
@@ -179,8 +196,9 @@ export default function SidebarLayout({
             })}
           </View>
         </View>
+      )}
 
-        <Modal
+      <Modal
           visible={moreOpen}
           transparent
           animationType="fade"
@@ -249,7 +267,7 @@ export default function SidebarLayout({
                 {DRAWER_GROUPS.map((group) => {
                   const navItems = group.keys
                     .map((key) => NAV_ITEMS.find((n) => n.key === key))
-                    .filter((n): n is NavItem => n != null && MORE_ITEMS.some((m) => m.key === n.key));
+                    .filter((n): n is NavItem => n != null && moreItemsFiltered.some((m) => m.key === n.key));
                   const items: NavItem[] =
                     group.title === "System" && isSignedIn
                       ? [...navItems, { key: "logout", label: "Logout", icon: "log-out-outline", iconActive: "log-out-outline" }]
@@ -313,60 +331,13 @@ export default function SidebarLayout({
                 <View style={styles.drawerFooter}>
                   <View style={styles.drawerFooterDivider} />
                   <View style={styles.drawerFooterContent}>
-                    <Ionicons name="heart" size={12} color={C.textTertiary} />
-                    <Text style={styles.drawerFooterText}>Stay well</Text>
+                    <Text style={styles.drawerFooterText}>Synapse v1.0</Text>
                   </View>
                 </View>
               </ScrollView>
             </Animated.View>
           </View>
         </Modal>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      <View style={[styles.sidebar, { paddingTop: Platform.OS === "web" ? 40 : insets.top + 16 }]}>
-        <View style={styles.brand}>
-          <SynapseLogo size={32} color={C.accent} />
-          <Text style={styles.brandText}>Synapse</Text>
-        </View>
-
-        <View style={styles.navList}>
-          {NAV_ITEMS.map((item) => {
-            const active = activeScreen === item.key;
-            const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
-            return (
-              <Pressable
-                key={item.key}
-                style={[styles.navItem, active && styles.navItemActive, dimmed && { opacity: 0.35 }]}
-                onPress={() => onNavigate(item.key)}
-                accessibilityRole="button"
-                accessibilityLabel={item.label}
-                accessibilityState={{ selected: active }}
-              >
-                <Ionicons
-                  name={active ? item.iconActive : item.icon}
-                  size={18}
-                  color={active ? (sickMode ? C.red : C.accent) : C.textTertiary}
-                />
-                <Text
-                  style={[styles.navLabel, active && styles.navLabelActive, active && sickMode && { color: C.red }]}
-                >
-                  {item.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.sidebarFooter}>
-          <View style={styles.sidebarDivider} />
-          <Text style={styles.sidebarVersion}>Synapse v1.0</Text>
-        </View>
-      </View>
-      <View style={styles.main}>{children}</View>
     </View>
   );
 }

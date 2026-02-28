@@ -4,6 +4,7 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import { Platform, View } from "react-native";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { queryClient } from "@/lib/query-client";
@@ -16,6 +17,8 @@ import {
 } from "@expo-google-fonts/inter";
 
 SplashScreen.preventAutoHideAsync();
+
+const WEB_ZOOM = 1.25;
 
 function RootLayoutNav() {
   return (
@@ -41,7 +44,7 @@ export default function RootLayout() {
 
   if (!fontsLoaded) return null;
 
-  return (
+  const content = (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
@@ -54,4 +57,14 @@ export default function RootLayout() {
       </QueryClientProvider>
     </ErrorBoundary>
   );
+
+  if (Platform.OS === "web") {
+    return (
+      <View style={[{ flex: 1 }, { zoom: WEB_ZOOM } as any]}>
+        {content}
+      </View>
+    );
+  }
+
+  return content;
 }

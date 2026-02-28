@@ -277,7 +277,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           {ramadanDay.hijriDay}{ordinalSuffix(ramadanDay.hijriDay)} Ramadan, 1447 AH
         </Text>
       )}
-      <Text style={styles.sectionLabel}>Today</Text>
+      <Text style={styles.sectionLabel}>Control center</Text>
 
       <View style={[styles.priorityGrid, { gap: 12 }]}>
         <View style={[styles.priorityGridItem, { width: isWide ? 260 : "48%" }]}>{renderMedicationsCard()}</View>

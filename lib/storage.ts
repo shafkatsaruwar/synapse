@@ -195,6 +195,13 @@ export interface HealthCondition {
   requiresStressDose?: boolean;
 }
 
+/** Section keys that can be enabled/disabled by user (v1.3). If undefined, all sections are shown. */
+export const ALL_SECTION_KEYS = [
+  "log", "healthdata", "medications", "symptoms", "monthlycheckin",
+  "eating", "mentalhealth", "comfort", "goals", "appointments", "reports", "privacy",
+] as const;
+export type SectionKey = (typeof ALL_SECTION_KEYS)[number];
+
 export interface UserSettings {
   name: string;
   conditions: string[];
@@ -202,6 +209,8 @@ export interface UserSettings {
   sickMode: boolean;
   highContrast?: boolean;
   onboardingCompleted?: true;
+  /** Sections the user chose in onboarding (v1.3). Undefined = show all. */
+  enabledSections?: string[];
 }
 
 const KEYS = {

@@ -8,7 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
-import { settingsStorage, medicationStorage } from "@/lib/storage";
+import { settingsStorage, medicationStorage, ALL_SECTION_KEYS } from "@/lib/storage";
 
 const brainLogo = require("../assets/images/brain-logo.jpeg");
 
@@ -104,7 +104,22 @@ function GlowDot({ active, done }: { active: boolean; done: boolean }) {
   );
 }
 
-const TOTAL_STEPS = 11;
+const TOTAL_STEPS = 12;
+
+const SECTION_LABELS: Record<string, string> = {
+  log: "Daily Log",
+  healthdata: "Health Data",
+  medications: "Medications",
+  symptoms: "Symptoms",
+  monthlycheckin: "Monthly check-in",
+  eating: "Eating",
+  mentalhealth: "Mental health day",
+  comfort: "Mood lifters",
+  goals: "Goals",
+  appointments: "Appointments",
+  reports: "Reports",
+  privacy: "Privacy",
+};
 
 const founderImage = require("../assets/images/founder.png");
 
@@ -127,6 +142,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [medDosage, setMedDosage] = useState("");
   const [medUnit, setMedUnit] = useState<"mg" | "mcg" | "ml">("mg");
   const [showMedFields, setShowMedFields] = useState(false);
+  const [selectedSections, setSelectedSections] = useState<Set<string>>(
+    () => new Set(ALL_SECTION_KEYS as unknown as string[])
+  );
 
   const screenOpacity = useRef(new Animated.Value(1)).current;
   const completionScale = useRef(new Animated.Value(0)).current;
@@ -141,7 +159,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       const t = setTimeout(() => setShowMedFields(true), 600);
       return () => clearTimeout(t);
     }
-    if (step === 10) {
+    if (step === 11) {
       Animated.sequence([
         Animated.parallel([
           Animated.spring(completionScale, { toValue: 1, friction: 5, tension: 60, useNativeDriver: true }),
@@ -190,10 +208,12 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const settings = await settingsStorage.get();
     const displayName = user?.user_metadata?.first_name ?? user?.email?.split("@")[0] ?? "";
+    const enabledSections = Array.from(selectedSections);
     await settingsStorage.save({
       ...settings,
       name: displayName,
       onboardingCompleted: true,
+      enabledSections: enabledSections.length > 0 ? enabledSections : (ALL_SECTION_KEYS as unknown as string[]),
     });
     for (const m of meds) {
       await medicationStorage.save({
@@ -213,12 +233,12 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   };
 
   const getButtonLabel = () => {
-    if (step === 10) return "Wanna See Where This Takes Us?";
+    if (step === 11) return "Open Synapse";
     return "Continue";
   };
 
   const handleContinue = () => {
-    if (step === 10) {
+    if (step === 11) {
       handleFinish();
     } else if (step === 8) {
       const canSubmit = authMode === "signup"
@@ -253,8 +273,19 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       name: "Test User",
       conditions: [],
       onboardingCompleted: true,
+      enabledSections: ALL_SECTION_KEYS as unknown as string[],
     });
     onComplete();
+  };
+
+  const toggleSection = (key: string) => {
+    setSelectedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+    Haptics.selectionAsync();
   };
 
   const renderWelcome = () => (
@@ -403,7 +434,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const renderSignUpStep = () => (
     <KeyboardAvoidingView style={styles.inputCenter} behavior={Platform.OS === "ios" ? "padding" : undefined} key={animKey}>
       <AnimatedLine text={authMode === "signup" ? "Create your account" : "Welcome back"} delay={0} style={styles.nameTitle} color={C.text} />
-      <AnimatedLine text="Sign in to back up your data across devices." delay={200} style={styles.nameHint} color={C.textSecondary} />
+      <AnimatedLine text="Sign in to back up your data securely." delay={200} style={styles.nameHint} color={C.textSecondary} />
       {authError ? <Text style={styles.authError}>{authError}</Text> : null}
       {authMode === "signup" && (
         <AnimatedView delay={300}>
@@ -509,6 +540,32 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </ScrollView>
   );
 
+  const renderSectionsStep = () => (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.setupScroll} showsVerticalScrollIndicator={false} key={animKey}>
+      <AnimatedLine text="Which sections are helpful for you?" delay={0} style={styles.setupTitle} color={C.text} />
+      <AnimatedLine text="Choose what you'll use. You can add or remove these later in Settings." delay={200} style={styles.setupSub} color={C.textSecondary} />
+      <AnimatedView delay={400} style={{ marginTop: 16, gap: 10 }}>
+        {(ALL_SECTION_KEYS as unknown as string[]).map((key) => {
+          const label = SECTION_LABELS[key] ?? key;
+          const isSelected = selectedSections.has(key);
+          return (
+            <Pressable
+              key={key}
+              style={[styles.medChip, isSelected && { borderColor: MAROON, backgroundColor: MAROON_LIGHT }]}
+              onPress={() => toggleSection(key)}
+            >
+              <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
+                {isSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+              </View>
+              <Text style={[styles.medChipName, { flex: 1 }]}>{label}</Text>
+            </Pressable>
+          );
+        })}
+        <Text style={styles.fieldHint}>Dashboard, Medications, and Settings are always available.</Text>
+      </AnimatedView>
+    </ScrollView>
+  );
+
   const renderCompletion = () => (
     <View style={styles.completionCenter} key={animKey}>
       <Animated.View style={[styles.completionCircle, { transform: [{ scale: completionScale }], opacity: completionOpacity }]}>
@@ -517,7 +574,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         </Animated.View>
       </Animated.View>
       <AnimatedLine text="Synapse is ready." delay={800} style={styles.completionTitle} color={MAROON} />
-      <AnimatedLine text="Ready to take care of you." delay={1200} style={styles.completionSub} color={C.textSecondary} />
+      <AnimatedLine text="Your stability system. Built to prevent mistakes." delay={1200} style={styles.completionSub} color={C.textSecondary} />
     </View>
   );
 
@@ -527,11 +584,12 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     if (step >= 2 && step <= 7) return renderStorySlide(step - 2);
     if (step === 8) return renderSignUpStep();
     if (step === 9) return renderMedications();
-    if (step === 10) return renderCompletion();
+    if (step === 10) return renderSectionsStep();
+    if (step === 11) return renderCompletion();
     return null;
   };
 
-  const buttonDelay = step === 0 ? 1200 : step === 1 ? 1800 : step >= 2 && step <= 7 ? 1800 : step === 10 ? 1600 : 1000;
+  const buttonDelay = step === 0 ? 1200 : step === 1 ? 1800 : step >= 2 && step <= 7 ? 1800 : step === 11 ? 1600 : 1000;
 
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
@@ -679,6 +737,11 @@ const styles = StyleSheet.create({
     textAlign: "center", marginTop: 16,
   },
 
+  sectionCheckbox: {
+    width: 24, height: 24, borderRadius: 8, borderWidth: 2, borderColor: C.border,
+    alignItems: "center", justifyContent: "center", backgroundColor: C.surface,
+  },
+  sectionCheckboxActive: { backgroundColor: MAROON, borderColor: MAROON },
   medChipRow: { marginBottom: 8 },
   medChip: {
     flexDirection: "row", alignItems: "center", gap: 12,
