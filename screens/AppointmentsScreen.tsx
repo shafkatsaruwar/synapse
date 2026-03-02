@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import {
-  StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, Alert, useWindowDimensions,
+  StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, Alert, useWindowDimensions, KeyboardAvoidingView, Keyboard,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +17,13 @@ import {
   type RepeatUnit,
 } from "@/lib/storage";
 import { fetchDoctorsFromSupabase, createDoctorInSupabase } from "@/lib/doctors-api";
+import {
+  fetchAppointmentsFromSupabase,
+  replaceAppointmentsInSupabase,
+  insertAppointmentsToSupabase,
+  updateAppointmentInSupabase,
+  deleteAppointmentFromSupabase,
+} from "@/lib/appointments-api";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 
 const C = Colors.dark;
@@ -138,11 +145,24 @@ export default function AppointmentsScreen() {
   const [noteText, setNoteText] = useState("");
 
   const loadData = useCallback(async () => {
-    const [apts, docs, n] = await Promise.all([appointmentStorage.getAll(), doctorsStorage.getAll(), doctorNoteStorage.getAll()]);
+    let apts: Appointment[];
+    if (user?.id) {
+      const cloud = await fetchAppointmentsFromSupabase(user.id);
+      if (cloud.length > 0) {
+        await appointmentStorage.setAll(cloud);
+        apts = cloud;
+      } else {
+        apts = await appointmentStorage.getAll();
+        if (apts.length > 0) await replaceAppointmentsInSupabase(user.id, apts);
+      }
+    } else {
+      apts = await appointmentStorage.getAll();
+    }
+    const [docs, n] = await Promise.all([doctorsStorage.getAll(), doctorNoteStorage.getAll()]);
     setAppointments(apts.sort((a, b) => a.date.localeCompare(b.date)));
     setDoctors(docs);
     setNotes(n.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -216,6 +236,10 @@ export default function AppointmentsScreen() {
     }
 
     await appointmentStorage.save(base);
+    if (user?.id) {
+      const all = await appointmentStorage.getAll();
+      await replaceAppointmentsInSupabase(user.id, all);
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     resetAptForm();
     setShowAptModal(false);
@@ -264,12 +288,18 @@ export default function AppointmentsScreen() {
     };
     if (editMode === "one") {
       await appointmentStorage.update(editingApt.id, updates);
+      if (user?.id) await updateAppointmentInSupabase(user.id, editingApt.id, updates);
     } else {
       const parentId = editingApt.parent_recurring_id ?? editingApt.id;
       const toUpdate = appointments.filter((a) => a.id === editingApt.id || (a.parent_recurring_id === parentId && a.date >= editingApt.date));
       for (const a of toUpdate) {
         await appointmentStorage.update(a.id, { ...updates, date: a.date });
+        if (user?.id) await updateAppointmentInSupabase(user.id, a.id, { ...updates, date: a.date });
       }
+    }
+    if (user?.id) {
+      const all = await appointmentStorage.getAll();
+      await replaceAppointmentsInSupabase(user.id, all);
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     resetAptForm();
@@ -278,10 +308,17 @@ export default function AppointmentsScreen() {
   };
 
   const handleDeleteApt = async (apt: Appointment) => {
-    if (Platform.OS === "web") { await appointmentStorage.delete(apt.id); loadData(); return; }
+    const doDelete = async () => {
+      await appointmentStorage.delete(apt.id);
+      if (user?.id) {
+        await deleteAppointmentFromSupabase(user.id, apt.id);
+      }
+      loadData();
+    };
+    if (Platform.OS === "web") { await doDelete(); return; }
     Alert.alert("Delete", `Remove appointment with ${apt.doctorName}?`, [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: async () => { await appointmentStorage.delete(apt.id); loadData(); } },
+      { text: "Delete", style: "destructive", onPress: doDelete },
     ]);
   };
 
@@ -407,9 +444,21 @@ export default function AppointmentsScreen() {
       </ScrollView>
 
       <Modal visible={showAptModal} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => { setShowAptModal(false); resetAptForm(); }}>
-          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 24 }} keyboardShouldPersistTaps="handled">
-            <Pressable style={styles.modal} onPress={() => {}}>
+        <View style={styles.overlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => { setShowAptModal(false); resetAptForm(); }} accessibilityLabel="Close" />
+          <KeyboardAvoidingView
+            pointerEvents="box-none"
+            style={{ flex: 1, justifyContent: "center" }}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
+          >
+            <ScrollView
+              contentContainerStyle={{ padding: 24, flexGrow: 1, justifyContent: "center" }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
+              style={Platform.OS !== "web" ? { maxHeight: "85%" } : undefined}
+            >
+              <Pressable style={styles.modal} onPress={() => {}}>
               <Text style={styles.modalTitle}>{editingApt ? "Edit Appointment" : "New Appointment"}</Text>
               <Text style={styles.label}>Doctor *</Text>
               <TextInput
@@ -428,8 +477,14 @@ export default function AppointmentsScreen() {
                   </Pressable>
                 ))}
                 {showAddNewDoctor && (
-                  <Pressable style={[styles.dropdownRow, styles.addNewRow]} onPress={() => setSelectedDoctorId(null)}>
-                    <Ionicons name="add-circle-outline" size={18} color={C.tint} />
+                  <Pressable
+                    style={[styles.dropdownRow, styles.addNewRow, styles.addNewDoctorBtn]}
+                    onPress={() => { setSelectedDoctorId(null); Haptics.selectionAsync(); Keyboard.dismiss(); }}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add new doctor ${aptDoctorSearch.trim()}`}
+                  >
+                    <Ionicons name="add-circle-outline" size={20} color={C.tint} />
                     <Text style={styles.addNewText}>+ Add new doctor: {aptDoctorSearch.trim()}</Text>
                   </Pressable>
                 )}
@@ -489,8 +544,9 @@ export default function AppointmentsScreen() {
                 )}
               </View>
             </Pressable>
-          </ScrollView>
-        </Pressable>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       <Modal visible={showNoteModal} transparent animationType="fade">
@@ -550,6 +606,7 @@ const styles = StyleSheet.create({
   dropdownText: { fontWeight: "500", fontSize: 14, color: C.text },
   dropdownSub: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
   addNewRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  addNewDoctorBtn: { minHeight: 48, justifyContent: "center" },
   addNewText: { fontWeight: "500", fontSize: 13, color: C.tint },
   repeatRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
   repeatChip: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },

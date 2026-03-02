@@ -382,6 +382,9 @@ function addIntervalToDate(dateStr: string, interval: number, unit: RepeatUnit):
 
 export const appointmentStorage = {
   getAll: () => getItem<Appointment>(KEYS.APPOINTMENTS),
+  setAll: async (apts: Appointment[]) => {
+    await setItem(KEYS.APPOINTMENTS, apts);
+  },
   save: async (apt: Omit<Appointment, "id">) => {
     const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
     const id = Crypto.randomUUID();
