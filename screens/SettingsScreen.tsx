@@ -37,9 +37,16 @@ const SECTION_LABELS: Record<string, string> = {
 interface SettingsScreenProps {
   onResetApp?: () => void;
   onNavigate?: (screen: string) => void;
+  onRestoreComplete?: () => void;
 }
 
-export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScreenProps) {
+const SECTION_ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
+  log: "heart-outline", healthdata: "analytics-outline", medications: "medical-outline", symptoms: "pulse-outline",
+  monthlycheckin: "fitness-outline", eating: "restaurant-outline", mentalhealth: "heart-outline", comfort: "happy-outline",
+  goals: "flag-outline", appointments: "calendar-outline", reports: "document-text-outline", privacy: "shield-outline",
+};
+
+export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComplete }: SettingsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -136,9 +143,13 @@ export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScree
     setRestoreLoading(true);
     const { error } = await restoreFromCloud(user.id);
     setRestoreLoading(false);
-    if (error) return;
+    if (error) {
+      Alert.alert("Restore failed", error.message);
+      return;
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    loadData();
+    await loadData();
+    onRestoreComplete?.();
   };
 
   const displayName = user?.user_metadata?.first_name ?? user?.email?.split("@")[0] ?? "—";
@@ -392,16 +403,23 @@ export default function SettingsScreen({ onResetApp, onNavigate }: SettingsScree
               {(ALL_SECTION_KEYS as unknown as string[]).map((key) => {
                 const label = SECTION_LABELS[key] ?? key;
                 const isSelected = sectionSelections.has(key);
+                const iconName = SECTION_ICONS[key] ?? "ellipse-outline";
                 return (
                   <Pressable
                     key={key}
-                    style={[styles.profileRow, { marginBottom: 8, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: isSelected ? MAROON : C.border, backgroundColor: isSelected ? "rgba(128,0,32,0.08)" : C.surface }]}
+                    style={[styles.profileRow, { marginBottom: 8, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: isSelected ? MAROON : C.border, backgroundColor: isSelected ? "rgba(128,0,32,0.08)" : C.surface }]}
                     onPress={() => toggleSection(key)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isSelected }}
+                    accessibilityLabel={`${label}, ${isSelected ? "on" : "off"}`}
                   >
+                    <View style={[styles.profileIcon, { backgroundColor: (isSelected ? MAROON : C.surfaceElevated) + "99" }]}>
+                      <Ionicons name={iconName} size={18} color={isSelected ? "#fff" : C.textSecondary} />
+                    </View>
+                    <Text style={[styles.profileRowTitle, { flex: 1, marginBottom: 0 }]} numberOfLines={1}>{label}</Text>
                     <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
                       {isSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
                     </View>
-                    <Text style={[styles.profileRowTitle, { flex: 1, marginBottom: 0 }]}>{label}</Text>
                   </Pressable>
                 );
               })}

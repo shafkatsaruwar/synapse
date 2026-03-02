@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform,
-  useWindowDimensions, Animated, Image, StatusBar, KeyboardAvoidingView,
+  useWindowDimensions, Animated, Image, StatusBar, KeyboardAvoidingView, Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,6 +9,7 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
 import { settingsStorage, medicationStorage, ALL_SECTION_KEYS } from "@/lib/storage";
+import { getBackupStatus, restoreFromCloud } from "@/lib/backup";
 
 const brainLogo = require("../assets/images/brain-logo.jpeg");
 
@@ -134,8 +135,11 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authFirstName, setAuthFirstName] = useState("");
+  const [authLastName, setAuthLastName] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+  const [pendingRestoreCheck, setPendingRestoreCheck] = useState(false);
+  const restoreHandledRef = useRef(false);
 
   const [meds, setMeds] = useState<OnboardingMed[]>([]);
   const [medName, setMedName] = useState("");
@@ -252,9 +256,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
   const canContinueAccountStep = () => {
     if (step !== 8) return true;
-    return authMode === "signup"
-      ? !!(authFirstName.trim() && authEmail.trim() && authPassword)
-      : !!(authEmail.trim() && authPassword);
+    return !!(authEmail.trim() && authPassword);
   };
 
   const renderDots = () => (
@@ -404,13 +406,41 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     );
   };
 
+  useEffect(() => {
+    if (!pendingRestoreCheck || !user?.id || restoreHandledRef.current) return;
+    restoreHandledRef.current = true;
+    getBackupStatus(user.id).then((status) => {
+      setPendingRestoreCheck(false);
+      if (status.hasBackup) {
+        Alert.alert(
+          "Restore from backup?",
+          "You have data backed up. Restore it and skip adding medications again?",
+          [
+            { text: "No thanks", onPress: () => animateTransition(9) },
+            {
+              text: "Restore",
+              onPress: async () => {
+                const { error } = await restoreFromCloud(user.id);
+                if (error) {
+                  setAuthError(error.message);
+                  restoreHandledRef.current = false;
+                  return;
+                }
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                animateTransition(10);
+              },
+            },
+          ]
+        );
+      } else {
+        animateTransition(9);
+      }
+    });
+  }, [pendingRestoreCheck, user?.id]);
+
   const handleAuthSubmit = async () => {
     if (!authEmail.trim() || !authPassword) {
       setAuthError("Enter email and password.");
-      return;
-    }
-    if (authMode === "signup" && !authFirstName.trim()) {
-      setAuthError("Enter your first and last name.");
       return;
     }
     if (authMode === "signup" && authPassword.length < 6) {
@@ -419,8 +449,12 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     }
     setAuthError("");
     setAuthLoading(true);
+    if (authMode === "signin") restoreHandledRef.current = false;
+    const metadata: { first_name?: string; last_name?: string } = {};
+    if (authFirstName.trim()) metadata.first_name = authFirstName.trim();
+    if (authLastName.trim()) metadata.last_name = authLastName.trim();
     const { error } = authMode === "signup"
-      ? await signUp(authEmail.trim(), authPassword, authFirstName.trim() ? { first_name: authFirstName.trim() } : undefined)
+      ? await signUp(authEmail.trim(), authPassword, Object.keys(metadata).length > 0 ? metadata : undefined)
       : await signIn(authEmail.trim(), authPassword);
     setAuthLoading(false);
     if (error) {
@@ -428,7 +462,11 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    goNext();
+    if (authMode === "signup") {
+      goNext();
+    } else {
+      setPendingRestoreCheck(true);
+    }
   };
 
   const renderSignUpStep = () => (
@@ -437,18 +475,30 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       <AnimatedLine text="Sign in to back up your data securely." delay={200} style={styles.nameHint} color={C.textSecondary} />
       {authError ? <Text style={styles.authError}>{authError}</Text> : null}
       {authMode === "signup" && (
-        <AnimatedView delay={300}>
-          <TextInput
-            style={styles.nameInput}
-            placeholder="First and last name"
-            placeholderTextColor={C.textTertiary}
-            value={authFirstName}
-            onChangeText={setAuthFirstName}
-            autoCapitalize="words"
-          />
-        </AnimatedView>
+        <>
+          <AnimatedView delay={300}>
+            <TextInput
+              style={styles.nameInput}
+              placeholder="First name"
+              placeholderTextColor={C.textTertiary}
+              value={authFirstName}
+              onChangeText={setAuthFirstName}
+              autoCapitalize="words"
+            />
+          </AnimatedView>
+          <AnimatedView delay={350}>
+            <TextInput
+              style={styles.nameInput}
+              placeholder="Last name"
+              placeholderTextColor={C.textTertiary}
+              value={authLastName}
+              onChangeText={setAuthLastName}
+              autoCapitalize="words"
+            />
+          </AnimatedView>
+        </>
       )}
-      <AnimatedView delay={authMode === "signup" ? 400 : 300}>
+      <AnimatedView delay={authMode === "signup" ? 450 : 300}>
         <TextInput
           style={styles.nameInput}
           placeholder="Email"

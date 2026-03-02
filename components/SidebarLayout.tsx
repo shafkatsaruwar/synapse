@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import Colors from "@/constants/colors";
 import SynapseLogo from "@/components/SynapseLogo";
 import { featureFlags } from "@/constants/feature-flags";
@@ -340,7 +341,10 @@ export default function SidebarLayout({
                 <View style={styles.drawerFooter}>
                   <View style={styles.drawerFooterDivider} />
                   <View style={styles.drawerFooterContent}>
-                    <Text style={styles.drawerFooterText}>Synapse v1.0</Text>
+                    <Text style={styles.drawerFooterText}>
+                      Synapse v{Constants.expoConfig?.version ?? "1.3"}
+                      {__DEV__ ? " (dev)" : ""}
+                    </Text>
                   </View>
                 </View>
               </ScrollView>

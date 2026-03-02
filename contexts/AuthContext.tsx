@@ -7,7 +7,7 @@ type AuthContextValue = {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, metadata?: { first_name?: string }) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, metadata?: { first_name?: string; last_name?: string }) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
 };
@@ -42,13 +42,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUp = useCallback(
-    async (email: string, password: string, metadata?: { first_name?: string }) => {
-      const appUrl = process.env.EXPO_PUBLIC_APP_URL?.trim();
+    async (email: string, password: string, metadata?: { first_name?: string; last_name?: string }) => {
+      const appUrl =
+        process.env.EXPO_PUBLIC_APP_URL?.trim() ||
+        (typeof globalThis !== "undefined" && "location" in globalThis && (globalThis as any).location?.origin);
+      const data: Record<string, string> = {};
+      if (metadata?.first_name) data.first_name = metadata.first_name;
+      if (metadata?.last_name) data.last_name = metadata.last_name;
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          ...(metadata?.first_name ? { data: { first_name: metadata.first_name } } : {}),
+          ...(Object.keys(data).length > 0 ? { data } : {}),
           ...(appUrl ? { emailRedirectTo: appUrl } : {}),
         },
       });
@@ -62,7 +67,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
-    const appUrl = process.env.EXPO_PUBLIC_APP_URL?.trim();
+    const appUrl =
+      process.env.EXPO_PUBLIC_APP_URL?.trim() ||
+      (typeof globalThis !== "undefined" && "location" in globalThis && (globalThis as any).location?.origin);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: appUrl || undefined,
     });

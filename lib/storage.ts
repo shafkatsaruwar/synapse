@@ -709,25 +709,25 @@ export const exportAllData = async (): Promise<ExportPayload> => {
 export const importAllData = async (payload: ExportPayload): Promise<void> => {
   await clearAllData();
   await settingsStorage.save(payload.profile);
-  if (payload.allergy) await allergyStorage.save(payload.allergy);
-  if (payload.sickMode) await sickModeStorage.save(payload.sickMode);
-  await setItem(KEYS.HEALTH_LOGS, payload.healthLogs);
-  await setItem(KEYS.SYMPTOMS, payload.symptoms);
-  await setItem(KEYS.MEDICATIONS, payload.medications);
-  await setItem(KEYS.MEDICATION_LOGS, payload.medicationLogs);
-  await setItem(KEYS.APPOINTMENTS, payload.appointments);
-  await setItem(KEYS.DOCTOR_NOTES, payload.doctorNotes);
-  await setItem(KEYS.FASTING_LOGS, payload.fastingLogs);
-  await setItem(KEYS.VITALS, payload.vitals);
+  await allergyStorage.save(payload.allergy ?? { ...DEFAULT_ALLERGY_INFO });
+  await sickModeStorage.save(payload.sickMode ?? { ...DEFAULT_SICK_MODE });
+  await setItem(KEYS.HEALTH_LOGS, payload.healthLogs ?? []);
+  await setItem(KEYS.SYMPTOMS, payload.symptoms ?? []);
+  await setItem(KEYS.MEDICATIONS, payload.medications ?? []);
+  await setItem(KEYS.MEDICATION_LOGS, payload.medicationLogs ?? []);
+  await setItem(KEYS.APPOINTMENTS, payload.appointments ?? []);
+  await setItem(KEYS.DOCTOR_NOTES, payload.doctorNotes ?? []);
+  await setItem(KEYS.FASTING_LOGS, payload.fastingLogs ?? []);
+  await setItem(KEYS.VITALS, payload.vitals ?? []);
   await setItem(KEYS.DOCUMENTS, payload.documents ?? []);
   await setItem(KEYS.INSIGHTS, payload.insights ?? []);
   await setItem(KEYS.MED_COMPARISONS, payload.medComparisons ?? []);
   await setItem(KEYS.CONDITIONS, payload.conditions ?? []);
-  if (payload.monthlyCheckIns?.length) await setItem(KEYS.MONTHLY_CHECK_INS, payload.monthlyCheckIns);
-  if (payload.eatingLogs?.length) await setItem(KEYS.EATING_LOGS, payload.eatingLogs);
-  if (payload.mentalHealthMode?.active) await mentalHealthModeStorage.save(payload.mentalHealthMode);
-  if (payload.comfortItems?.length) await setItem(KEYS.COMFORT_ITEMS, payload.comfortItems);
-  if (payload.goals?.length) await setItem(KEYS.GOALS, payload.goals);
+  await setItem(KEYS.MONTHLY_CHECK_INS, payload.monthlyCheckIns ?? []);
+  await setItem(KEYS.EATING_LOGS, payload.eatingLogs ?? []);
+  await mentalHealthModeStorage.save(payload.mentalHealthMode ?? { ...DEFAULT_MENTAL_HEALTH_MODE });
+  await setItem(KEYS.COMFORT_ITEMS, payload.comfortItems ?? []);
+  await setItem(KEYS.GOALS, payload.goals ?? []);
 };
 
 export const clearAllData = async () => {

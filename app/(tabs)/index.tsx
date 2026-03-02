@@ -129,7 +129,7 @@ export default function MainScreen() {
       case "auth":
         return <AuthScreen onBack={() => handleNavigate("settings")} onSuccess={() => handleNavigate("settings")} />;
       case "settings":
-        return <SettingsScreen onResetApp={handleResetApp} onNavigate={handleNavigate} />;
+        return <SettingsScreen onResetApp={handleResetApp} onNavigate={handleNavigate} onRestoreComplete={() => setRefreshKey((k) => k + 1)} />;
       default:
         return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
     }

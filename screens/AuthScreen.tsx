@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,12 +9,14 @@ import {
   Platform,
   KeyboardAvoidingView,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
+import { getBackupStatus, restoreFromCloud } from "@/lib/backup";
 
 const C = Colors.dark;
 const MAROON = "#800020";
@@ -28,14 +30,50 @@ interface AuthScreenProps {
 
 export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
   const insets = useSafeAreaInsets();
-  const { signIn, signUp, signOut, resetPassword } = useAuth();
+  const { signIn, signUp, user, resetPassword } = useAuth();
 
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const [pendingRestoreCheck, setPendingRestoreCheck] = useState(false);
+  const restoreHandled = useRef(false);
+
+  useEffect(() => {
+    if (!pendingRestoreCheck || !user?.id || restoreHandled.current) return;
+    (async () => {
+      restoreHandled.current = true;
+      const status = await getBackupStatus(user.id);
+      setPendingRestoreCheck(false);
+      if (status.hasBackup) {
+        Alert.alert(
+          "Restore from backup?",
+          "You have data backed up. Restore it to this device?",
+          [
+            { text: "No thanks", onPress: () => onSuccess?.() },
+            {
+              text: "Restore",
+              onPress: async () => {
+                const { error } = await restoreFromCloud(user.id);
+                if (error) {
+                  setMessage({ type: "error", text: error.message });
+                  restoreHandled.current = false;
+                  return;
+                }
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                onSuccess?.();
+              },
+            },
+          ]
+        );
+      } else {
+        onSuccess?.();
+      }
+    })();
+  }, [pendingRestoreCheck, user?.id, onSuccess]);
 
   const handleSignIn = async () => {
     if (!email.trim() || !password) {
@@ -44,6 +82,7 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
     }
     setLoading(true);
     setMessage(null);
+    restoreHandled.current = false;
     const { error } = await signIn(email.trim(), password);
     setLoading(false);
     if (error) {
@@ -51,7 +90,7 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onSuccess?.();
+    setPendingRestoreCheck(true);
   };
 
   const handleSignUp = async () => {
@@ -65,10 +104,18 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
     }
     setLoading(true);
     setMessage(null);
-    const { error } = await signUp(email.trim(), password, firstName.trim() ? { first_name: firstName.trim() } : undefined);
+    const metadata: { first_name?: string; last_name?: string } = {};
+    if (firstName.trim()) metadata.first_name = firstName.trim();
+    if (lastName.trim()) metadata.last_name = lastName.trim();
+    const { error } = await signUp(email.trim(), password, Object.keys(metadata).length > 0 ? metadata : undefined);
     setLoading(false);
     if (error) {
-      setMessage({ type: "error", text: error.message });
+      const isEmailSendError =
+        /confirmation email|sending.*email|email.*send/i.test(error.message);
+      const text = isEmailSendError
+        ? "We couldn’t send the confirmation email right now. The team is fixing this—try again later or contact support. Your account may still have been created; try signing in."
+        : error.message;
+      setMessage({ type: "error", text });
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -125,6 +172,16 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
                 placeholderTextColor={C.textTertiary}
                 value={firstName}
                 onChangeText={setFirstName}
+                autoCapitalize="words"
+                autoCorrect={false}
+              />
+              <Text style={styles.label}>Last name (optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Last name"
+                placeholderTextColor={C.textTertiary}
+                value={lastName}
+                onChangeText={setLastName}
                 autoCapitalize="words"
                 autoCorrect={false}
               />

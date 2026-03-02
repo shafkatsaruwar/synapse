@@ -10,8 +10,8 @@ import ViewShot, { captureRef } from "react-native-view-shot";
 import Colors from "@/constants/colors";
 import {
   healthLogStorage, medicationStorage, medicationLogStorage, appointmentStorage,
-  doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage, eatingStorage,
-  type HealthLog, type Medication, type MedicationLog, type Appointment, type DoctorNote, type Symptom, type UserSettings, type SickModeData, type HealthCondition, type EatingEntry,
+  doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage, eatingStorage, monthlyCheckInStorage,
+  type HealthLog, type Medication, type MedicationLog, type Appointment, type DoctorNote, type Symptom, type UserSettings, type SickModeData, type HealthCondition, type EatingEntry, type MonthlyCheckIn,
 } from "@/lib/storage";
 import { getDaysAgo, formatDate, formatDateWithYear, getToday } from "@/lib/date-utils";
 
@@ -40,15 +40,16 @@ export default function ReportsScreen() {
   const [healthConditions, setHealthConditions] = useState<HealthCondition[]>([]);
   const [sickMode, setSickMode] = useState<SickModeData | null>(null);
   const [eatingEntries, setEatingEntries] = useState<EatingEntry[]>([]);
+  const [monthlyCheckIns, setMonthlyCheckIns] = useState<MonthlyCheckIn[]>([]);
   const [range, setRange] = useState<7 | 30>(7);
   const [exporting, setExporting] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [l, m, ml, a, n, s, st, sm, conds, eating] = await Promise.all([
+    const [l, m, ml, a, n, s, st, sm, conds, eating, checkIns] = await Promise.all([
       healthLogStorage.getAll(), medicationStorage.getAll(), medicationLogStorage.getAll(),
-      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), sickModeStorage.get(), conditionStorage.getAll(), eatingStorage.getAll(),
+      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), sickModeStorage.get(), conditionStorage.getAll(), eatingStorage.getAll(), monthlyCheckInStorage.getAll(),
     ]);
-    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setSickMode(sm); setHealthConditions(conds); setEatingEntries(eating);
+    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setSickMode(sm); setHealthConditions(conds); setEatingEntries(eating); setMonthlyCheckIns(checkIns);
   }, []);
 
   React.useEffect(() => { loadData(); }, [loadData]);
@@ -75,6 +76,7 @@ export default function ReportsScreen() {
   const feverEvents = recentSymptoms.filter((s) => s.temperature && s.temperature >= 99);
   const recentAppointments = appointments.filter((a) => a.date >= cutoff && a.date <= today);
   const recentEating = eatingEntries.filter((e) => e.date >= cutoff && e.date <= today).sort((a, b) => b.date.localeCompare(a.date));
+  const recentMonthlyCheckIns = monthlyCheckIns.filter((c) => c.date >= cutoff && c.date <= today).sort((a, b) => a.date.localeCompare(b.date));
 
   const buildChronologicalEvents = (): SummaryEvent[] => {
     const events: SummaryEvent[] = [];
@@ -141,6 +143,20 @@ export default function ReportsScreen() {
     r += `\nEATING (${recentEating.length} entries)\n`;
     if (recentEating.length > 0) recentEating.slice(0, 30).forEach((e) => { r += `  ${formatDate(e.date)}${e.time ? ` ${e.time}` : ""}: ${e.what} (${e.amount})\n`; });
     else r += `  None logged\n`;
+    r += `\nMONTHLY CHECK-IN (${recentMonthlyCheckIns.length} in period)\n`;
+    if (recentMonthlyCheckIns.length > 0) {
+      recentMonthlyCheckIns.forEach((c) => {
+        const parts: string[] = [];
+        if (c.bp) parts.push(`BP: ${c.bp}`);
+        if (c.weight != null) parts.push(`Weight: ${c.weight} ${c.weightUnit ?? "kg"}`);
+        if (c.height != null) parts.push(`Height: ${c.height} ${c.heightUnit ?? "cm"}`);
+        if (c.heartRate) parts.push(`Heart rate: ${c.heartRate}`);
+        if (c.ecgNotes) parts.push(`ECG: ${c.ecgNotes}`);
+        r += `  ${formatDate(c.date)}: ${parts.length > 0 ? parts.join(" | ") : "—"}\n`;
+      });
+    } else {
+      r += `  No monthly check-in data for this period.\n`;
+    }
     if (sickMode?.active) {
       r += `\nSICK MODE: Active${sickMode.recoveryMode ? " (Recovery)" : ""}\n`;
     }
@@ -335,6 +351,20 @@ export default function ReportsScreen() {
           {recentEating.length > 0 ? recentEating.slice(0, 15).map((e) => (
             <Text key={e.id} style={styles.summaryItem}>{formatDate(e.date)}: {e.what} ({e.amount})</Text>
           )) : <Text style={styles.summaryItemEmpty}>None logged</Text>}
+        </View>
+
+        <View style={styles.summaryBlock}>
+          <Text style={styles.summaryBlockTitle}>Monthly check-in ({recentMonthlyCheckIns.length})</Text>
+          {recentMonthlyCheckIns.length > 0 ? recentMonthlyCheckIns.map((c) => (
+            <View key={c.id} style={{ marginBottom: 6 }}>
+              <Text style={styles.summaryItem}>{formatDate(c.date)}</Text>
+              {(c.bp || c.weight != null || c.height != null || c.heartRate || c.ecgNotes) ? (
+                <Text style={[styles.summaryItem, { marginLeft: 8, fontSize: 12 }]}>
+                  {[c.bp && `BP: ${c.bp}`, c.weight != null && `Weight: ${c.weight} ${c.weightUnit ?? "kg"}`, c.height != null && `Height: ${c.height} ${c.heightUnit ?? "cm"}`, c.heartRate && `HR: ${c.heartRate}`, c.ecgNotes && `ECG: ${c.ecgNotes}`].filter(Boolean).join(" · ")}
+                </Text>
+              ) : null}
+            </View>
+          )) : <Text style={styles.summaryItemEmpty}>No monthly check-in data for this period.</Text>}
         </View>
 
         {sickMode?.active && (
