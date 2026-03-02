@@ -271,6 +271,24 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           </Pressable>
         </View>
 
+        <View style={styles.card}>
+          <Pressable
+            style={styles.profileRow}
+            onPress={() => onNavigate?.("doctors")}
+            accessibilityRole="button"
+            accessibilityLabel="Doctors: manage list for appointments"
+          >
+            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
+              <Ionicons name="medical-outline" size={16} color={C.tint} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.profileRowTitle}>Doctors</Text>
+              <Text style={styles.profileRowDesc}>Names used when creating appointments</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+          </Pressable>
+        </View>
+
         <Pressable
           style={styles.card}
           testID="ramadan-mode-toggle"

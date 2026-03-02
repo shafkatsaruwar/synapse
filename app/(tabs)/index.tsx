@@ -23,6 +23,7 @@ import RamadanScreen from "@/screens/RamadanScreen";
 import HealthProfileScreen from "@/screens/HealthProfileScreen";
 import HealthProfileConditionsScreen from "@/screens/HealthProfileConditionsScreen";
 import AllergyScreen from "@/screens/AllergyScreen";
+import DoctorsScreen from "@/screens/DoctorsScreen";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import AuthScreen from "@/screens/AuthScreen";
 import { settingsStorage } from "@/lib/storage";
@@ -122,6 +123,8 @@ export default function MainScreen() {
         return <PrivacyScreen />;
       case "healthprofile":
         return <HealthProfileScreen onBack={() => handleNavigate("settings")} onNavigate={handleNavigate} />;
+      case "doctors":
+        return <DoctorsScreen onBack={() => handleNavigate("settings")} />;
       case "healthprofileconditions":
         return <HealthProfileConditionsScreen onBack={() => handleNavigate("healthprofile")} />;
       case "allergy":

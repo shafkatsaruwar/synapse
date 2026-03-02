@@ -132,8 +132,11 @@ export default function AppointmentsScreen() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [tab, setTab] = useState<"calendar" | "notes">("calendar");
 
-  const [aptDoctorSearch, setAptDoctorSearch] = useState("");
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
+  const [showDoctorPicker, setShowDoctorPicker] = useState(false);
+  const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
+  const [addDoctorName, setAddDoctorName] = useState("");
+  const [addDoctorSpecialty, setAddDoctorSpecialty] = useState("");
   const [aptSpecialty, setAptSpecialty] = useState("");
   const [aptDate, setAptDate] = useState("");
   const [aptTime, setAptTime] = useState("");
@@ -174,39 +177,38 @@ export default function AppointmentsScreen() {
     });
   }, [user?.id, loadData]);
 
-  const doctorSuggestions = aptDoctorSearch.trim()
-    ? doctors.filter((d) => d.name.toLowerCase().includes(aptDoctorSearch.trim().toLowerCase()))
-    : doctors.slice(0, 10);
-  const showAddNewDoctor = aptDoctorSearch.trim() && !doctors.some((d) => d.name.trim().toLowerCase() === aptDoctorSearch.trim().toLowerCase());
+  const selectedDoctor = selectedDoctorId ? doctors.find((d) => d.id === selectedDoctorId) : null;
+
+  const handleAddDoctorFromForm = async () => {
+    const name = addDoctorName.trim();
+    if (!name) return;
+    let doc: Doctor;
+    if (user?.id) {
+      const result = await createDoctorInSupabase(user.id, name, addDoctorSpecialty.trim() || undefined);
+      if (!result.doctor) return;
+      doc = result.doctor;
+      await doctorsStorage.mergeFromRemote([doc]);
+    } else {
+      doc = await doctorsStorage.addOrGet({ name, specialty: addDoctorSpecialty.trim() || undefined });
+    }
+    setDoctors((prev) => [...prev.filter((d) => d.id !== doc.id), doc].sort((a, b) => a.name.localeCompare(b.name)));
+    setSelectedDoctorId(doc.id);
+    setAptSpecialty(doc.specialty ?? addDoctorSpecialty.trim());
+    setAddDoctorName("");
+    setAddDoctorSpecialty("");
+    setShowAddDoctorModal(false);
+    setShowDoctorPicker(false);
+    Haptics.selectionAsync();
+  };
 
   const handleAddApt = async () => {
-    const doctorName = (selectedDoctorId ? doctors.find((d) => d.id === selectedDoctorId)?.name : null) ?? aptDoctorSearch.trim();
-    if (!doctorName || !aptDate.trim()) return;
-
-    let doctorId = selectedDoctorId ?? undefined;
-    let specialty = aptSpecialty.trim();
-    if (!doctorId) {
-      if (user?.id && showAddNewDoctor) {
-        const { doctor } = await createDoctorInSupabase(user.id, doctorName, specialty || undefined);
-        if (doctor) {
-          doctorId = doctor.id;
-          specialty = doctor.specialty ?? specialty;
-          await doctorsStorage.mergeFromRemote([doctor]);
-          setDoctors((prev) => [...prev.filter((d) => d.id !== doctor.id), doctor].sort((a, b) => a.name.localeCompare(b.name)));
-        }
-      } else {
-        const doc = await doctorsStorage.addOrGet({ name: doctorName, specialty: specialty || undefined });
-        doctorId = doc.id;
-        specialty = doc.specialty ?? specialty;
-        setDoctors(await doctorsStorage.getAll());
-      }
-    } else {
-      const doc = doctors.find((d) => d.id === doctorId);
-      if (doc) specialty = doc.specialty ?? specialty;
-    }
+    if (!selectedDoctorId || !aptDate.trim()) return;
+    const doc = doctors.find((d) => d.id === selectedDoctorId);
+    const doctorName = doc?.name ?? "";
+    const specialty = aptSpecialty.trim() || doc?.specialty ?? "";
 
     const base: Omit<Appointment, "id"> = {
-      doctor_id: doctorId,
+      doctor_id: selectedDoctorId,
       doctorName,
       specialty,
       date: aptDate.trim(),
@@ -247,8 +249,9 @@ export default function AppointmentsScreen() {
   };
 
   const resetAptForm = () => {
-    setAptDoctorSearch("");
     setSelectedDoctorId(null);
+    setShowDoctorPicker(false);
+    setShowAddDoctorModal(false);
     setAptSpecialty("");
     setAptDate("");
     setAptTime("");
@@ -260,10 +263,15 @@ export default function AppointmentsScreen() {
     setEditingApt(null);
   };
 
-  const handleEditApt = (apt: Appointment) => {
+  const handleEditApt = async (apt: Appointment) => {
     setEditingApt(apt);
-    setAptDoctorSearch(apt.doctorName);
-    setSelectedDoctorId(apt.doctor_id ?? null);
+    let doctorId: string | null = apt.doctor_id ?? null;
+    if (!doctorId && apt.doctorName) {
+      const doc = await doctorsStorage.addOrGet({ name: apt.doctorName, specialty: apt.specialty ?? undefined });
+      doctorId = doc.id;
+      setDoctors((prev) => [...prev.filter((d) => d.id !== doc.id), doc].sort((a, b) => a.name.localeCompare(b.name)));
+    }
+    setSelectedDoctorId(doctorId);
     setAptSpecialty(apt.specialty ?? "");
     setAptDate(apt.date);
     setAptTime(apt.time);
@@ -275,12 +283,12 @@ export default function AppointmentsScreen() {
 
   const handleUpdateApt = async () => {
     if (!editingApt) return;
-    const doctorName = (selectedDoctorId ? doctors.find((d) => d.id === selectedDoctorId)?.name : null) ?? aptDoctorSearch.trim();
-    if (!doctorName || !aptDate.trim()) return;
+    const doc = selectedDoctorId ? doctors.find((d) => d.id === selectedDoctorId) : null;
+    if (!doc || !aptDate.trim()) return;
     const updates: Partial<Appointment> = {
       doctor_id: selectedDoctorId ?? undefined,
-      doctorName,
-      specialty: aptSpecialty.trim() || (selectedDoctorId ? (doctors.find((d) => d.id === selectedDoctorId)?.specialty ?? "") : ""),
+      doctorName: doc.name,
+      specialty: aptSpecialty.trim() || doc.specialty ?? "",
       date: aptDate.trim(),
       time: aptTime.trim() || "09:00",
       location: aptLocation.trim(),
@@ -461,35 +469,41 @@ export default function AppointmentsScreen() {
               <View style={styles.modal}>
               <Text style={styles.modalTitle}>{editingApt ? "Edit Appointment" : "New Appointment"}</Text>
               <Text style={styles.label}>Doctor *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Search or type name"
-                placeholderTextColor={C.textTertiary}
-                value={aptDoctorSearch}
-                onChangeText={(t) => { setAptDoctorSearch(t); setSelectedDoctorId(null); }}
-                onFocus={() => setAptDoctorSearch(aptDoctorSearch)}
-              />
-              <View style={styles.dropdown}>
-                {doctorSuggestions.map((d) => (
-                  <Pressable key={d.id} style={styles.dropdownRow} onPress={() => { setSelectedDoctorId(d.id); setAptDoctorSearch(d.name); setAptSpecialty(d.specialty ?? ""); }}>
-                    <Text style={styles.dropdownText}>{d.name}</Text>
-                    {d.specialty ? <Text style={styles.dropdownSub}>{d.specialty}</Text> : null}
-                  </Pressable>
-                ))}
-                {showAddNewDoctor && (
+              <Pressable
+                style={styles.doctorSelect}
+                onPress={() => setShowDoctorPicker((v) => !v)}
+                accessibilityRole="button"
+                accessibilityLabel={selectedDoctor ? `${selectedDoctor.name}${selectedDoctor.specialty ? `, ${selectedDoctor.specialty}` : ""}` : "Select doctor"}
+              >
+                <Text style={[styles.doctorSelectText, !selectedDoctor && { color: C.textTertiary }]}>
+                  {selectedDoctor ? `${selectedDoctor.name}${selectedDoctor.specialty ? ` · ${selectedDoctor.specialty}` : ""}` : "Select doctor"}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={C.textSecondary} />
+              </Pressable>
+              {showDoctorPicker && (
+                <View style={styles.dropdown}>
+                  {doctors.map((d) => (
+                    <Pressable
+                      key={d.id}
+                      style={[styles.dropdownRow, selectedDoctorId === d.id && styles.dropdownRowSelected]}
+                      onPress={() => { setSelectedDoctorId(d.id); setAptSpecialty(d.specialty ?? ""); setShowDoctorPicker(false); Haptics.selectionAsync(); }}
+                    >
+                      <Text style={styles.dropdownText}>{d.name}</Text>
+                      {d.specialty ? <Text style={styles.dropdownSub}>{d.specialty}</Text> : null}
+                    </Pressable>
+                  ))}
                   <TouchableOpacity
                     style={[styles.dropdownRow, styles.addNewRow, styles.addNewDoctorBtn]}
-                    onPress={() => { setSelectedDoctorId(null); Haptics.selectionAsync(); Keyboard.dismiss(); }}
+                    onPress={() => { setShowDoctorPicker(false); setShowAddDoctorModal(true); Keyboard.dismiss(); }}
                     activeOpacity={0.7}
-                    hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
                     accessibilityRole="button"
-                    accessibilityLabel={`Add new doctor ${aptDoctorSearch.trim()}`}
+                    accessibilityLabel="Add new doctor"
                   >
                     <Ionicons name="add-circle-outline" size={20} color={C.tint} />
-                    <Text style={styles.addNewText}>+ Add new doctor: {aptDoctorSearch.trim()}</Text>
+                    <Text style={styles.addNewText}>+ Add new doctor</Text>
                   </TouchableOpacity>
-                )}
-              </View>
+                </View>
+              )}
               <Text style={styles.label}>Specialty</Text>
               <TextInput style={styles.input} placeholder="e.g. Cardiologist" placeholderTextColor={C.textTertiary} value={aptSpecialty} onChangeText={setAptSpecialty} />
               <View style={styles.fieldRow}>
@@ -539,15 +553,31 @@ export default function AppointmentsScreen() {
               <View style={styles.modalActions}>
                 <Pressable style={styles.cancelBtn} onPress={() => { setShowAptModal(false); resetAptForm(); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
                 {editingApt ? (
-                  <Pressable style={[styles.confirmBtn, (!aptDoctorSearch.trim() || !aptDate.trim()) && { opacity: 0.5 }]} onPress={handleUpdateApt} disabled={!aptDoctorSearch.trim() || !aptDate.trim()}><Text style={styles.confirmText}>Save</Text></Pressable>
+                  <Pressable style={[styles.confirmBtn, (!selectedDoctorId || !aptDate.trim()) && { opacity: 0.5 }]} onPress={handleUpdateApt} disabled={!selectedDoctorId || !aptDate.trim()}><Text style={styles.confirmText}>Save</Text></Pressable>
                 ) : (
-                  <Pressable style={[styles.confirmBtn, (!aptDoctorSearch.trim() || !aptDate.trim()) && { opacity: 0.5 }]} onPress={handleAddApt} disabled={!aptDoctorSearch.trim() || !aptDate.trim()}><Text style={styles.confirmText}>Add</Text></Pressable>
+                  <Pressable style={[styles.confirmBtn, (!selectedDoctorId || !aptDate.trim()) && { opacity: 0.5 }]} onPress={handleAddApt} disabled={!selectedDoctorId || !aptDate.trim()}><Text style={styles.confirmText}>Add</Text></Pressable>
                 )}
               </View>
             </View>
             </ScrollView>
           </KeyboardAvoidingView>
         </View>
+      </Modal>
+
+      <Modal visible={showAddDoctorModal} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => setShowAddDoctorModal(false)}>
+          <Pressable style={styles.modal} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Add doctor</Text>
+            <Text style={styles.label}>Name *</Text>
+            <TextInput style={styles.input} placeholder="Dr. Smith" placeholderTextColor={C.textTertiary} value={addDoctorName} onChangeText={setAddDoctorName} />
+            <Text style={styles.label}>Specialty</Text>
+            <TextInput style={styles.input} placeholder="e.g. Cardiologist" placeholderTextColor={C.textTertiary} value={addDoctorSpecialty} onChangeText={setAddDoctorSpecialty} />
+            <View style={styles.modalActions}>
+              <Pressable style={styles.cancelBtn} onPress={() => setShowAddDoctorModal(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+              <Pressable style={[styles.confirmBtn, !addDoctorName.trim() && { opacity: 0.5 }]} onPress={handleAddDoctorFromForm} disabled={!addDoctorName.trim()}><Text style={styles.confirmText}>Add</Text></Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       <Modal visible={showNoteModal} transparent animationType="fade">
@@ -602,8 +632,11 @@ const styles = StyleSheet.create({
   label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
   input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
   fieldRow: { flexDirection: "row", gap: 10 },
-  dropdown: { marginBottom: 14, maxHeight: 160, borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: "hidden", backgroundColor: C.surfaceElevated },
-  dropdownRow: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  doctorSelect: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14, minHeight: 48 },
+  doctorSelectText: { fontWeight: "500", fontSize: 14, color: C.text },
+  dropdown: { marginBottom: 14, maxHeight: 200, borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: "hidden", backgroundColor: C.surfaceElevated },
+  dropdownRow: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  dropdownRowSelected: { backgroundColor: C.tintLight },
   dropdownText: { fontWeight: "500", fontSize: 14, color: C.text },
   dropdownSub: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
   addNewRow: { flexDirection: "row", alignItems: "center", gap: 8 },

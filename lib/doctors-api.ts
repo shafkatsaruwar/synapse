@@ -37,3 +37,8 @@ export async function createDoctorInSupabase(
     error: null,
   };
 }
+
+export async function deleteDoctorFromSupabase(userId: string, doctorId: string): Promise<{ error: Error | null }> {
+  const { error } = await supabase.from("doctors").delete().eq("user_id", userId).eq("id", doctorId);
+  return { error: error ? new Error(error.message) : null };
+}
