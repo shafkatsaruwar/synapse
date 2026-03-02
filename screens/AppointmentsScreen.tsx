@@ -205,7 +205,7 @@ export default function AppointmentsScreen() {
     if (!selectedDoctorId || !aptDate.trim()) return;
     const doc = doctors.find((d) => d.id === selectedDoctorId);
     const doctorName = doc?.name ?? "";
-    const specialty = aptSpecialty.trim() || doc?.specialty ?? "";
+    const specialty = aptSpecialty.trim() || (doc?.specialty ?? "");
 
     const base: Omit<Appointment, "id"> = {
       doctor_id: selectedDoctorId,
