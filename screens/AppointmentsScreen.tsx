@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import {
-  StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, Alert, useWindowDimensions, KeyboardAvoidingView, Keyboard,
+  StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, Alert, useWindowDimensions, KeyboardAvoidingView, Keyboard, TouchableOpacity,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -458,7 +458,7 @@ export default function AppointmentsScreen() {
               showsVerticalScrollIndicator={true}
               style={Platform.OS !== "web" ? { maxHeight: "85%" } : undefined}
             >
-              <Pressable style={styles.modal} onPress={() => {}}>
+              <View style={styles.modal}>
               <Text style={styles.modalTitle}>{editingApt ? "Edit Appointment" : "New Appointment"}</Text>
               <Text style={styles.label}>Doctor *</Text>
               <TextInput
@@ -477,16 +477,17 @@ export default function AppointmentsScreen() {
                   </Pressable>
                 ))}
                 {showAddNewDoctor && (
-                  <Pressable
+                  <TouchableOpacity
                     style={[styles.dropdownRow, styles.addNewRow, styles.addNewDoctorBtn]}
                     onPress={() => { setSelectedDoctorId(null); Haptics.selectionAsync(); Keyboard.dismiss(); }}
-                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
                     accessibilityRole="button"
                     accessibilityLabel={`Add new doctor ${aptDoctorSearch.trim()}`}
                   >
                     <Ionicons name="add-circle-outline" size={20} color={C.tint} />
                     <Text style={styles.addNewText}>+ Add new doctor: {aptDoctorSearch.trim()}</Text>
-                  </Pressable>
+                  </TouchableOpacity>
                 )}
               </View>
               <Text style={styles.label}>Specialty</Text>
@@ -543,7 +544,7 @@ export default function AppointmentsScreen() {
                   <Pressable style={[styles.confirmBtn, (!aptDoctorSearch.trim() || !aptDate.trim()) && { opacity: 0.5 }]} onPress={handleAddApt} disabled={!aptDoctorSearch.trim() || !aptDate.trim()}><Text style={styles.confirmText}>Add</Text></Pressable>
                 )}
               </View>
-            </Pressable>
+            </View>
             </ScrollView>
           </KeyboardAvoidingView>
         </View>
