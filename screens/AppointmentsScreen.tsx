@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, Alert, useWindowDimensions,
 } from "react-native";
@@ -6,10 +6,43 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { appointmentStorage, doctorNoteStorage, type Appointment, type DoctorNote } from "@/lib/storage";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  appointmentStorage,
+  doctorNoteStorage,
+  doctorsStorage,
+  type Appointment,
+  type Doctor,
+  type DoctorNote,
+  type RepeatUnit,
+} from "@/lib/storage";
+import { fetchDoctorsFromSupabase, createDoctorInSupabase } from "@/lib/doctors-api";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 
 const C = Colors.dark;
+
+const REPEAT_OPTIONS: { value: "none" | "week" | "2weeks" | "month" | "custom"; label: string; interval?: number; unit?: RepeatUnit }[] = [
+  { value: "none", label: "Does not repeat" },
+  { value: "week", label: "Every week", interval: 1, unit: "week" },
+  { value: "2weeks", label: "Every 2 weeks", interval: 2, unit: "week" },
+  { value: "month", label: "Every month", interval: 1, unit: "month" },
+  { value: "custom", label: "Custom" },
+];
+
+function getRecurrenceLabel(apt: Appointment, allAppointments: Appointment[]): string | null {
+  const source = apt.parent_recurring_id
+    ? allAppointments.find((a) => a.id === apt.parent_recurring_id) ?? apt
+    : apt;
+  if (!source.is_recurring && !apt.parent_recurring_id) return null;
+  const i = source.repeat_interval;
+  const u = source.repeat_unit;
+  if (i == null || !u) return apt.parent_recurring_id ? "Part of series" : null;
+  if (i === 1 && u === "week") return "Repeats every week";
+  if (i === 2 && u === "week") return "Repeats every 2 weeks";
+  if (i === 1 && u === "month") return "Repeats every month";
+  if (i === 1 && u === "day") return "Repeats daily";
+  return `Repeats every ${i} ${u}s`;
+}
 
 function CalendarView({ appointments, selectedDate, onSelectDate }: { appointments: Appointment[]; selectedDate: string; onSelectDate: (d: string) => void }) {
   const [viewMonth, setViewMonth] = useState(() => {
@@ -78,37 +111,170 @@ const calStyles = StyleSheet.create({
 export default function AppointmentsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { user } = useAuth();
   const isWide = width >= 768;
   const today = getToday();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [notes, setNotes] = useState<DoctorNote[]>([]);
   const [showAptModal, setShowAptModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
+  const [editingApt, setEditingApt] = useState<Appointment | null>(null);
+  const [editMode, setEditMode] = useState<"one" | "all">("one");
   const [selectedDate, setSelectedDate] = useState(today);
   const [tab, setTab] = useState<"calendar" | "notes">("calendar");
 
-  const [aptDoctor, setAptDoctor] = useState("");
+  const [aptDoctorSearch, setAptDoctorSearch] = useState("");
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
   const [aptSpecialty, setAptSpecialty] = useState("");
   const [aptDate, setAptDate] = useState("");
   const [aptTime, setAptTime] = useState("");
   const [aptLocation, setAptLocation] = useState("");
+  const [aptNotes, setAptNotes] = useState("");
+  const [repeatOption, setRepeatOption] = useState<typeof REPEAT_OPTIONS[0]["value"]>("none");
+  const [customInterval, setCustomInterval] = useState("1");
+  const [customUnit, setCustomUnit] = useState<RepeatUnit>("week");
   const [noteText, setNoteText] = useState("");
 
   const loadData = useCallback(async () => {
-    const [apts, n] = await Promise.all([appointmentStorage.getAll(), doctorNoteStorage.getAll()]);
+    const [apts, docs, n] = await Promise.all([appointmentStorage.getAll(), doctorsStorage.getAll(), doctorNoteStorage.getAll()]);
     setAppointments(apts.sort((a, b) => a.date.localeCompare(b.date)));
+    setDoctors(docs);
     setNotes(n.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
   }, []);
 
-  React.useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    fetchDoctorsFromSupabase(user.id).then((remote) => {
+      if (remote.length === 0) return;
+      doctorsStorage.mergeFromRemote(remote).then(() => loadData());
+    });
+  }, [user?.id, loadData]);
+
+  const doctorSuggestions = aptDoctorSearch.trim()
+    ? doctors.filter((d) => d.name.toLowerCase().includes(aptDoctorSearch.trim().toLowerCase()))
+    : doctors.slice(0, 10);
+  const showAddNewDoctor = aptDoctorSearch.trim() && !doctors.some((d) => d.name.trim().toLowerCase() === aptDoctorSearch.trim().toLowerCase());
 
   const handleAddApt = async () => {
-    if (!aptDoctor.trim() || !aptDate.trim()) return;
-    await appointmentStorage.save({ doctorName: aptDoctor.trim(), specialty: aptSpecialty.trim(), date: aptDate.trim(), time: aptTime.trim() || "09:00", location: aptLocation.trim(), notes: "" });
+    const doctorName = (selectedDoctorId ? doctors.find((d) => d.id === selectedDoctorId)?.name : null) ?? aptDoctorSearch.trim();
+    if (!doctorName || !aptDate.trim()) return;
+
+    let doctorId = selectedDoctorId ?? undefined;
+    let specialty = aptSpecialty.trim();
+    if (!doctorId) {
+      if (user?.id && showAddNewDoctor) {
+        const { doctor } = await createDoctorInSupabase(user.id, doctorName, specialty || undefined);
+        if (doctor) {
+          doctorId = doctor.id;
+          specialty = doctor.specialty ?? specialty;
+          await doctorsStorage.mergeFromRemote([doctor]);
+          setDoctors((prev) => [...prev.filter((d) => d.id !== doctor.id), doctor].sort((a, b) => a.name.localeCompare(b.name)));
+        }
+      } else {
+        const doc = await doctorsStorage.addOrGet({ name: doctorName, specialty: specialty || undefined });
+        doctorId = doc.id;
+        specialty = doc.specialty ?? specialty;
+        setDoctors(await doctorsStorage.getAll());
+      }
+    } else {
+      const doc = doctors.find((d) => d.id === doctorId);
+      if (doc) specialty = doc.specialty ?? specialty;
+    }
+
+    const base: Omit<Appointment, "id"> = {
+      doctor_id: doctorId,
+      doctorName,
+      specialty,
+      date: aptDate.trim(),
+      time: aptTime.trim() || "09:00",
+      location: aptLocation.trim(),
+      notes: aptNotes.trim(),
+    };
+
+    const opt = REPEAT_OPTIONS.find((o) => o.value === repeatOption);
+    if (opt && opt.value !== "none" && opt.interval != null && opt.unit) {
+      base.is_recurring = true;
+      base.repeat_interval = opt.interval;
+      base.repeat_unit = opt.unit;
+      const end = new Date(aptDate + "T12:00:00");
+      end.setMonth(end.getMonth() + 6);
+      base.repeat_end_date = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+    } else if (repeatOption === "custom" && customInterval && customUnit) {
+      const n = parseInt(customInterval, 10);
+      if (!isNaN(n) && n > 0) {
+        base.is_recurring = true;
+        base.repeat_interval = n;
+        base.repeat_unit = customUnit;
+        const end = new Date(aptDate + "T12:00:00");
+        end.setMonth(end.getMonth() + 6);
+        base.repeat_end_date = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+      }
+    }
+
+    await appointmentStorage.save(base);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setAptDoctor(""); setAptSpecialty(""); setAptDate(""); setAptTime(""); setAptLocation("");
-    setShowAptModal(false); loadData();
+    resetAptForm();
+    setShowAptModal(false);
+    loadData();
+  };
+
+  const resetAptForm = () => {
+    setAptDoctorSearch("");
+    setSelectedDoctorId(null);
+    setAptSpecialty("");
+    setAptDate("");
+    setAptTime("");
+    setAptLocation("");
+    setAptNotes("");
+    setRepeatOption("none");
+    setCustomInterval("1");
+    setCustomUnit("week");
+    setEditingApt(null);
+  };
+
+  const handleEditApt = (apt: Appointment) => {
+    setEditingApt(apt);
+    setAptDoctorSearch(apt.doctorName);
+    setSelectedDoctorId(apt.doctor_id ?? null);
+    setAptSpecialty(apt.specialty ?? "");
+    setAptDate(apt.date);
+    setAptTime(apt.time);
+    setAptLocation(apt.location ?? "");
+    setAptNotes(apt.notes ?? "");
+    setRepeatOption("none");
+    setShowAptModal(true);
+  };
+
+  const handleUpdateApt = async () => {
+    if (!editingApt) return;
+    const doctorName = (selectedDoctorId ? doctors.find((d) => d.id === selectedDoctorId)?.name : null) ?? aptDoctorSearch.trim();
+    if (!doctorName || !aptDate.trim()) return;
+    const updates: Partial<Appointment> = {
+      doctor_id: selectedDoctorId ?? undefined,
+      doctorName,
+      specialty: aptSpecialty.trim() || (selectedDoctorId ? doctors.find((d) => d.id === selectedDoctorId)?.specialty ?? "") : "",
+      date: aptDate.trim(),
+      time: aptTime.trim() || "09:00",
+      location: aptLocation.trim(),
+      notes: aptNotes.trim(),
+    };
+    if (editMode === "one") {
+      await appointmentStorage.update(editingApt.id, updates);
+    } else {
+      const parentId = editingApt.parent_recurring_id ?? editingApt.id;
+      const toUpdate = appointments.filter((a) => a.id === editingApt.id || (a.parent_recurring_id === parentId && a.date >= editingApt.date));
+      for (const a of toUpdate) {
+        await appointmentStorage.update(a.id, { ...updates, date: a.date });
+      }
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    resetAptForm();
+    setShowAptModal(false);
+    loadData();
   };
 
   const handleDeleteApt = async (apt: Appointment) => {
@@ -123,7 +289,9 @@ export default function AppointmentsScreen() {
     if (!noteText.trim()) return;
     await doctorNoteStorage.save({ text: noteText.trim() });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setNoteText(""); setShowNoteModal(false); loadData();
+    setNoteText("");
+    setShowNoteModal(false);
+    loadData();
   };
 
   const handleDeleteNote = async (note: DoctorNote) => {
@@ -136,6 +304,7 @@ export default function AppointmentsScreen() {
 
   const selectedApts = appointments.filter((a) => a.date === selectedDate);
   const upcoming = appointments.filter((a) => a.date >= today);
+  const isRecurringApt = (a: Appointment) => a.is_recurring || a.parent_recurring_id;
 
   return (
     <View style={styles.container}>
@@ -145,7 +314,7 @@ export default function AppointmentsScreen() {
       }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Appointments</Text>
-          <Pressable style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => tab === "calendar" ? setShowAptModal(true) : setShowNoteModal(true)} accessibilityRole="button" accessibilityLabel={tab === "calendar" ? "Add appointment" : "Add doctor note"} hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}>
+          <Pressable style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => { resetAptForm(); tab === "calendar" ? setShowAptModal(true) : setShowNoteModal(true); }} accessibilityRole="button" accessibilityLabel={tab === "calendar" ? "Add appointment" : "Add doctor note"} hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}>
             <Ionicons name="add" size={20} color="#fff" />
           </Pressable>
         </View>
@@ -176,6 +345,7 @@ export default function AppointmentsScreen() {
                       <View style={{ flex: 1 }}>
                         <Text style={styles.aptDoctor}>{apt.doctorName}</Text>
                         {!!apt.specialty && <Text style={styles.aptSpec}>{apt.specialty}</Text>}
+                        {getRecurrenceLabel(apt, appointments) && <Text style={styles.aptRecurrence}>{getRecurrenceLabel(apt, appointments)}</Text>}
                         <View style={styles.aptMeta}>
                           <Ionicons name="time-outline" size={12} color={C.textSecondary} />
                           <Text style={styles.aptMetaText}>{formatTime12h(apt.time)}</Text>
@@ -185,6 +355,7 @@ export default function AppointmentsScreen() {
                           </>}
                         </View>
                       </View>
+                      <Pressable onPress={() => handleEditApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Edit appointment with ${apt.doctorName}`}><Ionicons name="pencil-outline" size={16} color={C.textSecondary} /></Pressable>
                       <Pressable onPress={() => handleDeleteApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Delete appointment with ${apt.doctorName}`}><Ionicons name="trash-outline" size={16} color={C.textTertiary} /></Pressable>
                     </View>
                   ))}
@@ -207,6 +378,7 @@ export default function AppointmentsScreen() {
                       <View style={{ flex: 1 }}>
                         <Text style={styles.aptDoctor}>{apt.doctorName}</Text>
                         {!!apt.specialty && <Text style={styles.aptSpec}>{apt.specialty}</Text>}
+                        {getRecurrenceLabel(apt, appointments) && <Text style={styles.aptRecurrence}>{getRecurrenceLabel(apt, appointments)}</Text>}
                       </View>
                     </Pressable>
                   ))}
@@ -235,24 +407,89 @@ export default function AppointmentsScreen() {
       </ScrollView>
 
       <Modal visible={showAptModal} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setShowAptModal(false)}>
-          <Pressable style={styles.modal} onPress={() => {}}>
-            <Text style={styles.modalTitle}>New Appointment</Text>
-            <Text style={styles.label}>Doctor *</Text>
-            <TextInput style={styles.input} placeholder="Dr. Smith" placeholderTextColor={C.textTertiary} value={aptDoctor} onChangeText={setAptDoctor} />
-            <Text style={styles.label}>Specialty</Text>
-            <TextInput style={styles.input} placeholder="e.g. Cardiologist" placeholderTextColor={C.textTertiary} value={aptSpecialty} onChangeText={setAptSpecialty} />
-            <View style={styles.fieldRow}>
-              <View style={{ flex: 1 }}><Text style={styles.label}>Date * (YYYY-MM-DD)</Text><TextInput style={styles.input} placeholder="2026-03-15" placeholderTextColor={C.textTertiary} value={aptDate} onChangeText={setAptDate} /></View>
-              <View style={{ flex: 1 }}><Text style={styles.label}>Time (HH:MM)</Text><TextInput style={styles.input} placeholder="09:00" placeholderTextColor={C.textTertiary} value={aptTime} onChangeText={setAptTime} /></View>
-            </View>
-            <Text style={styles.label}>Location</Text>
-            <TextInput style={styles.input} placeholder="Hospital name" placeholderTextColor={C.textTertiary} value={aptLocation} onChangeText={setAptLocation} />
-            <View style={styles.modalActions}>
-              <Pressable style={styles.cancelBtn} onPress={() => setShowAptModal(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
-              <Pressable style={[styles.confirmBtn, (!aptDoctor.trim() || !aptDate.trim()) && { opacity: 0.5 }]} onPress={handleAddApt} disabled={!aptDoctor.trim() || !aptDate.trim()}><Text style={styles.confirmText}>Add</Text></Pressable>
-            </View>
-          </Pressable>
+        <Pressable style={styles.overlay} onPress={() => { setShowAptModal(false); resetAptForm(); }}>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 24 }} keyboardShouldPersistTaps="handled">
+            <Pressable style={styles.modal} onPress={() => {}}>
+              <Text style={styles.modalTitle}>{editingApt ? "Edit Appointment" : "New Appointment"}</Text>
+              <Text style={styles.label}>Doctor *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Search or type name"
+                placeholderTextColor={C.textTertiary}
+                value={aptDoctorSearch}
+                onChangeText={(t) => { setAptDoctorSearch(t); setSelectedDoctorId(null); }}
+                onFocus={() => setAptDoctorSearch(aptDoctorSearch)}
+              />
+              <View style={styles.dropdown}>
+                {doctorSuggestions.map((d) => (
+                  <Pressable key={d.id} style={styles.dropdownRow} onPress={() => { setSelectedDoctorId(d.id); setAptDoctorSearch(d.name); setAptSpecialty(d.specialty ?? ""); }}>
+                    <Text style={styles.dropdownText}>{d.name}</Text>
+                    {d.specialty ? <Text style={styles.dropdownSub}>{d.specialty}</Text> : null}
+                  </Pressable>
+                ))}
+                {showAddNewDoctor && (
+                  <Pressable style={[styles.dropdownRow, styles.addNewRow]} onPress={() => setSelectedDoctorId(null)}>
+                    <Ionicons name="add-circle-outline" size={18} color={C.tint} />
+                    <Text style={styles.addNewText}>+ Add new doctor: {aptDoctorSearch.trim()}</Text>
+                  </Pressable>
+                )}
+              </View>
+              <Text style={styles.label}>Specialty</Text>
+              <TextInput style={styles.input} placeholder="e.g. Cardiologist" placeholderTextColor={C.textTertiary} value={aptSpecialty} onChangeText={setAptSpecialty} />
+              <View style={styles.fieldRow}>
+                <View style={{ flex: 1 }}><Text style={styles.label}>Date * (YYYY-MM-DD)</Text><TextInput style={styles.input} placeholder="2026-03-15" placeholderTextColor={C.textTertiary} value={aptDate} onChangeText={setAptDate} /></View>
+                <View style={{ flex: 1 }}><Text style={styles.label}>Time (HH:MM)</Text><TextInput style={styles.input} placeholder="09:00" placeholderTextColor={C.textTertiary} value={aptTime} onChangeText={setAptTime} /></View>
+              </View>
+              <Text style={styles.label}>Location</Text>
+              <TextInput style={styles.input} placeholder="Hospital name" placeholderTextColor={C.textTertiary} value={aptLocation} onChangeText={setAptLocation} />
+              <Text style={styles.label}>Notes</Text>
+              <TextInput style={[styles.input, { minHeight: 60 }]} placeholder="Optional notes" placeholderTextColor={C.textTertiary} value={aptNotes} onChangeText={setAptNotes} multiline />
+
+              {!editingApt && (
+                <>
+                  <Text style={styles.label}>Repeat</Text>
+                  <View style={styles.repeatRow}>
+                    {REPEAT_OPTIONS.map((o) => (
+                      <Pressable key={o.value} style={[styles.repeatChip, repeatOption === o.value && styles.repeatChipActive]} onPress={() => setRepeatOption(o.value)}>
+                        <Text style={[styles.repeatChipText, repeatOption === o.value && styles.repeatChipTextActive]}>{o.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  {repeatOption === "custom" && (
+                    <View style={styles.customRepeat}>
+                      <TextInput style={[styles.input, { width: 56 }]} placeholder="1" value={customInterval} onChangeText={setCustomInterval} keyboardType="number-pad" />
+                      <Pressable style={[styles.unitBtn, customUnit === "day" && styles.unitBtnActive]} onPress={() => setCustomUnit("day")}><Text style={styles.unitBtnText}>days</Text></Pressable>
+                      <Pressable style={[styles.unitBtn, customUnit === "week" && styles.unitBtnActive]} onPress={() => setCustomUnit("week")}><Text style={styles.unitBtnText}>weeks</Text></Pressable>
+                      <Pressable style={[styles.unitBtn, customUnit === "month" && styles.unitBtnActive]} onPress={() => setCustomUnit("month")}><Text style={styles.unitBtnText}>months</Text></Pressable>
+                    </View>
+                  )}
+                </>
+              )}
+
+              {editingApt && isRecurringApt(editingApt) && (
+                <View style={styles.editModeRow}>
+                  <Text style={styles.label}>Edit</Text>
+                  <View style={styles.editModeChips}>
+                    <Pressable style={[styles.repeatChip, editMode === "one" && styles.repeatChipActive]} onPress={() => setEditMode("one")}>
+                      <Text style={[styles.repeatChipText, editMode === "one" && styles.repeatChipTextActive]}>Only this occurrence</Text>
+                    </Pressable>
+                    <Pressable style={[styles.repeatChip, editMode === "all" && styles.repeatChipActive]} onPress={() => setEditMode("all")}>
+                      <Text style={[styles.repeatChipText, editMode === "all" && styles.repeatChipTextActive]}>All future occurrences</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.modalActions}>
+                <Pressable style={styles.cancelBtn} onPress={() => { setShowAptModal(false); resetAptForm(); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+                {editingApt ? (
+                  <Pressable style={[styles.confirmBtn, (!aptDoctorSearch.trim() || !aptDate.trim()) && { opacity: 0.5 }]} onPress={handleUpdateApt} disabled={!aptDoctorSearch.trim() || !aptDate.trim()}><Text style={styles.confirmText}>Save</Text></Pressable>
+                ) : (
+                  <Pressable style={[styles.confirmBtn, (!aptDoctorSearch.trim() || !aptDate.trim()) && { opacity: 0.5 }]} onPress={handleAddApt} disabled={!aptDoctorSearch.trim() || !aptDate.trim()}><Text style={styles.confirmText}>Add</Text></Pressable>
+                )}
+              </View>
+            </Pressable>
+          </ScrollView>
         </Pressable>
       </Modal>
 
@@ -291,6 +528,7 @@ const styles = StyleSheet.create({
   aptDateMonth: { fontWeight: "500", fontSize: 9, color: C.purple, textTransform: "uppercase" },
   aptDoctor: { fontWeight: "600", fontSize: 14, color: C.text },
   aptSpec: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 1 },
+  aptRecurrence: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2, fontStyle: "italic" },
   aptMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
   aptMetaText: { fontWeight: "400", fontSize: 11, color: C.textSecondary, marginRight: 8 },
   noAptForDate: { backgroundColor: C.surface, borderRadius: 12, padding: 20, alignItems: "center", borderWidth: 1, borderColor: C.border },
@@ -300,7 +538,6 @@ const styles = StyleSheet.create({
   emptyDesc: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
   noteCard: { flexDirection: "row", alignItems: "flex-start", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 6, borderWidth: 1, borderColor: C.border, gap: 10 },
   noteBullet: { width: 24, height: 24, borderRadius: 7, backgroundColor: C.greenLight, alignItems: "center", justifyContent: "center" },
-  noteBulletNum: { fontWeight: "700", fontSize: 12, color: C.green },
   noteText: { fontWeight: "400", fontSize: 13, color: C.text, flex: 1, lineHeight: 19 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
   modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, borderWidth: 1, borderColor: C.border },
@@ -308,6 +545,23 @@ const styles = StyleSheet.create({
   label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
   input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
   fieldRow: { flexDirection: "row", gap: 10 },
+  dropdown: { marginBottom: 14, maxHeight: 160, borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: "hidden", backgroundColor: C.surfaceElevated },
+  dropdownRow: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  dropdownText: { fontWeight: "500", fontSize: 14, color: C.text },
+  dropdownSub: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
+  addNewRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  addNewText: { fontWeight: "500", fontSize: 13, color: C.tint },
+  repeatRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
+  repeatChip: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  repeatChipActive: { backgroundColor: C.purpleLight, borderColor: C.purple },
+  repeatChipText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
+  repeatChipTextActive: { color: C.purple },
+  customRepeat: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 },
+  unitBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  unitBtnActive: { backgroundColor: C.purpleLight, borderColor: C.purple },
+  unitBtnText: { fontWeight: "500", fontSize: 12, color: C.text },
+  editModeRow: { marginBottom: 14 },
+  editModeChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   modalActions: { flexDirection: "row", gap: 10 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center" },
   cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },

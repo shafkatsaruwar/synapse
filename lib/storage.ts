@@ -70,14 +70,29 @@ export interface AllergyInfo {
   noTreatmentConsequence: string;
 }
 
+export type RepeatUnit = "day" | "week" | "month";
+
+export interface Doctor {
+  id: string;
+  name: string;
+  specialty?: string;
+  created_at?: string;
+}
+
 export interface Appointment {
   id: string;
+  doctor_id?: string;
   doctorName: string;
   specialty: string;
   date: string;
   time: string;
   location: string;
   notes: string;
+  is_recurring?: boolean;
+  repeat_interval?: number;
+  repeat_unit?: RepeatUnit;
+  repeat_end_date?: string | null;
+  parent_recurring_id?: string | null;
 }
 
 export interface DoctorNote {
@@ -234,6 +249,7 @@ const KEYS = {
   MENTAL_HEALTH_MODE: "fir_mental_health_mode",
   COMFORT_ITEMS: "fir_comfort_items",
   GOALS: "fir_goals",
+  DOCTORS: "fir_doctors",
 };
 
 async function getItem<T>(key: string): Promise<T[]> {
@@ -325,12 +341,78 @@ export const medicationLogStorage = {
   },
 };
 
+export const doctorsStorage = {
+  getAll: () => getItem<Doctor>(KEYS.DOCTORS),
+  save: async (doc: Omit<Doctor, "id" | "created_at">) => {
+    const all = await getItem<Doctor>(KEYS.DOCTORS);
+    const newDoc: Doctor = { ...doc, id: Crypto.randomUUID(), created_at: new Date().toISOString() };
+    all.push(newDoc);
+    await setItem(KEYS.DOCTORS, all);
+    return newDoc;
+  },
+  addOrGet: async (doc: { name: string; specialty?: string }) => {
+    const all = await getItem<Doctor>(KEYS.DOCTORS);
+    const normalized = doc.name.trim().toLowerCase();
+    const existing = all.find((d) => d.name.trim().toLowerCase() === normalized);
+    if (existing) return existing;
+    const newDoc: Doctor = { id: Crypto.randomUUID(), name: doc.name.trim(), specialty: doc.specialty?.trim(), created_at: new Date().toISOString() };
+    all.push(newDoc);
+    await setItem(KEYS.DOCTORS, all);
+    return newDoc;
+  },
+  mergeFromRemote: async (remote: Doctor[]) => {
+    const local = await getItem<Doctor>(KEYS.DOCTORS);
+    const byId = new Map(local.map((d) => [d.id, d]));
+    remote.forEach((r) => byId.set(r.id, r));
+    await setItem(KEYS.DOCTORS, Array.from(byId.values()));
+  },
+  delete: async (id: string) => {
+    const all = await getItem<Doctor>(KEYS.DOCTORS);
+    await setItem(KEYS.DOCTORS, all.filter((d) => d.id !== id));
+  },
+};
+
+function addIntervalToDate(dateStr: string, interval: number, unit: RepeatUnit): string {
+  const d = new Date(dateStr + "T12:00:00");
+  if (unit === "day") d.setDate(d.getDate() + interval);
+  else if (unit === "week") d.setDate(d.getDate() + interval * 7);
+  else if (unit === "month") d.setMonth(d.getMonth() + interval);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export const appointmentStorage = {
   getAll: () => getItem<Appointment>(KEYS.APPOINTMENTS),
   save: async (apt: Omit<Appointment, "id">) => {
     const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
-    apts.push({ ...apt, id: Crypto.randomUUID() });
+    const id = Crypto.randomUUID();
+    const first: Appointment = { ...apt, id };
+    apts.push(first);
+    const isRecurring = apt.is_recurring && apt.repeat_interval != null && apt.repeat_unit;
+    if (isRecurring && apt.repeat_interval != null && apt.repeat_unit) {
+      const interval = apt.repeat_interval;
+      const unit = apt.repeat_unit;
+      const end = apt.repeat_end_date ?? (() => {
+        const d = new Date(apt.date + "T12:00:00");
+        d.setMonth(d.getMonth() + 6);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      })();
+      let nextDate = addIntervalToDate(apt.date, interval, unit);
+      while (nextDate <= end) {
+        apts.push({
+          ...apt,
+          id: Crypto.randomUUID(),
+          date: nextDate,
+          parent_recurring_id: id,
+          is_recurring: false,
+          repeat_interval: undefined,
+          repeat_unit: undefined,
+          repeat_end_date: undefined,
+        });
+        nextDate = addIntervalToDate(nextDate, interval, unit);
+      }
+    }
     await setItem(KEYS.APPOINTMENTS, apts);
+    return first;
   },
   update: async (id: string, updates: Partial<Appointment>) => {
     const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
@@ -343,6 +425,11 @@ export const appointmentStorage = {
   delete: async (id: string) => {
     const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
     await setItem(KEYS.APPOINTMENTS, apts.filter((a) => a.id !== id));
+  },
+  deleteRecurringFuture: async (parentId: string, fromDate: string) => {
+    const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
+    const filtered = apts.filter((a) => !(a.parent_recurring_id === parentId && a.date >= fromDate));
+    await setItem(KEYS.APPOINTMENTS, filtered);
   },
 };
 
@@ -623,6 +710,7 @@ export type ExportPayload = {
   symptoms: Symptom[];
   medications: Medication[];
   medicationLogs: MedicationLog[];
+  doctors: Doctor[];
   appointments: Appointment[];
   doctorNotes: DoctorNote[];
   fastingLogs: FastingLog[];
@@ -646,6 +734,7 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     symptoms,
     medications,
     medLogs,
+    doctors,
     appointments,
     doctorNotes,
     fastingLogs,
@@ -661,6 +750,7 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     symptomStorage.getAll(),
     medicationStorage.getAll(),
     medicationLogStorage.getAll(),
+    doctorsStorage.getAll(),
     appointmentStorage.getAll(),
     doctorNoteStorage.getAll(),
     fastingLogStorage.getAll(),
@@ -688,6 +778,7 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     symptoms,
     medications,
     medicationLogs: medLogs,
+    doctors,
     appointments,
     doctorNotes,
     fastingLogs,
@@ -715,6 +806,7 @@ export const importAllData = async (payload: ExportPayload): Promise<void> => {
   await setItem(KEYS.SYMPTOMS, payload.symptoms ?? []);
   await setItem(KEYS.MEDICATIONS, payload.medications ?? []);
   await setItem(KEYS.MEDICATION_LOGS, payload.medicationLogs ?? []);
+  await setItem(KEYS.DOCTORS, payload.doctors ?? []);
   await setItem(KEYS.APPOINTMENTS, payload.appointments ?? []);
   await setItem(KEYS.DOCTOR_NOTES, payload.doctorNotes ?? []);
   await setItem(KEYS.FASTING_LOGS, payload.fastingLogs ?? []);
