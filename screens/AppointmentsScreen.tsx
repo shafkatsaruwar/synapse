@@ -256,7 +256,7 @@ export default function AppointmentsScreen() {
     const updates: Partial<Appointment> = {
       doctor_id: selectedDoctorId ?? undefined,
       doctorName,
-      specialty: aptSpecialty.trim() || (selectedDoctorId ? doctors.find((d) => d.id === selectedDoctorId)?.specialty ?? "") : "",
+      specialty: aptSpecialty.trim() || (selectedDoctorId ? (doctors.find((d) => d.id === selectedDoctorId)?.specialty ?? "") : ""),
       date: aptDate.trim(),
       time: aptTime.trim() || "09:00",
       location: aptLocation.trim(),
