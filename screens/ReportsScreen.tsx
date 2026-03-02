@@ -62,11 +62,27 @@ export default function ReportsScreen() {
   const avgSleep = recentLogs.length > 0 ? recentLogs.reduce((s, l) => s + l.sleep, 0) / recentLogs.length : 0;
   const fastingDays = recentLogs.filter((l) => l.fasting).length;
   const activeMeds = medications.filter((m) => m.active);
-  const recentMedLogs = medLogs.filter((ml) => ml.date >= cutoff);
-  const totalExpected = activeMeds.length * range;
+  const recentMedLogs = medLogs.filter((ml) => ml.date >= cutoff && ml.date <= today);
+  const getDoseCount = (med: Medication) => (Array.isArray(med.timeTag) ? med.timeTag.length : (med.doses ?? 1));
+  const countDaysInclusive = (from: string, to: string) => {
+    const a = new Date(from + "T00:00:00").getTime();
+    const b = new Date(to + "T00:00:00").getTime();
+    return Math.max(0, Math.floor((b - a) / (24 * 60 * 60 * 1000)) + 1);
+  };
+  let totalExpected = 0;
+  activeMeds.forEach((med) => {
+    const doseCount = getDoseCount(med);
+    const medLogsInRange = recentMedLogs.filter((ml) => ml.medicationId === med.id);
+    const firstLogDate = medLogsInRange.length > 0
+      ? medLogsInRange.map((ml) => ml.date).sort()[0]
+      : today;
+    const firstRelevant = firstLogDate < cutoff ? cutoff : firstLogDate;
+    const daysCount = countDaysInclusive(firstRelevant, today);
+    totalExpected += doseCount * daysCount;
+  });
   const takenDoses = recentMedLogs.filter((ml) => ml.taken).length;
   const adherence = totalExpected > 0 ? Math.round((takenDoses / totalExpected) * 100) : 0;
-  const missedDoses = totalExpected - takenDoses;
+  const missedDoses = Math.max(0, totalExpected - takenDoses);
 
   const recentSymptoms = symptoms.filter((s) => s.date >= cutoff);
   const symptomCounts: Record<string, number> = {};
