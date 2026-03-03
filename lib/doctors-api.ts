@@ -23,7 +23,7 @@ export async function createDoctorInSupabase(
 ): Promise<{ doctor: Doctor | null; error: Error | null }> {
   const { data, error } = await supabase
     .from("doctors")
-    .insert({ user_id: userId, name: name.trim(), specialty: specialty?.trim() ?? null })
+    .insert({ user_id: userId, name: (name ?? "").trim(), specialty: specialty?.trim() ?? null })
     .select("id, name, specialty, created_at")
     .single();
   if (error) return { doctor: null, error: new Error(error.message) };

@@ -10,7 +10,7 @@ import {
   useColorScheme,
   Platform,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "@/lib/safeArea";
 import { Feather } from "@expo/vector-icons";
 
 export type ErrorFallbackProps = {

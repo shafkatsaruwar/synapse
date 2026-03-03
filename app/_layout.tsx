@@ -16,9 +16,22 @@ import {
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
 
-SplashScreen.preventAutoHideAsync();
+try {
+  SplashScreen.preventAutoHideAsync?.();
+} catch {
+  // no-op if splash screen unavailable (e.g. some native builds)
+}
 
 const WEB_ZOOM = 1.25;
+
+function SafeAreaProviderWrapper({ children }: { children: React.ReactNode }) {
+  try {
+    const { SafeAreaProvider } = require("react-native-safe-area-context");
+    return <SafeAreaProvider>{children}</SafeAreaProvider>;
+  } catch {
+    return <>{children}</>;
+  }
+}
 
 function RootLayoutNav() {
   return (
@@ -38,7 +51,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (fontsLoaded) {
-      SplashScreen.hideAsync();
+      SplashScreen.hideAsync?.().catch(() => {});
     }
   }, [fontsLoaded]);
 
@@ -46,15 +59,17 @@ export default function RootLayout() {
 
   const content = (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <KeyboardProvider>
-              <RootLayoutNav />
-            </KeyboardProvider>
-          </GestureHandlerRootView>
-        </AuthProvider>
-      </QueryClientProvider>
+      <SafeAreaProviderWrapper>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <KeyboardProvider>
+                <RootLayoutNav />
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </AuthProvider>
+        </QueryClientProvider>
+      </SafeAreaProviderWrapper>
     </ErrorBoundary>
   );
 

@@ -352,10 +352,11 @@ export const doctorsStorage = {
   },
   addOrGet: async (doc: { name: string; specialty?: string }) => {
     const all = await getItem<Doctor>(KEYS.DOCTORS);
-    const normalized = doc.name.trim().toLowerCase();
-    const existing = all.find((d) => d.name.trim().toLowerCase() === normalized);
+    const name = (doc.name ?? "").trim();
+    const normalized = name.toLowerCase();
+    const existing = all.find((d) => (d.name ?? "").trim().toLowerCase() === normalized);
     if (existing) return existing;
-    const newDoc: Doctor = { id: Crypto.randomUUID(), name: doc.name.trim(), specialty: doc.specialty?.trim(), created_at: new Date().toISOString() };
+    const newDoc: Doctor = { id: Crypto.randomUUID(), name, specialty: doc.specialty?.trim() ?? undefined, created_at: new Date().toISOString() };
     all.push(newDoc);
     await setItem(KEYS.DOCTORS, all);
     return newDoc;

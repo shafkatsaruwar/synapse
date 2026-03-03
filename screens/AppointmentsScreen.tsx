@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, Alert, useWindowDimensions, KeyboardAvoidingView, Keyboard, TouchableOpacity,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "@/lib/safeArea";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
@@ -193,7 +193,7 @@ export default function AppointmentsScreen() {
     }
     setDoctors((prev) => [...prev.filter((d) => d.id !== doc.id), doc].sort((a, b) => a.name.localeCompare(b.name)));
     setSelectedDoctorId(doc.id);
-    setAptSpecialty(doc.specialty ?? addDoctorSpecialty.trim());
+    setAptSpecialty(doc.specialty ?? (addDoctorSpecialty ?? "").trim());
     setAddDoctorName("");
     setAddDoctorSpecialty("");
     setShowAddDoctorModal(false);
@@ -205,7 +205,7 @@ export default function AppointmentsScreen() {
     if (!selectedDoctorId || !aptDate.trim()) return;
     const doc = doctors.find((d) => d.id === selectedDoctorId);
     const doctorName = doc?.name ?? "";
-    const specialty = aptSpecialty.trim() || (doc?.specialty ?? "");
+    const specialty = (aptSpecialty ?? "").trim() || (doc?.specialty ?? "");
 
     const base: Omit<Appointment, "id"> = {
       doctor_id: selectedDoctorId,
@@ -288,7 +288,7 @@ export default function AppointmentsScreen() {
     const updates: Partial<Appointment> = {
       doctor_id: selectedDoctorId ?? undefined,
       doctorName: doc.name,
-      specialty: (aptSpecialty.trim() || doc?.specialty) ?? "",
+      specialty: ((aptSpecialty ?? "").trim() || doc?.specialty) ?? "",
       date: aptDate.trim(),
       time: aptTime.trim() || "09:00",
       location: aptLocation.trim(),
