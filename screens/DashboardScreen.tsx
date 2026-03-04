@@ -9,7 +9,7 @@ import {
   Animated,
   ScrollView,
 } from "react-native";
-import { useSafeAreaInsets } from "@/lib/safeArea";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";

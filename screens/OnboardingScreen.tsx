@@ -3,7 +3,7 @@ import {
   StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform,
   useWindowDimensions, Animated, Image, StatusBar, KeyboardAvoidingView, Alert,
 } from "react-native";
-import { useSafeAreaInsets } from "@/lib/safeArea";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";

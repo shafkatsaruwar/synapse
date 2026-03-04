@@ -9,7 +9,7 @@ import {
   Platform,
   useWindowDimensions,
 } from "react-native";
-import { useSafeAreaInsets } from "@/lib/safeArea";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";

@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Platform, useWindowDimensions, Alert,
 } from "react-native";
-import { useSafeAreaInsets } from "@/lib/safeArea";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Sharing from "expo-sharing";
