@@ -89,21 +89,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-const defaultAuthValue: AuthContextValue = {
-  session: null,
-  user: null,
-  loading: false,
-  signIn: async () => ({ error: null }),
-  signUp: async () => ({ error: null }),
-  signOut: async () => {},
-  resetPassword: async () => ({ error: null }),
-};
-
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
+
   if (!ctx) {
-    if (__DEV__) console.warn("useAuth called outside AuthProvider");
-    return defaultAuthValue;
+    console.warn("useAuth called outside AuthProvider");
+    return {
+      user: null,
+      loading: false,
+      signIn: async () => ({ error: null }),
+      signOut: async () => {},
+      signUp: async () => ({ error: null }),
+      resetPassword: async () => ({ error: null }),
+      session: null,
+    };
   }
+
   return ctx;
 }
