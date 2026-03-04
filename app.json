@@ -38,6 +38,7 @@
       "output": "static"
     },
     "plugins": [
+      "./plugins/withXcodeFix",
       [
         "expo-router",
         {
