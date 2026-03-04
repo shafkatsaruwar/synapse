@@ -1,7 +1,9 @@
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import type { Doctor } from "@/lib/storage";
 
 export async function fetchDoctorsFromSupabase(userId: string): Promise<Doctor[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from("doctors")
     .select("id, name, specialty, created_at")
@@ -21,6 +23,8 @@ export async function createDoctorInSupabase(
   name: string,
   specialty?: string
 ): Promise<{ doctor: Doctor | null; error: Error | null }> {
+  const supabase = getSupabase();
+  if (!supabase) return { doctor: null, error: new Error("Supabase not configured") };
   const { data, error } = await supabase
     .from("doctors")
     .insert({ user_id: userId, name: (name ?? "").trim(), specialty: specialty?.trim() ?? null })
@@ -39,6 +43,8 @@ export async function createDoctorInSupabase(
 }
 
 export async function deleteDoctorFromSupabase(userId: string, doctorId: string): Promise<{ error: Error | null }> {
+  const supabase = getSupabase();
+  if (!supabase) return { error: new Error("Supabase not configured") };
   const { error } = await supabase.from("doctors").delete().eq("user_id", userId).eq("id", doctorId);
   return { error: error ? new Error(error.message) : null };
 }

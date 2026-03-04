@@ -253,12 +253,21 @@ const KEYS = {
 };
 
 async function getItem<T>(key: string): Promise<T[]> {
-  const raw = await AsyncStorage.getItem(key);
-  return raw ? JSON.parse(raw) : [];
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.warn("AsyncStorage getItem failed", key, e);
+    return [];
+  }
 }
 
 async function setItem<T>(key: string, data: T[]): Promise<void> {
-  await AsyncStorage.setItem(key, JSON.stringify(data));
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.warn("AsyncStorage setItem failed", key, e);
+  }
 }
 
 export const healthLogStorage = {
@@ -490,12 +499,21 @@ export const vitalStorage = {
 
 export const settingsStorage = {
   get: async (): Promise<UserSettings> => {
-    const raw = await AsyncStorage.getItem(KEYS.SETTINGS);
     const defaults: UserSettings = { name: "", conditions: [], ramadanMode: true, sickMode: false };
-    return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
+    try {
+      const raw = await AsyncStorage.getItem(KEYS.SETTINGS);
+      return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
+    } catch (e) {
+      console.warn("AsyncStorage settings get failed", e);
+      return defaults;
+    }
   },
   save: async (settings: UserSettings) => {
-    await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+    try {
+      await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+    } catch (e) {
+      console.warn("AsyncStorage settings save failed", e);
+    }
   },
 };
 
@@ -511,14 +529,27 @@ const DEFAULT_SICK_MODE: SickModeData = {
 
 export const sickModeStorage = {
   get: async (): Promise<SickModeData> => {
-    const raw = await AsyncStorage.getItem(KEYS.SICK_MODE);
-    return raw ? { ...DEFAULT_SICK_MODE, ...JSON.parse(raw) } : { ...DEFAULT_SICK_MODE };
+    try {
+      const raw = await AsyncStorage.getItem(KEYS.SICK_MODE);
+      return raw ? { ...DEFAULT_SICK_MODE, ...JSON.parse(raw) } : { ...DEFAULT_SICK_MODE };
+    } catch (e) {
+      console.warn("AsyncStorage sickMode get failed", e);
+      return { ...DEFAULT_SICK_MODE };
+    }
   },
   save: async (data: SickModeData) => {
-    await AsyncStorage.setItem(KEYS.SICK_MODE, JSON.stringify(data));
+    try {
+      await AsyncStorage.setItem(KEYS.SICK_MODE, JSON.stringify(data));
+    } catch (e) {
+      console.warn("AsyncStorage sickMode save failed", e);
+    }
   },
   reset: async () => {
-    await AsyncStorage.setItem(KEYS.SICK_MODE, JSON.stringify(DEFAULT_SICK_MODE));
+    try {
+      await AsyncStorage.setItem(KEYS.SICK_MODE, JSON.stringify(DEFAULT_SICK_MODE));
+    } catch (e) {
+      console.warn("AsyncStorage sickMode reset failed", e);
+    }
   },
 };
 
@@ -582,11 +613,20 @@ const DEFAULT_ALLERGY_INFO: AllergyInfo = {
 
 export const allergyStorage = {
   get: async (): Promise<AllergyInfo> => {
-    const raw = await AsyncStorage.getItem(KEYS.ALLERGY_INFO);
-    return raw ? { ...DEFAULT_ALLERGY_INFO, ...JSON.parse(raw) } : { ...DEFAULT_ALLERGY_INFO };
+    try {
+      const raw = await AsyncStorage.getItem(KEYS.ALLERGY_INFO);
+      return raw ? { ...DEFAULT_ALLERGY_INFO, ...JSON.parse(raw) } : { ...DEFAULT_ALLERGY_INFO };
+    } catch (e) {
+      console.warn("AsyncStorage allergy get failed", e);
+      return { ...DEFAULT_ALLERGY_INFO };
+    }
   },
   save: async (data: AllergyInfo) => {
-    await AsyncStorage.setItem(KEYS.ALLERGY_INFO, JSON.stringify(data));
+    try {
+      await AsyncStorage.setItem(KEYS.ALLERGY_INFO, JSON.stringify(data));
+    } catch (e) {
+      console.warn("AsyncStorage allergy save failed", e);
+    }
   },
 };
 
@@ -657,14 +697,27 @@ const DEFAULT_MENTAL_HEALTH_MODE: MentalHealthModeData = {
 
 export const mentalHealthModeStorage = {
   get: async (): Promise<MentalHealthModeData> => {
-    const raw = await AsyncStorage.getItem(KEYS.MENTAL_HEALTH_MODE);
-    return raw ? { ...DEFAULT_MENTAL_HEALTH_MODE, ...JSON.parse(raw) } : { ...DEFAULT_MENTAL_HEALTH_MODE };
+    try {
+      const raw = await AsyncStorage.getItem(KEYS.MENTAL_HEALTH_MODE);
+      return raw ? { ...DEFAULT_MENTAL_HEALTH_MODE, ...JSON.parse(raw) } : { ...DEFAULT_MENTAL_HEALTH_MODE };
+    } catch (e) {
+      console.warn("AsyncStorage mentalHealthMode get failed", e);
+      return { ...DEFAULT_MENTAL_HEALTH_MODE };
+    }
   },
   save: async (data: MentalHealthModeData) => {
-    await AsyncStorage.setItem(KEYS.MENTAL_HEALTH_MODE, JSON.stringify(data));
+    try {
+      await AsyncStorage.setItem(KEYS.MENTAL_HEALTH_MODE, JSON.stringify(data));
+    } catch (e) {
+      console.warn("AsyncStorage mentalHealthMode save failed", e);
+    }
   },
   reset: async () => {
-    await AsyncStorage.setItem(KEYS.MENTAL_HEALTH_MODE, JSON.stringify(DEFAULT_MENTAL_HEALTH_MODE));
+    try {
+      await AsyncStorage.setItem(KEYS.MENTAL_HEALTH_MODE, JSON.stringify(DEFAULT_MENTAL_HEALTH_MODE));
+    } catch (e) {
+      console.warn("AsyncStorage mentalHealthMode reset failed", e);
+    }
   },
 };
 
@@ -828,6 +881,12 @@ export const importAllData = async (payload: ExportPayload): Promise<void> => {
 
 export const clearAllData = async () => {
   await Promise.all(
-    Object.values(KEYS).map((key) => AsyncStorage.removeItem(key))
+    Object.values(KEYS).map(async (key) => {
+      try {
+        await AsyncStorage.removeItem(key);
+      } catch (e) {
+        console.warn("AsyncStorage removeItem failed", key, e);
+      }
+    })
   );
 };

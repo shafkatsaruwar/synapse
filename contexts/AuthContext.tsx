@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 type AuthContextValue = {
   session: Session | null;
@@ -20,9 +20,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
       setUser(s?.user ?? null);
+      setLoading(false);
+    }).catch((e) => {
+      console.error("Auth getSession error", e);
       setLoading(false);
     });
 
@@ -37,12 +45,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: null };
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error ?? null };
   }, []);
 
   const signUp = useCallback(
     async (email: string, password: string, metadata?: { first_name?: string; last_name?: string }) => {
+      const supabase = getSupabase();
+      if (!supabase) return { error: null };
       const appUrl =
         process.env.EXPO_PUBLIC_APP_URL?.trim() ||
         (typeof globalThis !== "undefined" && "location" in globalThis && (globalThis as any).location?.origin);
@@ -63,10 +75,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    const supabase = getSupabase();
+    if (supabase) await supabase.auth.signOut();
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: null };
     const appUrl =
       process.env.EXPO_PUBLIC_APP_URL?.trim() ||
       (typeof globalThis !== "undefined" && "location" in globalThis && (globalThis as any).location?.origin);

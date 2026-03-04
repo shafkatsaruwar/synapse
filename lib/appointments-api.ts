@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import type { Appointment } from "@/lib/storage";
 
 function rowToAppointment(r: Record<string, unknown>): Appointment {
@@ -39,6 +39,8 @@ function appointmentToRow(apt: Appointment | (Omit<Appointment, "id"> & { id?: s
 }
 
 export async function fetchAppointmentsFromSupabase(userId: string): Promise<Appointment[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from("appointments")
     .select("*")
@@ -49,6 +51,8 @@ export async function fetchAppointmentsFromSupabase(userId: string): Promise<App
 }
 
 export async function replaceAppointmentsInSupabase(userId: string, appointments: Appointment[]): Promise<{ error: Error | null }> {
+  const supabase = getSupabase();
+  if (!supabase) return { error: new Error("Supabase not configured") };
   const { error: delErr } = await supabase.from("appointments").delete().eq("user_id", userId);
   if (delErr) return { error: new Error(delErr.message) };
   if (appointments.length === 0) return { error: null };
@@ -58,6 +62,8 @@ export async function replaceAppointmentsInSupabase(userId: string, appointments
 }
 
 export async function deleteAppointmentFromSupabase(userId: string, id: string): Promise<{ error: Error | null }> {
+  const supabase = getSupabase();
+  if (!supabase) return { error: new Error("Supabase not configured") };
   const { error } = await supabase.from("appointments").delete().eq("user_id", userId).eq("id", id);
   return { error: error ? new Error(error.message) : null };
 }
@@ -66,6 +72,8 @@ export async function insertAppointmentsToSupabase(
   userId: string,
   appointments: Appointment[]
 ): Promise<{ error: Error | null }> {
+  const supabase = getSupabase();
+  if (!supabase) return { error: new Error("Supabase not configured") };
   if (appointments.length === 0) return { error: null };
   const rows = appointments.map((a) => appointmentToRow(a, userId));
   const { error } = await supabase.from("appointments").insert(rows);
@@ -77,6 +85,8 @@ export async function updateAppointmentInSupabase(
   id: string,
   updates: Partial<Appointment>
 ): Promise<{ error: Error | null }> {
+  const supabase = getSupabase();
+  if (!supabase) return { error: new Error("Supabase not configured") };
   const payload: Record<string, unknown> = {};
   if (updates.doctor_id !== undefined) payload.doctor_id = updates.doctor_id;
   if (updates.doctorName !== undefined) payload.doctor_name = updates.doctorName;
