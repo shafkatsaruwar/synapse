@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -18,6 +18,9 @@
       "bundleIdentifier": "com.mohammedsaruwar.synapse",
       "buildNumber": "5",
       "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app uses location services to provide relevant local data.",
+        "NSCameraUsageDescription": "This app requires camera access to take profile photos.",
+        "NSPhotoLibraryUsageDescription": "This app requires photo library access to upload images.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
