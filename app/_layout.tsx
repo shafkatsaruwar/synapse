@@ -16,7 +16,7 @@ export default function RootLayout() {
     if (!fontsLoaded) return;
     const id = setTimeout(() => {
       SplashScreen.hideAsync();
-    }, 50);
+    }, 500);
     return () => clearTimeout(id);
   }, [fontsLoaded]);
 
