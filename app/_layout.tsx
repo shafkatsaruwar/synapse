@@ -20,6 +20,10 @@ export default function RootLayout() {
     return () => clearTimeout(id);
   }, [fontsLoaded]);
 
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
       <Text>Synapse Boot Test</Text>
