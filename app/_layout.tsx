@@ -1,31 +1,15 @@
-import { Stack } from "expo-router";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { queryClient } from "@/lib/query-client";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-
-try {
-  console.log("App starting...");
-} catch (e) {
-  console.error("Startup error", e);
-}
+/**
+ * MINIMAL BOOT TEST: Isolate TestFlight startup crash.
+ * No Supabase, no AuthProvider, no AsyncStorage/SecureStore, no API clients.
+ * No providers — only React Native View + Text so nothing native runs before React mounts.
+ */
+import React from "react";
+import { View, Text } from "react-native";
 
 export default function RootLayout() {
   return (
-    <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              <ErrorBoundary>
-                <Stack screenOptions={{ headerShown: false }} />
-              </ErrorBoundary>
-            </AuthProvider>
-          </QueryClientProvider>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
-    </ErrorBoundary>
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <Text>Synapse Boot Test</Text>
+    </View>
   );
 }
