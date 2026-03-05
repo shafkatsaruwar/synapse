@@ -7,20 +7,20 @@
     "development": {
       "distribution": "internal",
       "ios": {
-        "image": "macos-sequoia-15.6-xcode-16.4"
+        "image": "macos-sonoma-14.5-xcode-15.4"
       }
     },
     "preview": {
       "distribution": "internal",
       "ios": {
-        "image": "macos-sequoia-15.6-xcode-16.4"
+        "image": "macos-sonoma-14.5-xcode-15.4"
       }
     },
     "production": {
       "autoIncrement": true,
       "ios": {
         "resourceClass": "m-medium",
-        "image": "macos-sequoia-15.6-xcode-16.4"
+        "image": "macos-sonoma-14.5-xcode-15.4"
       }
     }
   },
