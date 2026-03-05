@@ -13,6 +13,7 @@ const FOLLY_CORO_FIX = `
   installer.pods_project.build_configurations.each do |config|
     config.build_settings['OTHER_CPLUSPLUSFLAGS'] ||= ['$(inherited)']
     config.build_settings['OTHER_CPLUSPLUSFLAGS'] << '-DFOLLY_CFG_NO_COROUTINES=1' unless config.build_settings['OTHER_CPLUSPLUSFLAGS'].to_s.include?('FOLLY_CFG_NO_COROUTINES')
+    config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
   end
   installer.pods_project.targets.each do |target|
     target.build_configurations.each do |config|
@@ -20,6 +21,7 @@ const FOLLY_CORO_FIX = `
       config.build_settings['OTHER_CPLUSPLUSFLAGS'] << '-DFOLLY_CFG_NO_COROUTINES=1' unless config.build_settings['OTHER_CPLUSPLUSFLAGS'].to_s.include?('FOLLY_CFG_NO_COROUTINES')
       config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
       config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FOLLY_HAS_COROUTINES=0' unless config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].to_s.include?('FOLLY_HAS_COROUTINES')
+      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
     end
   end
 `;
