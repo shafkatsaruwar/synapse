@@ -8,9 +8,6 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { queryClient } from "@/lib/query-client";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { KeyboardProvider } from "react-native-keyboard-controller";
-
-const USE_KEYBOARD_CONTROLLER = false;
 
 function AppContent() {
   return (
@@ -36,17 +33,13 @@ export default function RootLayout() {
     return <View style={{ flex: 1, backgroundColor: "#FDF1E5" }} />;
   }
 
-  const content = <AppContent />;
-
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
-          {USE_KEYBOARD_CONTROLLER ? (
-            <KeyboardProvider>{content}</KeyboardProvider>
-          ) : (
-            <View style={{ flex: 1 }}>{content}</View>
-          )}
+          <View style={{ flex: 1 }}>
+            <AppContent />
+          </View>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>
