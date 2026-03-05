@@ -1,5 +1,5 @@
 import "react-native-gesture-handler";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -9,11 +9,7 @@ import { queryClient } from "@/lib/query-client";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { KeyboardProvider } from "react-native-keyboard-controller";
-import * as SplashScreen from "expo-splash-screen";
-import { useFonts } from "expo-font";
-import { Inter_400Regular } from "@expo-google-fonts/inter";
 
-// Set to false to disable KeyboardProvider (avoids RCTNativeModule crash on some iOS/TestFlight builds)
 const USE_KEYBOARD_CONTROLLER = false;
 
 function AppContent() {
@@ -29,22 +25,15 @@ function AppContent() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({ Inter_400Regular });
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    SplashScreen.preventAutoHideAsync().catch(() => {});
+    const t = setTimeout(() => setReady(true), 100);
+    return () => clearTimeout(t);
   }, []);
 
-  useEffect(() => {
-    if (!fontsLoaded) return;
-    const id = setTimeout(() => {
-      SplashScreen.hideAsync().catch(() => {});
-    }, 500);
-    return () => clearTimeout(id);
-  }, [fontsLoaded]);
-
-  if (!fontsLoaded) {
-    return null;
+  if (!ready) {
+    return <View style={{ flex: 1, backgroundColor: "#FDF1E5" }} />;
   }
 
   const content = <AppContent />;

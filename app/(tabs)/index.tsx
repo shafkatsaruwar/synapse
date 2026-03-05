@@ -48,7 +48,10 @@ export default function MainScreen() {
     }
   }, []);
 
-  useEffect(() => { checkInitialState(); }, [checkInitialState]);
+  useEffect(() => {
+    const id = setTimeout(() => checkInitialState(), 200);
+    return () => clearTimeout(id);
+  }, [checkInitialState]);
 
   const handleNavigate = (screen: string) => {
     setActiveScreen(screen);
