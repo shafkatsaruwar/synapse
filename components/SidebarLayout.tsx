@@ -79,7 +79,7 @@ export default function SidebarLayout({
   headerRight,
 }: SidebarLayoutProps) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isWide = width >= 768;
   const [moreOpen, setMoreOpen] = useState(false);
   const drawerSlide = useRef(new Animated.Value(1)).current;
@@ -165,6 +165,7 @@ export default function SidebarLayout({
               : primaryItemsFiltered.length > 0
                 ? (Platform.OS === "web" ? 88 : insets.bottom + 80)
                 : 24,
+            minHeight: isWide ? undefined : Math.max(200, height * 0.4),
           },
         ]}
       >
@@ -427,6 +428,7 @@ const styles = StyleSheet.create({
   },
   mobileContainer: {
     flex: 1,
+    minHeight: 1,
     backgroundColor: C.background,
   },
   mobileHeaderRow: {
@@ -446,6 +448,7 @@ const styles = StyleSheet.create({
   mobileHeaderSpacer: { width: 1, minWidth: 1 },
   mobileContent: {
     flex: 1,
+    minHeight: 1,
     paddingHorizontal: 8,
   },
   mobileNav: {

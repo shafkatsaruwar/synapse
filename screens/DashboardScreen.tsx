@@ -362,8 +362,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
-  scrollView: { flex: 1 },
+  container: { flex: 1, minHeight: 1, backgroundColor: C.background },
+  scrollView: { flex: 1, minHeight: 1 },
   scrollViewContent: { flexGrow: 1 },
   content: { paddingHorizontal: 24 }, // used when isWide; mobile uses inline 0 so layout's 16 applies
   welcome: { marginBottom: 8 },

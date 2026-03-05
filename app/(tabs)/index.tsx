@@ -38,9 +38,14 @@ export default function MainScreen() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
 
   const checkInitialState = useCallback(async () => {
-    const settings = await settingsStorage.get();
-    setSickMode(settings.sickMode);
-    setShowOnboarding(!settings.onboardingCompleted);
+    try {
+      const settings = await settingsStorage.get();
+      setSickMode(settings?.sickMode ?? false);
+      setShowOnboarding(!settings?.onboardingCompleted);
+    } catch {
+      setShowOnboarding(true);
+      setSickMode(false);
+    }
   }, []);
 
   useEffect(() => { checkInitialState(); }, [checkInitialState]);
@@ -74,9 +79,8 @@ export default function MainScreen() {
     setSickMode(false);
   };
 
-  if (showOnboarding === null) return <View style={styles.container} />;
-
-  if (showOnboarding) {
+  // When storage hasn't loaded yet, show main app so the content area is never blank (avoids stuck splash-like screen).
+  if (showOnboarding === true) {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
   }
 
@@ -155,6 +159,7 @@ export default function MainScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 1,
     backgroundColor: C.background,
   },
 });

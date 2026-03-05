@@ -100,12 +100,17 @@ function setupRequestLogging(app: express.Application) {
 
 function getAppName(): string {
   try {
-    const appJsonPath = path.resolve(process.cwd(), "app.json");
-    const appJsonContent = fs.readFileSync(appJsonPath, "utf-8");
-    const appJson = JSON.parse(appJsonContent);
-    return appJson.expo?.name || "App Landing Page";
+    const config = require(path.resolve(process.cwd(), "app.config.js"));
+    return config.expo?.name || "App Landing Page";
   } catch {
-    return "App Landing Page";
+    try {
+      const appJsonPath = path.resolve(process.cwd(), "app.json");
+      const appJsonContent = fs.readFileSync(appJsonPath, "utf-8");
+      const appJson = JSON.parse(appJsonContent);
+      return appJson.expo?.name || "App Landing Page";
+    } catch {
+      return "App Landing Page";
+    }
   }
 }
 
