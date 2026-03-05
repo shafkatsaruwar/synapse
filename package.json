@@ -13,6 +13,7 @@
     "server:prod": "NODE_ENV=production node server_dist/index.js",
     "db:push": "drizzle-kit push",
     "start": "npx expo start",
+    "start:go": "npx expo start --go",
     "lint": "npx expo lint",
     "lint:fix": "npx expo lint --fix",
     "android": "expo run:android",

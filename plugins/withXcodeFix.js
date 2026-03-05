@@ -8,8 +8,11 @@ const { withXcodeProject } = require("expo/config-plugins");
 function withXcodeFix(config) {
   return withXcodeProject(config, async (config) => {
     const project = config.modResults;
+    if (!project || typeof project.pbxXCBuildConfigurationSection !== "function") {
+      return config;
+    }
     const configurations = project.pbxXCBuildConfigurationSection();
-    for (const key of Object.keys(configurations)) {
+    for (const key of Object.keys(configurations || {})) {
       if (key.startsWith("__")) continue; // comment keys
       const configuration = configurations[key];
       if (configuration?.buildSettings) {
