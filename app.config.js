@@ -9,7 +9,7 @@ module.exports = {
   expo: {
     name: "Synapse",
     slug: "synapse",
-    version: "1.7",
+    version: "1.8",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "myapp",

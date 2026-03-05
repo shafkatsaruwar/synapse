@@ -10,6 +10,17 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import * as SplashScreen from "expo-splash-screen";
 
+// Production-only: prevent uncaught JS errors from reaching native ExceptionsManager (SIGABRT on iOS 26 TestFlight).
+if (typeof __DEV__ !== "undefined" && !__DEV__) {
+  const g = typeof global !== "undefined" ? global : (typeof window !== "undefined" ? window : {});
+  const ErrorUtils = (g as unknown as { ErrorUtils?: { setGlobalHandler: (h: (e: unknown, f: boolean) => void) => void } }).ErrorUtils;
+  if (ErrorUtils?.setGlobalHandler) {
+    ErrorUtils.setGlobalHandler((error: unknown, isFatal: boolean) => {
+      console.error("[Synapse] Caught error (production guard):", isFatal ? "FATAL" : "", error);
+    });
+  }
+}
+
 // Keep native splash visible until app is ready; we must call hideAsync() when ready so app content is visible (do not remove).
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
