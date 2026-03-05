@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { queryClient } from "@/lib/query-client";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
 import { Inter_400Regular } from "@expo-google-fonts/inter";
@@ -35,13 +36,15 @@ export default function RootLayout() {
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              <ErrorBoundary>
-                <Stack screenOptions={{ headerShown: false }} />
-              </ErrorBoundary>
-            </AuthProvider>
-          </QueryClientProvider>
+          <KeyboardProvider>
+            <QueryClientProvider client={queryClient}>
+              <AuthProvider>
+                <ErrorBoundary>
+                  <Stack screenOptions={{ headerShown: false }} />
+                </ErrorBoundary>
+              </AuthProvider>
+            </QueryClientProvider>
+          </KeyboardProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>
