@@ -8,6 +8,9 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { queryClient } from "@/lib/query-client";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import * as SplashScreen from "expo-splash-screen";
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function AppContent() {
   return (
@@ -25,7 +28,10 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setReady(true), 100);
+    const t = setTimeout(() => {
+      setReady(true);
+      SplashScreen.hideAsync().catch(() => {});
+    }, 100);
     return () => clearTimeout(t);
   }, []);
 
