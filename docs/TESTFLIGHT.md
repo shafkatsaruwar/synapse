@@ -68,6 +68,7 @@ eas submit --platform ios --profile production --latest
 - **Missing credentials** – Use `eas credentials` to manage signing and provisioning.
 - **Build fails** – Check the build log in the EAS dashboard; ensure all EAS secrets (e.g. Supabase) are set.
 - **"Install pods" failed** – Open the build log on expo.dev, expand the "Install pods" step, and read the exact error (e.g. CocoaPods version, a specific pod failing). Then run `npx expo install --check` locally to fix dependency mismatches and try the build again.
+- **"'folly/coro/Coroutine.h' file not found" in fastlane/Xcode archive** – The project uses a plugin that forces `RCT_NEW_ARCH_ENABLED=0` in the Podfile. If it still fails, ensure `newArchEnabled` is `false` in app.config.js and that Reanimated is on 3.x (not 4.x).
 
 ## Quick reference
 

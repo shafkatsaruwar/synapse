@@ -43,6 +43,7 @@ module.exports = {
     },
     plugins: [
       "./plugins/withXcodeFix",
+      "./plugins/withPodfileNewArchDisabled",
       ["expo-router", { origin: "https://replit.com/" }],
       "expo-font",
       "expo-web-browser",
