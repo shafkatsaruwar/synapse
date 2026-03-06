@@ -1,12 +1,12 @@
 /**
  * Minimal Synapse reset app — same bundle ID / name for TestFlight replacement.
- * Version = batch: 1.8.0 minimal, 1.8.1 Batch A, 1.8.2 B, 1.8.3 C, 1.8.4 D, 1.8.5 E. See MIGRATION.md.
+ * Version = batch: 1.8.0–1.8.5; 1.8.6 = full migration (all screens, no Reanimated). See MIGRATION.md.
  */
 module.exports = {
   expo: {
     name: "Synapse",
     slug: "synapse",
-    version: "1.8.5",
+    version: "1.8.6",
     orientation: "portrait",
     icon: "./assets/icon.png",
     scheme: "myapp",
@@ -35,8 +35,6 @@ module.exports = {
     },
     web: { favicon: "./assets/favicon.png" },
     plugins: [
-      "./plugins/withXcodeFix",
-      "./plugins/withPodfileNewArchDisabled",
       "expo-router",
     ],
     experiments: { typedRoutes: true },

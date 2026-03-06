@@ -15,7 +15,7 @@ export default function AuthStub() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
       <Text style={styles.title}>Sign in</Text>
-      <Text style={styles.subtitle}>Batch E (1.8.5) — Rest: Reanimated + native plugins</Text>
+      <Text style={styles.subtitle}>Batch E (1.8.5) — Reanimated removed (was crashing); rest of stack only</Text>
       <Text style={styles.body}>
         Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in EAS (or .env) to enable sign-in.
         Until then, auth is disabled and this screen is shown when there is no session.

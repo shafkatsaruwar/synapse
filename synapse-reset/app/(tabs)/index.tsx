@@ -1,19 +1,168 @@
-import React from "react";
-import { View } from "react-native";
-import { useAuth } from "@/contexts/AuthContext";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, StyleSheet } from "react-native";
+import SidebarLayout from "@/components/SidebarLayout";
+import SickModeHeaderButton from "@/components/SickModeHeaderButton";
+import DashboardScreen from "@/screens/DashboardScreen";
+import DailyLogScreen from "@/screens/DailyLogScreen";
+import MedicationsScreen from "@/screens/MedicationsScreen";
+import SymptomsScreen from "@/screens/SymptomsScreen";
+import AppointmentsScreen from "@/screens/AppointmentsScreen";
+import MonthlyCheckInScreen from "@/screens/MonthlyCheckInScreen";
+import EatingScreen from "@/screens/EatingScreen";
+import MentalHealthModeScreen from "@/screens/MentalHealthModeScreen";
+import ComfortScreen from "@/screens/ComfortScreen";
+import GoalsScreen from "@/screens/GoalsScreen";
+import ReportsScreen from "@/screens/ReportsScreen";
+import SettingsScreen from "@/screens/SettingsScreen";
+import HealthDataScreen from "@/screens/HealthDataScreen";
+import DocumentsScreen from "@/screens/DocumentsScreen";
+import InsightsScreen from "@/screens/InsightsScreen";
+import PrivacyScreen from "@/screens/PrivacyScreen";
+import SickModeScreen from "@/screens/SickModeScreen";
+import RamadanScreen from "@/screens/RamadanScreen";
+import HealthProfileScreen from "@/screens/HealthProfileScreen";
+import HealthProfileConditionsScreen from "@/screens/HealthProfileConditionsScreen";
+import AllergyScreen from "@/screens/AllergyScreen";
+import DoctorsScreen from "@/screens/DoctorsScreen";
+import OnboardingScreen from "@/screens/OnboardingScreen";
+import AuthScreen from "@/screens/AuthScreen";
+import { settingsStorage } from "@/lib/storage";
 import Colors from "@/constants/colors";
-import AuthStub from "@/screens/AuthStub";
-import DashboardStub from "@/screens/DashboardStub";
 
-/** Batch C: auth gate — show AuthStub when not signed in, Dashboard when signed in. */
-export default function IndexScreen() {
-  const { user, loading } = useAuth();
+const C = Colors.dark;
 
-  if (loading) {
-    return <View style={{ flex: 1, backgroundColor: Colors.dark.background }} />;
+export default function MainScreen() {
+  const [activeScreen, setActiveScreen] = useState("dashboard");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [sickMode, setSickMode] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+
+  const checkInitialState = useCallback(async () => {
+    try {
+      const settings = await settingsStorage.get();
+      setSickMode(settings?.sickMode ?? false);
+      setShowOnboarding(!settings?.onboardingCompleted);
+    } catch {
+      setShowOnboarding(true);
+      setSickMode(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const id = setTimeout(() => checkInitialState(), 200);
+    return () => clearTimeout(id);
+  }, [checkInitialState]);
+
+  const handleNavigate = (screen: string) => {
+    setActiveScreen(screen);
+    setRefreshKey((k) => k + 1);
+    settingsStorage.get().then(s => setSickMode(s.sickMode));
+  };
+
+  const handleActivateSickMode = () => {
+    setSickMode(true);
+    setActiveScreen("sickmode");
+    setRefreshKey((k) => k + 1);
+  };
+
+  const handleDeactivateSickMode = () => {
+    setSickMode(false);
+    setActiveScreen("dashboard");
+    setRefreshKey((k) => k + 1);
+  };
+
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    setRefreshKey((k) => k + 1);
+  };
+
+  const handleResetApp = () => {
+    setShowOnboarding(true);
+    setActiveScreen("dashboard");
+    setSickMode(false);
+  };
+
+  // When storage hasn't loaded yet, show main app so the content area is never blank (avoids stuck splash-like screen).
+  if (showOnboarding === true) {
+    return <OnboardingScreen onComplete={handleOnboardingComplete} />;
   }
-  if (!user) {
-    return <AuthStub />;
-  }
-  return <DashboardStub />;
+
+  const renderScreen = () => {
+    if (sickMode && activeScreen === "dashboard") {
+      return <SickModeScreen onDeactivate={handleDeactivateSickMode} onRefreshKey={refreshKey} />;
+    }
+    if (activeScreen === "sickmode") {
+      return <SickModeScreen onDeactivate={handleDeactivateSickMode} onRefreshKey={refreshKey} />;
+    }
+
+    switch (activeScreen) {
+      case "dashboard":
+        return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
+      case "log":
+        return <DailyLogScreen key={refreshKey} />;
+      case "healthdata":
+        return <HealthDataScreen />;
+      case "medications":
+        return <MedicationsScreen />;
+      case "symptoms":
+        return <SymptomsScreen onActivateSickMode={handleActivateSickMode} />;
+      case "documents":
+        return <DocumentsScreen />;
+      case "insights":
+        return <InsightsScreen />;
+      case "monthlycheckin":
+        return <MonthlyCheckInScreen />;
+      case "eating":
+        return <EatingScreen />;
+      case "mentalhealth":
+        return <MentalHealthModeScreen />;
+      case "comfort":
+        return <ComfortScreen />;
+      case "goals":
+        return <GoalsScreen />;
+      case "appointments":
+        return <AppointmentsScreen />;
+      case "reports":
+        return <ReportsScreen />;
+      case "ramadan":
+        return <RamadanScreen onActivateSickMode={handleActivateSickMode} />;
+      case "privacy":
+        return <PrivacyScreen />;
+      case "healthprofile":
+        return <HealthProfileScreen onBack={() => handleNavigate("settings")} onNavigate={handleNavigate} />;
+      case "doctors":
+        return <DoctorsScreen onBack={() => handleNavigate("settings")} />;
+      case "healthprofileconditions":
+        return <HealthProfileConditionsScreen onBack={() => handleNavigate("healthprofile")} />;
+      case "allergy":
+        return <AllergyScreen onBack={() => handleNavigate("healthprofile")} />;
+      case "auth":
+        return <AuthScreen onBack={() => handleNavigate("settings")} onSuccess={() => handleNavigate("settings")} />;
+      case "settings":
+        return <SettingsScreen onResetApp={handleResetApp} onNavigate={handleNavigate} onRestoreComplete={() => setRefreshKey((k) => k + 1)} />;
+      default:
+        return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <SidebarLayout
+        activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
+        onNavigate={handleNavigate}
+        sickMode={sickMode}
+        headerRight={activeScreen === "dashboard" ? <SickModeHeaderButton onActivate={handleActivateSickMode} onNavigate={handleNavigate} refreshKey={refreshKey} /> : undefined}
+      >
+        {renderScreen()}
+      </SidebarLayout>
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    minHeight: 1,
+    backgroundColor: C.background,
+  },
+});

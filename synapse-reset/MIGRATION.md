@@ -11,7 +11,8 @@ This folder is a **minimal Expo (SDK 54) app** with the same bundle ID and name 
   - **1.8.2** — Batch B (One real screen)
   - **1.8.3** — Batch C (Auth + storage)
   - **1.8.4** — Batch D (TanStack Query + API)
-  - **1.8.5** — Batch E (Rest: screens, reanimated, etc.)
+  - **1.8.5** — Batch E (Rest: screens, reanimated, etc. — Reanimated removed for stability.)
+  - **1.8.6** — Full migration: all screens, SidebarLayout, full storage/API/lib; no react-native-reanimated.
 
 Before each batch: set `version` in `app.config.js` to the next number (e.g. `"1.8.1"` for Batch A). Build, submit to TestFlight, test. If it crashes, the version on the build (e.g. 1.8.2) tells you Batch B broke it.
 

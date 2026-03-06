@@ -6,7 +6,7 @@ import Colors from "@/constants/colors";
 const C = Colors.dark;
 
 /**
- * Batch E (1.8.5) — Dashboard stub with full stack (Reanimated, Podfile plugin).
+ * Batch E (1.8.5) — Dashboard stub; Reanimated removed to avoid TestFlight crash.
  */
 export default function DashboardStub() {
   const insets = useSafeAreaInsets();
@@ -18,7 +18,7 @@ export default function DashboardStub() {
       showsVerticalScrollIndicator={false}
     >
       <Text style={styles.title}>Dashboard</Text>
-      <Text style={styles.subtitle}>Batch E (1.8.5) — Rest: Reanimated + native plugins (signed in)</Text>
+      <Text style={styles.subtitle}>Batch E (1.8.5) — Reanimated removed; rest of stack (signed in)</Text>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Today</Text>
