@@ -2,54 +2,58 @@
 
 This folder is a **minimal Expo (SDK 54) app** with the same bundle ID and name as Synapse, so you can ship it to TestFlight and confirm the stack works before adding your full app back.
 
-## Step 1: Confirm minimal build works
+## Version scheme (pinpoint failures on TestFlight)
 
-1. From this directory (`synapse-reset/`), build for TestFlight:
-   ```bash
-   npx eas build -p ios --profile production
-   ```
+- **Build numbers**: Keep auto-incrementing via EAS (`autoIncrement: true` in production profile).
+- **App version** is bumped per batch so you can see exactly which batch is on TestFlight:
+  - **1.8.0** — Minimal (Hello Synapse) — already working ✓
+  - **1.8.1** — Batch A (Core UI)
+  - **1.8.2** — Batch B (One real screen)
+  - **1.8.3** — Batch C (Auth + storage)
+  - **1.8.4** — Batch D (TanStack Query + API)
+  - **1.8.5** — Batch E (Rest: screens, reanimated, etc.)
+
+Before each batch: set `version` in `app.config.js` to the next number (e.g. `"1.8.1"` for Batch A). Build, submit to TestFlight, test. If it crashes, the version on the build (e.g. 1.8.2) tells you Batch B broke it.
+
+## Step 1: Confirm minimal build works (1.8.0)
+
+1. From this directory (`synapse-reset/`), build for TestFlight (version in app.config should be `1.8` or `1.8.0`).
 2. Submit to TestFlight and install on a device.
 3. Open the app. You should see **"Hello Synapse"** and the subtitle.
-4. **If it runs** → the toolchain (Expo 54, RN 0.81, Xcode 16.4 image) is fine; the crash was likely from a dependency or from your app code. Continue to Step 2.
-5. **If it still crashes** → the issue is in the base stack or EAS image; try a different `ios.image` in `eas.json` or a different Expo/RN version.
+4. **If it runs** → continue to Step 2. **If it still crashes** → try a different `ios.image` in `eas.json` or Expo/RN version.
 
-## Step 2: Add code back in stages
+## Step 2: Add code back in stages (1.8.1 → 1.8.5)
 
-Add dependencies and app code in small batches, then build and test on TestFlight after each batch.
+Add dependencies and app code in small batches. **Before each batch:** set `version` in `app.config.js` to the batch version above. Build → submit to TestFlight → test. If it fails, you know the batch from the version number.
 
-### Batch A — Core UI (no auth, no API)
+### Batch A — 1.8.1 — Core UI (no auth, no API)
 
 - Copy from main project:
   - `constants/` (e.g. `colors`)
   - `components/ErrorBoundary.tsx`, `ErrorFallback.tsx`
-  - `lib/query-client.ts` only if you need it for this batch (or skip and add with TanStack later)
 - In `app/_layout.tsx`: wrap with `ErrorBoundary`, keep a single screen that renders a simple list or placeholder.
-- **Build → TestFlight → test.** If it crashes, the culprit is in this batch.
+- Set `version: "1.8.1"` in `app.config.js`. **Build → TestFlight → test.**
 
-### Batch B — Navigation and one real screen
+### Batch B — 1.8.2 — One real screen
 
-- Add `app/(tabs)/_layout.tsx` and one real screen (e.g. dashboard stub).
-- Add only the deps that screen needs (e.g. `react-native-screens`, `react-native-safe-area-context` are already there).
-- **Build → TestFlight → test.**
+- Add one real screen (e.g. dashboard stub) and only the deps that screen needs.
+- Set `version: "1.8.2"` in `app.config.js`. **Build → TestFlight → test.**
 
-### Batch C — Auth and storage
+### Batch C — 1.8.3 — Auth and storage
 
 - Add `@react-native-async-storage/async-storage`, `@supabase/supabase-js`.
-- Copy `contexts/AuthContext.tsx`, `lib/supabase.ts`, `lib/storage.ts`.
-- Wire `AuthProvider` in root layout and a minimal auth gate.
-- **Build → TestFlight → test.**
+- Copy `contexts/AuthContext.tsx`, `lib/supabase.ts`, `lib/storage.ts`. Wire `AuthProvider` and a minimal auth gate.
+- Set `version: "1.8.3"` in `app.config.js`. **Build → TestFlight → test.**
 
-### Batch D — TanStack Query and API
+### Batch D — 1.8.4 — TanStack Query and API
 
-- Add `@tanstack/react-query`, copy `lib/query-client.ts` and API helpers.
-- Wrap app with `QueryClientProvider`.
-- **Build → TestFlight → test.**
+- Add `@tanstack/react-query`, copy `lib/query-client.ts` and API helpers. Wrap app with `QueryClientProvider`.
+- Set `version: "1.8.4"` in `app.config.js`. **Build → TestFlight → test.**
 
-### Batch E — Rest of app
+### Batch E — 1.8.5 — Rest of app
 
-- Add remaining deps: `expo-image`, `expo-image-picker`, `react-native-reanimated`, etc.
-- Copy remaining screens, components, and libs.
-- **Important:** Add `react-native-reanimated` only after the above batches pass; it pulls in Folly and the Podfile plugin is already in place for it.
+- Add remaining deps (e.g. `expo-image`, `expo-image-picker`, `react-native-reanimated`), copy remaining screens, components, libs. Add Reanimated last; re-enable Podfile plugin if needed.
+- Set `version: "1.8.5"` in `app.config.js`. **Build → TestFlight → test.**
 
 ## Current minimal setup
 
