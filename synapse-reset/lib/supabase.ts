@@ -8,7 +8,10 @@ const STORAGE_KEY_ANON = "supabase_anon_key";
 let client: SupabaseClient | null = null;
 
 function strFromExtra(key: string): string {
-  const extra = Constants.expoConfig?.extra as Record<string, unknown> | undefined;
+  const extra =
+    (Constants.expoConfig?.extra as Record<string, unknown> | undefined) ??
+    (Constants.manifest?.extra as Record<string, unknown> | undefined) ??
+    (Constants.manifest2?.extra as Record<string, unknown> | undefined);
   if (!extra || typeof extra !== "object") return "";
   const v = extra[key];
   if (v == null) return "";

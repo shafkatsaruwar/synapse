@@ -35,7 +35,7 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
   const [configSaving, setConfigSaving] = useState(false);
-  // Only show "Configure sign-in" in development. Production builds must have Supabase set in EAS.
+  // Only in development: show config form if Supabase isn't set. Production users never see Supabase.
   const needsConfig = __DEV__ && getSupabase() === null;
 
   const [mode, setMode] = useState<Mode>("signin");

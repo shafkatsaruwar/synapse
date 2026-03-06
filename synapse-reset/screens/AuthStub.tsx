@@ -6,8 +6,7 @@ import Colors from "@/constants/colors";
 const C = Colors.dark;
 
 /**
- * Batch E (1.8.5) — Minimal auth gate placeholder.
- * Shown when not signed in. Set EXPO_PUBLIC_SUPABASE_* in EAS to use real sign-in.
+ * Minimal auth gate placeholder. Shown when not signed in (if used by a route).
  */
 export default function AuthStub() {
   const insets = useSafeAreaInsets();
@@ -15,10 +14,9 @@ export default function AuthStub() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
       <Text style={styles.title}>Sign in</Text>
-      <Text style={styles.subtitle}>Batch E (1.8.5) — Reanimated removed (was crashing); rest of stack only</Text>
+      <Text style={styles.subtitle}>Sign in to back up and sync your data</Text>
       <Text style={styles.body}>
-        Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in EAS (or .env) to enable sign-in.
-        Until then, auth is disabled and this screen is shown when there is no session.
+        Go to Settings to sign in or create an account.
       </Text>
     </View>
   );

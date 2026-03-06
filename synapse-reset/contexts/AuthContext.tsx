@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = useCallback(async (email: string, password: string) => {
     const supabase = getSupabase();
-    if (!supabase) return { error: new Error("Sign-in is not configured. Add your Supabase URL and anon key in EAS project environment variables, then rebuild the app.") };
+    if (!supabase) return { error: new Error("Sign-in is temporarily unavailable. Please try again later or update to the latest version of the app.") };
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error ?? null };
   }, []);
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = useCallback(
     async (email: string, password: string, metadata?: { first_name?: string; last_name?: string }) => {
       const supabase = getSupabase();
-      if (!supabase) return { error: new Error("Sign-in is not configured. Add your Supabase URL and anon key in EAS project environment variables, then rebuild the app.") };
+      if (!supabase) return { error: new Error("Sign-in is temporarily unavailable. Please try again later or update to the latest version of the app.") };
       const appUrl =
         process.env.EXPO_PUBLIC_APP_URL?.trim() ||
         (typeof globalThis !== "undefined" && "location" in globalThis && (globalThis as unknown as { location?: { origin?: string } }).location?.origin);
@@ -101,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetPassword = useCallback(async (email: string) => {
     const supabase = getSupabase();
-    if (!supabase) return { error: new Error("Sign-in is not configured. Add your Supabase URL and anon key in EAS project environment variables, then rebuild the app.") };
+    if (!supabase) return { error: new Error("Sign-in is temporarily unavailable. Please try again later or update to the latest version of the app.") };
     const appUrl =
       process.env.EXPO_PUBLIC_APP_URL?.trim() ||
       (typeof globalThis !== "undefined" && "location" in globalThis && (globalThis as unknown as { location?: { origin?: string } }).location?.origin);
