@@ -6,8 +6,7 @@ import Colors from "@/constants/colors";
 const C = Colors.dark;
 
 /**
- * Batch B (1.8.2) — One real screen: minimal dashboard stub.
- * No sidebar, storage, or auth; just UI structure.
+ * Batch E (1.8.5) — Dashboard stub with full stack (Reanimated, Podfile plugin).
  */
 export default function DashboardStub() {
   const insets = useSafeAreaInsets();
@@ -19,7 +18,7 @@ export default function DashboardStub() {
       showsVerticalScrollIndicator={false}
     >
       <Text style={styles.title}>Dashboard</Text>
-      <Text style={styles.subtitle}>Batch B (1.8.2) — One real screen</Text>
+      <Text style={styles.subtitle}>Batch E (1.8.5) — Rest: Reanimated + native plugins (signed in)</Text>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Today</Text>

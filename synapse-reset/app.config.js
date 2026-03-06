@@ -6,7 +6,7 @@ module.exports = {
   expo: {
     name: "Synapse",
     slug: "synapse",
-    version: "1.8.2",
+    version: "1.8.5",
     orientation: "portrait",
     icon: "./assets/icon.png",
     scheme: "myapp",
@@ -35,12 +35,15 @@ module.exports = {
     },
     web: { favicon: "./assets/favicon.png" },
     plugins: [
-      // No custom native plugins — use Expo defaults to avoid EAS "Install dependencies" failure
+      "./plugins/withXcodeFix",
+      "./plugins/withPodfileNewArchDisabled",
       "expo-router",
     ],
     experiments: { typedRoutes: true },
     extra: {
       eas: { projectId: "2ae7d5f4-1514-408d-b1ec-250da7c8ccfa" },
+      EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
     },
     owner: "mohammedsaruwars-organization",
   },

@@ -1,0 +1,21 @@
+diff --git a/ios/DomWebView.swift b/ios/DomWebView.swift
+index 1234567..abcdefg 100644
+--- a/ios/DomWebView.swift
++++ b/ios/DomWebView.swift
+@@ -67,9 +67,14 @@ internal final class DomWebView: ExpoView, UIScrollViewDelegate, WKUIDelegate, WK
+       needsResetupScripts = false
+     }
+ 
+-    if let source,
+-      let request = RCTConvert.nsurlRequest(source.toDictionary(appContext: appContext)),
+-      webView.url?.absoluteURL != request.url {
+-      webView.load(request)
++    if let source,
++      let dict = source.toDictionary(appContext: appContext) as? [String: Any],
++      let uri = (dict["uri"] as? String) ?? (dict["url"] as? String),
++      let url = URL(string: uri),
++      webView.url?.absoluteURL != url {
++      webView.load(URLRequest(url: url))
+     }
+   }
+ 
