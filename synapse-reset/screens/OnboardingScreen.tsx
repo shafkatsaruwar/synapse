@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform,
-  useWindowDimensions, Animated, StatusBar, KeyboardAvoidingView, Alert,
+  useWindowDimensions, Animated, Image, StatusBar, KeyboardAvoidingView, Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,6 +11,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { settingsStorage, medicationStorage, ALL_SECTION_KEYS } from "@/lib/storage";
 import { getBackupStatus, restoreFromCloud } from "@/lib/backup";
 import SynapseLogo from "@/components/SynapseLogo";
+
+const founderImage = require("../assets/images/founder.png");
 
 const C = Colors.dark;
 
@@ -305,8 +307,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const renderFounderIntro = () => (
     <View style={styles.storyCenter} key={animKey}>
       <AnimatedView delay={0}>
-        <View style={[styles.photoCircle, { alignItems: "center", justifyContent: "center" }]}>
-          <Ionicons name="person" size={80} color={MAROON} />
+        <View style={styles.photoCircle}>
+          <Image source={founderImage} style={styles.photoImage} resizeMode="cover" />
         </View>
       </AnimatedView>
       <AnimatedLine text="Why Synapse exists" delay={300} style={styles.founderTitle} color={MAROON} />

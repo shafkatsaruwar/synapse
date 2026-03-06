@@ -17,6 +17,7 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
 import { getBackupStatus, restoreFromCloud } from "@/lib/backup";
+import { getSupabase, setSupabaseConfig } from "@/lib/supabase";
 
 const C = Colors.dark;
 const MAROON = "#800020";
@@ -30,7 +31,11 @@ interface AuthScreenProps {
 
 export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
   const insets = useSafeAreaInsets();
-  const { signIn, signUp, user, resetPassword } = useAuth();
+  const { signIn, signUp, user, resetPassword, refreshSession } = useAuth();
+  const [supabaseUrl, setSupabaseUrl] = useState("");
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
+  const [configSaving, setConfigSaving] = useState(false);
+  const needsConfig = getSupabase() === null;
 
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -122,6 +127,25 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
     setMessage({ type: "success", text: "Check your email to confirm your account." });
   };
 
+  const handleSaveSupabaseConfig = async () => {
+    const url = supabaseUrl.trim();
+    const key = supabaseAnonKey.trim();
+    if (!url || !key) {
+      setMessage({ type: "error", text: "Enter both Supabase URL and anon key." });
+      return;
+    }
+    setConfigSaving(true);
+    setMessage(null);
+    try {
+      await setSupabaseConfig(url, key);
+      await refreshSession();
+    } catch (e) {
+      setMessage({ type: "error", text: e instanceof Error ? e.message : "Failed to save." });
+    } finally {
+      setConfigSaving(false);
+    }
+  };
+
   const handleForgotPassword = async () => {
     if (!email.trim()) {
       setMessage({ type: "error", text: "Enter your email." });
@@ -149,6 +173,47 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
           <Text style={styles.backText}>Settings</Text>
         </Pressable>
 
+        {needsConfig && (
+          <View style={[styles.card, { marginBottom: 16 }]}>
+            <Text style={styles.title}>Configure sign-in</Text>
+            <Text style={[styles.subtitle, { marginBottom: 16 }]}>
+              Add your Supabase project URL and anon key once. You can find these in Supabase → Project Settings → API.
+            </Text>
+            <Text style={styles.label}>Supabase URL</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="https://xxxx.supabase.co"
+              placeholderTextColor={C.textTertiary}
+              value={supabaseUrl}
+              onChangeText={setSupabaseUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Text style={styles.label}>Anon key</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+              placeholderTextColor={C.textTertiary}
+              value={supabaseAnonKey}
+              onChangeText={setSupabaseAnonKey}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Pressable
+              style={({ pressed }) => [styles.primaryBtn, { opacity: pressed ? 0.9 : 1, marginTop: 8 }]}
+              onPress={handleSaveSupabaseConfig}
+              disabled={configSaving}
+              accessibilityRole="button"
+            >
+              {configSaving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.primaryBtnText}>Save and continue</Text>
+              )}
+            </Pressable>
+          </View>
+        )}
+
         <Text style={styles.title}>{mode === "signin" ? "Sign In" : mode === "signup" ? "Create Account" : "Reset Password"}</Text>
         <Text style={styles.subtitle}>
           {mode === "signin" && "Sign in to back up and restore your data."}
@@ -157,7 +222,7 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
         </Text>
 
         <View style={styles.card}>
-          {message && (
+          {message && !needsConfig && (
             <View style={[styles.messageBox, message.type === "error" ? styles.messageError : styles.messageSuccess]}>
               <Text style={styles.messageText}>{message.text}</Text>
             </View>
