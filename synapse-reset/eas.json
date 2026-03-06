@@ -2,10 +2,11 @@
   "cli": { "version": ">= 18.0.5", "appVersionSource": "remote" },
   "build": {
     "development": { "distribution": "internal" },
-    "preview": { "distribution": "internal" },
+    "preview": { "distribution": "internal", "environment": "preview" },
     "production": {
       "autoIncrement": true,
-      "ios": { "resourceClass": "m-medium" }
+      "ios": { "resourceClass": "m-medium" },
+      "environment": "production"
     }
   },
   "submit": { "production": {} }

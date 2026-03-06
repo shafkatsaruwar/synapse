@@ -1,24 +1,24 @@
 # Environment setup (synapse-reset)
 
-## Login (Supabase)
+## Shipping the app — sign-in for real users
 
-For sign-in to work, the app must be built with your Supabase URL and anon key.
+**Option A: .env file (reliable for EAS)**
 
-1. **EAS Dashboard** (recommended):  
-   [expo.dev](https://expo.dev) → your project → **Environment variables** (or **Secrets**).  
-   Add:
-   - `EXPO_PUBLIC_SUPABASE_URL` = your Supabase project URL  
-   - `EXPO_PUBLIC_SUPABASE_ANON_KEY` = your Supabase anon (public) key  
+1. In the **synapse-reset** folder: `cp .env.example .env`
+2. Edit **.env** and set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (get them from [Supabase Dashboard](https://supabase.com/dashboard) → your project → **Project Settings** → **API**).
+3. **Commit .env** so EAS Build has the values: `git add -f synapse-reset/.env` then commit. (Supabase anon key is public by design. If .env is in .gitignore, use `-f` to add it.)
+4. Run a new build: `eas build -p ios --profile production`
 
-2. **Rebuild the app** after adding or changing these (e.g. `eas build -p ios --profile production`).  
-   They are baked in at build time.
+The app loads `.env` in `app.config.js`, so when EAS runs the build it will have these values and sign-in will work.
 
-If these are missing, the app will show an error when you try to sign in:  
-*"Sign-in is not configured. Add your Supabase URL and anon key in EAS project environment variables, then rebuild the app."*
+**Option B: Expo project environment variables**
+
+In expo.dev → your Synapse project → **Project settings** → **Environment variables**, add the same two variables for production. Then run a new build. If sign-in still fails, use Option A (.env) instead.
+
+After either option, users only see the normal Sign In / Create account screen.
 
 ## Pictures / assets
 
-- **Onboarding**: Uses the Synapse logo component and a person icon (no local image files).  
-  If you have `brain-logo.jpeg` or `founder.png`, you can add them under `assets/images/` and the onboarding screen can be updated to use them again.
-- **App icon**: `assets/icon.png` (already set).
-- Other screens use icons from `@expo/vector-icons` or remote URLs; no extra local image assets are required for the migrated app.
+- **Onboarding**: Uses Synapse logo and founder image from `assets/images/founder.png`.
+- **App icon**: `assets/icon.png`.
+- Other screens use icons from `@expo/vector-icons` or remote URLs.
