@@ -7,17 +7,25 @@ const STORAGE_KEY_ANON = "supabase_anon_key";
 
 let client: SupabaseClient | null = null;
 
+function strFromExtra(key: string): string {
+  const extra = Constants.expoConfig?.extra as Record<string, unknown> | undefined;
+  if (!extra || typeof extra !== "object") return "";
+  const v = extra[key];
+  if (v == null) return "";
+  const s = typeof v === "string" ? v : String(v);
+  return s.trim();
+}
+
+/** Prefer baked-in extra (from app.config.js + .env at build time), then process.env. */
 function getEnv(): { url: string; anonKey: string } | null {
   const url =
+    strFromExtra("EXPO_PUBLIC_SUPABASE_URL") ||
     process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ||
-    (typeof Constants.expoConfig?.extra === "object" && typeof (Constants.expoConfig.extra as Record<string, unknown>).EXPO_PUBLIC_SUPABASE_URL === "string"
-      ? ((Constants.expoConfig.extra as Record<string, string>).EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "")
-      : "");
+    "";
   const anonKey =
+    strFromExtra("EXPO_PUBLIC_SUPABASE_ANON_KEY") ||
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
-    (typeof Constants.expoConfig?.extra === "object" && typeof (Constants.expoConfig.extra as Record<string, unknown>).EXPO_PUBLIC_SUPABASE_ANON_KEY === "string"
-      ? ((Constants.expoConfig.extra as Record<string, string>).EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "")
-      : "");
+    "";
   if (!url || !anonKey) {
     return null;
   }

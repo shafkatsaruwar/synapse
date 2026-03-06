@@ -1,10 +1,15 @@
 /**
  * Minimal Synapse reset app — same bundle ID / name for TestFlight replacement.
  * Version = batch: 1.8.0–1.8.5; 1.8.6 = full migration (all screens, no Reanimated). See MIGRATION.md.
- * Loads .env from this directory so EXPO_PUBLIC_* are available (local dev or EAS if .env is in repo).
+ * Loads .env so EXPO_PUBLIC_* are available (local dev or EAS if .env is committed).
  */
 const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, ".env") });
+const dotenv = require("dotenv");
+// Try synapse-reset/.env first, then repo root .env (for EAS when cwd may vary)
+dotenv.config({ path: path.join(__dirname, ".env") });
+if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
+  dotenv.config({ path: path.join(__dirname, "..", ".env") });
+}
 
 module.exports = {
   expo: {
