@@ -44,12 +44,17 @@ export async function getBackupStatus(userId: string): Promise<BackupStatus> {
   }
 }
 
-/** Ensure payload has medications and medicationLogs so they are never dropped when serializing to Supabase. */
-function normalizeBackupPayload(payload: ExportPayload): Record<string, unknown> {
-  const data = payload as unknown as Record<string, unknown>;
-  data.medications = Array.isArray(payload.medications) ? payload.medications : [];
-  data.medicationLogs = Array.isArray(payload.medicationLogs) ? payload.medicationLogs : [];
-  return data;
+/** Build a plain object for Supabase so medications, medicationLogs, and insights (health summary) are never dropped. */
+function buildBackupData(payload: ExportPayload): Record<string, unknown> {
+  const meds = Array.isArray(payload.medications) ? payload.medications : [];
+  const medLogs = Array.isArray(payload.medicationLogs) ? payload.medicationLogs : [];
+  const insights = Array.isArray(payload.insights) ? payload.insights : [];
+  return {
+    ...payload,
+    medications: meds,
+    medicationLogs: medLogs,
+    insights,
+  } as unknown as Record<string, unknown>;
 }
 
 export async function backupNow(userId: string): Promise<{ error: Error | null }> {
@@ -57,7 +62,13 @@ export async function backupNow(userId: string): Promise<{ error: Error | null }
     const supabase = getSupabase();
     if (!supabase) return { error: new Error("Supabase not configured") };
     const payload = await exportAllData();
-    const data = normalizeBackupPayload(payload);
+    const medications = Array.isArray(payload.medications) ? payload.medications : [];
+    const medicationLogs = Array.isArray(payload.medicationLogs) ? payload.medicationLogs : [];
+    const data = buildBackupData(payload);
+    const insights = Array.isArray(payload.insights) ? payload.insights : [];
+    if (medications.length > 0 || medicationLogs.length > 0 || insights.length > 0) {
+      console.log("Backup: including", medications.length, "medications,", medicationLogs.length, "medication logs,", insights.length, "health insights");
+    }
     const { error } = await supabase.from("user_backups").upsert(
       {
         user_id: userId,
@@ -76,12 +87,13 @@ export async function backupNow(userId: string): Promise<{ error: Error | null }
   }
 }
 
-/** Ensure restored payload has medications and medicationLogs (e.g. older backup format). */
+/** Ensure restored payload has medications, medicationLogs, and insights (e.g. older backup format). */
 function normalizeRestorePayload(raw: unknown): ExportPayload {
   const p = raw as Record<string, unknown>;
   const payload = { ...p } as ExportPayload;
   if (!Array.isArray(payload.medications)) payload.medications = [];
   if (!Array.isArray(payload.medicationLogs)) payload.medicationLogs = [];
+  if (!Array.isArray(payload.insights)) payload.insights = [];
   return payload;
 }
 

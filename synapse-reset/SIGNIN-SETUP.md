@@ -60,10 +60,10 @@ You’re done. No EAS env vars, no dashboards—just commit `.env` and build.
 
 For **web** (`npx expo start --web` or a deployed web build):
 
-1. **Env in the bundle:** Restart the dev server after changing `.env` so the Supabase URL and anon key are in the bundle. For a production web build, ensure the build runs in an environment where `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` are set (e.g. from `.env` or your host’s env).
+1. **Restart the dev server:** Restart the dev server after changing `.env` so the Supabase URL and anon key are in the bundle. For a production web build, ensure the build runs in an environment where `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` are set (e.g. from `.env` or your host’s env).
 
-2. **Supabase URL configuration:** In [Supabase Dashboard](https://supabase.com/dashboard) → your project → **Authentication** → **URL Configuration**, add your web origins:
-   - **Site URL:** your web app URL (e.g. `http://localhost:8081` for dev or `https://yourdomain.com` for production).
-   - **Redirect URLs:** add the same URLs (e.g. `http://localhost:8081/**`, `https://yourdomain.com/**`) so sign-up and password reset redirects work.
+2. **Supabase Dashboard — required for web:** In [Supabase Dashboard](https://supabase.com/dashboard) → your project → **Authentication** → **URL Configuration**: set **Site URL** to your web app URL (e.g. `http://localhost:8081` or `https://yourdomain.com`), and add the same URLs to **Redirect URLs**. Without these, sign-in from the browser can be blocked.
 
-3. If sign-in still fails on web, open the browser dev tools (F12) → Console and check for errors or the "Supabase init:" logs to confirm the URL is present.
+3. **If sign-in still doesn't work:** The app may show a form to enter your Supabase Project URL and anon key. Get them from Supabase Dashboard → Project Settings → API, paste them in, and tap **Save and continue**. They're stored in the browser and sign-in should work after that.
+
+4. **Debug:** Open dev tools (F12) → Console. If "Supabase init:" logs show "(missing)" for both URL sources, use the in-app form (step 3) or ensure `.env` is present and restart the server.

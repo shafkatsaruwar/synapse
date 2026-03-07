@@ -20,19 +20,39 @@ function strFromExtra(key: string): string {
   return s.trim();
 }
 
-/** Prefer baked-in extra (from app.config.js + .env at build time), then process.env. */
+/** On web, Expo sometimes doesn't inline process.env; try window and __EXPO_CONFIG__ as fallbacks. */
+function getExtraForWeb(): Record<string, unknown> | undefined {
+  if (typeof window === "undefined") return undefined;
+  const w = window as unknown as Record<string, unknown>;
+  const fromWindow =
+    (w.__EXPO_PUBLIC_SUPABASE_URL__ as string | undefined) ? { EXPO_PUBLIC_SUPABASE_URL: w.__EXPO_PUBLIC_SUPABASE_URL__, EXPO_PUBLIC_SUPABASE_ANON_KEY: w.__EXPO_PUBLIC_SUPABASE_ANON_KEY__ } : undefined;
+  if (fromWindow && (fromWindow.EXPO_PUBLIC_SUPABASE_URL || fromWindow.EXPO_PUBLIC_SUPABASE_ANON_KEY)) return fromWindow;
+  const expoConfig = w.__EXPO_CONFIG__ as { extra?: Record<string, unknown> } | undefined;
+  if (expoConfig?.extra && typeof expoConfig.extra === "object") return expoConfig.extra;
+  const expo = w.expo as { config?: { extra?: Record<string, unknown> } } | undefined;
+  return expo?.config?.extra;
+}
+
+/** Prefer baked-in extra (from app.config.js + .env at build time), then process.env, then web fallbacks. */
 function getEnv(): { url: string; anonKey: string } | null {
-  const url =
+  let url =
     strFromExtra("EXPO_PUBLIC_SUPABASE_URL") ||
     process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ||
     "";
-  const anonKey =
+  let anonKey =
     strFromExtra("EXPO_PUBLIC_SUPABASE_ANON_KEY") ||
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
     "";
-  if (!url || !anonKey) {
-    return null;
+  if ((!url || !anonKey) && typeof window !== "undefined") {
+    const webExtra = getExtraForWeb();
+    if (webExtra) {
+      const u = webExtra.EXPO_PUBLIC_SUPABASE_URL;
+      const k = webExtra.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+      url = url || (typeof u === "string" ? u.trim() : "");
+      anonKey = anonKey || (typeof k === "string" ? k.trim() : "");
+    }
   }
+  if (!url || !anonKey) return null;
   return { url, anonKey };
 }
 

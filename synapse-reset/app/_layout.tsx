@@ -1,4 +1,5 @@
 import "react-native-gesture-handler";
+import "@/lib/supabase-web-env";
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Stack } from "expo-router";

@@ -17,7 +17,7 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
 import { getBackupStatus, restoreFromCloud } from "@/lib/backup";
-import { getSupabase, setSupabaseConfig } from "@/lib/supabase";
+import { getSupabase, initSupabaseFromStorage, setSupabaseConfig } from "@/lib/supabase";
 
 const C = Colors.dark;
 const MAROON = "#800020";
@@ -35,8 +35,8 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
   const [configSaving, setConfigSaving] = useState(false);
-  // Only in development: show config form if Supabase isn't set. Production users never see Supabase.
-  const needsConfig = __DEV__ && getSupabase() === null;
+  // In dev or on web: show config form if Supabase isn't set so users can paste URL/key (web often misses env).
+  const needsConfig = (__DEV__ || Platform.OS === "web") && getSupabase() === null;
 
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -52,6 +52,7 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
     if (!pendingRestoreCheck || !user?.id || restoreHandled.current) return;
     (async () => {
       restoreHandled.current = true;
+      await initSupabaseFromStorage();
       const status = await getBackupStatus(user.id);
       setPendingRestoreCheck(false);
       if (status.hasBackup) {
@@ -97,6 +98,7 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setPendingRestoreCheck(true);
+    refreshSession();
   };
 
   const handleSignUp = async () => {

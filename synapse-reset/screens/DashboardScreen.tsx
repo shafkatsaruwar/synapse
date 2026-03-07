@@ -31,6 +31,7 @@ import {
 } from "@/lib/storage";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
+import { useAuth } from "@/contexts/AuthContext";
 
 const C = Colors.dark;
 
@@ -88,6 +89,7 @@ function PriorityCard({ colors, icon, label, onPress, children }: { colors: [str
 export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { user } = useAuth();
   const isWide = width >= 768;
   const today = getToday();
 
@@ -140,7 +142,12 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   const dateObj = new Date();
   const greeting = dateObj.getHours() < 12 ? "Good morning" : dateObj.getHours() < 17 ? "Good afternoon" : "Good evening";
-  const displayFirstName = settings.name?.trim() ? settings.name.trim().split(/\s+/)[0] : "";
+  const authFirstName =
+    user?.user_metadata?.first_name ??
+    (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name.trim().split(/\s+/)[0] : undefined) ??
+    (user?.email ? user.email.split("@")[0] : undefined);
+  const settingsFirstName = settings.name?.trim() ? settings.name.trim().split(/\s+/)[0] : "";
+  const displayFirstName = (authFirstName ?? settingsFirstName) || "";
 
   const ramadanDay = getTodayRamadan(today);
   const ordinalSuffix = (n: number) => {
