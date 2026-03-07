@@ -42,3 +42,13 @@ cd synapse-reset && eas build -p ios --profile production
 Install the new build from TestFlight. Sign-in will work. Every **future** build will also have sign-in, because `.env` is now in the repo and gets loaded when the app is built.
 
 You’re done. No EAS env vars, no dashboards—just commit `.env` and build.
+
+---
+
+## "Network request failed" or can't sign in
+
+- **TestFlight / installed app:** The app was built earlier. Changing `.env` on your computer now does **not** change that build. You must **commit** `.env` (repo root or `synapse-reset/.env`) and run a **new** `eas build`, then install the new build.
+- **Expo dev (`npx expo start`):** After changing `.env`, **restart** the dev server (stop and run `npx expo start` again) so the config is reloaded.
+- **Supabase URL:** Must be `https://` (not `http://`), no trailing slash, and the project ref must be correct (Supabase Dashboard → Settings → API → Project URL). If the project is paused (free tier), resume it in the dashboard.
+- **Where to put `.env`:** Either repo root or `synapse-reset/`. The app loads both. Variable names must be exactly `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
+- **Vercel URL:** Used for email confirmation links (sign-up), not for the sign-in request. Sign-in talks to Supabase only. If only sign-in fails, the problem is Supabase URL/network, not Vercel.

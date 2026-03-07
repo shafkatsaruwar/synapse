@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import Constants from "expo-constants";
 import { Session, User } from "@supabase/supabase-js";
 import { getSupabase, initSupabaseFromStorage } from "@/lib/supabase";
 
@@ -67,8 +68,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback(async (email: string, password: string) => {
     const supabase = getSupabase();
     if (!supabase) return { error: new Error("Sign-in is temporarily unavailable. Please try again later or update to the latest version of the app.") };
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error ?? null };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return { error: error ?? null };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/network|fetch|failed|unable to resolve/i.test(msg)) {
+        return { error: new Error("Couldn't reach the server. Check your internet connection and try again.") };
+      }
+      return { error: e instanceof Error ? e : new Error(String(e)) };
+    }
   }, []);
 
   const signUp = useCallback(
@@ -77,19 +86,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!supabase) return { error: new Error("Sign-in is temporarily unavailable. Please try again later or update to the latest version of the app.") };
       const appUrl =
         process.env.EXPO_PUBLIC_APP_URL?.trim() ||
+        (typeof Constants.expoConfig?.extra === "object" && (Constants.expoConfig.extra as Record<string, unknown>).EXPO_PUBLIC_APP_URL && String((Constants.expoConfig.extra as Record<string, string>).EXPO_PUBLIC_APP_URL).trim()) ||
         (typeof globalThis !== "undefined" && "location" in globalThis && (globalThis as unknown as { location?: { origin?: string } }).location?.origin);
       const data: Record<string, string> = {};
       if (metadata?.first_name) data.first_name = metadata.first_name;
       if (metadata?.last_name) data.last_name = metadata.last_name;
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          ...(Object.keys(data).length > 0 ? { data } : {}),
-          ...(appUrl ? { emailRedirectTo: appUrl } : {}),
-        },
-      });
-      return { error: error ?? null };
+      try {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            ...(Object.keys(data).length > 0 ? { data } : {}),
+            ...(appUrl ? { emailRedirectTo: appUrl } : {}),
+          },
+        });
+        return { error: error ?? null };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (/network|fetch|failed|unable to resolve/i.test(msg)) {
+          return { error: new Error("Couldn't reach the server. Check your internet connection and try again.") };
+        }
+        return { error: e instanceof Error ? e : new Error(String(e)) };
+      }
     },
     []
   );
@@ -104,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!supabase) return { error: new Error("Sign-in is temporarily unavailable. Please try again later or update to the latest version of the app.") };
     const appUrl =
       process.env.EXPO_PUBLIC_APP_URL?.trim() ||
+      (typeof Constants.expoConfig?.extra === "object" && (Constants.expoConfig.extra as Record<string, unknown>).EXPO_PUBLIC_APP_URL && String((Constants.expoConfig.extra as Record<string, string>).EXPO_PUBLIC_APP_URL).trim()) ||
       (typeof globalThis !== "undefined" && "location" in globalThis && (globalThis as unknown as { location?: { origin?: string } }).location?.origin);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: appUrl || undefined,

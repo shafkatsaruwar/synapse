@@ -10,6 +10,10 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
   dotenv.config({ path: path.join(__dirname, "..", ".env") });
 }
+// Optional: load app URL for sign-up/reset redirects
+if (!process.env.EXPO_PUBLIC_APP_URL) {
+  dotenv.config({ path: path.join(__dirname, "..", ".env") });
+}
 
 module.exports = {
   expo: {
@@ -51,6 +55,7 @@ module.exports = {
       eas: { projectId: "2ae7d5f4-1514-408d-b1ec-250da7c8ccfa" },
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
       EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
+      EXPO_PUBLIC_APP_URL: (process.env.EXPO_PUBLIC_APP_URL ?? "").replace(/\/$/, ""),
     },
     // Env from .env or EAS is baked into extra above; Metro inlines EXPO_PUBLIC_* at bundle time.
     owner: "mohammedsaruwars-organization",
