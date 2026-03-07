@@ -36,7 +36,14 @@ module.exports = {
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSAppTransportSecurity: {
-          NSAllowsArbitraryLoads: true,
+          NSAllowsArbitraryLoads: false,
+          NSExceptionDomains: {
+            "supabase.co": {
+              NSIncludesSubdomains: true,
+              NSExceptionAllowsInsecureHTTPLoads: false,
+              NSExceptionRequiresForwardSecrecy: false,
+            },
+          },
         },
       },
     },
