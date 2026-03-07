@@ -113,7 +113,11 @@ export async function initSupabaseFromStorage(): Promise<void> {
     console.warn("Supabase storage read failed", e);
   }
   const env = getEnv();
-  if (env) setClientFromEnv(env);
+  if (env) {
+    console.log("SUPABASE URL FROM ENV:", env?.url);
+    console.log("SUPABASE KEY PRESENT:", !!env?.anonKey);
+    setClientFromEnv(env);
+  }
   else console.warn("Supabase env missing: set in EAS or use in-app config.");
 }
 

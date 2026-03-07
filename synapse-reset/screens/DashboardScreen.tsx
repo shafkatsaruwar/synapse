@@ -142,12 +142,12 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   const dateObj = new Date();
   const greeting = dateObj.getHours() < 12 ? "Good morning" : dateObj.getHours() < 17 ? "Good afternoon" : "Good evening";
-  const authFirstName =
+  const authNameRaw =
     user?.user_metadata?.first_name ??
-    (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name.trim().split(/\s+/)[0] : undefined) ??
+    (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : undefined) ??
     (user?.email ? user.email.split("@")[0] : undefined);
   const settingsFirstName = settings.name?.trim() ? settings.name.trim().split(/\s+/)[0] : "";
-  const displayFirstName = (authFirstName ?? settingsFirstName) || "";
+  const displayFirstName = (typeof authNameRaw === "string" ? authNameRaw.trim().split(/\s+/)[0] : "") || settingsFirstName || "";
 
   const ramadanDay = getTodayRamadan(today);
   const ordinalSuffix = (n: number) => {
