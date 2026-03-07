@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: error ?? null };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (/network|fetch|failed|unable to resolve/i.test(msg)) {
+      if (/network|fetch|failed|unable to resolve|request failed/i.test(msg)) {
         return { error: new Error("Couldn't reach the server. Check your internet connection and try again.") };
       }
       return { error: e instanceof Error ? e : new Error(String(e)) };
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error ?? null };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (/network|fetch|failed|unable to resolve/i.test(msg)) {
+        if (/network|fetch|failed|unable to resolve|request failed/i.test(msg)) {
           return { error: new Error("Couldn't reach the server. Check your internet connection and try again.") };
         }
         return { error: e instanceof Error ? e : new Error(String(e)) };

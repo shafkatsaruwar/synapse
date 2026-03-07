@@ -35,7 +35,17 @@ function getEnv(): { url: string; anonKey: string } | null {
   return { url, anonKey };
 }
 
+function isValidSupabaseUrl(url: string): boolean {
+  const u = url.trim();
+  return u.startsWith("https://") && u.includes(".supabase.co") && u.length > 20;
+}
+
 function setClientFromEnv(env: { url: string; anonKey: string }): void {
+  if (!isValidSupabaseUrl(env.url)) {
+    console.warn("Supabase URL invalid or missing, skipping client creation");
+    client = null;
+    return;
+  }
   try {
     client = createClient(env.url, env.anonKey);
   } catch (e) {
@@ -50,7 +60,10 @@ function setClientFromEnv(env: { url: string; anonKey: string }): void {
  */
 export async function initSupabaseFromStorage(): Promise<void> {
   if (client !== null) return;
-  console.log("Supabase ENV URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
+  const fromEnv = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
+  const fromExtra = strFromExtra("EXPO_PUBLIC_SUPABASE_URL");
+  console.log("Supabase init: process.env URL:", fromEnv ? `${fromEnv.slice(0, 30)}...` : "(missing)");
+  console.log("Supabase init: extra URL:", fromExtra ? `${fromExtra.slice(0, 30)}...` : "(missing)");
   try {
     const [storedUrl, storedKey] = await Promise.all([
       AsyncStorage.getItem(STORAGE_KEY_URL),
