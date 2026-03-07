@@ -53,3 +53,17 @@ You’re done. No EAS env vars, no dashboards—just commit `.env` and build.
 - **Where to put `.env`:** Either repo root or `synapse-reset/`. The app loads both. Variable names must be exactly `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
 - **Vercel URL:** Used for email confirmation links (sign-up), not for the sign-in request. Sign-in talks to Supabase only. If only sign-in fails, the problem is Supabase URL/network, not Vercel.
 - **Still "network request failed"?** (1) In Supabase Dashboard → Project Settings → API, confirm the project is **not paused** (resume if needed). (2) Copy the **Project URL** again and ensure it matches exactly in `.env` (no trailing slash, `https://`). (3) Run a **new** EAS build after any `.env` change and install that build. (4) On device, open Safari and visit your Supabase Project URL—if it doesn’t load, it’s a network/DNS issue on that device.
+
+---
+
+## Web sign-in
+
+For **web** (`npx expo start --web` or a deployed web build):
+
+1. **Env in the bundle:** Restart the dev server after changing `.env` so the Supabase URL and anon key are in the bundle. For a production web build, ensure the build runs in an environment where `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` are set (e.g. from `.env` or your host’s env).
+
+2. **Supabase URL configuration:** In [Supabase Dashboard](https://supabase.com/dashboard) → your project → **Authentication** → **URL Configuration**, add your web origins:
+   - **Site URL:** your web app URL (e.g. `http://localhost:8081` for dev or `https://yourdomain.com` for production).
+   - **Redirect URLs:** add the same URLs (e.g. `http://localhost:8081/**`, `https://yourdomain.com/**`) so sign-up and password reset redirects work.
+
+3. If sign-in still fails on web, open the browser dev tools (F12) → Console and check for errors or the "Supabase init:" logs to confirm the URL is present.

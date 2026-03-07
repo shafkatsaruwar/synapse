@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const STORAGE_KEY_URL = "supabase_url";
@@ -40,6 +41,12 @@ function isValidSupabaseUrl(url: string): boolean {
   return u.startsWith("https://") && u.includes(".supabase.co") && u.length > 20;
 }
 
+const supabaseStorage = {
+  getItem: async (key: string) => AsyncStorage.getItem(key),
+  setItem: async (key: string, value: string) => AsyncStorage.setItem(key, value),
+  removeItem: async (key: string) => AsyncStorage.removeItem(key),
+};
+
 function setClientFromEnv(env: { url: string; anonKey: string }): void {
   if (!isValidSupabaseUrl(env.url)) {
     console.warn("Supabase URL invalid or missing, skipping client creation");
@@ -47,7 +54,14 @@ function setClientFromEnv(env: { url: string; anonKey: string }): void {
     return;
   }
   try {
-    client = createClient(env.url, env.anonKey);
+    client = createClient(env.url, env.anonKey, {
+      auth: {
+        storage: supabaseStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: Platform.OS === "web",
+      },
+    });
   } catch (e) {
     console.error("Supabase initialization error", e);
     client = null;
