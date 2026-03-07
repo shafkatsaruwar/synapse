@@ -50,6 +50,7 @@ function setClientFromEnv(env: { url: string; anonKey: string }): void {
  */
 export async function initSupabaseFromStorage(): Promise<void> {
   if (client !== null) return;
+  console.log("Supabase ENV URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
   try {
     const [storedUrl, storedKey] = await Promise.all([
       AsyncStorage.getItem(STORAGE_KEY_URL),

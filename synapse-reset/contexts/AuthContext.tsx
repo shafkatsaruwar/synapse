@@ -22,8 +22,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refreshSession = useCallback(async () => {
+    await initSupabaseFromStorage();
     const supabase = getSupabase();
-    if (!supabase) return;
+    if (!supabase) {
+      console.error("Supabase client not initialized yet");
+      return;
+    }
     const { data: { session: s } } = await supabase.auth.getSession();
     setSession(s ?? null);
     setUser(s?.user ?? null);
@@ -33,7 +37,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
     (async () => {
-      await initSupabaseFromStorage();
+      try {
+        await initSupabaseFromStorage();
+      } catch (e) {
+        console.error("Supabase initialization failed", e);
+      }
       if (cancelled) return;
       const supabase = getSupabase();
       if (!supabase) {
@@ -66,8 +74,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    await initSupabaseFromStorage();
     const supabase = getSupabase();
-    if (!supabase) return { error: new Error("Sign-in is temporarily unavailable. Please try again later or update to the latest version of the app.") };
+    if (!supabase) {
+      console.error("Supabase client not initialized yet");
+      return { error: new Error("Sign-in is temporarily unavailable. Please try again later or update to the latest version of the app.") };
+    }
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       return { error: error ?? null };
@@ -82,8 +94,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = useCallback(
     async (email: string, password: string, metadata?: { first_name?: string; last_name?: string }) => {
+      await initSupabaseFromStorage();
       const supabase = getSupabase();
-      if (!supabase) return { error: new Error("Sign-in is temporarily unavailable. Please try again later or update to the latest version of the app.") };
+      if (!supabase) {
+        console.error("Supabase client not initialized yet");
+        return { error: new Error("Sign-in is temporarily unavailable. Please try again later or update to the latest version of the app.") };
+      }
       const appUrl =
         process.env.EXPO_PUBLIC_APP_URL?.trim() ||
         (typeof Constants.expoConfig?.extra === "object" && (Constants.expoConfig.extra as Record<string, unknown>).EXPO_PUBLIC_APP_URL && String((Constants.expoConfig.extra as Record<string, string>).EXPO_PUBLIC_APP_URL).trim()) ||
@@ -114,12 +130,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     const supabase = getSupabase();
-    if (supabase) await supabase.auth.signOut();
+    if (!supabase) {
+      console.error("Supabase client not initialized yet");
+      return;
+    }
+    await supabase.auth.signOut();
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
+    await initSupabaseFromStorage();
     const supabase = getSupabase();
-    if (!supabase) return { error: new Error("Sign-in is temporarily unavailable. Please try again later or update to the latest version of the app.") };
+    if (!supabase) {
+      console.error("Supabase client not initialized yet");
+      return { error: new Error("Sign-in is temporarily unavailable. Please try again later or update to the latest version of the app.") };
+    }
     const appUrl =
       process.env.EXPO_PUBLIC_APP_URL?.trim() ||
       (typeof Constants.expoConfig?.extra === "object" && (Constants.expoConfig.extra as Record<string, unknown>).EXPO_PUBLIC_APP_URL && String((Constants.expoConfig.extra as Record<string, string>).EXPO_PUBLIC_APP_URL).trim()) ||
