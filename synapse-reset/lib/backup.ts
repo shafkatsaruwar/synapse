@@ -44,15 +44,24 @@ export async function getBackupStatus(userId: string): Promise<BackupStatus> {
   }
 }
 
+/** Ensure payload has medications and medicationLogs so they are never dropped when serializing to Supabase. */
+function normalizeBackupPayload(payload: ExportPayload): Record<string, unknown> {
+  const data = payload as unknown as Record<string, unknown>;
+  data.medications = Array.isArray(payload.medications) ? payload.medications : [];
+  data.medicationLogs = Array.isArray(payload.medicationLogs) ? payload.medicationLogs : [];
+  return data;
+}
+
 export async function backupNow(userId: string): Promise<{ error: Error | null }> {
   try {
     const supabase = getSupabase();
     if (!supabase) return { error: new Error("Supabase not configured") };
     const payload = await exportAllData();
+    const data = normalizeBackupPayload(payload);
     const { error } = await supabase.from("user_backups").upsert(
       {
         user_id: userId,
-        data: payload as unknown as Record<string, unknown>,
+        data,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" }
@@ -67,13 +76,22 @@ export async function backupNow(userId: string): Promise<{ error: Error | null }
   }
 }
 
+/** Ensure restored payload has medications and medicationLogs (e.g. older backup format). */
+function normalizeRestorePayload(raw: unknown): ExportPayload {
+  const p = raw as Record<string, unknown>;
+  const payload = { ...p } as ExportPayload;
+  if (!Array.isArray(payload.medications)) payload.medications = [];
+  if (!Array.isArray(payload.medicationLogs)) payload.medicationLogs = [];
+  return payload;
+}
+
 export async function restoreFromCloud(userId: string): Promise<{ error: Error | null }> {
   try {
     const supabase = getSupabase();
     if (!supabase) return { error: new Error("Supabase not configured") };
     const { data, error } = await supabase.from("user_backups").select("data").eq("user_id", userId).maybeSingle();
     if (error || !data?.data) return { error: error ? new Error(error.message) : new Error("No backup found") };
-    const payload = data.data as unknown as ExportPayload;
+    const payload = normalizeRestorePayload(data.data);
     await importAllData(payload);
     return { error: null };
   } catch (e) {
