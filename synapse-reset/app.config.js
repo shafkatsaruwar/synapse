@@ -35,6 +35,9 @@ module.exports = {
       buildNumber: "1",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        NSAppTransportSecurity: {
+          NSAllowsArbitraryLoads: true,
+        },
       },
     },
     android: {
