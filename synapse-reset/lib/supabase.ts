@@ -65,6 +65,10 @@ function getEnv(): { url: string; anonKey: string } | null {
       anonKey = anonKey || (typeof k === "string" ? k.trim() : "");
     }
   }
+  console.log("SUPABASE EXTRA URL:", strFromExtra("EXPO_PUBLIC_SUPABASE_URL"));
+  console.log("SUPABASE EXTRA KEY:", strFromExtra("EXPO_PUBLIC_SUPABASE_ANON_KEY"));
+  console.log("SUPABASE PROCESS ENV URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
+  console.log("SUPABASE PROCESS ENV KEY:", process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
   if (!url || !anonKey) return null;
   return { url, anonKey };
 }
