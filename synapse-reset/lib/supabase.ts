@@ -33,21 +33,21 @@ function getExtraForWeb(): Record<string, unknown> | undefined {
   return expo?.config?.extra;
 }
 
-/** Prefer baked-in extra (from app.config.js + .env at build time), then process.env, then web fallbacks. */
+/** Primary: Constants.expoConfig.extra.supabaseUrl / supabaseAnonKey; fallback: EXPO_PUBLIC_* and process.env. */
 function getEnv(): { url: string; anonKey: string } | null {
-  let url =
-    strFromExtra("EXPO_PUBLIC_SUPABASE_URL") ||
-    process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ||
-    "";
-  let anonKey =
-    strFromExtra("EXPO_PUBLIC_SUPABASE_ANON_KEY") ||
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
-    "";
+  const extra =
+    (Constants.expoConfig?.extra as Record<string, unknown> | undefined) ??
+    (Constants.manifest?.extra as Record<string, unknown> | undefined) ??
+    (Constants.manifest2?.extra as Record<string, unknown> | undefined);
+  const fromExtra = (key: string) =>
+    (extra && typeof extra[key] === "string" ? (extra[key] as string).trim() : "") || strFromExtra(key) || process.env[key]?.trim() || "";
+  let url = fromExtra("supabaseUrl") || fromExtra("EXPO_PUBLIC_SUPABASE_URL") || process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || "";
+  let anonKey = fromExtra("supabaseAnonKey") || fromExtra("EXPO_PUBLIC_SUPABASE_ANON_KEY") || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || "";
   if ((!url || !anonKey) && typeof window !== "undefined") {
     const webExtra = getExtraForWeb();
     if (webExtra) {
-      const u = webExtra.EXPO_PUBLIC_SUPABASE_URL;
-      const k = webExtra.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+      const u = webExtra.EXPO_PUBLIC_SUPABASE_URL ?? (webExtra as Record<string, unknown>).supabaseUrl;
+      const k = webExtra.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? (webExtra as Record<string, unknown>).supabaseAnonKey;
       url = url || (typeof u === "string" ? u.trim() : "");
       anonKey = anonKey || (typeof k === "string" ? k.trim() : "");
     }

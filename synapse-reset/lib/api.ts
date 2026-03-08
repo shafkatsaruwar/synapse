@@ -1,16 +1,25 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-/** API base URL from env. Never use localhost on physical device (use EXPO_PUBLIC_API_URL or EXPO_PUBLIC_APP_URL). */
+/** API base URL: primary Constants.expoConfig.extra.apiUrl; fallbacks then localhost for web dev. Logs clear error if missing on device. */
 function getBaseUrl(): string {
   const extra = (Constants.expoConfig?.extra ?? Constants.manifest?.extra) as Record<string, unknown> | undefined;
-  const fromEnv = (key: string) =>
-    (typeof extra?.[key] === "string" ? (extra[key] as string).trim() : null) || process.env[key]?.trim() || "";
-  const apiUrl = fromEnv("EXPO_PUBLIC_API_URL") || fromEnv("EXPO_PUBLIC_APP_URL");
+  const apiUrlFromExtra = extra && typeof extra.apiUrl === "string" ? (extra.apiUrl as string).trim() : "";
+  const apiUrl = apiUrlFromExtra ||
+    (typeof extra?.EXPO_PUBLIC_API_URL === "string" ? (extra.EXPO_PUBLIC_API_URL as string).trim() : "") ||
+    process.env.EXPO_PUBLIC_API_URL?.trim() ||
+    (typeof extra?.EXPO_PUBLIC_APP_URL === "string" ? (extra.EXPO_PUBLIC_APP_URL as string).trim() : "") ||
+    process.env.EXPO_PUBLIC_APP_URL?.trim() ||
+    "";
   if (apiUrl) return apiUrl.replace(/\/$/, "");
-  const domain = fromEnv("EXPO_PUBLIC_DOMAIN");
+  const domain = (typeof extra?.EXPO_PUBLIC_DOMAIN === "string" ? (extra.EXPO_PUBLIC_DOMAIN as string).trim() : "") || process.env.EXPO_PUBLIC_DOMAIN?.trim() || "";
   if (domain) return domain.startsWith("http") ? domain.replace(/\/$/, "") : `https://${domain}`.replace(/\/$/, "");
   if (__DEV__ && Platform.OS === "web") return "http://localhost:5000";
+  if (!apiUrlFromExtra && typeof global !== "undefined") {
+    console.error(
+      "[Synapse] API URL not configured: Constants.expoConfig.extra.apiUrl is undefined. Set EXPO_PUBLIC_API_URL in .env or EAS, then rebuild. View this in Mac Console when the app runs on a physical device."
+    );
+  }
   return "";
 }
 

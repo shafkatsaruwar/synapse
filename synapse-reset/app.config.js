@@ -69,6 +69,9 @@ module.exports = {
     experiments: { typedRoutes: true },
     extra: {
       eas: { projectId: "2ae7d5f4-1514-408d-b1ec-250da7c8ccfa" },
+      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
+      supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
+      apiUrl: (process.env.EXPO_PUBLIC_API_URL ?? "").replace(/\/$/, ""),
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
       EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
       EXPO_PUBLIC_APP_URL: (process.env.EXPO_PUBLIC_APP_URL ?? "").replace(/\/$/, ""),
