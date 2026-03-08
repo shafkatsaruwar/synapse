@@ -82,9 +82,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) console.warn("Supabase signIn error:", error.message, error.status, error);
       return { error: error ?? null };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      console.error("Supabase signIn exception:", msg, e);
+      if (e && typeof e === "object" && "cause" in e) console.error("SignIn cause:", (e as { cause?: unknown }).cause);
       if (/network|fetch|failed|unable to resolve|request failed/i.test(msg)) {
         return { error: new Error("Couldn't reach the server. Check your internet connection and try again.") };
       }
@@ -116,9 +119,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ...(appUrl ? { emailRedirectTo: appUrl } : {}),
           },
         });
+        if (error) console.warn("Supabase signUp error:", error.message, error.status, error);
         return { error: error ?? null };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        console.error("Supabase signUp exception:", msg, e);
+        if (e && typeof e === "object" && "cause" in e) console.error("SignUp cause:", (e as { cause?: unknown }).cause);
         if (/network|fetch|failed|unable to resolve|request failed/i.test(msg)) {
           return { error: new Error("Couldn't reach the server. Check your internet connection and try again.") };
         }

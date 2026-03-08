@@ -12,12 +12,21 @@ Do this **once**. After that, every EAS build (TestFlight, store) will have sign
 
 ## 2. Put them in `.env`
 
-In the **synapse-reset** folder, open (or create) `.env` and set exactly:
+In the **synapse-reset** folder, open (or create) `.env` and set at least:
 
 ```
 EXPO_PUBLIC_SUPABASE_URL=https://your-actual-project.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...your-actual-anon-key...
 ```
+
+**For physical device / TestFlight (avoids "Network request failed"):** Also set your backend URL so the app does not use localhost (the device cannot reach your computer):
+
+```
+EXPO_PUBLIC_APP_URL=https://your-app.vercel.app
+EXPO_PUBLIC_API_URL=https://your-api.vercel.app
+```
+
+Use your real deployed URL (https). If your API is on the same host as the app, set both to the same value. These are read by `app.config.js` and baked into the build; set them in EAS project → Environment variables if you don’t commit `.env`.
 
 No quotes, no spaces around `=`. One line per variable.
 
@@ -52,7 +61,7 @@ You’re done. No EAS env vars, no dashboards—just commit `.env` and build.
 - **Supabase URL:** Must be `https://` (not `http://`), no trailing slash, and the project ref must be correct (Supabase Dashboard → Settings → API → Project URL). If the project is paused (free tier), resume it in the dashboard.
 - **Where to put `.env`:** Either repo root or `synapse-reset/`. The app loads both. Variable names must be exactly `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
 - **Vercel URL:** Used for email confirmation links (sign-up), not for the sign-in request. Sign-in talks to Supabase only. If only sign-in fails, the problem is Supabase URL/network, not Vercel.
-- **Still "network request failed"?** (1) In Supabase Dashboard → Project Settings → API, confirm the project is **not paused** (resume if needed). (2) Copy the **Project URL** again and ensure it matches exactly in `.env` (no trailing slash, `https://`). (3) Run a **new** EAS build after any `.env` change and install that build. (4) On device, open Safari and visit your Supabase Project URL—if it doesn’t load, it’s a network/DNS issue on that device.
+- **Still "network request failed"?** (1) In Supabase Dashboard → Project Settings → API, confirm the project is **not paused** (resume if needed). (2) Copy the **Project URL** again and ensure it matches exactly in `.env` (no trailing slash, `https://`). (3) Run a **new** EAS build after any `.env` change and install that build. (4) On device, open Safari and visit your Supabase Project URL—if it doesn’t load, it’s a network/DNS issue on that device. (5) Check the app console/logs for **"Supabase signIn exception"** or **"Supabase fetch error"** to see the exact failure (timeout, DNS, CORS, etc.).
 
 ---
 

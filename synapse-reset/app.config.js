@@ -10,8 +10,8 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
   dotenv.config({ path: path.join(__dirname, "..", ".env") });
 }
-// Optional: load app URL for sign-up/reset redirects
-if (!process.env.EXPO_PUBLIC_APP_URL) {
+// Optional: load app URL and API URL for redirects and backend
+if (!process.env.EXPO_PUBLIC_APP_URL || !process.env.EXPO_PUBLIC_API_URL) {
   dotenv.config({ path: path.join(__dirname, "..", ".env") });
 }
 
@@ -43,6 +43,12 @@ module.exports = {
               NSExceptionAllowsInsecureHTTPLoads: false,
               NSExceptionRequiresForwardSecrecy: false,
             },
+            localhost: {
+              NSExceptionAllowsInsecureHTTPLoads: true,
+            },
+            "127.0.0.1": {
+              NSExceptionAllowsInsecureHTTPLoads: true,
+            },
           },
         },
       },
@@ -66,6 +72,8 @@ module.exports = {
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
       EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
       EXPO_PUBLIC_APP_URL: (process.env.EXPO_PUBLIC_APP_URL ?? "").replace(/\/$/, ""),
+      EXPO_PUBLIC_API_URL: (process.env.EXPO_PUBLIC_API_URL ?? "").replace(/\/$/, ""),
+      EXPO_PUBLIC_DOMAIN: process.env.EXPO_PUBLIC_DOMAIN ?? "",
     },
     // Env from .env or EAS is baked into extra above; Metro inlines EXPO_PUBLIC_* at bundle time.
     owner: "mohammedsaruwars-organization",

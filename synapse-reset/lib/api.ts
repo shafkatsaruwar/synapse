@@ -1,19 +1,23 @@
+import Constants from "expo-constants";
 import { Platform } from "react-native";
 
+/** API base URL from env. Never use localhost on physical device (use EXPO_PUBLIC_API_URL or EXPO_PUBLIC_APP_URL). */
 function getBaseUrl(): string {
-  if (Platform.OS === "web") {
-    const domain = process.env.EXPO_PUBLIC_DOMAIN;
-    if (domain) return `https://${domain}`;
-    return "http://localhost:5000";
-  }
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  if (domain) return `https://${domain}`;
-  return "http://localhost:5000";
+  const extra = (Constants.expoConfig?.extra ?? Constants.manifest?.extra) as Record<string, unknown> | undefined;
+  const fromEnv = (key: string) =>
+    (typeof extra?.[key] === "string" ? (extra[key] as string).trim() : null) || process.env[key]?.trim() || "";
+  const apiUrl = fromEnv("EXPO_PUBLIC_API_URL") || fromEnv("EXPO_PUBLIC_APP_URL");
+  if (apiUrl) return apiUrl.replace(/\/$/, "");
+  const domain = fromEnv("EXPO_PUBLIC_DOMAIN");
+  if (domain) return domain.startsWith("http") ? domain.replace(/\/$/, "") : `https://${domain}`.replace(/\/$/, "");
+  if (__DEV__ && Platform.OS === "web") return "http://localhost:5000";
+  return "";
 }
 
 const BASE = getBaseUrl();
 
 export async function analyzeDocument(imageBase64: string, mimeType: string) {
+  if (!BASE) throw new Error("API URL not configured. Set EXPO_PUBLIC_API_URL or EXPO_PUBLIC_APP_URL in .env or EAS.");
   const res = await fetch(`${BASE}/api/analyze-document`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -24,6 +28,7 @@ export async function analyzeDocument(imageBase64: string, mimeType: string) {
 }
 
 export async function getHealthInsights(data: any) {
+  if (!BASE) throw new Error("API URL not configured. Set EXPO_PUBLIC_API_URL or EXPO_PUBLIC_APP_URL in .env or EAS.");
   const res = await fetch(`${BASE}/api/health-insights`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -34,6 +39,7 @@ export async function getHealthInsights(data: any) {
 }
 
 export async function compareMedications(currentMedications: any[], extractedMedications: any[]) {
+  if (!BASE) throw new Error("API URL not configured. Set EXPO_PUBLIC_API_URL or EXPO_PUBLIC_APP_URL in .env or EAS.");
   const res = await fetch(`${BASE}/api/compare-medications`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -50,6 +56,7 @@ export async function sendEmail(options: {
   html?: string;
   from?: string;
 }) {
+  if (!BASE) throw new Error("API URL not configured. Set EXPO_PUBLIC_API_URL or EXPO_PUBLIC_APP_URL in .env or EAS.");
   const res = await fetch(`${BASE}/api/send-email`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -1,16 +1,22 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import Constants from "expo-constants";
 
 /**
- * Base URL for the Express API server. Returns empty string when EXPO_PUBLIC_DOMAIN is not set.
+ * Base URL for the API server. Uses EXPO_PUBLIC_API_URL or EXPO_PUBLIC_APP_URL or EXPO_PUBLIC_DOMAIN (from extra or env).
+ * Returns empty string when none are set (avoids localhost on physical device).
  */
 export function getApiUrl(): string {
-  const host = process.env.EXPO_PUBLIC_DOMAIN?.trim();
-  if (!host) return "";
-  try {
-    return new URL(`https://${host}`).href;
-  } catch {
-    return "";
+  const extra = (Constants.expoConfig?.extra ?? Constants.manifest?.extra) as Record<string, unknown> | undefined;
+  const from = (key: string) =>
+    (typeof extra?.[key] === "string" ? (extra[key] as string).trim() : null) || process.env[key]?.trim() || "";
+  const apiUrl = from("EXPO_PUBLIC_API_URL") || from("EXPO_PUBLIC_APP_URL");
+  if (apiUrl) return apiUrl.replace(/\/$/, "");
+  const domain = from("EXPO_PUBLIC_DOMAIN");
+  if (domain) {
+    const url = domain.startsWith("http") ? domain : `https://${domain}`;
+    return url.replace(/\/$/, "");
   }
+  return "";
 }
 
 async function throwIfResNotOk(res: Response) {
@@ -26,7 +32,7 @@ export async function apiRequest(
   data?: unknown,
 ): Promise<Response> {
   const baseUrl = getApiUrl();
-  if (!baseUrl) throw new Error("EXPO_PUBLIC_DOMAIN is not set");
+  if (!baseUrl) throw new Error("API URL not set. Set EXPO_PUBLIC_API_URL or EXPO_PUBLIC_APP_URL in .env or EAS.");
   const url = new URL(route, baseUrl);
   const res = await fetch(url.toString(), {
     method,

@@ -67,6 +67,30 @@ const supabaseStorage = {
   removeItem: async (key: string) => AsyncStorage.removeItem(key),
 };
 
+const FETCH_TIMEOUT_MS = 30000;
+
+function supabaseFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  return fetch(input, {
+    ...init,
+    signal: init?.signal ?? controller.signal,
+  })
+    .then((res) => {
+      clearTimeout(timeoutId);
+      if (!res.ok && url.includes("/auth/")) {
+        console.warn("Supabase auth request failed:", res.status, url);
+      }
+      return res;
+    })
+    .catch((err) => {
+      clearTimeout(timeoutId);
+      console.warn("Supabase fetch error:", err?.message ?? err, url);
+      throw err;
+    });
+}
+
 function setClientFromEnv(env: { url: string; anonKey: string }): void {
   if (!isValidSupabaseUrl(env.url)) {
     console.warn("Supabase URL invalid or missing, skipping client creation");
@@ -75,6 +99,7 @@ function setClientFromEnv(env: { url: string; anonKey: string }): void {
   }
   try {
     client = createClient(env.url, env.anonKey, {
+      global: { fetch: supabaseFetch },
       auth: {
         storage: supabaseStorage,
         persistSession: true,
