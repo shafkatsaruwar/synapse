@@ -71,14 +71,14 @@ module.exports = {
       eas: { projectId: "2ae7d5f4-1514-408d-b1ec-250da7c8ccfa" },
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
-      apiUrl: (process.env.EXPO_PUBLIC_API_URL ?? "").replace(/\/$/, ""),
+      apiUrl: (process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_APP_URL || "https://synapse-health.vercel.app").replace(/\/$/, ""),
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
       EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
-      EXPO_PUBLIC_APP_URL: (process.env.EXPO_PUBLIC_APP_URL ?? "").replace(/\/$/, ""),
-      EXPO_PUBLIC_API_URL: (process.env.EXPO_PUBLIC_API_URL ?? "").replace(/\/$/, ""),
+      EXPO_PUBLIC_APP_URL: (process.env.EXPO_PUBLIC_APP_URL ?? "https://synapse-health.vercel.app").replace(/\/$/, ""),
+      EXPO_PUBLIC_API_URL: (process.env.EXPO_PUBLIC_API_URL ?? "https://synapse-health.vercel.app").replace(/\/$/, ""),
       EXPO_PUBLIC_DOMAIN: process.env.EXPO_PUBLIC_DOMAIN ?? "",
     },
-    // Env from .env or EAS is baked into extra above; Metro inlines EXPO_PUBLIC_* at bundle time.
+    // Env from .env or EAS is baked into extra above; production fallback for apiUrl so native builds never use localhost.
     owner: "mohammedsaruwars-organization",
   },
 };

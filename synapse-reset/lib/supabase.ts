@@ -1,3 +1,4 @@
+import "react-native-url-polyfill/auto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
@@ -99,7 +100,7 @@ function setClientFromEnv(env: { url: string; anonKey: string }): void {
   }
   try {
     client = createClient(env.url, env.anonKey, {
-      global: { fetch: supabaseFetch },
+      global: { fetch },
       auth: {
         storage: supabaseStorage,
         persistSession: true,
