@@ -9,6 +9,18 @@ const STORAGE_KEY_ANON = "supabase_anon_key";
 
 let client: SupabaseClient | null = null;
 
+/** Temporary network test: confirm the device can reach Supabase (outside auth flow). Call once at app start. */
+export async function testSupabaseConnection(): Promise<void> {
+  try {
+    const res = await fetch("https://rzorszxknavzrgramzja.supabase.co/rest/v1/");
+    console.log("SUPABASE STATUS:", res.status);
+    const text = await res.text();
+    console.log("SUPABASE RESPONSE:", text);
+  } catch (e) {
+    console.error("SUPABASE FETCH ERROR:", e);
+  }
+}
+
 function strFromExtra(key: string): string {
   const extra =
     (Constants.expoConfig?.extra as Record<string, unknown> | undefined) ??
