@@ -1,7 +1,6 @@
 import "react-native-gesture-handler";
 import "@/lib/supabase-web-env";
 import React, { useEffect, useState } from "react";
-import { testSupabaseConnection } from "@/lib/supabase";
 import { View } from "react-native";
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -19,7 +18,6 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    testSupabaseConnection();
     const t = setTimeout(() => {
       setReady(true);
       SplashScreen.hideAsync().catch(() => {});

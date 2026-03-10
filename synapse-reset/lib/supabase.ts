@@ -2,32 +2,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { setupURLPolyfill } from "react-native-url-polyfill";
-
-// Install URL polyfill without touching fetch, then capture the native fetch.
-setupURLPolyfill();
-const nativeFetch = global.fetch.bind(global);
 
 const STORAGE_KEY_URL = "supabase_url";
 const STORAGE_KEY_ANON = "supabase_anon_key";
 
 let client: SupabaseClient | null = null;
 let lastUsedUrl: string | null = null;
-
-const TEST_SUPABASE_URL = "https://rzorszxknavzrgramzja.supabase.co/rest/v1/";
-
-/** Temporary network test: confirm the device can reach Supabase (outside auth flow). Call once at app start. */
-export async function testSupabaseConnection(): Promise<void> {
-  console.log("SUPABASE TEST URL:", TEST_SUPABASE_URL);
-  try {
-    const res = await nativeFetch(TEST_SUPABASE_URL);
-    console.log("SUPABASE STATUS:", res.status);
-    const text = await res.text();
-    console.log("SUPABASE RESPONSE:", text);
-  } catch (e) {
-    console.error("SUPABASE FETCH ERROR:", e);
-  }
-}
 
 function strFromExtra(key: string): string {
   const extra =
@@ -92,30 +72,6 @@ const supabaseStorage = {
   removeItem: async (key: string) => AsyncStorage.removeItem(key),
 };
 
-const FETCH_TIMEOUT_MS = 30000;
-
-function supabaseFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  return nativeFetch(input, {
-    ...init,
-    signal: init?.signal ?? controller.signal,
-  })
-    .then((res) => {
-      clearTimeout(timeoutId);
-      if (!res.ok && url.includes("/auth/")) {
-        console.warn("Supabase auth request failed:", res.status, url);
-      }
-      return res;
-    })
-    .catch((err) => {
-      clearTimeout(timeoutId);
-      console.warn("Supabase fetch error:", err?.message ?? err, url);
-      throw err;
-    });
-}
-
 function setClientFromEnv(env: { url: string; anonKey: string }): void {
   if (!isValidSupabaseUrl(env.url)) {
     console.warn("Supabase URL invalid or missing, skipping client creation");
@@ -126,7 +82,6 @@ function setClientFromEnv(env: { url: string; anonKey: string }): void {
   try {
     lastUsedUrl = env.url;
     client = createClient(env.url, env.anonKey, {
-      global: { fetch: supabaseFetch },
       auth: {
         storage: supabaseStorage,
         persistSession: true,
