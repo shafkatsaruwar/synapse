@@ -116,7 +116,7 @@ function setClientFromEnv(env: { url: string; anonKey: string }): void {
   }
   try {
     client = createClient(env.url, env.anonKey, {
-      global: { fetch },
+      global: { fetch: supabaseFetch },
       auth: {
         storage: supabaseStorage,
         persistSession: true,
@@ -135,7 +135,10 @@ function setClientFromEnv(env: { url: string; anonKey: string }): void {
  * AsyncStorage first; if missing, uses env/extra. Initializes the client so getSupabase() works.
  */
 export async function initSupabaseFromStorage(): Promise<void> {
-  if (client !== null) return;
+  if (client !== null) {
+    console.log("Supabase client already initialized; skipping initSupabaseFromStorage");
+    return;
+  }
   const fromEnv = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
   const fromExtra = strFromExtra("EXPO_PUBLIC_SUPABASE_URL");
   console.log("Supabase init: process.env URL:", fromEnv ? `${fromEnv.slice(0, 30)}...` : "(missing)");
