@@ -171,6 +171,11 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   const energyLabels = ["Low", "Fair", "Good", "Great", "Excellent"];
 
+  const sunriseTime =
+    (ramadanDay && formatTime12h(ramadanDay.fajr)) || fastingLog?.suhoorTime || "--";
+  const sunsetTime =
+    (ramadanDay && formatTime12h(ramadanDay.maghrib)) || fastingLog?.iftarTime || "--";
+
   const getIftarCountdown = () => {
     if (!fastingLog?.iftarTime) return null;
     const match = fastingLog.iftarTime.match(/(\d{1,2}):(\d{2})\s*(am|pm)?/i);
@@ -345,42 +350,43 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         </Text>
       </View>
 
-      {!settings.ramadanMode && ramadanDay && (
-        <Text style={styles.hijriDate}>
-          {ramadanDay.hijriDay}
-          {ordinalSuffix(ramadanDay.hijriDay)} Ramadan, 1447 AH
-        </Text>
-      )}
-
-      {settings.ramadanMode && ramadanDay && (
+      {ramadanDay && (
         <View style={styles.ramadanSection}>
           <LinearGradient
-            colors={["#24104F", "#43296B"]}
+            colors={[C.surface, C.surface]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.ramadanHero}
           >
             <View style={styles.ramadanHeroTopRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.ramadanDateText}>
-                  Ramadan {ramadanDay.hijriDay}{ordinalSuffix(ramadanDay.hijriDay)}, 1447 AH
-                </Text>
+                {settings.ramadanMode && (
+                  <Text style={styles.ramadanDateText}>
+                    Ramadan {ramadanDay.hijriDay}{ordinalSuffix(ramadanDay.hijriDay)}, 1447 AH
+                  </Text>
+                )}
                 <Text style={styles.ramadanLocationText}>{goodDayMessage}</Text>
               </View>
             </View>
             <View style={styles.ramadanHeroBottomRow}>
               <View style={styles.ramadanTimeCard}>
                 <Text style={styles.ramadanTimeLabel}>Sunrise</Text>
-                <Text style={styles.ramadanTimeValue}>{fastingLog?.suhoorTime || "--"}</Text>
+                <Text style={styles.ramadanTimeValue}>{sunriseTime}</Text>
               </View>
               <View style={styles.ramadanDivider} />
               <View style={styles.ramadanTimeCard}>
                 <Text style={styles.ramadanTimeLabel}>Sunset</Text>
-                <Text style={styles.ramadanTimeValue}>{fastingLog?.iftarTime || "--"}</Text>
+                <Text style={styles.ramadanTimeValue}>{sunsetTime}</Text>
               </View>
             </View>
             <View style={styles.ramadanInfoRow}>
-              <View style={styles.ramadanNextMedPill}>
+              <Pressable
+                style={styles.ramadanNextMedPill}
+                onPress={() => onNavigate("medications")}
+                accessibilityRole="button"
+                accessibilityLabel="Next medication"
+                accessibilityHint="Opens the medications screen"
+              >
                 {nextMedication ? (
                   <>
                     <Text style={styles.ramadanNextMedName}>{nextMedication.name}</Text>
@@ -392,8 +398,14 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
                 ) : (
                   <Text style={styles.ramadanNextMedName}>All meds are done for today</Text>
                 )}
-              </View>
-              <View style={styles.ramadanNextAptPill}>
+              </Pressable>
+              <Pressable
+                style={styles.ramadanNextAptPill}
+                onPress={() => onNavigate("appointments")}
+                accessibilityRole="button"
+                accessibilityLabel="Next appointment"
+                accessibilityHint="Opens the appointments screen"
+              >
                 {nextApt ? (
                   <>
                     <Text style={styles.ramadanNextAptTitle}>Next appointment</Text>
@@ -408,7 +420,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
                 ) : (
                   <Text style={styles.ramadanNextAptTitle}>No upcoming appointments</Text>
                 )}
-              </View>
+              </Pressable>
             </View>
             <Text style={styles.ramadanCountdownText}>{getIftarCountdown() ?? "Log today's fast to see your countdown"}</Text>
           </LinearGradient>
@@ -453,10 +465,12 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             <Ionicons name="chevron-forward" size={18} color={C.tint} />
           </Pressable>
 
-          <View style={styles.ramadanQuoteCard}>
-            <Ionicons name="sparkles" size={16} color="#FFD5FF" />
-            <Text style={styles.ramadanQuoteText}>{ramadanQuote}</Text>
-          </View>
+          {settings.ramadanMode && (
+            <View style={styles.ramadanQuoteCard}>
+              <Ionicons name="sparkles" size={16} color="#FFD5FF" />
+              <Text style={styles.ramadanQuoteText}>{ramadanQuote}</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -479,33 +493,19 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
         {featureFlags.documentScannerEnabled && (
           <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("insights")} accessibilityLabel="AI Health Insights" accessibilityRole="button" accessibilityHint="Get personalized analysis of your health patterns">
-          <View style={[styles.cardHeader, { marginBottom: 0 }]}>
-            <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
-              <Ionicons name="sparkles" size={16} color={C.accent} />
+            <View style={[styles.cardHeader, { marginBottom: 0 }]}>
+              <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
+                <Ionicons name="sparkles" size={16} color={C.accent} />
+              </View>
+              <Text style={styles.cardLabel}>AI Health Insights</Text>
             </View>
-            <Text style={styles.cardLabel}>AI Health Insights</Text>
-          </View>
-          <Text style={styles.reportDesc}>Get personalized analysis of your health patterns</Text>
-          <View style={styles.reportBtn}>
-            <Ionicons name="arrow-forward" size={16} color={C.tint} />
-            <Text style={styles.reportBtnText}>View Insights</Text>
-          </View>
-        </Pressable>
+            <Text style={styles.reportDesc}>Get personalized analysis of your health patterns</Text>
+            <View style={styles.reportBtn}>
+              <Ionicons name="arrow-forward" size={16} color={C.tint} />
+              <Text style={styles.reportBtnText}>View Insights</Text>
+            </View>
+          </Pressable>
         )}
-
-        <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("reports")} accessibilityLabel="Generate Report" accessibilityRole="button" accessibilityHint="Create a health summary for your doctor visit">
-          <View style={[styles.cardHeader, { marginBottom: 0 }]}>
-            <View style={[styles.cardIcon, { backgroundColor: C.greenLight }]}>
-              <Ionicons name="document-text" size={16} color={C.green} />
-            </View>
-            <Text style={styles.cardLabel}>Generate Report</Text>
-          </View>
-          <Text style={styles.reportDesc}>Create a health summary for your doctor visit</Text>
-          <View style={styles.reportBtn}>
-            <Ionicons name="arrow-forward" size={16} color={C.tint} />
-            <Text style={styles.reportBtnText}>View Reports</Text>
-          </View>
-        </Pressable>
       </View>
     </>
   );
@@ -541,12 +541,12 @@ const styles = StyleSheet.create({
   welcome: { marginBottom: 8 },
   greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
-  hijriDate: { fontWeight: "600", fontSize: 14, color: "#3C2415", marginBottom: 20 },
-  ramadanSection: { marginTop: 16, marginBottom: 16, gap: 12 },
-  ramadanHero: { borderRadius: 20, padding: 16, gap: 12 },
+  hijriDate: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 20 },
+  ramadanSection: { marginTop: 16, marginBottom: 16 },
+  ramadanHero: { borderRadius: 20, padding: 16, marginBottom: 12, gap: 12 },
   ramadanHeroTopRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
-  ramadanDateText: { fontWeight: "600", fontSize: 14, color: "#FBE9FF" },
-  ramadanLocationText: { fontWeight: "400", fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 2 },
+  ramadanDateText: { fontWeight: "600", fontSize: 14, color: C.text },
+  ramadanLocationText: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 2 },
   ramadanCountdownPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -564,16 +564,21 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   ramadanTimeCard: { flex: 1 },
-  ramadanTimeLabel: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.7)" },
-  ramadanTimeValue: { fontWeight: "600", fontSize: 16, color: "#FFFFFF", marginTop: 2 },
-  ramadanDivider: { width: 1, height: 32, backgroundColor: "rgba(255,255,255,0.2)", marginHorizontal: 12 },
-  ramadanCountdownText: { fontWeight: "400", fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 4 },
+  ramadanTimeLabel: { fontWeight: "400", fontSize: 11, color: C.textSecondary },
+  ramadanTimeValue: { fontWeight: "600", fontSize: 16, color: C.text, marginTop: 2 },
+  ramadanDivider: { width: 1, height: 32, backgroundColor: C.border, marginHorizontal: 12 },
+  ramadanCountdownText: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 4 },
   ramadanWeekStrip: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#1B0D3A",
-    borderRadius: 16,
+    backgroundColor: C.surface,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderWidth: 1,
+    borderColor: C.border,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
@@ -585,54 +590,60 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   ramadanWeekDayActive: { backgroundColor: "#F6C94D" },
-  ramadanWeekDayText: { fontWeight: "500", fontSize: 12, color: "rgba(255,255,255,0.7)" },
+  ramadanWeekDayText: { fontWeight: "500", fontSize: 12, color: "#5A3510" },
   ramadanWeekDayTextActive: { fontWeight: "700", fontSize: 12, color: "#2D1340" },
   ramadanQuoteCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#261246",
+    backgroundColor: "#69747C",
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 10,
+    marginTop: 12,
   },
-  ramadanQuoteText: { flex: 1, fontWeight: "400", fontSize: 13, color: "#FBE9FF" },
+  ramadanQuoteText: { flex: 1, fontWeight: "400", fontSize: 13, color: "#FFFFFF" },
   ramadanNextMedPill: {
     flex: 1,
-    maxWidth: 170,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.14)",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
   },
-  ramadanNextMedName: { fontWeight: "600", fontSize: 11, color: "#FBE9FF" },
-  ramadanNextMedDose: { fontWeight: "500", fontSize: 11, color: "rgba(251,233,255,0.9)", marginTop: 2 },
-  ramadanNextMedTime: { fontWeight: "500", fontSize: 11, color: "#F6C94D", marginTop: 2 },
+  ramadanNextMedName: { fontWeight: "600", fontSize: 11, color: C.text },
+  ramadanNextMedDose: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
+  ramadanNextMedTime: { fontWeight: "500", fontSize: 11, color: C.tint, marginTop: 2 },
   ramadanInfoRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
+    flexDirection: "column",
+    alignItems: "stretch",
+    justifyContent: "flex-start",
     marginTop: 8,
     gap: 8,
   },
   ramadanNextAptPill: {
     flex: 1,
-    maxWidth: 180,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.14)",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
   },
-  ramadanNextAptTitle: { fontWeight: "600", fontSize: 11, color: "#FBE9FF" },
-  ramadanNextAptName: { fontWeight: "500", fontSize: 11, color: "rgba(251,233,255,0.95)", marginTop: 2 },
-  ramadanNextAptMeta: { fontWeight: "500", fontSize: 11, color: "rgba(251,233,255,0.85)", marginTop: 2 },
-  ramadanNextAptLocation: { fontWeight: "500", fontSize: 11, color: "#F6C94D", marginTop: 2 },
+  ramadanNextAptTitle: { fontWeight: "600", fontSize: 11, color: C.text },
+  ramadanNextAptName: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
+  ramadanNextAptMeta: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
+  ramadanNextAptLocation: { fontWeight: "500", fontSize: 11, color: C.tint, marginTop: 2 },
   feelingCard: {
-    marginTop: 12,
-    marginBottom: 4,
+    marginTop: 0,
+    marginBottom: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,

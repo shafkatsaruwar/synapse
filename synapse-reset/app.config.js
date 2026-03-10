@@ -75,8 +75,9 @@ module.exports = {
       supabaseAnonKey:
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6b3Jzemh4bmF2enJncmFtemphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNDU2MTAsImV4cCI6MjA4NzYyMTYxMH0.eKrR7ND2DcbrHEfRAanTWvvEUm8Zn9W-x-OQ8yav4GE",
       apiUrl: (process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_APP_URL || "https://synapse-health.vercel.app").replace(/\/$/, ""),
-      EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
-      EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
+      EXPO_PUBLIC_SUPABASE_URL: "https://rzorszxknavzrgramzja.supabase.co",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY:
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6b3Jzemh4bmF2enJncmFtemphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNDU2MTAsImV4cCI6MjA4NzYyMTYxMH0.eKrR7ND2DcbrHEfRAanTWvvEUm8Zn9W-x-OQ8yav4GE",
       EXPO_PUBLIC_APP_URL: (process.env.EXPO_PUBLIC_APP_URL ?? "https://synapse-health.vercel.app").replace(/\/$/, ""),
       EXPO_PUBLIC_API_URL: (process.env.EXPO_PUBLIC_API_URL ?? "https://synapse-health.vercel.app").replace(/\/$/, ""),
       EXPO_PUBLIC_DOMAIN: process.env.EXPO_PUBLIC_DOMAIN ?? "",
