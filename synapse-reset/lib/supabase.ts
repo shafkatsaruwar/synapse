@@ -8,11 +8,15 @@ const STORAGE_KEY_URL = "supabase_url";
 const STORAGE_KEY_ANON = "supabase_anon_key";
 
 let client: SupabaseClient | null = null;
+let lastUsedUrl: string | null = null;
+
+const TEST_SUPABASE_URL = "https://rzorszxknavzrgramzja.supabase.co/rest/v1/";
 
 /** Temporary network test: confirm the device can reach Supabase (outside auth flow). Call once at app start. */
 export async function testSupabaseConnection(): Promise<void> {
+  console.log("SUPABASE TEST URL:", TEST_SUPABASE_URL);
   try {
-    const res = await fetch("https://rzorszxknavzrgramzja.supabase.co/rest/v1/");
+    const res = await fetch(TEST_SUPABASE_URL);
     console.log("SUPABASE STATUS:", res.status);
     const text = await res.text();
     console.log("SUPABASE RESPONSE:", text);
@@ -112,9 +116,11 @@ function setClientFromEnv(env: { url: string; anonKey: string }): void {
   if (!isValidSupabaseUrl(env.url)) {
     console.warn("Supabase URL invalid or missing, skipping client creation");
     client = null;
+    lastUsedUrl = null;
     return;
   }
   try {
+    lastUsedUrl = env.url;
     client = createClient(env.url, env.anonKey, {
       global: { fetch: supabaseFetch },
       auth: {
@@ -127,7 +133,13 @@ function setClientFromEnv(env: { url: string; anonKey: string }): void {
   } catch (e) {
     console.error("Supabase initialization error", e);
     client = null;
+    lastUsedUrl = null;
   }
+}
+
+/** URL the current Supabase client was created with (for logging). */
+export function getSupabaseUrl(): string | null {
+  return lastUsedUrl;
 }
 
 /**

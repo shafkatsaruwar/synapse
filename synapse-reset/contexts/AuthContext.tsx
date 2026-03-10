@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import Constants from "expo-constants";
 import { Session, User } from "@supabase/supabase-js";
-import { getSupabase, initSupabaseFromStorage } from "@/lib/supabase";
+import { getSupabase, getSupabaseUrl, initSupabaseFromStorage } from "@/lib/supabase";
 
 type AuthContextValue = {
   session: Session | null;
@@ -80,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error("Supabase client not initialized yet");
       return { error: new Error("Sign-in is temporarily unavailable. Please try again later or update to the latest version of the app.") };
     }
+    console.log("Supabase URL at signIn:", getSupabaseUrl());
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) console.warn("Supabase signIn error:", error.message, error.status, error);
