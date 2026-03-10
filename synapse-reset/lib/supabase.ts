@@ -1,8 +1,9 @@
-import "react-native-url-polyfill/auto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+const nativeFetch = global.fetch.bind(global);
 
 const STORAGE_KEY_URL = "supabase_url";
 const STORAGE_KEY_ANON = "supabase_anon_key";
@@ -16,7 +17,7 @@ const TEST_SUPABASE_URL = "https://rzorszxknavzrgramzja.supabase.co/rest/v1/";
 export async function testSupabaseConnection(): Promise<void> {
   console.log("SUPABASE TEST URL:", TEST_SUPABASE_URL);
   try {
-    const res = await fetch(TEST_SUPABASE_URL);
+    const res = await nativeFetch(TEST_SUPABASE_URL);
     console.log("SUPABASE STATUS:", res.status);
     const text = await res.text();
     console.log("SUPABASE RESPONSE:", text);
@@ -94,7 +95,7 @@ function supabaseFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Re
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  return fetch(input, {
+  return nativeFetch(input, {
     ...init,
     signal: init?.signal ?? controller.signal,
   })
