@@ -367,6 +367,19 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
                 </Text>
                 <Text style={styles.ramadanLocationText}>{goodDayMessage}</Text>
               </View>
+            </View>
+            <View style={styles.ramadanHeroBottomRow}>
+              <View style={styles.ramadanTimeCard}>
+                <Text style={styles.ramadanTimeLabel}>Sunrise</Text>
+                <Text style={styles.ramadanTimeValue}>{fastingLog?.suhoorTime || "--"}</Text>
+              </View>
+              <View style={styles.ramadanDivider} />
+              <View style={styles.ramadanTimeCard}>
+                <Text style={styles.ramadanTimeLabel}>Sunset</Text>
+                <Text style={styles.ramadanTimeValue}>{fastingLog?.iftarTime || "--"}</Text>
+              </View>
+            </View>
+            <View style={styles.ramadanInfoRow}>
               <View style={styles.ramadanNextMedPill}>
                 {nextMedication ? (
                   <>
@@ -380,16 +393,21 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
                   <Text style={styles.ramadanNextMedName}>All meds are done for today</Text>
                 )}
               </View>
-            </View>
-            <View style={styles.ramadanHeroBottomRow}>
-              <View style={styles.ramadanTimeCard}>
-                <Text style={styles.ramadanTimeLabel}>Sunrise</Text>
-                <Text style={styles.ramadanTimeValue}>{fastingLog?.suhoorTime || "--"}</Text>
-              </View>
-              <View style={styles.ramadanDivider} />
-              <View style={styles.ramadanTimeCard}>
-                <Text style={styles.ramadanTimeLabel}>Sunset</Text>
-                <Text style={styles.ramadanTimeValue}>{fastingLog?.iftarTime || "--"}</Text>
+              <View style={styles.ramadanNextAptPill}>
+                {nextApt ? (
+                  <>
+                    <Text style={styles.ramadanNextAptTitle}>Next appointment</Text>
+                    <Text style={styles.ramadanNextAptName}>{nextApt.doctorName}</Text>
+                    <Text style={styles.ramadanNextAptMeta}>
+                      {formatDate(nextApt.date)} · {formatTime12h(nextApt.time)}
+                    </Text>
+                    {!!nextApt.location && (
+                      <Text style={styles.ramadanNextAptLocation}>{nextApt.location}</Text>
+                    )}
+                  </>
+                ) : (
+                  <Text style={styles.ramadanNextAptTitle}>No upcoming appointments</Text>
+                )}
               </View>
             </View>
             <Text style={styles.ramadanCountdownText}>{getIftarCountdown() ?? "Log today's fast to see your countdown"}</Text>
@@ -409,13 +427,31 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
                     isToday && styles.ramadanWeekDayActive,
                   ]}
                 >
-                  <Text style={isToday ? styles.ramadanWeekDayTextActive : styles.ramadanWeekDayText}>
-                    {dayNum}
-                  </Text>
+                  <Ionicons
+                    name="moon"
+                    size={13}
+                    color={isToday ? "#2D1340" : "rgba(255,255,255,0.7)"}
+                    style={{ marginBottom: 2 }}
+                  />
+                  <Text style={isToday ? styles.ramadanWeekDayTextActive : styles.ramadanWeekDayText}>{dayNum}</Text>
                 </View>
               );
             })}
           </View>
+
+          <Pressable
+            style={styles.feelingCard}
+            onPress={() => onNavigate("log")}
+            accessibilityRole="button"
+            accessibilityLabel="How are you feeling today?"
+            accessibilityHint="Opens the daily log screen"
+          >
+            <View>
+              <Text style={styles.feelingTitle}>How are you feeling today?</Text>
+              <Text style={styles.feelingSubtitle}>Tap to log today’s energy, mood, and sleep.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.tint} />
+          </Pressable>
 
           <View style={styles.ramadanQuoteCard}>
             <Ionicons name="sparkles" size={16} color="#FFD5FF" />
@@ -543,8 +579,8 @@ const styles = StyleSheet.create({
   },
   ramadanWeekDay: {
     width: 28,
-    height: 28,
-    borderRadius: 14,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -562,7 +598,8 @@ const styles = StyleSheet.create({
   },
   ramadanQuoteText: { flex: 1, fontWeight: "400", fontSize: 13, color: "#FBE9FF" },
   ramadanNextMedPill: {
-    maxWidth: 150,
+    flex: 1,
+    maxWidth: 170,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 12,
@@ -571,6 +608,40 @@ const styles = StyleSheet.create({
   ramadanNextMedName: { fontWeight: "600", fontSize: 11, color: "#FBE9FF" },
   ramadanNextMedDose: { fontWeight: "500", fontSize: 11, color: "rgba(251,233,255,0.9)", marginTop: 2 },
   ramadanNextMedTime: { fontWeight: "500", fontSize: 11, color: "#F6C94D", marginTop: 2 },
+  ramadanInfoRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginTop: 8,
+    gap: 8,
+  },
+  ramadanNextAptPill: {
+    flex: 1,
+    maxWidth: 180,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.14)",
+  },
+  ramadanNextAptTitle: { fontWeight: "600", fontSize: 11, color: "#FBE9FF" },
+  ramadanNextAptName: { fontWeight: "500", fontSize: 11, color: "rgba(251,233,255,0.95)", marginTop: 2 },
+  ramadanNextAptMeta: { fontWeight: "500", fontSize: 11, color: "rgba(251,233,255,0.85)", marginTop: 2 },
+  ramadanNextAptLocation: { fontWeight: "500", fontSize: 11, color: "#F6C94D", marginTop: 2 },
+  feelingCard: {
+    marginTop: 12,
+    marginBottom: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  feelingTitle: { fontWeight: "600", fontSize: 14, color: C.text },
+  feelingSubtitle: { marginTop: 4, fontWeight: "400", fontSize: 12, color: C.textSecondary },
   sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
   priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 12, width: "100%" },
   priorityGridItem: { marginBottom: 12 },
