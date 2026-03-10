@@ -54,7 +54,7 @@ module.exports = {
       },
     },
     android: {
-      package: "com.myapp",
+      package: "com.mohammedsaruwar.synapse",
       adaptiveIcon: {
         backgroundColor: "#E6F4FE",
         foregroundImage: "./assets/android-icon-foreground.png",
