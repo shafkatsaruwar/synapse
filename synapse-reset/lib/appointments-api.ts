@@ -16,6 +16,7 @@ function rowToAppointment(r: Record<string, unknown>): Appointment {
     repeat_unit: r.repeat_unit as "day" | "week" | "month" | undefined,
     repeat_end_date: (r.repeat_end_date as string) ?? undefined,
     parent_recurring_id: (r.parent_recurring_id as string) ?? undefined,
+    status: (r.status as Appointment["status"]) ?? undefined,
   };
 }
 
@@ -35,6 +36,7 @@ function appointmentToRow(apt: Appointment | (Omit<Appointment, "id"> & { id?: s
     repeat_unit: apt.repeat_unit ?? null,
     repeat_end_date: apt.repeat_end_date ?? null,
     parent_recurring_id: apt.parent_recurring_id ?? null,
+    status: apt.status ?? null,
   };
 }
 
@@ -95,6 +97,7 @@ export async function updateAppointmentInSupabase(
   if (updates.time !== undefined) payload.time = updates.time;
   if (updates.location !== undefined) payload.location = updates.location;
   if (updates.notes !== undefined) payload.notes = updates.notes;
+  if (updates.status !== undefined) payload.status = updates.status;
   const { error } = await supabase.from("appointments").update(payload).eq("user_id", userId).eq("id", id);
   return { error: error ? new Error(error.message) : null };
 }

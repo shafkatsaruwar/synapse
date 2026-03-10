@@ -79,6 +79,8 @@ export interface Doctor {
   created_at?: string;
 }
 
+export type AppointmentStatus = "completed" | "rescheduled" | "cancelled";
+
 export interface Appointment {
   id: string;
   doctor_id?: string;
@@ -93,6 +95,7 @@ export interface Appointment {
   repeat_unit?: RepeatUnit;
   repeat_end_date?: string | null;
   parent_recurring_id?: string | null;
+  status?: AppointmentStatus;
 }
 
 export interface DoctorNote {

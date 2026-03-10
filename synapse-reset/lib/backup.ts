@@ -44,16 +44,20 @@ export async function getBackupStatus(userId: string): Promise<BackupStatus> {
   }
 }
 
-/** Build a plain object for Supabase so medications, medicationLogs, and insights (health summary) are never dropped. */
+/** Build a plain object for Supabase so medications, medicationLogs, insights, conditions, and allergy (Health Profile) are never dropped. */
 function buildBackupData(payload: ExportPayload): Record<string, unknown> {
   const meds = Array.isArray(payload.medications) ? payload.medications : [];
   const medLogs = Array.isArray(payload.medicationLogs) ? payload.medicationLogs : [];
   const insights = Array.isArray(payload.insights) ? payload.insights : [];
+  const conditions = Array.isArray(payload.conditions) ? payload.conditions : [];
+  const allergy = payload.allergy != null && typeof payload.allergy === "object" ? payload.allergy : undefined;
   return {
     ...payload,
     medications: meds,
     medicationLogs: medLogs,
     insights,
+    conditions,
+    allergy,
   } as unknown as Record<string, unknown>;
 }
 
@@ -66,8 +70,10 @@ export async function backupNow(userId: string): Promise<{ error: Error | null }
     const medicationLogs = Array.isArray(payload.medicationLogs) ? payload.medicationLogs : [];
     const data = buildBackupData(payload);
     const insights = Array.isArray(payload.insights) ? payload.insights : [];
-    if (medications.length > 0 || medicationLogs.length > 0 || insights.length > 0) {
-      console.log("Backup: including", medications.length, "medications,", medicationLogs.length, "medication logs,", insights.length, "health insights");
+    const conditions = Array.isArray(payload.conditions) ? payload.conditions : [];
+    const hasAllergy = payload.allergy != null && typeof payload.allergy === "object";
+    if (medications.length > 0 || medicationLogs.length > 0 || insights.length > 0 || conditions.length > 0 || hasAllergy) {
+      console.log("Backup: including", medications.length, "medications,", medicationLogs.length, "medication logs,", insights.length, "health insights,", conditions.length, "conditions,", hasAllergy ? "allergy & emergency info" : "no allergy");
     }
     const { error } = await supabase.from("user_backups").upsert(
       {
@@ -87,13 +93,15 @@ export async function backupNow(userId: string): Promise<{ error: Error | null }
   }
 }
 
-/** Ensure restored payload has medications, medicationLogs, and insights (e.g. older backup format). */
+/** Ensure restored payload has medications, medicationLogs, insights, conditions, and allergy (e.g. older backup format). */
 function normalizeRestorePayload(raw: unknown): ExportPayload {
   const p = raw as Record<string, unknown>;
   const payload = { ...p } as ExportPayload;
   if (!Array.isArray(payload.medications)) payload.medications = [];
   if (!Array.isArray(payload.medicationLogs)) payload.medicationLogs = [];
   if (!Array.isArray(payload.insights)) payload.insights = [];
+  if (!Array.isArray(payload.conditions)) payload.conditions = [];
+  if (payload.allergy == null || typeof payload.allergy !== "object") payload.allergy = undefined;
   return payload;
 }
 

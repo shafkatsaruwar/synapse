@@ -146,6 +146,10 @@ export default function AppointmentsScreen() {
   const [customInterval, setCustomInterval] = useState("1");
   const [customUnit, setCustomUnit] = useState<RepeatUnit>("week");
   const [noteText, setNoteText] = useState("");
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleApt, setRescheduleApt] = useState<Appointment | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("");
 
   const loadData = useCallback(async () => {
     let apts: Appointment[];
@@ -348,8 +352,72 @@ export default function AppointmentsScreen() {
   };
 
   const selectedApts = appointments.filter((a) => a.date === selectedDate);
-  const upcoming = appointments.filter((a) => a.date >= today);
+  const todayApts = appointments.filter((a) => a.date === today && (a.status === undefined || a.status === "completed"));
+  const currentMonthPrefix = today.slice(0, 7);
+  const upcoming = appointments.filter((a) => a.date > today && a.status === undefined && a.date.startsWith(currentMonthPrefix));
   const isRecurringApt = (a: Appointment) => a.is_recurring || a.parent_recurring_id;
+
+  const markAppointmentStatus = useCallback(async (apt: Appointment, status: "completed" | "rescheduled" | "cancelled") => {
+    await appointmentStorage.update(apt.id, { status });
+    if (user?.id) await updateAppointmentInSupabase(user.id, apt.id, { status });
+    if (user?.id) {
+      const all = await appointmentStorage.getAll();
+      await replaceAppointmentsInSupabase(user.id, all);
+    }
+    loadData();
+  }, [user?.id, loadData]);
+
+  const handleCompleteToday = useCallback(async (apt: Appointment) => {
+    await markAppointmentStatus(apt, "completed");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [markAppointmentStatus]);
+
+  const openRescheduleFor = useCallback((apt: Appointment) => {
+    setRescheduleApt(apt);
+    setRescheduleDate("");
+    setRescheduleTime(apt.time || "09:00");
+    setShowRescheduleModal(true);
+  }, []);
+
+  const handleRescheduleConfirm = useCallback(async () => {
+    if (!rescheduleApt || !rescheduleDate.trim()) return;
+    const newDate = rescheduleDate.trim();
+    const newTime = rescheduleTime.trim() || "09:00";
+    const base: Omit<Appointment, "id"> = {
+      doctor_id: rescheduleApt.doctor_id,
+      doctorName: rescheduleApt.doctorName,
+      specialty: rescheduleApt.specialty,
+      date: newDate,
+      time: newTime,
+      location: rescheduleApt.location ?? "",
+      notes: rescheduleApt.notes ?? "",
+    };
+    await appointmentStorage.save(base);
+    await markAppointmentStatus(rescheduleApt, "rescheduled");
+    if (user?.id) {
+      const all = await appointmentStorage.getAll();
+      await replaceAppointmentsInSupabase(user.id, all);
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowRescheduleModal(false);
+    setRescheduleApt(null);
+    setRescheduleDate("");
+    setRescheduleTime("");
+    loadData();
+  }, [rescheduleApt, rescheduleDate, rescheduleTime, markAppointmentStatus, user?.id, loadData]);
+
+  const overdueApts = appointments.filter((a) => a.date < today && a.status === undefined);
+  useEffect(() => {
+    if (overdueApts.length === 0 || showRescheduleModal) return;
+    const apt = overdueApts[0];
+    const title = "Past appointment";
+    const message = `${apt.doctorName}${apt.specialty ? ` (${apt.specialty})` : ""} on ${formatDate(apt.date)} was not marked.`;
+    Alert.alert(title, message, [
+      { text: "Completed", onPress: () => { markAppointmentStatus(apt, "completed"); } },
+      { text: "Rescheduled", onPress: () => { openRescheduleFor(apt); } },
+      { text: "Cancelled", onPress: () => { markAppointmentStatus(apt, "cancelled"); } },
+    ]);
+  }, [overdueApts.length, overdueApts[0]?.id, today, showRescheduleModal, markAppointmentStatus, openRescheduleFor]);
 
   return (
     <View style={styles.container}>
@@ -377,27 +445,29 @@ export default function AppointmentsScreen() {
           <View style={isWide ? styles.calLayout : undefined}>
             <View style={isWide ? { flex: 1, marginRight: 16 } : undefined}>
               <CalendarView appointments={appointments} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
-            </View>
-            <View style={isWide ? { flex: 1 } : undefined}>
-              {selectedApts.length > 0 ? (
-                <View>
-                  <Text style={styles.sectionLabel}>{formatDate(selectedDate)}</Text>
-                  {selectedApts.map((apt) => (
-                    <View key={apt.id} style={styles.aptCard}>
+              {todayApts.length > 0 && (
+                <View style={{ marginTop: 16 }}>
+                  <Text style={styles.sectionLabel}>Today</Text>
+                  {todayApts.map((apt) => (
+                    <View key={apt.id} style={[styles.aptCard, apt.status === "completed" && styles.aptCardCompleted]}>
+                      <Pressable onPress={() => apt.status !== "completed" && handleCompleteToday(apt)} style={styles.aptCompleteBtn} accessibilityRole="button" accessibilityLabel={apt.status === "completed" ? "Completed" : "Mark as completed"}>
+                        {apt.status === "completed" ? <Ionicons name="checkmark-circle" size={24} color={C.green} /> : <Ionicons name="ellipse-outline" size={24} color={C.textTertiary} />}
+                      </Pressable>
                       <View style={styles.aptDateBadge}>
                         <Text style={styles.aptDateDay}>{new Date(apt.date + "T00:00:00").getDate()}</Text>
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.aptDoctor}>{apt.doctorName}</Text>
-                        {!!apt.specialty && <Text style={styles.aptSpec}>{apt.specialty}</Text>}
-                        {getRecurrenceLabel(apt, appointments) && <Text style={styles.aptRecurrence}>{getRecurrenceLabel(apt, appointments)}</Text>}
+                      <View style={styles.aptCardContent}>
+                        <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{apt.doctorName}</Text>
+                        {!!apt.specialty && <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{apt.specialty}</Text>}
                         <View style={styles.aptMeta}>
                           <Ionicons name="time-outline" size={12} color={C.textSecondary} />
                           <Text style={styles.aptMetaText}>{formatTime12h(apt.time)}</Text>
-                          {!!apt.location && <>
-                            <Ionicons name="location-outline" size={12} color={C.textSecondary} />
-                            <Text style={styles.aptMetaText}>{apt.location}</Text>
-                          </>}
+                          {!!apt.location && (
+                            <>
+                              <Ionicons name="location-outline" size={12} color={C.textSecondary} />
+                              <Text style={styles.aptMetaLocation} numberOfLines={1} ellipsizeMode="tail">{apt.location}</Text>
+                            </>
+                          )}
                         </View>
                       </View>
                       <Pressable onPress={() => handleEditApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Edit appointment with ${apt.doctorName}`}><Ionicons name="pencil-outline" size={16} color={C.textSecondary} /></Pressable>
@@ -405,11 +475,42 @@ export default function AppointmentsScreen() {
                     </View>
                   ))}
                 </View>
-              ) : (
+              )}
+            </View>
+            <View style={isWide ? { flex: 1 } : undefined}>
+              {selectedDate !== today && selectedApts.length > 0 ? (
+                <View>
+                  <Text style={styles.sectionLabel}>{formatDate(selectedDate)}</Text>
+                  {selectedApts.map((apt) => (
+                    <View key={apt.id} style={styles.aptCard}>
+                      <View style={styles.aptDateBadge}>
+                        <Text style={styles.aptDateDay}>{new Date(apt.date + "T00:00:00").getDate()}</Text>
+                      </View>
+                      <View style={styles.aptCardContent}>
+                        <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{apt.doctorName}</Text>
+                        {!!apt.specialty && <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{apt.specialty}</Text>}
+                        {getRecurrenceLabel(apt, appointments) && <Text style={styles.aptRecurrence}>{getRecurrenceLabel(apt, appointments)}</Text>}
+                        <View style={styles.aptMeta}>
+                          <Ionicons name="time-outline" size={12} color={C.textSecondary} />
+                          <Text style={styles.aptMetaText}>{formatTime12h(apt.time)}</Text>
+                          {!!apt.location && (
+                            <>
+                              <Ionicons name="location-outline" size={12} color={C.textSecondary} />
+                              <Text style={styles.aptMetaLocation} numberOfLines={1} ellipsizeMode="tail">{apt.location}</Text>
+                            </>
+                          )}
+                        </View>
+                      </View>
+                      <Pressable onPress={() => handleEditApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Edit appointment with ${apt.doctorName}`}><Ionicons name="pencil-outline" size={16} color={C.textSecondary} /></Pressable>
+                      <Pressable onPress={() => handleDeleteApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Delete appointment with ${apt.doctorName}`}><Ionicons name="trash-outline" size={16} color={C.textTertiary} /></Pressable>
+                    </View>
+                  ))}
+                </View>
+              ) : selectedDate !== today ? (
                 <View style={styles.noAptForDate}>
                   <Text style={styles.noAptText}>No appointments on {formatDate(selectedDate)}</Text>
                 </View>
-              )}
+              ) : null}
 
               {upcoming.length > 0 && (
                 <View style={{ marginTop: 20 }}>
@@ -420,9 +521,9 @@ export default function AppointmentsScreen() {
                         <Text style={styles.aptDateDay}>{new Date(apt.date + "T00:00:00").getDate()}</Text>
                         <Text style={styles.aptDateMonth}>{new Date(apt.date + "T00:00:00").toLocaleDateString("en-US", { month: "short" })}</Text>
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.aptDoctor}>{apt.doctorName}</Text>
-                        {!!apt.specialty && <Text style={styles.aptSpec}>{apt.specialty}</Text>}
+                      <View style={styles.aptCardContent}>
+                        <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{apt.doctorName}</Text>
+                        {!!apt.specialty && <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{apt.specialty}</Text>}
                         {getRecurrenceLabel(apt, appointments) && <Text style={styles.aptRecurrence}>{getRecurrenceLabel(apt, appointments)}</Text>}
                       </View>
                     </Pressable>
@@ -580,6 +681,26 @@ export default function AppointmentsScreen() {
         </Pressable>
       </Modal>
 
+      <Modal visible={showRescheduleModal} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => { setShowRescheduleModal(false); setRescheduleApt(null); }}>
+          <Pressable style={styles.modal} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Reschedule</Text>
+            {rescheduleApt && (
+              <>
+                <Text style={styles.label}>New date (YYYY-MM-DD) *</Text>
+                <TextInput style={styles.input} placeholder="2026-03-20" placeholderTextColor={C.textTertiary} value={rescheduleDate} onChangeText={setRescheduleDate} />
+                <Text style={styles.label}>New time (HH:MM)</Text>
+                <TextInput style={styles.input} placeholder="09:00" placeholderTextColor={C.textTertiary} value={rescheduleTime} onChangeText={setRescheduleTime} />
+                <View style={styles.modalActions}>
+                  <Pressable style={styles.cancelBtn} onPress={() => { setShowRescheduleModal(false); setRescheduleApt(null); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+                  <Pressable style={[styles.confirmBtn, !rescheduleDate.trim() && { opacity: 0.5 }]} onPress={handleRescheduleConfirm} disabled={!rescheduleDate.trim()}><Text style={styles.confirmText}>Confirm</Text></Pressable>
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <Modal visible={showNoteModal} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowNoteModal(false)}>
           <Pressable style={styles.modal} onPress={() => {}}>
@@ -609,15 +730,19 @@ const styles = StyleSheet.create({
   tabTextActive: { color: C.text },
   calLayout: { flexDirection: "row" },
   sectionLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
-  aptCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: C.border, gap: 12 },
+  aptCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 12, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border, gap: 12 },
+  aptCardCompleted: { backgroundColor: "rgba(48,209,88,0.08)", borderColor: "rgba(48,209,88,0.25)" },
+  aptCompleteBtn: { padding: 4, marginRight: 2 },
+  aptCardContent: { flex: 1, minWidth: 0, justifyContent: "center" },
   aptDateBadge: { width: 42, height: 42, borderRadius: 10, backgroundColor: C.purpleLight, alignItems: "center", justifyContent: "center" },
   aptDateDay: { fontWeight: "700", fontSize: 16, color: C.purple, lineHeight: 20 },
   aptDateMonth: { fontWeight: "500", fontSize: 9, color: C.purple, textTransform: "uppercase" },
   aptDoctor: { fontWeight: "600", fontSize: 14, color: C.text },
   aptSpec: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 1 },
   aptRecurrence: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2, fontStyle: "italic" },
-  aptMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
+  aptMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, flex: 1, minWidth: 0 },
   aptMetaText: { fontWeight: "400", fontSize: 11, color: C.textSecondary, marginRight: 8 },
+  aptMetaLocation: { fontWeight: "400", fontSize: 11, color: C.textSecondary, flex: 1, minWidth: 0 },
   noAptForDate: { backgroundColor: C.surface, borderRadius: 12, padding: 20, alignItems: "center", borderWidth: 1, borderColor: C.border },
   noAptText: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
   empty: { alignItems: "center", paddingVertical: 60, gap: 8 },

@@ -8,9 +8,10 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import ReadAloudButton from "@/components/ReadAloudButton";
 import {
-  medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage,
-  type Medication, type MedicationLog, type UserSettings, type SickModeData,
+  medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage, doctorsStorage,
+  type Medication, type MedicationLog, type UserSettings, type SickModeData, type Doctor,
 } from "@/lib/storage";
+import { getMedList, addMedListItem, removeMedListItem, type MedListItem } from "@/lib/med-list-storage";
 import { getToday } from "@/lib/date-utils";
 
 const C = Colors.dark;
@@ -73,15 +74,29 @@ export default function MedicationsScreen() {
   const [tempInput, setTempInput] = useState("");
   const [showTempModal, setShowTempModal] = useState(false);
 
+  const [medListItems, setMedListItems] = useState<MedListItem[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [showMedListModal, setShowMedListModal] = useState(false);
+  const [showMedListDoctorPicker, setShowMedListDoctorPicker] = useState(false);
+  const [showCurrentMedNamePicker, setShowCurrentMedNamePicker] = useState(false);
+  const [formMedListName, setFormMedListName] = useState("");
+  const [formMedListDosage, setFormMedListDosage] = useState("");
+  const [formMedListPrescribingDoctor, setFormMedListPrescribingDoctor] = useState("");
+  const [formMedListPharmacy, setFormMedListPharmacy] = useState("");
+  const [formMedListRefills, setFormMedListRefills] = useState("");
+  const [formMedListDuration, setFormMedListDuration] = useState("");
+  const [formMedListDurationUnit, setFormMedListDurationUnit] = useState<"" | "Days" | "Weeks" | "Months">("");
+
   const loadData = useCallback(async () => {
-    const meds = await medicationStorage.getAll();
-    const logs = await medicationLogStorage.getByDate(today);
-    const s = await settingsStorage.get();
-    const sd = await sickModeStorage.get();
+    const [meds, logs, s, sd, medList, docs] = await Promise.all([
+      medicationStorage.getAll(), medicationLogStorage.getByDate(today), settingsStorage.get(), sickModeStorage.get(), getMedList(), doctorsStorage.getAll(),
+    ]);
     setMedications(meds);
     setMedLogs(logs);
     setSettings(s);
     setSickData(sd);
+    setMedListItems(medList);
+    setDoctors(docs);
   }, [today]);
 
   React.useEffect(() => { loadData(); }, [loadData]);
@@ -141,6 +156,40 @@ export default function MedicationsScreen() {
     Alert.alert("Remove", `Remove ${med.name}?`, [
       { text: "Cancel", style: "cancel" },
       { text: "Remove", style: "destructive", onPress: async () => { await medicationStorage.delete(med.id); loadData(); } },
+    ]);
+  };
+
+  const handleSaveMedListItem = async () => {
+    const name = formMedListName.trim();
+    if (!name) return;
+    const refills = parseInt(formMedListRefills, 10);
+    const durationNum = formMedListDuration.trim() ? parseInt(formMedListDuration, 10) : undefined;
+    await addMedListItem({
+      name,
+      dosage: formMedListDosage.trim(),
+      prescribingDoctor: formMedListPrescribingDoctor.trim(),
+      pharmacy: formMedListPharmacy.trim(),
+      refillsRemaining: isNaN(refills) || refills < 0 ? 0 : refills,
+      duration: durationNum != null && !isNaN(durationNum) && durationNum > 0 ? durationNum : undefined,
+      durationUnit: formMedListDurationUnit || undefined,
+    });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowMedListModal(false);
+    setFormMedListName("");
+    setFormMedListDosage("");
+    setFormMedListPrescribingDoctor("");
+    setFormMedListPharmacy("");
+    setFormMedListRefills("");
+    setFormMedListDuration("");
+    setFormMedListDurationUnit("");
+    loadData();
+  };
+
+  const handleRemoveMedListItem = async (item: MedListItem) => {
+    if (Platform.OS === "web") { await removeMedListItem(item.id); loadData(); return; }
+    Alert.alert("Remove", `Remove ${item.name} from Med List?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: async () => { await removeMedListItem(item.id); loadData(); } },
     ]);
   };
 
@@ -292,9 +341,6 @@ export default function MedicationsScreen() {
             <Text style={[styles.title, isSickMode && { color: "#FF6B6B" }]}>Medications</Text>
             <Text style={styles.subtitle}>{takenDoses}/{totalDoses} doses taken today</Text>
           </View>
-          <Pressable testID="add-medication" style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={openAddModal} accessibilityRole="button" accessibilityLabel="Add medication" hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}>
-            <Ionicons name="add" size={20} color="#fff" />
-          </Pressable>
         </View>
         {totalDoses > 0 && (
           <View style={[styles.progressBar, isSickMode && { backgroundColor: "rgba(255,69,58,0.15)" }]}>
@@ -310,15 +356,56 @@ export default function MedicationsScreen() {
         }]}
         showsVerticalScrollIndicator={false}
       >
-        {grouped.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons name="medical-outline" size={40} color={C.textTertiary} />
-            <Text style={styles.emptyTitle}>No medications</Text>
-            <Text style={styles.emptyDesc}>Tap + to add your medications</Text>
+        <View style={styles.sectionPanel}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Medications List</Text>
+            <Pressable testID="add-med-list" style={({ pressed }) => [styles.sectionAddBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => setShowMedListModal(true)} accessibilityRole="button" accessibilityLabel="Add to Medications" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="add" size={22} color="#fff" />
+            </Pressable>
           </View>
-        )}
+          {medListItems.length === 0 ? (
+            <Text style={styles.medListEmpty}>No entries. Tap + to add medication name, prescriber, and refills.</Text>
+          ) : (
+            medListItems.map((item) => (
+              <View key={item.id} style={styles.medListCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.medListCardName}>{item.name}</Text>
+                  {item.dosage ? <Text style={styles.medListCardPrescriber}>{item.dosage}</Text> : null}
+                  {item.prescribingDoctor ? <Text style={styles.medListCardPrescriber}>{item.prescribingDoctor}</Text> : null}
+                  {item.pharmacy ? <Text style={styles.medListCardPrescriber}>{item.pharmacy}</Text> : null}
+                  <Text style={[styles.medListCardRefills, item.refillsRemaining <= 1 && styles.medListCardRefillsWarning]}>
+                    {item.refillsRemaining === 0 ? "No refills remaining" : `${item.refillsRemaining} refill${item.refillsRemaining === 1 ? "" : "s"} remaining`}
+                  </Text>
+                  {item.duration != null && item.durationUnit ? (
+                    <Text style={styles.medListCardPrescriber}>{item.duration} {item.durationUnit}</Text>
+                  ) : null}
+                </View>
+                <Pressable onPress={() => handleRemoveMedListItem(item)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Remove ${item.name} from Medications`}>
+                  <Ionicons name="trash-outline" size={16} color={C.textTertiary} />
+                </Pressable>
+              </View>
+            ))
+          )}
+        </View>
 
-        {grouped.map(({ tag, meds }) => (
+        <View style={styles.sectionDivider} />
+
+        <View style={styles.sectionPanel}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Current Medications</Text>
+            <Pressable testID="add-medication" style={({ pressed }) => [styles.sectionAddBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={openAddModal} accessibilityRole="button" accessibilityLabel="Add medication" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="add" size={22} color="#fff" />
+            </Pressable>
+          </View>
+
+          {grouped.length === 0 ? (
+            <View style={styles.empty}>
+              <Ionicons name="medical-outline" size={40} color={C.textTertiary} />
+              <Text style={styles.emptyTitle}>No medications</Text>
+              <Text style={styles.emptyDesc}>Tap + to add your medications</Text>
+            </View>
+          ) : (
+            grouped.map(({ tag, meds }) => (
           <View key={tag} style={{ marginBottom: 20 }}>
             <View style={[styles.tagBadge, { backgroundColor: TAG_COLORS[tag].bg }]}>
               <Ionicons name={TAG_COLORS[tag].icon as any} size={12} color={TAG_COLORS[tag].text} />
@@ -410,7 +497,8 @@ export default function MedicationsScreen() {
               );
             })}
           </View>
-        ))}
+        )))}
+        </View>
 
         {medications.length > 0 && (
           <View style={styles.safetyNote}>
@@ -562,8 +650,58 @@ export default function MedicationsScreen() {
         </Pressable>
       </Modal>
 
+      <Modal visible={showMedListModal} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => { setShowMedListModal(false); setShowMedListDoctorPicker(false); }}>
+          <Pressable style={styles.modal} onPress={() => {}}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={styles.modalTitle}>Add to Medications List</Text>
+              <Text style={styles.label}>Medication name</Text>
+              <TextInput style={styles.input} placeholder="e.g. Metformin" placeholderTextColor={C.textTertiary} value={formMedListName} onChangeText={setFormMedListName} />
+              <Text style={styles.label}>Dosage</Text>
+              <TextInput style={styles.input} placeholder="e.g. 15 mg" placeholderTextColor={C.textTertiary} value={formMedListDosage} onChangeText={setFormMedListDosage} />
+              <Text style={styles.label}>Prescribing doctor</Text>
+              <Pressable style={styles.input} onPress={() => setShowMedListDoctorPicker((v) => !v)}>
+                <Text style={[styles.pickerPlaceholder, formMedListPrescribingDoctor && { color: C.text }]}>{formMedListPrescribingDoctor || (doctors.length === 0 ? "No doctors found. Add doctors in Settings." : "Select doctor")}</Text>
+                <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />
+              </Pressable>
+              {showMedListDoctorPicker && doctors.length > 0 && (
+                <View style={styles.dropdown}>
+                  {doctors.map((d) => (
+                    <Pressable key={d.id} style={[styles.dropdownRow, formMedListPrescribingDoctor === d.name && styles.dropdownRowSelected]} onPress={() => { setFormMedListPrescribingDoctor(d.name); setShowMedListDoctorPicker(false); Haptics.selectionAsync(); }}>
+                      <Text style={styles.dropdownText}>{d.name}</Text>
+                      {d.specialty ? <Text style={styles.dropdownSub}>{d.specialty}</Text> : null}
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+              <Text style={styles.label}>Pharmacy</Text>
+              <TextInput style={styles.input} placeholder="e.g. CVS Pharmacy Boston" placeholderTextColor={C.textTertiary} value={formMedListPharmacy} onChangeText={setFormMedListPharmacy} />
+              <Text style={styles.label}>Refills remaining</Text>
+              <TextInput style={styles.input} placeholder="e.g. 3" placeholderTextColor={C.textTertiary} value={formMedListRefills} onChangeText={setFormMedListRefills} keyboardType="number-pad" />
+              <Text style={styles.label}>Duration (optional)</Text>
+              <View style={styles.durationRow}>
+                <TextInput style={[styles.input, styles.durationInput]} placeholder="e.g. 7" placeholderTextColor={C.textTertiary} value={formMedListDuration} onChangeText={setFormMedListDuration} keyboardType="number-pad" />
+                <View style={styles.durationUnitRow}>
+                  {(["Days", "Weeks", "Months"] as const).map((u) => (
+                    <Pressable key={u} style={[styles.durationUnitBtn, formMedListDurationUnit === u && styles.durationUnitBtnActive]} onPress={() => { setFormMedListDurationUnit(formMedListDurationUnit === u ? "" : u); Haptics.selectionAsync(); }}>
+                      <Text style={[styles.durationUnitText, formMedListDurationUnit === u && { color: "#fff" }]}>{u}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.modalActions}>
+                <Pressable style={styles.cancelBtn} onPress={() => { setShowMedListModal(false); setShowMedListDoctorPicker(false); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+                <Pressable style={[styles.confirmBtn, !formMedListName.trim() && { opacity: 0.5 }]} onPress={handleSaveMedListItem} disabled={!formMedListName.trim()}>
+                  <Text style={styles.confirmText}>Add</Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <Modal visible={showModal} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setShowModal(false)}>
+        <Pressable style={styles.overlay} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); }}>
           <Pressable style={styles.modal} onPress={() => {}}>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={styles.modalTitle}>{editingMed ? "Edit Medication" : "Add Medication"}</Text>
@@ -578,7 +716,23 @@ export default function MedicationsScreen() {
               </View>
 
               <Text style={styles.label}>Name</Text>
-              <TextInput style={styles.input} placeholder="e.g. Metformin" placeholderTextColor={C.textTertiary} value={formName} onChangeText={setFormName} />
+              <Pressable style={styles.input} onPress={() => medListItems.length > 0 && setShowCurrentMedNamePicker((v) => !v)}>
+                <Text style={[styles.pickerPlaceholder, formName && { color: C.text }]}>
+                  {formName || (medListItems.length === 0 ? "No medications found. Add medications in Medications List first." : "Select medication")}
+                </Text>
+                {medListItems.length > 0 && <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />}
+              </Pressable>
+              {showCurrentMedNamePicker && medListItems.length > 0 && (
+                <View style={styles.dropdown}>
+                  {(editingMed && !medListItems.some((m) => m.name === editingMed.name) ? [editingMed.name, ...medListItems.map((m) => m.name)] : medListItems.map((m) => m.name))
+                    .filter((name, i, arr) => arr.indexOf(name) === i)
+                    .map((name) => (
+                      <Pressable key={name} style={[styles.dropdownRow, formName === name && styles.dropdownRowSelected]} onPress={() => { setFormName(name); setShowCurrentMedNamePicker(false); Haptics.selectionAsync(); }}>
+                        <Text style={styles.dropdownText}>{name}</Text>
+                      </Pressable>
+                    ))}
+                </View>
+              )}
 
               <View style={styles.fieldRow}>
                 <View style={{ flex: 2 }}>
@@ -666,7 +820,7 @@ export default function MedicationsScreen() {
               </View>
 
               <View style={styles.modalActions}>
-                <Pressable style={styles.cancelBtn} onPress={() => setShowModal(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+                <Pressable style={styles.cancelBtn} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
                 <Pressable style={[styles.confirmBtn, !formName.trim() && { opacity: 0.5 }]} onPress={handleSave} disabled={!formName.trim()}>
                   <Text style={styles.confirmText}>{editingMed ? "Save" : "Add"}</Text>
                 </Pressable>
@@ -713,6 +867,29 @@ const styles = StyleSheet.create({
   empty: { alignItems: "center", paddingVertical: 60, gap: 8 },
   emptyTitle: { fontWeight: "600", fontSize: 17, color: C.text, marginTop: 8 },
   emptyDesc: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
+  sectionPanel: { marginBottom: 0, paddingVertical: 16, paddingHorizontal: 4 },
+  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  sectionTitle: { fontWeight: "700", fontSize: 18, color: C.text },
+  sectionAddBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+  sectionDivider: { height: 1, backgroundColor: C.border, marginVertical: 8, marginHorizontal: 4 },
+  medListEmpty: { fontWeight: "400", fontSize: 13, color: C.textTertiary, marginBottom: 12 },
+  medListCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border },
+  medListCardName: { fontWeight: "600", fontSize: 15, color: C.text },
+  medListCardPrescriber: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 2 },
+  medListCardRefills: { fontWeight: "500", fontSize: 12, color: C.tint, marginTop: 4 },
+  medListCardRefillsWarning: { color: C.red },
+  pickerPlaceholder: { fontWeight: "400", fontSize: 14, color: C.textTertiary },
+  dropdown: { marginBottom: 14, maxHeight: 180, borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: "hidden", backgroundColor: C.surfaceElevated },
+  dropdownRow: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  dropdownRowSelected: { backgroundColor: C.tintLight },
+  dropdownText: { fontWeight: "500", fontSize: 14, color: C.text },
+  dropdownSub: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
+  durationRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
+  durationInput: { flex: 1, marginBottom: 0 },
+  durationUnitRow: { flexDirection: "row", gap: 6 },
+  durationUnitBtn: { paddingHorizontal: 10, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  durationUnitBtnActive: { backgroundColor: C.tint, borderColor: C.tint },
+  durationUnitText: { fontWeight: "600", fontSize: 12, color: C.textSecondary },
   tagBadge: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
   tagText: { fontWeight: "600", fontSize: 12 },
   medCard: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border },

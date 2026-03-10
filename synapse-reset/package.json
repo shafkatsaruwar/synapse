@@ -1,7 +1,7 @@
 {
   "name": "synapse-reset",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.9.1",
   "scripts": {
     "postinstall": "node scripts/patch-dom-webview.js",
     "start": "expo start",

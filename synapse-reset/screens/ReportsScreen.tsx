@@ -13,6 +13,7 @@ import {
   doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage, eatingStorage, monthlyCheckInStorage,
   type HealthLog, type Medication, type MedicationLog, type Appointment, type DoctorNote, type Symptom, type UserSettings, type SickModeData, type HealthCondition, type EatingEntry, type MonthlyCheckIn,
 } from "@/lib/storage";
+import { getMedList, type MedListItem } from "@/lib/med-list-storage";
 import { getDaysAgo, formatDate, formatDateWithYear, getToday } from "@/lib/date-utils";
 
 const C = Colors.dark;
@@ -41,15 +42,16 @@ export default function ReportsScreen() {
   const [sickMode, setSickMode] = useState<SickModeData | null>(null);
   const [eatingEntries, setEatingEntries] = useState<EatingEntry[]>([]);
   const [monthlyCheckIns, setMonthlyCheckIns] = useState<MonthlyCheckIn[]>([]);
+  const [medListItems, setMedListItems] = useState<MedListItem[]>([]);
   const [range, setRange] = useState<7 | 30>(7);
   const [exporting, setExporting] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [l, m, ml, a, n, s, st, sm, conds, eating, checkIns] = await Promise.all([
+    const [l, m, ml, a, n, s, st, sm, conds, eating, checkIns, medList] = await Promise.all([
       healthLogStorage.getAll(), medicationStorage.getAll(), medicationLogStorage.getAll(),
-      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), sickModeStorage.get(), conditionStorage.getAll(), eatingStorage.getAll(), monthlyCheckInStorage.getAll(),
+      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), sickModeStorage.get(), conditionStorage.getAll(), eatingStorage.getAll(), monthlyCheckInStorage.getAll(), getMedList(),
     ]);
-    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setSickMode(sm); setHealthConditions(conds); setEatingEntries(eating); setMonthlyCheckIns(checkIns);
+    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setSickMode(sm); setHealthConditions(conds); setEatingEntries(eating); setMonthlyCheckIns(checkIns); setMedListItems(medList);
   }, []);
 
   React.useEffect(() => { loadData(); }, [loadData]);
@@ -153,6 +155,9 @@ export default function ReportsScreen() {
     r += `\nMEDICATIONS\n`;
     r += `Active: ${activeMeds.length} | Adherence: ${adherence}% | Missed: ${missedDoses}\n`;
     activeMeds.forEach((m) => { r += `  - ${m.name} ${m.dosage} (${Array.isArray(m.timeTag) ? m.timeTag.join(", ") : m.timeTag})\n`; });
+    r += `\nMED LIST (prescriber, refills)\n`;
+    if (medListItems.length > 0) medListItems.forEach((item) => { r += `  - ${item.name} | Prescriber: ${item.prescribingDoctor || "—"} | ${item.refillsRemaining === 0 ? "No refills remaining" : `${item.refillsRemaining} refill(s) remaining`}\n`; });
+    else r += `  None\n`;
     r += `\nAPPOINTMENTS IN RANGE (${recentAppointments.length})\n`;
     if (recentAppointments.length > 0) recentAppointments.forEach((a) => { r += `  ${formatDate(a.date)} - ${a.doctorName} (${a.specialty})\n`; });
     else r += `  None\n`;
@@ -353,6 +358,15 @@ export default function ReportsScreen() {
           {activeMeds.map((m) => (
             <Text key={m.id} style={styles.summaryItem}>{m.name} {m.dosage} ({Array.isArray(m.timeTag) ? m.timeTag.join(", ") : m.timeTag})</Text>
           ))}
+        </View>
+
+        <View style={styles.summaryBlock}>
+          <Text style={styles.summaryBlockTitle}>Med List (prescriber, refills)</Text>
+          {medListItems.length > 0 ? medListItems.map((item) => (
+            <Text key={item.id} style={styles.summaryItem}>
+              {item.name} · Prescriber: {item.prescribingDoctor || "—"} · {item.refillsRemaining === 0 ? "No refills remaining" : `${item.refillsRemaining} refill(s) remaining`}
+            </Text>
+          )) : <Text style={styles.summaryItemEmpty}>None</Text>}
         </View>
 
         <View style={styles.summaryBlock}>
