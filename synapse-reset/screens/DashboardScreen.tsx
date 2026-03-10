@@ -44,6 +44,20 @@ const PRIORITY_GRADIENTS: Record<string, [string, string]> = {
   medicationsStress: ["#7B3535", "#9E6A6A"],
 };
 
+const RAMADAN_QUOTES = [
+  "Ramadan is a chance to reset your body, mind, and soul.",
+  "Every small act of patience today is an investment in your health.",
+  "Take it gently today. Your body is doing something extraordinary.",
+  "Hydrate well between iftar and suhoor — future you will be grateful.",
+];
+
+const GOOD_DAY_MESSAGES = [
+  "Have a good day.",
+  "Good day, matey!",
+  "Today is a good day to be kind to your body.",
+  "Take it gently today — you’re doing enough.",
+];
+
 interface DashboardScreenProps {
   onNavigate: (screen: string) => void;
   onRefreshKey?: number;
@@ -156,6 +170,58 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   };
 
   const energyLabels = ["Low", "Fair", "Good", "Great", "Excellent"];
+
+  const getIftarCountdown = () => {
+    if (!fastingLog?.iftarTime) return null;
+    const match = fastingLog.iftarTime.match(/(\d{1,2}):(\d{2})\s*(am|pm)?/i);
+    if (!match) return null;
+    const [, hh, mm, suffixRaw] = match;
+    let hours = Number(hh);
+    const minutes = Number(mm);
+    const suffix = suffixRaw?.toLowerCase();
+    if (suffix === "pm" && hours < 12) hours += 12;
+    if (suffix === "am" && hours === 12) hours = 0;
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(hours, minutes, 0, 0);
+    const diffMs = target.getTime() - now.getTime();
+    if (diffMs <= 0) return "Iftar time has passed for today";
+    const diffMinutesTotal = Math.round(diffMs / 60000);
+    const diffHours = Math.floor(diffMinutesTotal / 60);
+    const remMinutes = diffMinutesTotal % 60;
+    if (diffHours <= 0) return `${remMinutes} min until iftar`;
+    return `${diffHours} hr ${remMinutes.toString().padStart(2, "0")} min until iftar`;
+  };
+
+  const ramadanQuote =
+    ramadanDay ? RAMADAN_QUOTES[(ramadanDay.hijriDay - 1) % RAMADAN_QUOTES.length] : RAMADAN_QUOTES[0];
+
+  const goodDayMessage = GOOD_DAY_MESSAGES[dateObj.getDate() % GOOD_DAY_MESSAGES.length];
+
+  const getNextMedicationInfo = () => {
+    if (!medications.length) return null;
+    for (const med of medications) {
+      const doseCount = getDoseCount(med);
+      if (doseCount <= 0) continue;
+      const takenForMed = medLogs.filter((l) => l.medicationId === med.id && l.taken).length;
+      if (takenForMed >= doseCount) continue;
+      const timeTag = Array.isArray(med.timeTag) ? med.timeTag[0] : med.timeTag;
+      let timeLabel = "";
+      if (typeof timeTag === "string" && timeTag.trim().length > 0) {
+        timeLabel = timeTag.trim();
+      } else {
+        timeLabel = "Today";
+      }
+      return {
+        name: med.name || "Next medication",
+        dosage: med.dosage || "",
+        time: timeLabel,
+      };
+    }
+    return null;
+  };
+
+  const nextMedication = getNextMedicationInfo();
 
   const renderMedicationsCard = () => (
     <PriorityCard colors={isSickMode ? PRIORITY_GRADIENTS.medicationsStress : PRIORITY_GRADIENTS.medications} icon="medical" label={isSickMode ? "Stress Dosing" : "Medications Today"} onPress={() => onNavigate("medications")}>
@@ -279,21 +345,84 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         </Text>
       </View>
 
-      {settings.ramadanMode && ramadanDay && (
+      {!settings.ramadanMode && ramadanDay && (
         <Text style={styles.hijriDate}>
-          {ramadanDay.hijriDay}{ordinalSuffix(ramadanDay.hijriDay)} Ramadan, 1447 AH
+          {ramadanDay.hijriDay}
+          {ordinalSuffix(ramadanDay.hijriDay)} Ramadan, 1447 AH
         </Text>
       )}
-      <Text style={styles.sectionLabel}>Control center</Text>
 
-      <View style={[styles.priorityGrid, { gap: 12 }]}>
-        <View style={[styles.priorityGridItem, { width: isWide ? 260 : "48%" }]}>{renderMedicationsCard()}</View>
-        <View style={[styles.priorityGridItem, { width: isWide ? 260 : "48%" }]}>{renderAppointmentsCard()}</View>
-        <View style={[styles.priorityGridItem, { width: isWide ? 260 : "48%" }]}>{renderDailyLogCard()}</View>
-        {settings.ramadanMode && (
-          <View style={[styles.priorityGridItem, { width: isWide ? 260 : "48%" }]}>{renderRamadanCard()}</View>
-        )}
-      </View>
+      {settings.ramadanMode && ramadanDay && (
+        <View style={styles.ramadanSection}>
+          <LinearGradient
+            colors={["#24104F", "#43296B"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.ramadanHero}
+          >
+            <View style={styles.ramadanHeroTopRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.ramadanDateText}>
+                  Ramadan {ramadanDay.hijriDay}{ordinalSuffix(ramadanDay.hijriDay)}, 1447 AH
+                </Text>
+                <Text style={styles.ramadanLocationText}>{goodDayMessage}</Text>
+              </View>
+              <View style={styles.ramadanNextMedPill}>
+                {nextMedication ? (
+                  <>
+                    <Text style={styles.ramadanNextMedName}>{nextMedication.name}</Text>
+                    {!!nextMedication.dosage && (
+                      <Text style={styles.ramadanNextMedDose}>{nextMedication.dosage}</Text>
+                    )}
+                    <Text style={styles.ramadanNextMedTime}>{nextMedication.time}</Text>
+                  </>
+                ) : (
+                  <Text style={styles.ramadanNextMedName}>All meds are done for today</Text>
+                )}
+              </View>
+            </View>
+            <View style={styles.ramadanHeroBottomRow}>
+              <View style={styles.ramadanTimeCard}>
+                <Text style={styles.ramadanTimeLabel}>Sunrise</Text>
+                <Text style={styles.ramadanTimeValue}>{fastingLog?.suhoorTime || "--"}</Text>
+              </View>
+              <View style={styles.ramadanDivider} />
+              <View style={styles.ramadanTimeCard}>
+                <Text style={styles.ramadanTimeLabel}>Sunset</Text>
+                <Text style={styles.ramadanTimeValue}>{fastingLog?.iftarTime || "--"}</Text>
+              </View>
+            </View>
+            <Text style={styles.ramadanCountdownText}>{getIftarCountdown() ?? "Log today's fast to see your countdown"}</Text>
+          </LinearGradient>
+
+          <View style={styles.ramadanWeekStrip}>
+            {Array.from({ length: 7 }).map((_, idx) => {
+              const start = Math.max(1, (ramadanDay.hijriDay ?? 1) - 3);
+              const dayNum = start + idx;
+              if (dayNum > 30) return null;
+              const isToday = dayNum === ramadanDay.hijriDay;
+              return (
+                <View
+                  key={dayNum}
+                  style={[
+                    styles.ramadanWeekDay,
+                    isToday && styles.ramadanWeekDayActive,
+                  ]}
+                >
+                  <Text style={isToday ? styles.ramadanWeekDayTextActive : styles.ramadanWeekDayText}>
+                    {dayNum}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+
+          <View style={styles.ramadanQuoteCard}>
+            <Ionicons name="sparkles" size={16} color="#FFD5FF" />
+            <Text style={styles.ramadanQuoteText}>{ramadanQuote}</Text>
+          </View>
+        </View>
+      )}
 
       <View style={[styles.grid, isWide && styles.gridWide]}>
         {featureFlags.documentScannerEnabled && (
@@ -377,6 +506,71 @@ const styles = StyleSheet.create({
   greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
   hijriDate: { fontWeight: "600", fontSize: 14, color: "#3C2415", marginBottom: 20 },
+  ramadanSection: { marginTop: 16, marginBottom: 16, gap: 12 },
+  ramadanHero: { borderRadius: 20, padding: 16, gap: 12 },
+  ramadanHeroTopRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
+  ramadanDateText: { fontWeight: "600", fontSize: 14, color: "#FBE9FF" },
+  ramadanLocationText: { fontWeight: "400", fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 2 },
+  ramadanCountdownPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    gap: 6,
+  },
+  ramadanCountdownLabel: { fontWeight: "500", fontSize: 11, color: "#FBE9FF" },
+  ramadanHeroBottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  ramadanTimeCard: { flex: 1 },
+  ramadanTimeLabel: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.7)" },
+  ramadanTimeValue: { fontWeight: "600", fontSize: 16, color: "#FFFFFF", marginTop: 2 },
+  ramadanDivider: { width: 1, height: 32, backgroundColor: "rgba(255,255,255,0.2)", marginHorizontal: 12 },
+  ramadanCountdownText: { fontWeight: "400", fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 4 },
+  ramadanWeekStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#1B0D3A",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  ramadanWeekDay: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ramadanWeekDayActive: { backgroundColor: "#F6C94D" },
+  ramadanWeekDayText: { fontWeight: "500", fontSize: 12, color: "rgba(255,255,255,0.7)" },
+  ramadanWeekDayTextActive: { fontWeight: "700", fontSize: 12, color: "#2D1340" },
+  ramadanQuoteCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#261246",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  ramadanQuoteText: { flex: 1, fontWeight: "400", fontSize: 13, color: "#FBE9FF" },
+  ramadanNextMedPill: {
+    maxWidth: 150,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.14)",
+  },
+  ramadanNextMedName: { fontWeight: "600", fontSize: 11, color: "#FBE9FF" },
+  ramadanNextMedDose: { fontWeight: "500", fontSize: 11, color: "rgba(251,233,255,0.9)", marginTop: 2 },
+  ramadanNextMedTime: { fontWeight: "500", fontSize: 11, color: "#F6C94D", marginTop: 2 },
   sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
   priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 12, width: "100%" },
   priorityGridItem: { marginBottom: 12 },
