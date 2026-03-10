@@ -2,7 +2,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { setupURLPolyfill } from "react-native-url-polyfill";
 
+// Install URL polyfill without touching fetch, then capture the native fetch.
+setupURLPolyfill();
 const nativeFetch = global.fetch.bind(global);
 
 const STORAGE_KEY_URL = "supabase_url";
