@@ -76,8 +76,9 @@ export default function MainScreen() {
     setRefreshKey((k) => k + 1);
   };
 
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = (options?: { openMedications?: boolean }) => {
     setShowOnboarding(false);
+    if (options?.openMedications) setActiveScreen("medications");
     setRefreshKey((k) => k + 1);
   };
 

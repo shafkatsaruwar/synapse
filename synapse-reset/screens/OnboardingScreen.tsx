@@ -1,112 +1,31 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
-  StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform,
-  useWindowDimensions, Animated, Image, StatusBar, KeyboardAvoidingView, Alert,
+  StyleSheet,
+  Text,
+  View,
+  Pressable,
+  TextInput,
+  ScrollView,
+  Platform,
+  useWindowDimensions,
+  Animated,
+  Image,
+  StatusBar,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
-import { settingsStorage, medicationStorage, ALL_SECTION_KEYS } from "@/lib/storage";
-import { getBackupStatus, restoreFromCloud } from "@/lib/backup";
+import { settingsStorage, ALL_SECTION_KEYS } from "@/lib/storage";
 import SynapseLogo from "@/components/SynapseLogo";
 
 const founderImage = require("../assets/images/founder.png");
 
 const C = Colors.dark;
-
 const MAROON = "#800020";
 const MAROON_LIGHT = "rgba(128,0,32,0.12)";
-
-interface OnboardingScreenProps {
-  onComplete: () => void;
-}
-
-interface OnboardingMed {
-  name: string;
-  dosage: string;
-}
-
-function AnimatedLine({ text, delay, style, color }: { text: string; delay: number; style?: any; color?: string }) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(18)).current;
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 500, useNativeDriver: true }),
-        Animated.timing(translateY, { toValue: 0, duration: 500, useNativeDriver: true }),
-      ]).start();
-    }, delay);
-    return () => clearTimeout(timer);
-  }, [delay]);
-
-  return (
-    <Animated.Text style={[style, { opacity, transform: [{ translateY }], color: color || style?.color || C.text }]}>
-      {text}
-    </Animated.Text>
-  );
-}
-
-function AnimatedView({ delay, children, style }: { delay: number; children: React.ReactNode; style?: any }) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(18)).current;
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 500, useNativeDriver: true }),
-        Animated.timing(translateY, { toValue: 0, duration: 500, useNativeDriver: true }),
-      ]).start();
-    }, delay);
-    return () => clearTimeout(timer);
-  }, [delay]);
-
-  return (
-    <Animated.View style={[style, { opacity, transform: [{ translateY }] }]}>
-      {children}
-    </Animated.View>
-  );
-}
-
-function GlowDot({ active, done }: { active: boolean; done: boolean }) {
-  const scale = useRef(new Animated.Value(active ? 1 : 0.7)).current;
-  const glowOpacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (active) {
-      Animated.timing(scale, { toValue: 1, duration: 300, useNativeDriver: true }).start();
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowOpacity, { toValue: 1, duration: 1200, useNativeDriver: true }),
-          Animated.timing(glowOpacity, { toValue: 0.3, duration: 1200, useNativeDriver: true }),
-        ])
-      ).start();
-    } else {
-      Animated.timing(scale, { toValue: 0.7, duration: 200, useNativeDriver: true }).start();
-      glowOpacity.setValue(0);
-    }
-  }, [active]);
-
-  return (
-    <View style={styles.dotContainer}>
-      {active && (
-        <Animated.View style={[styles.dotGlow, { opacity: glowOpacity }]} />
-      )}
-      <Animated.View
-        style={[
-          styles.dot,
-          done && styles.dotDone,
-          active && styles.dotActive,
-          { transform: [{ scale }] },
-        ]}
-      />
-    </View>
-  );
-}
-
-const TOTAL_STEPS = 12;
 
 const SECTION_LABELS: Record<string, string> = {
   log: "Daily Log",
@@ -123,161 +42,54 @@ const SECTION_LABELS: Record<string, string> = {
   privacy: "Privacy",
 };
 
+const SLIDE_COUNT = 6;
+
+export interface OnboardingCompleteOptions {
+  openMedications?: boolean;
+}
+
+interface OnboardingScreenProps {
+  onComplete: (options?: OnboardingCompleteOptions) => void;
+}
 
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { signIn, signUp, user } = useAuth();
-  const [step, setStep] = useState(0);
-  const [animKey, setAnimKey] = useState(0);
 
-  const [authMode, setAuthMode] = useState<"signup" | "signin">("signup");
+  const [step, setStep] = useState(0);
+  const slideX = useRef(new Animated.Value(0)).current;
+
+  const [selectedSections, setSelectedSections] = useState<Set<string>>(
+    () => new Set(ALL_SECTION_KEYS as unknown as string[])
+  );
+
+  // Auth (slide 4): initial choice vs form vs post-signup prompt
+  const [authChoice, setAuthChoice] = useState<"none" | "signin" | "signup">("none");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authFirstName, setAuthFirstName] = useState("");
   const [authLastName, setAuthLastName] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
-  const [pendingRestoreCheck, setPendingRestoreCheck] = useState(false);
-  const restoreHandledRef = useRef(false);
-
-  const [meds, setMeds] = useState<OnboardingMed[]>([]);
-  const [medName, setMedName] = useState("");
-  const [medDosage, setMedDosage] = useState("");
-  const [medUnit, setMedUnit] = useState<"mg" | "mcg" | "ml">("mg");
-  const [showMedFields, setShowMedFields] = useState(false);
-  const [selectedSections, setSelectedSections] = useState<Set<string>>(
-    () => new Set(ALL_SECTION_KEYS as unknown as string[])
-  );
-
-  const screenOpacity = useRef(new Animated.Value(1)).current;
-  const completionScale = useRef(new Animated.Value(0)).current;
-  const completionOpacity = useRef(new Animated.Value(0)).current;
-  const checkOpacity = useRef(new Animated.Value(0)).current;
+  const [showAddMedsPrompt, setShowAddMedsPrompt] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
 
   useEffect(() => {
-    if (step === 9) {
-      const t = setTimeout(() => setShowMedFields(true), 600);
-      return () => clearTimeout(t);
-    }
-    if (step === 11) {
-      Animated.sequence([
-        Animated.parallel([
-          Animated.spring(completionScale, { toValue: 1, friction: 5, tension: 60, useNativeDriver: true }),
-          Animated.timing(completionOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
-        ]),
-        Animated.delay(400),
-        Animated.timing(checkOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [step]);
-
-  const animateTransition = (next: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Animated.timing(screenOpacity, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => {
-      setStep(next);
-      setAnimKey(k => k + 1);
-      setShowMedFields(false);
-      screenOpacity.setValue(0);
-      Animated.timing(screenOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
-    });
-  };
+    Animated.timing(slideX, {
+      toValue: -step * width,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [step, width]);
 
   const goNext = () => {
-    if (step < TOTAL_STEPS - 1) animateTransition(step + 1);
-  };
-
-
-
-  const addMed = () => {
-    const n = medName.trim();
-    const d = medDosage.trim();
-    if (n) {
-      const dosageStr = d ? `${d} ${medUnit}` : "as prescribed";
-      setMeds([...meds, { name: n, dosage: dosageStr }]);
-      setMedName("");
-      setMedDosage("");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (step < SLIDE_COUNT - 1) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setStep((s) => s + 1);
     }
-  };
-
-  const removeMed = (i: number) => {
-    setMeds(meds.filter((_, idx) => idx !== i));
-  };
-
-  const handleFinish = async () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const settings = await settingsStorage.get();
-    const displayName = user?.user_metadata?.first_name ?? user?.email?.split("@")[0] ?? "";
-    const enabledSections = Array.from(selectedSections);
-    await settingsStorage.save({
-      ...settings,
-      name: displayName,
-      onboardingCompleted: true,
-      enabledSections: enabledSections.length > 0 ? enabledSections : (ALL_SECTION_KEYS as unknown as string[]),
-    });
-    for (const m of meds) {
-      await medicationStorage.save({
-        name: m.name,
-        dosage: m.dosage,
-        frequency: "Daily",
-        timeTag: "Morning",
-        active: true,
-        doses: 1,
-      });
-    }
-    onComplete();
-  };
-
-  const canContinue = () => {
-    return true;
-  };
-
-  const getButtonLabel = () => {
-    if (step === 11) return "Open Synapse";
-    return "Continue";
-  };
-
-  const handleContinue = () => {
-    if (step === 11) {
-      handleFinish();
-    } else if (step === 8) {
-      const canSubmit = authMode === "signup"
-        ? authFirstName.trim() && authEmail.trim() && authPassword
-        : authEmail.trim() && authPassword;
-      if (canSubmit) handleAuthSubmit();
-    } else {
-      goNext();
-    }
-  };
-
-  const canContinueAccountStep = () => {
-    if (step !== 8) return true;
-    return !!(authEmail.trim() && authPassword);
-  };
-
-  const renderDots = () => (
-    <View style={styles.dotsRow}>
-      {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-        <GlowDot key={i} active={i === step} done={i < step} />
-      ))}
-    </View>
-  );
-
-  const handleSkipToMain = async () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const settings = await settingsStorage.get();
-    await settingsStorage.save({
-      ...settings,
-      name: "Test User",
-      conditions: [],
-      onboardingCompleted: true,
-      enabledSections: ALL_SECTION_KEYS as unknown as string[],
-    });
-    onComplete();
   };
 
   const toggleSection = (key: string) => {
@@ -290,546 +102,532 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     Haptics.selectionAsync();
   };
 
-  const renderWelcome = () => (
-    <View style={styles.welcomeCenter} key={animKey}>
-      <AnimatedView delay={0}>
-        <Pressable onPress={handleSkipToMain}>
-          <View style={styles.brainLogo}>
-            <SynapseLogo size={180} color={MAROON} />
-          </View>
-        </Pressable>
-      </AnimatedView>
-      <AnimatedLine text="Synapse" delay={400} style={styles.welcomeTitle} color={C.text} />
-      <AnimatedLine text="Built by a real patient, for real patients" delay={800} style={styles.welcomeSub} color={C.textSecondary} />
-    </View>
-  );
-
-  const renderFounderIntro = () => (
-    <View style={styles.storyCenter} key={animKey}>
-      <AnimatedView delay={0}>
-        <View style={styles.photoCircle}>
-          <Image source={founderImage} style={styles.photoImage} resizeMode="cover" />
-        </View>
-      </AnimatedView>
-      <AnimatedLine text="Why Synapse exists" delay={300} style={styles.founderTitle} color={MAROON} />
-      <AnimatedLine text="This app was not built in a boardroom." delay={600} style={styles.founderSub} />
-      <AnimatedLine text="It was built from a hospital bed," delay={900} style={styles.founderSub} />
-      <AnimatedLine text="from years of managing a condition" delay={1200} style={styles.founderSub} />
-      <AnimatedLine text="that never takes a day off." delay={1500} style={styles.founderSub} />
-    </View>
-  );
-
-  const storySlides = [
-    {
-      lines: [
-        { text: "The app you are about to use", delay: 0, color: C.text },
-        { text: "was built for survival.", delay: 400, color: MAROON },
-      ],
-    },
-    {
-      lines: [
-        { text: "I was born with conditions", delay: 0, color: C.text },
-        { text: "that require lifelong medication.", delay: 400, color: C.text },
-        { text: "", delay: 600, color: C.text },
-        { text: "Missing a dose is not small.", delay: 800, color: C.textSecondary },
-        { text: "It is dangerous.", delay: 1100, color: C.red },
-      ],
-    },
-    {
-      lines: [
-        { text: "Every day is timing.", delay: 0, color: C.text },
-        { text: "Every illness is a risk.", delay: 400, color: C.text },
-        { text: "Every symptom is a decision.", delay: 800, color: C.text },
-        { text: "", delay: 1000, color: C.text },
-        { text: "This is not fitness.", delay: 1200, color: C.textSecondary },
-        { text: "This is stability.", delay: 1500, color: MAROON },
-      ],
-    },
-    {
-      lines: [
-        { text: "Most health apps track steps.", delay: 0, color: C.textSecondary },
-        { text: "", delay: 200, color: C.text },
-        { text: "I needed something", delay: 500, color: C.text },
-        { text: "that tracks life-saving routines.", delay: 800, color: C.text },
-        { text: "", delay: 1000, color: C.text },
-        { text: "So I built it.", delay: 1300, color: MAROON },
-      ],
-    },
-    {
-      lines: [
-        { text: "This app understands:", delay: 0, color: C.textSecondary },
-      ],
-      items: [
-        { emoji: "💊", text: "Medications that cannot be late", delay: 400 },
-        { emoji: "🌡", text: "Sick days that change everything", delay: 700 },
-        { emoji: "🧠", text: "Brain fog and fatigue", delay: 1000 },
-        { emoji: "🩺", text: "The need for structure", delay: 1300 },
-      ],
-      footer: { text: "Because I live it.", delay: 1700, color: MAROON },
-    },
-    {
-      lines: [
-        { text: "Synapse is not just an app.", delay: 0, color: C.text },
-        { text: "", delay: 200, color: C.text },
-        { text: "It is the system", delay: 500, color: C.text },
-        { text: "I depend on every day.", delay: 800, color: C.text },
-      ],
-      divider: true,
-      footer: { text: "Built by a patient.\nFor patients who cannot afford mistakes.", delay: 1400, color: MAROON },
-    },
-  ];
-
-  const renderStorySlide = (slideIdx: number) => {
-    const slide = storySlides[slideIdx];
-    return (
-      <View style={styles.storyCenter} key={animKey}>
-        {slide.lines.map((line, i) =>
-          line.text === "" ? (
-            <View key={i} style={{ height: 12 }} />
-          ) : (
-            <AnimatedLine key={i} text={line.text} delay={line.delay} style={styles.storyLine} color={line.color} />
-          )
-        )}
-        {slide.items && (
-          <View style={styles.storyList}>
-            {slide.items.map((item, i) => (
-              <AnimatedView key={i} delay={item.delay} style={styles.storyListRow}>
-                <Text style={styles.storyEmoji}>{item.emoji}</Text>
-                <Text style={styles.storyListText}>{item.text}</Text>
-              </AnimatedView>
-            ))}
-          </View>
-        )}
-        {slide.divider && <AnimatedView delay={1100}><View style={styles.storyDivider} /></AnimatedView>}
-        {slide.footer && (
-          <AnimatedLine text={slide.footer.text} delay={slide.footer.delay} style={styles.storyFooter} color={slide.footer.color} />
-        )}
-      </View>
-    );
+  const handleFinish = async (openMedications?: boolean) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const settings = await settingsStorage.get();
+    const displayName = user?.user_metadata?.first_name ?? user?.email?.split("@")[0] ?? "";
+    const enabledSections = Array.from(selectedSections);
+    await settingsStorage.save({
+      ...settings,
+      name: displayName || "User",
+      onboardingCompleted: true,
+      enabledSections: enabledSections.length > 0 ? enabledSections : (ALL_SECTION_KEYS as unknown as string[]),
+    });
+    onComplete(openMedications ? { openMedications: true } : undefined);
   };
 
-  useEffect(() => {
-    if (!pendingRestoreCheck || !user?.id || restoreHandledRef.current) return;
-    restoreHandledRef.current = true;
-    getBackupStatus(user.id).then((status) => {
-      setPendingRestoreCheck(false);
-      if (status.hasBackup) {
-        Alert.alert(
-          "Restore from backup?",
-          "You have data backed up. Restore it and skip adding medications again?",
-          [
-            { text: "No thanks", onPress: () => animateTransition(9) },
-            {
-              text: "Restore",
-              onPress: async () => {
-                const { error } = await restoreFromCloud(user.id);
-                if (error) {
-                  setAuthError(error.message);
-                  restoreHandledRef.current = false;
-                  return;
-                }
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                animateTransition(10);
-              },
-            },
-          ]
-        );
-      } else {
-        animateTransition(9);
-      }
-    });
-  }, [pendingRestoreCheck, user?.id]);
+  const handleSkipForNow = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setStep(SLIDE_COUNT - 1);
+  };
 
   const handleAuthSubmit = async () => {
     if (!authEmail.trim() || !authPassword) {
       setAuthError("Enter email and password.");
       return;
     }
-    if (authMode === "signup" && authPassword.length < 6) {
+    if (authChoice === "signup" && authPassword.length < 6) {
       setAuthError("Password must be at least 6 characters.");
       return;
     }
     setAuthError("");
     setAuthLoading(true);
-    if (authMode === "signin") restoreHandledRef.current = false;
     const metadata: { first_name?: string; last_name?: string } = {};
     if (authFirstName.trim()) metadata.first_name = authFirstName.trim();
     if (authLastName.trim()) metadata.last_name = authLastName.trim();
-    const { error } = authMode === "signup"
-      ? await signUp(authEmail.trim(), authPassword, Object.keys(metadata).length > 0 ? metadata : undefined)
-      : await signIn(authEmail.trim(), authPassword);
+    const { error } =
+      authChoice === "signup"
+        ? await signUp(authEmail.trim(), authPassword, Object.keys(metadata).length > 0 ? metadata : undefined)
+        : await signIn(authEmail.trim(), authPassword);
     setAuthLoading(false);
     if (error) {
       setAuthError(error.message);
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (authMode === "signup") {
-      goNext();
+    if (authChoice === "signup") {
+      setShowAddMedsPrompt(true);
     } else {
-      setPendingRestoreCheck(true);
+      goNext();
     }
   };
 
-  const renderSignUpStep = () => (
-    <KeyboardAvoidingView style={styles.inputCenter} behavior={Platform.OS === "ios" ? "padding" : undefined} key={animKey}>
-      <AnimatedLine text={authMode === "signup" ? "Create your account" : "Welcome back"} delay={0} style={styles.nameTitle} color={C.text} />
-      <AnimatedLine text="Sign in to back up your data securely." delay={200} style={styles.nameHint} color={C.textSecondary} />
-      {authError ? <Text style={styles.authError}>{authError}</Text> : null}
-      {authMode === "signup" && (
-        <>
-          <AnimatedView delay={300}>
-            <TextInput
-              style={styles.nameInput}
-              placeholder="First name"
-              placeholderTextColor={C.textTertiary}
-              value={authFirstName}
-              onChangeText={setAuthFirstName}
-              autoCapitalize="words"
-            />
-          </AnimatedView>
-          <AnimatedView delay={350}>
-            <TextInput
-              style={styles.nameInput}
-              placeholder="Last name"
-              placeholderTextColor={C.textTertiary}
-              value={authLastName}
-              onChangeText={setAuthLastName}
-              autoCapitalize="words"
-            />
-          </AnimatedView>
-        </>
-      )}
-      <AnimatedView delay={authMode === "signup" ? 450 : 300}>
-        <TextInput
-          style={styles.nameInput}
-          placeholder="Email"
-          placeholderTextColor={C.textTertiary}
-          value={authEmail}
-          onChangeText={(t) => { setAuthEmail(t); setAuthError(""); }}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-      </AnimatedView>
-      <AnimatedView delay={500}>
-        <TextInput
-          style={styles.nameInput}
-          placeholder={authMode === "signup" ? "Password (min 6 characters)" : "Password"}
-          placeholderTextColor={C.textTertiary}
-          value={authPassword}
-          onChangeText={(t) => { setAuthPassword(t); setAuthError(""); }}
-          secureTextEntry
-        />
-      </AnimatedView>
-      <Pressable onPress={() => { setAuthMode(authMode === "signup" ? "signin" : "signup"); setAuthError(""); }} style={styles.logInLinkWrap}>
-        <Text style={styles.logInLink}>
-          {authMode === "signup" ? "Already have an account? Log in" : "Don't have an account? Sign up"}
-        </Text>
-      </Pressable>
-    </KeyboardAvoidingView>
-  );
+  const handleAddMedsChoice = (add: boolean) => {
+    setShowAddMedsPrompt(false);
+    if (add) {
+      handleFinish(true);
+    } else {
+      goNext();
+    }
+  };
 
-  const renderMedications = () => (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.setupScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" key={animKey}>
-      <AnimatedLine text="Your medications" delay={0} style={styles.setupTitle} color={C.text} />
-      <AnimatedLine text="Add what you take daily." delay={300} style={styles.setupSub} color={C.textSecondary} />
+  const slideWidth = width;
+  const paddingH = 28;
 
-      {showMedFields && (
-        <AnimatedView delay={0} style={styles.fieldBlock}>
-          <View style={{ marginBottom: 10 }}>
-            <TextInput
-              style={styles.fieldInput}
-              placeholder="Medication name"
-              placeholderTextColor={C.textTertiary}
-              value={medName}
-              onChangeText={setMedName}
-            />
-          </View>
-          <View style={styles.inputRow}>
-            <TextInput
-              style={[styles.fieldInput, { flex: 1 }]}
-              placeholder="Dosage"
-              placeholderTextColor={C.textTertiary}
-              value={medDosage}
-              onChangeText={setMedDosage}
-              onSubmitEditing={addMed}
-              returnKeyType="done"
-            />
-            <Pressable style={[styles.addBtn, !medName.trim() && { opacity: 0.3 }]} onPress={addMed} disabled={!medName.trim()}>
-              <Ionicons name="add" size={20} color="#fff" />
-            </Pressable>
-          </View>
-          <View style={styles.unitRow}>
-            {(["mg", "mcg", "ml"] as const).map((u) => (
-              <Pressable
-                key={u}
-                style={[styles.unitChip, medUnit === u && styles.unitChipActive]}
-                onPress={() => { setMedUnit(u); Haptics.selectionAsync(); }}
-              >
-                <Text style={[styles.unitChipText, medUnit === u && styles.unitChipTextActive]}>{u}</Text>
-              </Pressable>
-            ))}
-          </View>
-          {meds.map((m, i) => (
-            <AnimatedView key={`${m.name}-${i}`} delay={0} style={styles.medChipRow}>
-              <View style={styles.medChip}>
-                <Text style={styles.medChipEmoji}>💊</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.medChipName}>{m.name}</Text>
-                  <Text style={styles.medChipDose}>{m.dosage}</Text>
-                </View>
-                <Pressable onPress={() => removeMed(i)} hitSlop={10}>
-                  <Ionicons name="close-circle" size={20} color={C.textTertiary} />
-                </Pressable>
-              </View>
-            </AnimatedView>
-          ))}
-          {meds.length === 0 && (
-            <Text style={styles.fieldHint}>You can add more later in Settings.</Text>
-          )}
-        </AnimatedView>
-      )}
-    </ScrollView>
-  );
-
-  const renderSectionsStep = () => (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.setupScroll} showsVerticalScrollIndicator={false} key={animKey}>
-      <AnimatedLine text="Which sections are helpful for you?" delay={0} style={styles.setupTitle} color={C.text} />
-      <AnimatedLine text="Choose what you'll use. You can add or remove these later in Settings." delay={200} style={styles.setupSub} color={C.textSecondary} />
-      <AnimatedView delay={400} style={{ marginTop: 16, gap: 10 }}>
-        {(ALL_SECTION_KEYS as unknown as string[]).map((key) => {
-          const label = SECTION_LABELS[key] ?? key;
-          const isSelected = selectedSections.has(key);
-          return (
-            <Pressable
-              key={key}
-              style={[styles.medChip, isSelected && { borderColor: MAROON, backgroundColor: MAROON_LIGHT }]}
-              onPress={() => toggleSection(key)}
-            >
-              <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
-                {isSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
-              </View>
-              <Text style={[styles.medChipName, { flex: 1 }]}>{label}</Text>
-            </Pressable>
-          );
-        })}
-        <Text style={styles.fieldHint}>Dashboard, Medications, and Settings are always available.</Text>
-      </AnimatedView>
-    </ScrollView>
-  );
-
-  const renderCompletion = () => (
-    <View style={styles.completionCenter} key={animKey}>
-      <Animated.View style={[styles.completionCircle, { transform: [{ scale: completionScale }], opacity: completionOpacity }]}>
-        <Animated.View style={{ opacity: checkOpacity }}>
-          <Ionicons name="checkmark" size={48} color="#fff" />
-        </Animated.View>
-      </Animated.View>
-      <AnimatedLine text="Synapse is ready." delay={800} style={styles.completionTitle} color={MAROON} />
-      <AnimatedLine text="Your stability system. Built to prevent mistakes." delay={1200} style={styles.completionSub} color={C.textSecondary} />
+  const renderSlide0 = () => (
+    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
+      <View style={styles.slideCenter}>
+        <View style={styles.brainLogo}>
+          <SynapseLogo size={180} color={MAROON} />
+        </View>
+        <Text style={styles.welcomeTitle}>Synapse</Text>
+        <Text style={styles.welcomeSub}>Built by a real patient, for real patients</Text>
+      </View>
     </View>
   );
 
-  const renderContent = () => {
-    if (step === 0) return renderWelcome();
-    if (step === 1) return renderFounderIntro();
-    if (step >= 2 && step <= 7) return renderStorySlide(step - 2);
-    if (step === 8) return renderSignUpStep();
-    if (step === 9) return renderMedications();
-    if (step === 10) return renderSectionsStep();
-    if (step === 11) return renderCompletion();
-    return null;
-  };
+  const renderSlide1 = () => (
+    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
+      <View style={styles.slideCenter}>
+        <View style={styles.photoCircle}>
+          <Image source={founderImage} style={styles.photoImage} resizeMode="cover" />
+        </View>
+        <Text style={styles.founderTitle}>Why Synapse exists</Text>
+        <Text style={styles.founderSub}>
+          This app was not built in a boardroom. It was built from a hospital bed, from years of managing a condition
+          that never takes a day off.
+        </Text>
+      </View>
+    </View>
+  );
 
-  const buttonDelay = step === 0 ? 1200 : step === 1 ? 1800 : step >= 2 && step <= 7 ? 1800 : step === 11 ? 1600 : 1000;
+  const renderSlide2 = () => (
+    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
+      <View style={styles.slideCenter}>
+        <Text style={styles.storyBlock}>
+          Every day is timing. Every illness is a risk. Every symptom is a decision. This is not fitness. This is
+          stability.
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderSlide3 = () => (
+    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
+      <ScrollView
+        style={styles.sectionsScroll}
+        contentContainerStyle={styles.sectionsScrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.setupTitle}>Which sections are helpful for you?</Text>
+        <Text style={styles.setupSub}>Choose what you'll use. You can add or remove these later in Settings.</Text>
+        <View style={styles.sectionsList}>
+          {(ALL_SECTION_KEYS as unknown as string[]).map((key) => {
+            const label = SECTION_LABELS[key] ?? key;
+            const isSelected = selectedSections.has(key);
+            return (
+              <Pressable
+                key={key}
+                style={[styles.medChip, isSelected && { borderColor: MAROON, backgroundColor: MAROON_LIGHT }]}
+                onPress={() => toggleSection(key)}
+              >
+                <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
+                  {isSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+                </View>
+                <Text style={[styles.medChipName, { flex: 1 }]}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={styles.fieldHint}>Dashboard, Medications, and Settings are always available.</Text>
+      </ScrollView>
+    </View>
+  );
+
+  const renderSlide4 = () => (
+    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
+      <KeyboardAvoidingView
+        style={styles.authSlide}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={60}
+      >
+        {showAddMedsPrompt ? (
+          <View style={styles.slideCenter}>
+            <Text style={styles.setupTitle}>Add your medications?</Text>
+            <Text style={styles.setupSub}>You can add them now or later from the Medications screen.</Text>
+            <Pressable style={styles.primaryAuthBtn} onPress={() => handleAddMedsChoice(true)}>
+              <Text style={styles.primaryAuthBtnText}>Add Medications</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryAuthBtn} onPress={() => handleAddMedsChoice(false)}>
+              <Text style={styles.secondaryAuthBtnText}>Skip</Text>
+            </Pressable>
+          </View>
+        ) : authChoice === "none" ? (
+          <View style={styles.slideCenter}>
+            <Text style={styles.authHeading}>Sign in or create an account</Text>
+            <Text style={styles.setupSub}>Your data is backed up securely. You can skip and sign in later.</Text>
+            <Pressable
+              style={styles.primaryAuthBtn}
+              onPress={() => {
+                setAuthChoice("signin");
+                setAuthError("");
+              }}
+            >
+              <Text style={styles.primaryAuthBtnText}>Sign In</Text>
+            </Pressable>
+            <Pressable
+              style={styles.primaryAuthBtn}
+              onPress={() => {
+                setAuthChoice("signup");
+                setAuthError("");
+              }}
+            >
+              <Text style={styles.primaryAuthBtnText}>Create Account</Text>
+            </Pressable>
+            <Pressable style={styles.skipLink} onPress={handleSkipForNow}>
+              <Text style={styles.skipLinkText}>Skip for now</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.authFormScroll}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.authHeading}>{authChoice === "signup" ? "Create account" : "Welcome back"}</Text>
+            {authError ? <Text style={styles.authError}>{authError}</Text> : null}
+            {authChoice === "signup" && (
+              <>
+                <TextInput
+                  style={styles.nameInput}
+                  placeholder="First name"
+                  placeholderTextColor={C.textTertiary}
+                  value={authFirstName}
+                  onChangeText={setAuthFirstName}
+                  autoCapitalize="words"
+                />
+                <TextInput
+                  style={styles.nameInput}
+                  placeholder="Last name"
+                  placeholderTextColor={C.textTertiary}
+                  value={authLastName}
+                  onChangeText={setAuthLastName}
+                  autoCapitalize="words"
+                />
+              </>
+            )}
+            <TextInput
+              style={styles.nameInput}
+              placeholder="Email"
+              placeholderTextColor={C.textTertiary}
+              value={authEmail}
+              onChangeText={(t) => {
+                setAuthEmail(t);
+                setAuthError("");
+              }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.nameInput}
+              placeholder={authChoice === "signup" ? "Password (min 6 characters)" : "Password"}
+              placeholderTextColor={C.textTertiary}
+              value={authPassword}
+              onChangeText={(t) => {
+                setAuthPassword(t);
+                setAuthError("");
+              }}
+              secureTextEntry
+            />
+            <Pressable
+              style={styles.secondaryAuthBtn}
+              onPress={() => {
+                setAuthChoice("none");
+                setAuthError("");
+              }}
+            >
+              <Text style={styles.secondaryAuthBtnText}>
+                {authChoice === "signup" ? "Back" : "Back"}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.primaryAuthBtn, (authLoading || !authEmail.trim() || !authPassword) && { opacity: 0.5 }]}
+              onPress={handleAuthSubmit}
+              disabled={authLoading || !authEmail.trim() || !authPassword}
+            >
+              <Text style={styles.primaryAuthBtnText}>
+                {authLoading ? "..." : authChoice === "signup" ? "Create Account" : "Sign In"}
+              </Text>
+            </Pressable>
+          </ScrollView>
+        )}
+      </KeyboardAvoidingView>
+    </View>
+  );
+
+  const renderSlide5 = () => (
+    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
+      <View style={styles.slideCenter}>
+        <View style={styles.completionCircle}>
+          <Ionicons name="checkmark" size={48} color="#fff" />
+        </View>
+        <Text style={styles.completionTitle}>Synapse is ready.</Text>
+        <Text style={styles.completionSub}>Your stability system. Built to prevent mistakes.</Text>
+      </View>
+    </View>
+  );
+
+  const slides = [renderSlide0, renderSlide1, renderSlide2, renderSlide3, renderSlide4, renderSlide5];
+
+  const showContinue = step < SLIDE_COUNT - 1 && step !== 4;
+  const showOpenSynapse = step === SLIDE_COUNT - 1;
 
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#F4E6D4"
-        translucent={false}
-      />
-      <Animated.View style={[styles.body, { opacity: screenOpacity }]}>
-        {renderContent()}
-      </Animated.View>
+      <StatusBar barStyle="dark-content" backgroundColor="#F4E6D4" translucent={false} />
+      <View style={styles.sliderWrap}>
+        <Animated.View
+          style={[
+            styles.sliderRow,
+            {
+              width: slideWidth * SLIDE_COUNT,
+              transform: [{ translateX: slideX }],
+            },
+          ]}
+        >
+          {slides.map((render, i) => (
+            <View key={i} style={{ width: slideWidth }}>
+              {render()}
+            </View>
+          ))}
+        </Animated.View>
+      </View>
 
-      <View style={styles.footer}>
-        {renderDots()}
-        <AnimatedView delay={buttonDelay} key={`btn-${animKey}`}>
-          <Pressable
-            style={[
-              styles.continueBtn,
-              (!(step === 8 ? canContinueAccountStep() : canContinue()) || (step === 8 && authLoading)) && { opacity: 0.35 },
-            ]}
-            onPress={handleContinue}
-            disabled={!(step === 8 ? canContinueAccountStep() : canContinue()) || (step === 8 && authLoading)}
-            accessibilityRole="button"
-            accessibilityLabel={getButtonLabel()}
-          >
-            <Text style={styles.continueBtnText}>{getButtonLabel()}</Text>
+      <View style={[styles.footer, { paddingHorizontal: paddingH }]}>
+        <View style={styles.dotsRow}>
+          {Array.from({ length: SLIDE_COUNT }, (_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                i === step && styles.dotActive,
+                i < step && styles.dotDone,
+              ]}
+            />
+          ))}
+        </View>
+        {showContinue && (
+          <Pressable style={styles.continueBtn} onPress={goNext} accessibilityRole="button" accessibilityLabel="Continue">
+            <Text style={styles.continueBtnText}>Continue</Text>
             <Ionicons name="arrow-forward" size={18} color="#fff" />
           </Pressable>
-        </AnimatedView>
+        )}
+        {showOpenSynapse && (
+          <Pressable
+            style={styles.continueBtn}
+            onPress={() => handleFinish()}
+            accessibilityRole="button"
+            accessibilityLabel="Open Synapse"
+          >
+            <Text style={styles.continueBtnText}>Open Synapse</Text>
+            <Ionicons name="arrow-forward" size={18} color="#fff" />
+          </Pressable>
+        )}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background, paddingHorizontal: 28 },
-  body: { flex: 1, justifyContent: "center" },
+  container: { flex: 1, backgroundColor: C.background },
+  sliderWrap: { flex: 1, overflow: "hidden" },
+  sliderRow: { flexDirection: "row", flex: 1 },
+  slide: { flex: 1, justifyContent: "center" },
+  slideCenter: { alignItems: "center", justifyContent: "center", paddingVertical: 20 },
   footer: { gap: 16, paddingBottom: 8 },
 
   dotsRow: { flexDirection: "row", justifyContent: "center", gap: 10 },
-  dotContainer: { width: 14, height: 14, alignItems: "center", justifyContent: "center" },
-  dotGlow: {
-    position: "absolute", width: 14, height: 14, borderRadius: 7,
-    backgroundColor: MAROON_LIGHT,
-  },
-  dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "rgba(128,0,32,0.2)" },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(128,0,32,0.2)" },
   dotActive: { width: 10, height: 10, borderRadius: 5, backgroundColor: MAROON },
   dotDone: { backgroundColor: "rgba(128,0,32,0.4)" },
 
-  welcomeCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
   brainLogo: { width: 180, height: 180, resizeMode: "contain" },
   welcomeTitle: {
-    fontWeight: "700", fontSize: 36, textAlign: "center",
-    letterSpacing: -0.5, marginBottom: 12, marginTop: 24,
+    fontWeight: "700",
+    fontSize: 36,
+    textAlign: "center",
+    letterSpacing: -0.5,
+    marginBottom: 12,
+    marginTop: 24,
+    color: C.text,
   },
   welcomeSub: {
-    fontWeight: "400", fontSize: 18, textAlign: "center",
-    lineHeight: 28, paddingHorizontal: 10,
+    fontWeight: "400",
+    fontSize: 18,
+    textAlign: "center",
+    lineHeight: 28,
+    paddingHorizontal: 10,
+    color: C.textSecondary,
   },
 
   photoCircle: {
-    width: 120, height: 120, borderRadius: 60, overflow: "hidden",
-    borderWidth: 3, borderColor: MAROON,
-    alignSelf: "center", marginBottom: 28,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: "hidden",
+    borderWidth: 3,
+    borderColor: MAROON,
+    alignSelf: "center",
+    marginBottom: 28,
   },
   photoImage: { width: "100%", height: "100%", resizeMode: "cover" },
   founderTitle: {
-    fontWeight: "700", fontSize: 28, textAlign: "center",
-    letterSpacing: -0.5, marginBottom: 20,
+    fontWeight: "700",
+    fontSize: 28,
+    textAlign: "center",
+    letterSpacing: -0.5,
+    marginBottom: 20,
+    color: MAROON,
   },
   founderSub: {
-    fontWeight: "400", fontSize: 18, textAlign: "center",
-    lineHeight: 28, color: C.textSecondary,
+    fontWeight: "400",
+    fontSize: 18,
+    textAlign: "center",
+    lineHeight: 28,
+    color: C.textSecondary,
+    paddingHorizontal: 8,
   },
 
-  storyCenter: { flex: 1, justifyContent: "center", paddingHorizontal: 4 },
-  storyLine: {
-    fontWeight: "600", fontSize: 26, lineHeight: 38,
+  storyBlock: {
+    fontWeight: "600",
+    fontSize: 22,
+    lineHeight: 34,
     letterSpacing: -0.3,
-  },
-  storyList: { marginTop: 24, gap: 18 },
-  storyListRow: { flexDirection: "row", alignItems: "center", gap: 14 },
-  storyEmoji: { fontSize: 22 },
-  storyListText: { fontWeight: "500", fontSize: 18, color: C.text, flex: 1 },
-  storyDivider: {
-    width: 40, height: 2, backgroundColor: "rgba(128,0,32,0.2)",
-    marginVertical: 24,
-  },
-  storyFooter: {
-    fontWeight: "500", fontSize: 18, lineHeight: 28,
-    marginTop: 8,
+    textAlign: "center",
+    color: C.text,
   },
 
-  inputCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
-  nameTitle: {
-    fontWeight: "700", fontSize: 28, textAlign: "center",
-    letterSpacing: -0.5, marginBottom: 28,
-  },
-  nameInput: {
-    fontWeight: "500", fontSize: 22, color: C.text, textAlign: "center",
-    borderBottomWidth: 2, borderBottomColor: MAROON, paddingVertical: 14,
-    width: 260,
-  },
-  nameHint: {
-    fontWeight: "400", fontSize: 14, textAlign: "center", marginTop: 14, marginBottom: 8,
-  },
-  authError: {
-    fontWeight: "500", fontSize: 13, color: C.red, textAlign: "center", marginTop: 12, marginBottom: 4,
-  },
-  logInLinkWrap: { marginTop: 16 },
-  logInLink: {
-    fontWeight: "600", fontSize: 14, color: C.cyan, textAlign: "center",
-  },
-
-  setupScroll: { paddingTop: 20, paddingBottom: 40 },
+  sectionsScroll: { flex: 1 },
+  sectionsScrollContent: { paddingTop: 20, paddingBottom: 40 },
   setupTitle: {
-    fontWeight: "700", fontSize: 28, letterSpacing: -0.5,
-    textAlign: "center", marginBottom: 8,
+    fontWeight: "700",
+    fontSize: 28,
+    letterSpacing: -0.5,
+    textAlign: "center",
+    marginBottom: 8,
+    color: C.text,
   },
   setupSub: {
-    fontWeight: "400", fontSize: 16, textAlign: "center",
-    marginBottom: 28, lineHeight: 24,
+    fontWeight: "400",
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 24,
+    color: C.textSecondary,
   },
-  fieldBlock: { gap: 2 },
-  inputRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
-  fieldInput: {
-    fontWeight: "400", fontSize: 16, color: C.text,
-    backgroundColor: C.surface, borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: C.border,
-  },
-  addBtn: {
-    width: 48, borderRadius: 14, backgroundColor: MAROON,
-    alignItems: "center", justifyContent: "center",
-  },
-  unitRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
-  unitChip: {
-    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
-    borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
-  },
-  unitChipActive: { borderColor: MAROON, backgroundColor: MAROON_LIGHT },
-  unitChipText: { fontWeight: "500", fontSize: 14, color: C.textSecondary },
-  unitChipTextActive: { color: MAROON, fontWeight: "600" },
-  fieldHint: {
-    fontWeight: "400", fontSize: 14, color: C.textTertiary,
-    textAlign: "center", marginTop: 16,
-  },
-
+  sectionsList: { marginTop: 16, gap: 10 },
   sectionCheckbox: {
-    width: 24, height: 24, borderRadius: 8, borderWidth: 2, borderColor: C.border,
-    alignItems: "center", justifyContent: "center", backgroundColor: C.surface,
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: C.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.surface,
   },
   sectionCheckboxActive: { backgroundColor: MAROON, borderColor: MAROON },
-  medChipRow: { marginBottom: 8 },
   medChip: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: C.surface, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
-    borderWidth: 1, borderColor: C.border,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: C.border,
   },
-  medChipEmoji: { fontSize: 20 },
   medChipName: { fontWeight: "600", fontSize: 16, color: C.text },
-  medChipDose: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginTop: 2 },
-
-  condChipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
-  condChip: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: C.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10,
-    borderWidth: 1, borderColor: C.border,
+  fieldHint: {
+    fontWeight: "400",
+    fontSize: 14,
+    color: C.textTertiary,
+    textAlign: "center",
+    marginTop: 16,
   },
-  condChipText: { fontWeight: "500", fontSize: 15, color: C.text },
 
-  completionCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
+  authSlide: { flex: 1, justifyContent: "center" },
+  authHeading: {
+    fontWeight: "700",
+    fontSize: 28,
+    textAlign: "center",
+    letterSpacing: -0.5,
+    marginBottom: 12,
+    color: C.text,
+  },
+  authFormScroll: { paddingVertical: 20, gap: 12, alignItems: "center" },
+  nameInput: {
+    fontWeight: "500",
+    fontSize: 18,
+    color: C.text,
+    textAlign: "center",
+    borderBottomWidth: 2,
+    borderBottomColor: MAROON,
+    paddingVertical: 12,
+    width: "100%",
+    maxWidth: 280,
+  },
+  authError: {
+    fontWeight: "500",
+    fontSize: 13,
+    color: C.red,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  primaryAuthBtn: {
+    backgroundColor: MAROON,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    alignSelf: "stretch",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  primaryAuthBtnText: { fontWeight: "600", fontSize: 17, color: "#fff" },
+  secondaryAuthBtn: {
+    paddingVertical: 14,
+    alignSelf: "stretch",
+    alignItems: "center",
+  },
+  secondaryAuthBtnText: { fontWeight: "600", fontSize: 16, color: C.textSecondary },
+  skipLink: { marginTop: 16, paddingVertical: 8 },
+  skipLinkText: { fontWeight: "600", fontSize: 14, color: C.cyan, textAlign: "center" },
+
   completionCircle: {
-    width: 100, height: 100, borderRadius: 50,
-    backgroundColor: MAROON, alignItems: "center", justifyContent: "center",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: MAROON,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 32,
   },
   completionTitle: {
-    fontWeight: "700", fontSize: 32, textAlign: "center",
-    letterSpacing: -0.5, marginBottom: 8,
+    fontWeight: "700",
+    fontSize: 32,
+    textAlign: "center",
+    letterSpacing: -0.5,
+    marginBottom: 8,
+    color: MAROON,
   },
   completionSub: {
-    fontWeight: "400", fontSize: 18, textAlign: "center",
+    fontWeight: "400",
+    fontSize: 18,
+    textAlign: "center",
     lineHeight: 28,
+    color: C.textSecondary,
   },
 
   continueBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: MAROON, borderRadius: 16, paddingVertical: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: MAROON,
+    borderRadius: 16,
+    paddingVertical: 18,
   },
   continueBtnText: { fontWeight: "600", fontSize: 17, color: "#fff" },
 });
