@@ -47,7 +47,7 @@ const SECTION_LABELS: Record<string, string> = {
   privacy: "Privacy",
 };
 
-const SLIDE_COUNT = 6;
+const SLIDE_COUNT = 7;
 
 export interface OnboardingCompleteOptions {
   openMedications?: boolean;
@@ -220,6 +220,40 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
   const renderSlide4 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
+      <Text style={styles.setupTitle}>Make Synapse yours.</Text>
+      <Text style={styles.setupSub}>Choose what matters to you. You can always change this later.</Text>
+      <ScrollView
+        style={styles.sectionsScroll}
+        contentContainerStyle={styles.sectionsScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.sectionsList}>
+          {(ALL_SECTION_KEYS as unknown as string[]).map((key) => {
+            const label = SECTION_LABELS[key] ?? key;
+            const isSelected = selectedSections.has(key);
+            return (
+              <Pressable
+                key={key}
+                style={[styles.sectionRow, isSelected && styles.sectionRowActive]}
+                onPress={() => toggleSection(key)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: isSelected }}
+                accessibilityLabel={`${label}, ${isSelected ? "on" : "off"}`}
+              >
+                <Text style={[styles.sectionRowLabel, isSelected && styles.sectionRowLabelActive]}>{label}</Text>
+                <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
+                  {isSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </View>
+  );
+
+  const renderSlide5 = () => (
+    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <KeyboardAvoidingView
         style={styles.authSlide}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -339,7 +373,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const renderSlide5 = () => (
+  const renderSlide6 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <View style={styles.slideCenter}>
         <View style={styles.completionCircle}>
@@ -351,9 +385,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const slides = [renderSlide0, renderSlide1, renderSlide2, renderSlide3, renderSlide4, renderSlide5];
+  const slides = [renderSlide0, renderSlide1, renderSlide2, renderSlide3, renderSlide4, renderSlide5, renderSlide6];
 
-  const showContinue = step < SLIDE_COUNT - 1 && step !== 4;
+  const showContinue = step < SLIDE_COUNT - 1 && step !== 5;
   const showOpenSynapse = step === SLIDE_COUNT - 1;
 
   return (
@@ -537,6 +571,31 @@ const styles = StyleSheet.create({
     color: C.textSecondary,
   },
   sectionsList: { marginTop: 16, gap: 10 },
+  sectionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  sectionRowActive: {
+    borderColor: MAROON,
+    backgroundColor: MAROON_LIGHT,
+  },
+  sectionRowLabel: {
+    fontWeight: "500",
+    fontSize: 16,
+    color: C.text,
+    flex: 1,
+  },
+  sectionRowLabelActive: {
+    color: MAROON,
+    fontWeight: "600",
+  },
   sectionCheckbox: {
     width: 24,
     height: 24,

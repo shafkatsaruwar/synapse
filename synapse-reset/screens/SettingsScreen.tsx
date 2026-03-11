@@ -358,7 +358,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           <Pressable style={[styles.resetModal, { maxWidth: 400 }]} onPress={() => {}}>
             <Text style={[styles.resetTitle, { marginBottom: 8 }]}>Manage sections</Text>
             <Text style={[styles.resetDesc, { marginBottom: 16 }]}>Choose which sections appear in the menu.</Text>
-            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator>
+            <ScrollView style={{ maxHeight: 320, width: "100%" }} showsVerticalScrollIndicator>
               {(ALL_SECTION_KEYS as unknown as string[]).map((key) => {
                 const label = SECTION_LABELS[key] ?? key;
                 const isSelected = sectionSelections.has(key);
