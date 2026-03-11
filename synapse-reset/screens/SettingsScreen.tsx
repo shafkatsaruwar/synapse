@@ -164,7 +164,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     : "None scheduled";
 
   const contentPadding = {
-    paddingTop: isWide ? 40 : Platform.OS === "web" ? 67 : insets.top + 16,
+    paddingTop: isWide ? 40 : Platform.OS === "web" ? 67 : 16,
     paddingBottom: isWide ? 40 : Platform.OS === "web" ? 118 : insets.bottom + 100,
     paddingHorizontal: 24,
   };
