@@ -226,143 +226,102 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
         showsVerticalScrollIndicator={false}
         bounces={true}
       >
-        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.title}>Account</Text>
 
-        {/* ——— Account, Profile & Cloud Backup (combined) ——— */}
-        <View style={styles.card}>
-          {!user ? (
-            <>
-              <Text style={styles.sectionTitle}>Not signed in</Text>
-              <Text style={styles.desc}>Sign in to back up and restore your data.</Text>
-              <Pressable
-                style={({ pressed }) => [styles.primaryBtn, { opacity: pressed ? 0.9 : 1 }]}
-                onPress={() => onNavigate?.("auth")}
-                accessibilityRole="button"
-                accessibilityLabel="Sign in"
-              >
-                <Text style={styles.primaryBtnText}>Sign In</Text>
-              </Pressable>
-              <Text style={[styles.localHint, { marginTop: 14 }]}>Data stored locally. Sign in to enable backup.</Text>
-            </>
-          ) : (
-            <>
-              {/* Part 1 — Profile header */}
-              <View style={styles.profileHeader}>
-                <View style={styles.profileAvatar}>
-                  <Text style={styles.profileAvatarText}>{initials}</Text>
-                </View>
-                <View style={styles.profileInfo}>
-                  <Text style={styles.profileGreeting}>{greeting}</Text>
-                  <Text style={styles.profileFullName}>{fullName}</Text>
-                  <Text style={styles.profileEmail} numberOfLines={1}>{user.email}</Text>
-                </View>
+        {/* ——— Profile Header ——— */}
+        {!user ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Not signed in</Text>
+            <Text style={styles.desc}>Sign in to back up and restore your data.</Text>
+            <Pressable
+              style={({ pressed }) => [styles.primaryBtn, { opacity: pressed ? 0.9 : 1 }]}
+              onPress={() => onNavigate?.("auth")}
+              accessibilityRole="button"
+              accessibilityLabel="Sign in"
+            >
+              <Text style={styles.primaryBtnText}>Sign In</Text>
+            </Pressable>
+            <Text style={[styles.localHint, { marginTop: 14 }]}>Data stored locally. Sign in to enable backup.</Text>
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <View style={styles.profileHeader}>
+              <View style={styles.profileAvatar}>
+                <Text style={styles.profileAvatarText}>{initials}</Text>
               </View>
-              {/* Part 2 — Stat cards */}
-              <View style={styles.statCardsRow}>
-                <View style={styles.statCard}>
-                  <Ionicons name="medical-outline" size={20} color={MAROON} />
-                  <Text style={styles.statCardLabel}>Medications</Text>
-                  <Text style={styles.statCardValue}>{medProgressLabel}</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Ionicons name="calendar-outline" size={20} color={MAROON} />
-                  <Text style={styles.statCardLabel}>Appointments</Text>
-                  <Text style={styles.statCardValue} numberOfLines={1}>{nextAptLabel}</Text>
-                </View>
-              </View>
-              {/* Part 3 — Action buttons */}
-              <View style={styles.backupActions}>
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileGreeting}>Hello,</Text>
+                <Text style={styles.profileFullName}>{fullName}</Text>
                 <Pressable
-                  style={[styles.secondaryBtn, backupLoading && { opacity: 0.6 }]}
-                  onPress={handleBackupNow}
-                  disabled={backupLoading}
+                  onPress={() => onNavigate?.("healthprofile")}
+                  accessibilityRole="link"
+                  accessibilityLabel="Edit profile"
                 >
-                  {backupLoading ? <ActivityIndicator size="small" color={MAROON} /> : <Text style={styles.secondaryBtnText}>Backup Now</Text>}
-                </Pressable>
-                <Pressable
-                  style={[styles.outlineBtn, restoreLoading && { opacity: 0.6 }]}
-                  onPress={() => setShowRestoreConfirm(true)}
-                  disabled={restoreLoading}
-                >
-                  {restoreLoading ? <ActivityIndicator size="small" color={C.text} /> : <Text style={styles.outlineBtnText}>Restore from Cloud</Text>}
+                  <Text style={styles.editProfileLink}>Edit profile</Text>
                 </Pressable>
               </View>
-              <View style={[styles.accountActions, { marginTop: 12 }]}>
-                <Pressable style={styles.secondaryBtn} onPress={() => onNavigate?.("auth")}>
-                  <Text style={styles.secondaryBtnText}>Manage Account</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.outlineBtn}
-                  onPress={async () => {
-                    await signOut();
-                    Haptics.selectionAsync();
-                  }}
-                >
-                  <Text style={styles.outlineBtnText}>Sign Out</Text>
-                </Pressable>
-              </View>
-            </>
-          )}
-        </View>
-
-        <Text style={styles.sectionGroupLabel}>My Health</Text>
-
-        {/* ——— Health Profile ——— */}
-        <View style={styles.card}>
-          <Pressable
-            style={styles.profileRow}
-            onPress={() => onNavigate?.("healthprofile")}
-            accessibilityRole="button"
-            accessibilityLabel="Health Profile: Conditions and Allergy"
-          >
-            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
-              <Ionicons name="person-outline" size={16} color={C.tint} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.profileRowTitle}>Health Profile</Text>
-              <Text style={styles.profileRowDesc}>Conditions, Allergy & Emergency Info</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
-          </Pressable>
-        </View>
+          </View>
+        )}
 
-        <View style={styles.card}>
+        {/* ——— Doctors & Pharmacies quick cards ——— */}
+        <View style={styles.quickCardsRow}>
           <Pressable
-            style={styles.profileRow}
+            style={({ pressed }) => [styles.quickCard, { opacity: pressed ? 0.8 : 1 }]}
             onPress={() => onNavigate?.("doctors")}
             accessibilityRole="button"
-            accessibilityLabel="Doctors: manage list for appointments"
+            accessibilityLabel="Doctors"
           >
-            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
-              <Ionicons name="medical-outline" size={16} color={C.tint} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.profileRowTitle}>Doctors</Text>
-              <Text style={styles.profileRowDesc}>Names used when creating appointments</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+            <Ionicons name="medical-outline" size={26} color={MAROON} />
+            <Text style={styles.quickCardLabel}>Doctors</Text>
           </Pressable>
-        </View>
-
-        <View style={styles.card}>
           <Pressable
-            style={styles.profileRow}
+            style={({ pressed }) => [styles.quickCard, { opacity: pressed ? 0.8 : 1 }]}
             onPress={() => onNavigate?.("pharmacies")}
             accessibilityRole="button"
-            accessibilityLabel="Pharmacies: your pharmacies and refill info"
+            accessibilityLabel="Pharmacies"
           >
-            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
-              <Ionicons name="storefront-outline" size={16} color={C.tint} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.profileRowTitle}>Pharmacies</Text>
-              <Text style={styles.profileRowDesc}>Your pharmacies & refill info</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+            <Ionicons name="storefront-outline" size={26} color={MAROON} />
+            <Text style={styles.quickCardLabel}>Pharmacies</Text>
           </Pressable>
         </View>
 
-        <Text style={styles.sectionGroupLabel}>Preferences</Text>
+        {/* ——— Account Settings ——— */}
+        {user && (
+          <View style={styles.card}>
+            <Text style={styles.accountSettingsLabel}>Account Settings</Text>
+            <View style={styles.backupActions}>
+              <Pressable
+                style={[styles.secondaryBtn, backupLoading && { opacity: 0.6 }]}
+                onPress={handleBackupNow}
+                disabled={backupLoading}
+              >
+                {backupLoading ? <ActivityIndicator size="small" color={MAROON} /> : <Text style={styles.secondaryBtnText}>Backup Now</Text>}
+              </Pressable>
+              <Pressable
+                style={[styles.outlineBtn, restoreLoading && { opacity: 0.6 }]}
+                onPress={() => setShowRestoreConfirm(true)}
+                disabled={restoreLoading}
+              >
+                {restoreLoading ? <ActivityIndicator size="small" color={C.text} /> : <Text style={styles.outlineBtnText}>Restore</Text>}
+              </Pressable>
+            </View>
+            <View style={[styles.accountActions, { marginTop: 10 }]}>
+              <Pressable style={styles.secondaryBtn} onPress={() => onNavigate?.("auth")}>
+                <Text style={styles.secondaryBtnText}>Manage Account</Text>
+              </Pressable>
+              <Pressable
+                style={styles.outlineBtn}
+                onPress={async () => {
+                  await signOut();
+                  Haptics.selectionAsync();
+                }}
+              >
+                <Text style={styles.outlineBtnText}>Sign Out</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         <Pressable
           style={styles.card}
@@ -545,18 +504,24 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
-  sectionGroupLabel: {
-    fontWeight: "600",
-    fontSize: 11,
-    color: C.textTertiary,
-    textTransform: "uppercase",
-    letterSpacing: 0.7,
-    marginTop: 20,
-    marginBottom: 6,
-  },
   scrollView: { flex: 1 },
   scrollViewContent: { flexGrow: 1 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 24 },
+  editProfileLink: { fontWeight: "500", fontSize: 13, color: MAROON, marginTop: 4 },
+  quickCardsRow: { flexDirection: "row", gap: 12, marginBottom: 12 },
+  quickCard: {
+    flex: 1,
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingVertical: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  quickCardLabel: { fontWeight: "600", fontSize: 14, color: C.text },
+  accountSettingsLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 },
   card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
   sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 4 },
   desc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 14 },
