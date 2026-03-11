@@ -184,11 +184,11 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     dateObj.getHours() < 12 ? "Good morning," : dateObj.getHours() < 17 ? "Good afternoon," : "Good evening,";
   const fullName =
     (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : null) ??
-    [user?.user_metadata?.first_name, user?.user_metadata?.last_name]
+    ([user?.user_metadata?.first_name, user?.user_metadata?.last_name]
       .filter(Boolean)
       .join(" ") ||
-    user?.email?.split("@")[0] ||
-    "—";
+      user?.email?.split("@")[0] ||
+      "—");
   const initials = (() => {
     const words = fullName.trim().split(/\s+/).filter(Boolean);
     if (words.length >= 2)
@@ -223,7 +223,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[contentPadding, styles.scrollViewContent]}
-        showsVerticalScrollIndicator={true}
+        showsVerticalScrollIndicator={false}
         bounces={true}
       >
         <Text style={styles.title}>Settings</Text>
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
   toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#fff" },
   toggleThumbActive: { alignSelf: "flex-end" },
   saveBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
-  saveBtnSaved: { backgroundColor: C.green },
+  saveBtnSaved: { backgroundColor: '#800020' },
   saveBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
   modalActions: { flexDirection: "row", gap: 10 },
