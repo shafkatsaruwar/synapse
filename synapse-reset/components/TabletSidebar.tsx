@@ -38,7 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "appointments", label: "Appointments", icon: "calendar-outline", iconActive: "calendar" },
   { key: "reports", label: "Reports", icon: "document-text-outline", iconActive: "document-text" },
   { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
-  { key: "settings", label: "Settings", icon: "settings-outline", iconActive: "settings" },
+  { key: "settings", label: "Settings", icon: "person-outline", iconActive: "person" },
 ];
 
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
