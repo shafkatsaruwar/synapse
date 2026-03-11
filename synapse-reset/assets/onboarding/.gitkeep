@@ -1,0 +1,10 @@
+# Onboarding feature slide screenshots
+# Add these three files here, then in OnboardingScreen.tsx replace the three
+# placeholder lines (onboardingMedications = founderImage, etc.) with:
+#   const onboardingMedications = require("../assets/onboarding/medications.png");
+#   const onboardingDashboard = require("../assets/onboarding/dashboard.png");
+#   const onboardingAppointments = require("../assets/onboarding/appointments.png");
+#
+# - medications.png   (Slide 2: Medications)
+# - dashboard.png     (Slide 3: Dashboard)
+# - appointments.png  (Slide 4: Appointments)

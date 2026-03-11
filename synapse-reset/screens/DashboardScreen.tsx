@@ -389,10 +389,9 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               >
                 {nextMedication ? (
                   <>
-                    <Text style={styles.ramadanNextMedName}>{nextMedication.name}</Text>
-                    {!!nextMedication.dosage && (
-                      <Text style={styles.ramadanNextMedDose}>{nextMedication.dosage}</Text>
-                    )}
+                    <Text style={styles.ramadanNextMedName}>
+                      {nextMedication.name}{nextMedication.dosage ? ` · ${nextMedication.dosage}` : ""}
+                    </Text>
                     <Text style={styles.ramadanNextMedTime}>{nextMedication.time}</Text>
                   </>
                 ) : (
@@ -554,11 +553,11 @@ const styles = StyleSheet.create({
   scrollView: { flex: 1, minHeight: 1 },
   scrollViewContent: { flexGrow: 1 },
   content: { paddingHorizontal: 24 }, // used when isWide; mobile uses inline 0 so layout's 16 applies
-  welcome: { marginBottom: 8 },
+  welcome: { marginBottom: 4 },
   greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
   hijriDate: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 20 },
-  ramadanSection: { marginTop: 16, marginBottom: 16 },
+  ramadanSection: { marginTop: 8, marginBottom: 16 },
   ramadanHero: { borderRadius: 20, padding: 16, marginBottom: 12, gap: 12 },
   ramadanHeroTopRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
   ramadanDateText: { fontWeight: "600", fontSize: 14, color: C.text },
@@ -656,10 +655,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    borderBottomLeftRadius: 14,
-    borderBottomRightRadius: 14,
+    borderRadius: 16,
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,

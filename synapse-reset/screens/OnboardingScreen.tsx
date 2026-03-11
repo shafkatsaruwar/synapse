@@ -23,7 +23,12 @@ import SynapseLogo from "@/components/SynapseLogo";
 
 const founderImage = require("../assets/images/founder.png");
 
+const onboardingMedications = require("../assets/onboarding/medications.png");
+const onboardingDashboard = require("../assets/onboarding/dashboard.png");
+const onboardingAppointments = require("../assets/onboarding/appointments.png");
+
 const C = Colors.dark;
+const CREAM_BG = "#FDF1E5";
 const MAROON = "#800020";
 const MAROON_LIGHT = "rgba(128,0,32,0.12)";
 
@@ -176,64 +181,42 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const renderSlide1 = () => (
-    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
-      <View style={styles.slideCenter}>
-        <View style={styles.photoCircle}>
-          <Image source={founderImage} style={styles.photoImage} resizeMode="cover" />
+  const renderFeatureSlide = (
+    imageSource: typeof founderImage,
+    caption: string,
+    subtitle: string
+  ) => (
+    <View style={[styles.slide, styles.featureSlideBg, { width: slideWidth, paddingHorizontal: paddingH }]}>
+      <View style={styles.featureSlideCenter}>
+        <View style={styles.phoneMockup}>
+          <Image source={imageSource} style={styles.phoneMockupImage} resizeMode="cover" />
         </View>
-        <Text style={styles.founderTitle}>Why Synapse exists</Text>
-        <Text style={styles.founderSub}>
-          This app was not built in a boardroom. It was built from a hospital bed, from years of managing a condition
-          that never takes a day off.
-        </Text>
+        <Text style={styles.featureCaption}>{caption}</Text>
+        <Text style={styles.featureSubtitle}>{subtitle}</Text>
       </View>
     </View>
   );
 
-  const renderSlide2 = () => (
-    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
-      <View style={styles.slideCenter}>
-        <Text style={styles.storyBlock}>
-          Every day is timing. Every illness is a risk. Every symptom is a decision. This is not fitness. This is
-          stability.
-        </Text>
-      </View>
-    </View>
-  );
+  const renderSlide1 = () =>
+    renderFeatureSlide(
+      onboardingMedications,
+      "Never lose track of a medication",
+      "Your full medication list, refills, prescribers, and pharmacies — all in one place."
+    );
 
-  const renderSlide3 = () => (
-    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
-      <ScrollView
-        style={styles.sectionsScroll}
-        contentContainerStyle={styles.sectionsScrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={styles.setupTitle}>Which sections are helpful for you?</Text>
-        <Text style={styles.setupSub}>Choose what you'll use. You can add or remove these later in Settings.</Text>
-        <View style={styles.sectionsList}>
-          {(ALL_SECTION_KEYS as unknown as string[]).map((key) => {
-            const label = SECTION_LABELS[key] ?? key;
-            const isSelected = selectedSections.has(key);
-            return (
-              <Pressable
-                key={key}
-                style={[styles.medChip, isSelected && { borderColor: MAROON, backgroundColor: MAROON_LIGHT }]}
-                onPress={() => toggleSection(key)}
-              >
-                <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
-                  {isSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
-                </View>
-                <Text style={[styles.medChipName, { flex: 1 }]}>{label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <Text style={styles.fieldHint}>Dashboard, Medications, and Settings are always available.</Text>
-      </ScrollView>
-    </View>
-  );
+  const renderSlide2 = () =>
+    renderFeatureSlide(
+      onboardingDashboard,
+      "Your health, at a glance",
+      "See your meds, appointments, fasting times, and how you're feeling — every single day."
+    );
+
+  const renderSlide3 = () =>
+    renderFeatureSlide(
+      onboardingAppointments,
+      "Never miss an appointment",
+      "Track every doctor visit, get reminders, and log what happened after."
+    );
 
   const renderSlide4 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
@@ -374,8 +357,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const showOpenSynapse = step === SLIDE_COUNT - 1;
 
   return (
-    <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4E6D4" translucent={false} />
+    <View style={[styles.container, styles.containerCream, { paddingTop: topPad, paddingBottom: bottomPad }]}>
+      <StatusBar barStyle="dark-content" backgroundColor={CREAM_BG} translucent={false} />
       <View style={styles.sliderWrap}>
         <Animated.View
           style={[
@@ -431,10 +414,47 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
+  containerCream: { backgroundColor: CREAM_BG },
   sliderWrap: { flex: 1, overflow: "hidden" },
   sliderRow: { flexDirection: "row", flex: 1 },
   slide: { flex: 1, justifyContent: "center" },
   slideCenter: { alignItems: "center", justifyContent: "center", paddingVertical: 20 },
+  featureSlideBg: { backgroundColor: CREAM_BG },
+  featureSlideCenter: { alignItems: "center", justifyContent: "center", paddingVertical: 16 },
+  phoneMockup: {
+    width: 280,
+    height: 420,
+    borderRadius: 32,
+    overflow: "hidden",
+    backgroundColor: "#fff",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.12,
+        shadowRadius: 24,
+      },
+      android: { elevation: 12 },
+    }),
+  },
+  phoneMockupImage: { width: "100%", height: "100%" },
+  featureCaption: {
+    fontWeight: "700",
+    fontSize: 24,
+    textAlign: "center",
+    color: C.text,
+    marginTop: 24,
+    paddingHorizontal: 16,
+  },
+  featureSubtitle: {
+    fontWeight: "400",
+    fontSize: 16,
+    textAlign: "center",
+    lineHeight: 24,
+    color: C.textSecondary,
+    marginTop: 8,
+    paddingHorizontal: 24,
+  },
   footer: { gap: 16, paddingBottom: 8 },
 
   dotsRow: { flexDirection: "row", justifyContent: "center", gap: 10 },
