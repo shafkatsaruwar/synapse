@@ -30,6 +30,7 @@ import PharmaciesScreen from "@/screens/PharmaciesScreen";
 import RamadanDailyLogScreen from "@/screens/RamadanDailyLogScreen";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import AuthScreen from "@/screens/AuthScreen";
+import EditProfileScreen from "@/screens/EditProfileScreen";
 import { settingsStorage } from "@/lib/storage";
 import Colors from "@/constants/colors";
 
@@ -148,6 +149,14 @@ export default function MainScreen() {
         return <AllergyScreen onBack={() => handleNavigate("healthprofile")} />;
       case "auth":
         return <AuthScreen onBack={() => handleNavigate("settings")} onSuccess={() => handleNavigate("settings")} />;
+      case "editprofile":
+        return (
+          <EditProfileScreen
+            onBack={() => handleNavigate("settings")}
+            onNavigate={handleNavigate}
+            onRestoreComplete={() => setRefreshKey((k) => k + 1)}
+          />
+        );
       case "settings":
         return <SettingsScreen onResetApp={handleResetApp} onNavigate={handleNavigate} onRestoreComplete={() => setRefreshKey((k) => k + 1)} />;
       default:

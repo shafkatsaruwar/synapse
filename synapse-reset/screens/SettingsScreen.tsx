@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,7 +7,6 @@ import {
   Modal,
   Platform,
   useWindowDimensions,
-  ActivityIndicator,
   ScrollView,
   Alert,
 } from "react-native";
@@ -30,7 +29,6 @@ import {
   type Appointment,
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
-import { getBackupStatus, backupNow, restoreFromCloud, type BackupStatus } from "@/lib/backup";
 import { isCurrentMonthRamadan } from "@/lib/hijri";
 
 const C = Colors.dark;
@@ -59,16 +57,13 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
 
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
   const [saved, setSaved] = useState(true);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [conditionsCount, setConditionsCount] = useState(0);
 
-  const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
-  const [backupLoading, setBackupLoading] = useState(false);
-  const [restoreLoading, setRestoreLoading] = useState(false);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [showSectionsModal, setShowSectionsModal] = useState(false);
   const [sectionSelections, setSectionSelections] = useState<Set<string>>(new Set());
@@ -111,14 +106,6 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     loadData();
   }, [loadData]);
 
-  useEffect(() => {
-    if (user?.id) {
-      getBackupStatus(user.id).then(setBackupStatus);
-    } else {
-      setBackupStatus(null);
-    }
-  }, [user?.id]);
-
   const handleSave = async () => {
     await settingsStorage.save(settings);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -141,42 +128,6 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     setSettings((s) => ({ ...s, enabledSections: list.length > 0 ? list : (ALL_SECTION_KEYS as unknown as string[]) }));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowSectionsModal(false);
-  };
-
-  const handleBackupNow = async () => {
-    if (!user?.id) return;
-    setBackupLoading(true);
-    try {
-      const { error } = await backupNow(user.id);
-      if (error) {
-        Alert.alert(
-          "Backup failed",
-          error?.message ?? String(error),
-          [{ text: "OK" }]
-        );
-        return;
-      }
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const status = await getBackupStatus(user.id);
-      setBackupStatus(status);
-    } finally {
-      setBackupLoading(false);
-    }
-  };
-
-  const handleRestore = async () => {
-    if (!user?.id) return;
-    setShowRestoreConfirm(false);
-    setRestoreLoading(true);
-    const { error } = await restoreFromCloud(user.id);
-    setRestoreLoading(false);
-    if (error) {
-      Alert.alert("Restore failed", error.message);
-      return;
-    }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await loadData();
-    onRestoreComplete?.();
   };
 
   const dateObj = new Date();
@@ -253,7 +204,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
                 <Text style={styles.profileGreeting}>Hello,</Text>
                 <Text style={styles.profileFullName}>{fullName}</Text>
                 <Pressable
-                  onPress={() => onNavigate?.("healthprofile")}
+                  onPress={() => onNavigate?.("editprofile")}
                   accessibilityRole="link"
                   accessibilityLabel="Edit profile"
                 >
@@ -285,43 +236,6 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
             <Text style={styles.quickCardLabel}>Pharmacies</Text>
           </Pressable>
         </View>
-
-        {/* ——— Account Settings ——— */}
-        {user && (
-          <View style={styles.card}>
-            <Text style={styles.accountSettingsLabel}>Account Settings</Text>
-            <View style={styles.backupActions}>
-              <Pressable
-                style={[styles.secondaryBtn, backupLoading && { opacity: 0.6 }]}
-                onPress={handleBackupNow}
-                disabled={backupLoading}
-              >
-                {backupLoading ? <ActivityIndicator size="small" color={MAROON} /> : <Text style={styles.secondaryBtnText}>Backup Now</Text>}
-              </Pressable>
-              <Pressable
-                style={[styles.outlineBtn, restoreLoading && { opacity: 0.6 }]}
-                onPress={() => setShowRestoreConfirm(true)}
-                disabled={restoreLoading}
-              >
-                {restoreLoading ? <ActivityIndicator size="small" color={C.text} /> : <Text style={styles.outlineBtnText}>Restore</Text>}
-              </Pressable>
-            </View>
-            <View style={[styles.accountActions, { marginTop: 10 }]}>
-              <Pressable style={styles.secondaryBtn} onPress={() => onNavigate?.("auth")}>
-                <Text style={styles.secondaryBtnText}>Manage Account</Text>
-              </Pressable>
-              <Pressable
-                style={styles.outlineBtn}
-                onPress={async () => {
-                  await signOut();
-                  Haptics.selectionAsync();
-                }}
-              >
-                <Text style={styles.outlineBtnText}>Sign Out</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
 
         <Pressable
           style={styles.card}
@@ -439,24 +353,6 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
         </Pressable>
       </Modal>
 
-      <Modal visible={showRestoreConfirm} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setShowRestoreConfirm(false)}>
-          <Pressable style={styles.resetModal} onPress={() => {}}>
-            <Text style={styles.resetEmoji}>☁️</Text>
-            <Text style={styles.resetTitle}>Restore from cloud?</Text>
-            <Text style={styles.resetDesc}>This will overwrite local data. Continue?</Text>
-            <View style={styles.modalActions}>
-              <Pressable style={styles.cancelBtn} onPress={() => setShowRestoreConfirm(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={[styles.resetConfirmBtn, { backgroundColor: MAROON }]} onPress={handleRestore}>
-                <Text style={styles.resetConfirmText}>Restore</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
       <Modal visible={showSectionsModal} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowSectionsModal(false)}>
           <Pressable style={[styles.resetModal, { maxWidth: 400 }]} onPress={() => {}}>
@@ -521,7 +417,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   quickCardLabel: { fontWeight: "600", fontSize: 14, color: C.text },
-  accountSettingsLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 },
   card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
   sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 4 },
   desc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 14 },
