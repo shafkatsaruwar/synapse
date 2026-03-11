@@ -82,7 +82,9 @@ export default function MedicationsScreen() {
   const [formMedListName, setFormMedListName] = useState("");
   const [formMedListDosage, setFormMedListDosage] = useState("");
   const [formMedListPrescribingDoctor, setFormMedListPrescribingDoctor] = useState("");
-  const [formMedListPharmacy, setFormMedListPharmacy] = useState("");
+  const [formMedListPharmacyName, setFormMedListPharmacyName] = useState("");
+  const [formMedListPharmacyPhone, setFormMedListPharmacyPhone] = useState("");
+  const [formMedListPharmacyAddress, setFormMedListPharmacyAddress] = useState("");
   const [formMedListRefills, setFormMedListRefills] = useState("");
   const [formMedListDuration, setFormMedListDuration] = useState("");
   const [formMedListDurationUnit, setFormMedListDurationUnit] = useState<"" | "Days" | "Weeks" | "Months">("");
@@ -168,7 +170,9 @@ export default function MedicationsScreen() {
       name,
       dosage: formMedListDosage.trim(),
       prescribingDoctor: formMedListPrescribingDoctor.trim(),
-      pharmacy: formMedListPharmacy.trim(),
+      pharmacyName: formMedListPharmacyName.trim(),
+      pharmacyPhone: formMedListPharmacyPhone.trim(),
+      pharmacyAddress: formMedListPharmacyAddress.trim(),
       refillsRemaining: isNaN(refills) || refills < 0 ? 0 : refills,
       duration: durationNum != null && !isNaN(durationNum) && durationNum > 0 ? durationNum : undefined,
       durationUnit: formMedListDurationUnit || undefined,
@@ -178,7 +182,9 @@ export default function MedicationsScreen() {
     setFormMedListName("");
     setFormMedListDosage("");
     setFormMedListPrescribingDoctor("");
-    setFormMedListPharmacy("");
+    setFormMedListPharmacyName("");
+    setFormMedListPharmacyPhone("");
+    setFormMedListPharmacyAddress("");
     setFormMedListRefills("");
     setFormMedListDuration("");
     setFormMedListDurationUnit("");
@@ -372,7 +378,9 @@ export default function MedicationsScreen() {
                   <Text style={styles.medListCardName}>{item.name}</Text>
                   {item.dosage ? <Text style={styles.medListCardPrescriber}>{item.dosage}</Text> : null}
                   {item.prescribingDoctor ? <Text style={styles.medListCardPrescriber}>{item.prescribingDoctor}</Text> : null}
-                  {item.pharmacy ? <Text style={styles.medListCardPrescriber}>{item.pharmacy}</Text> : null}
+                  {item.pharmacyName ? <Text style={styles.medListCardPrescriber}>{item.pharmacyName}</Text> : null}
+                  {item.pharmacyPhone ? <Text style={styles.medListCardPrescriber}>{item.pharmacyPhone}</Text> : null}
+                  {item.pharmacyAddress ? <Text style={styles.medListCardPrescriber}>{item.pharmacyAddress}</Text> : null}
                   <Text style={[styles.medListCardRefills, item.refillsRemaining <= 1 && styles.medListCardRefillsWarning]}>
                     {item.refillsRemaining === 0 ? "No refills remaining" : `${item.refillsRemaining} refill${item.refillsRemaining === 1 ? "" : "s"} remaining`}
                   </Text>
@@ -674,8 +682,12 @@ export default function MedicationsScreen() {
                   ))}
                 </View>
               )}
-              <Text style={styles.label}>Pharmacy</Text>
-              <TextInput style={styles.input} placeholder="e.g. CVS Pharmacy Boston" placeholderTextColor={C.textTertiary} value={formMedListPharmacy} onChangeText={setFormMedListPharmacy} />
+              <Text style={styles.label}>Pharmacy name</Text>
+              <TextInput style={styles.input} placeholder="e.g. CVS Pharmacy" placeholderTextColor={C.textTertiary} value={formMedListPharmacyName} onChangeText={setFormMedListPharmacyName} />
+              <Text style={styles.label}>Pharmacy phone</Text>
+              <TextInput style={styles.input} placeholder="e.g. 617-555-1234" placeholderTextColor={C.textTertiary} value={formMedListPharmacyPhone} onChangeText={setFormMedListPharmacyPhone} keyboardType="phone-pad" />
+              <Text style={styles.label}>Pharmacy address</Text>
+              <TextInput style={styles.input} placeholder="e.g. 123 Tremont St, Boston MA" placeholderTextColor={C.textTertiary} value={formMedListPharmacyAddress} onChangeText={setFormMedListPharmacyAddress} />
               <Text style={styles.label}>Refills remaining</Text>
               <TextInput style={styles.input} placeholder="e.g. 3" placeholderTextColor={C.textTertiary} value={formMedListRefills} onChangeText={setFormMedListRefills} keyboardType="number-pad" />
               <Text style={styles.label}>Duration (optional)</Text>
