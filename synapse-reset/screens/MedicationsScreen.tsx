@@ -11,11 +11,12 @@ import {
   medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage, doctorsStorage,
   type Medication, type MedicationLog, type UserSettings, type SickModeData, type Doctor,
 } from "@/lib/storage";
-import { getMedList, addMedListItem, removeMedListItem, updateMedListItem, type MedListItem } from "@/lib/med-list-storage";
+import { getMedList, addMedListItem, removeMedListItem, updateMedListItem, type MedListItem, type MedListDose, type MedListDoseTime } from "@/lib/med-list-storage";
 import { getToday } from "@/lib/date-utils";
 
 const C = Colors.dark;
 const TIME_TAGS: string[] = ["Morning", "Afternoon", "Night", "Before Fajr", "After Iftar"];
+const MED_LIST_DOSE_TIMES: MedListDoseTime[] = ["Morning", "Afternoon", "Evening", "Night", "As Needed"];
 const TAG_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
   Morning: { bg: C.tintLight, text: C.tint, icon: "sunny-outline" },
   Afternoon: { bg: C.yellowLight, text: C.yellow, icon: "partly-sunny-outline" },
@@ -79,9 +80,11 @@ export default function MedicationsScreen() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [showMedListModal, setShowMedListModal] = useState(false);
   const [showMedListDoctorPicker, setShowMedListDoctorPicker] = useState(false);
+  const [showMedListDoseTimePickerIndex, setShowMedListDoseTimePickerIndex] = useState<number | null>(null);
   const [showCurrentMedNamePicker, setShowCurrentMedNamePicker] = useState(false);
+  const [showCurrentMedDosePicker, setShowCurrentMedDosePicker] = useState(false);
   const [formMedListName, setFormMedListName] = useState("");
-  const [formMedListDosage, setFormMedListDosage] = useState("");
+  const [formMedListDoses, setFormMedListDoses] = useState<{ dosage: string; time: MedListDoseTime }[]>([{ dosage: "", time: "Morning" }]);
   const [formMedListPrescribingDoctor, setFormMedListPrescribingDoctor] = useState("");
   const [formMedListPharmacyName, setFormMedListPharmacyName] = useState("");
   const [formMedListPharmacyPhone, setFormMedListPharmacyPhone] = useState("");
@@ -106,7 +109,7 @@ export default function MedicationsScreen() {
 
   const resetMedListForm = () => {
     setFormMedListName("");
-    setFormMedListDosage("");
+    setFormMedListDoses([{ dosage: "", time: "Morning" }]);
     setFormMedListPrescribingDoctor("");
     setFormMedListPharmacyName("");
     setFormMedListPharmacyPhone("");
@@ -126,7 +129,7 @@ export default function MedicationsScreen() {
   const openEditMedListItem = (item: MedListItem) => {
     setEditingMedListItem(item);
     setFormMedListName(item.name);
-    setFormMedListDosage(item.dosage);
+    setFormMedListDoses(item.doses?.length ? [...item.doses] : [{ dosage: (item as unknown as { dosage?: string }).dosage ?? "", time: "Morning" }]);
     setFormMedListPrescribingDoctor(item.prescribingDoctor);
     setFormMedListPharmacyName(item.pharmacyName);
     setFormMedListPharmacyPhone(item.pharmacyPhone);
@@ -144,6 +147,7 @@ export default function MedicationsScreen() {
     setFormFreq(""); setFormTimeTags(["Morning"]); setFormEmoji(""); setFormDoses("1");
     setFormHasStressDose(false); setFormStressDoseAmount(""); setFormStressDoseFrequency("");
     setFormStressDoseDurationDays(""); setFormStressDoseInstructions("");
+    setShowCurrentMedDosePicker(false);
     setShowModal(true);
   };
 
@@ -201,9 +205,13 @@ export default function MedicationsScreen() {
     if (!name) return;
     const refills = parseInt(formMedListRefills, 10);
     const durationNum = formMedListDuration.trim() ? parseInt(formMedListDuration, 10) : undefined;
+    const doses: MedListDose[] = formMedListDoses
+      .map((d) => ({ dosage: d.dosage.trim(), time: d.time }))
+      .filter((d) => d.dosage.length > 0);
+    if (doses.length === 0) doses.push({ dosage: "", time: "Morning" });
     const payload = {
       name,
-      dosage: formMedListDosage.trim(),
+      doses,
       prescribingDoctor: formMedListPrescribingDoctor.trim(),
       pharmacyName: formMedListPharmacyName.trim(),
       pharmacyPhone: formMedListPharmacyPhone.trim(),
@@ -432,7 +440,9 @@ export default function MedicationsScreen() {
               <View key={item.id} style={styles.medListCard}>
                 <Pressable style={{ flex: 1 }} onPress={() => openEditMedListItem(item)} accessibilityRole="button" accessibilityLabel={`Edit ${item.name}`}>
                   <Text style={styles.medListCardName}>{item.name}</Text>
-                  {item.dosage ? <Text style={styles.medListCardPrescriber}>{item.dosage}</Text> : null}
+                  {(item.doses?.length ? item.doses : [{ dosage: (item as unknown as { dosage?: string }).dosage ?? "", time: "Morning" as MedListDoseTime }]).map((d, i) => (
+                    d.dosage ? <Text key={i} style={styles.medListCardDoseLine}>{d.dosage} · {d.time}</Text> : null
+                  ))}
                   {item.prescribingDoctor ? <Text style={styles.medListCardPrescriber}>{item.prescribingDoctor}</Text> : null}
                   {item.pharmacyName ? <Text style={styles.medListCardPrescriber}>{item.pharmacyName}</Text> : null}
                   {item.pharmacyPhone ? <Text style={styles.medListCardPrescriber}>{item.pharmacyPhone}</Text> : null}
@@ -715,14 +725,64 @@ export default function MedicationsScreen() {
       </Modal>
 
       <Modal visible={showMedListModal} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => { setShowMedListModal(false); setShowMedListDoctorPicker(false); setEditingMedListItem(null); }}>
+        <Pressable style={styles.overlay} onPress={() => { setShowMedListModal(false); setShowMedListDoctorPicker(false); setShowMedListDoseTimePickerIndex(null); setEditingMedListItem(null); }}>
           <Pressable style={styles.modal} onPress={() => {}}>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={styles.modalTitle}>{editingMedListItem ? "Edit medication" : "Add to Medications List"}</Text>
               <Text style={styles.label}>Medication name</Text>
               <TextInput style={styles.input} placeholder="e.g. Metformin" placeholderTextColor={C.textTertiary} value={formMedListName} onChangeText={setFormMedListName} />
-              <Text style={styles.label}>Dosage</Text>
-              <TextInput style={styles.input} placeholder="e.g. 15 mg" placeholderTextColor={C.textTertiary} value={formMedListDosage} onChangeText={setFormMedListDosage} />
+              <Text style={styles.label}>Doses</Text>
+              {formMedListDoses.map((dose, idx) => (
+                <View key={idx} style={styles.doseRowWrap}>
+                  <TextInput
+                    style={[styles.input, styles.doseAmountInput]}
+                    placeholder="e.g. 15 mg"
+                    placeholderTextColor={C.textTertiary}
+                    value={dose.dosage}
+                    onChangeText={(t) => setFormMedListDoses((prev) => prev.map((d, i) => (i === idx ? { ...d, dosage: t } : d)))}
+                  />
+                  <View style={styles.doseTimePickerWrap}>
+                    <Pressable
+                      style={styles.doseTimeBtn}
+                      onPress={() => setShowMedListDoseTimePickerIndex((v) => (v === idx ? null : idx))}
+                    >
+                      <Text style={styles.doseTimeBtnText} numberOfLines={1}>{dose.time}</Text>
+                      <Ionicons name="chevron-down" size={14} color={C.textSecondary} />
+                    </Pressable>
+                    {showMedListDoseTimePickerIndex === idx && (
+                      <View style={styles.doseTimeDropdown}>
+                        {MED_LIST_DOSE_TIMES.map((t) => (
+                          <Pressable
+                            key={t}
+                            style={[styles.dropdownRow, dose.time === t && styles.dropdownRowSelected]}
+                            onPress={() => {
+                              setFormMedListDoses((prev) => prev.map((d, i) => (i === idx ? { ...d, time: t } : d)));
+                              setShowMedListDoseTimePickerIndex(null);
+                              Haptics.selectionAsync();
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>{t}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                  {formMedListDoses.length > 1 ? (
+                    <Pressable
+                      style={styles.doseRemoveBtn}
+                      onPress={() => setFormMedListDoses((prev) => prev.filter((_, i) => i !== idx))}
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove dose"
+                    >
+                      <Ionicons name="close-circle" size={22} color={C.textTertiary} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+              <Pressable style={styles.addDoseBtn} onPress={() => setFormMedListDoses((prev) => [...prev, { dosage: "", time: "Morning" }])} accessibilityRole="button" accessibilityLabel="Add dose">
+                <Ionicons name="add" size={18} color={C.tint} />
+                <Text style={styles.addDoseBtnText}>Add Dose</Text>
+              </Pressable>
               <Text style={styles.label}>Prescribing doctor</Text>
               <Pressable style={styles.input} onPress={() => setShowMedListDoctorPicker((v) => !v)}>
                 <Text style={[styles.pickerPlaceholder, formMedListPrescribingDoctor && { color: C.text }]}>{formMedListPrescribingDoctor || (doctors.length === 0 ? "No doctors found. Add doctors in Settings." : "Select doctor")}</Text>
@@ -760,7 +820,7 @@ export default function MedicationsScreen() {
                 </View>
               </View>
               <View style={styles.modalActions}>
-                <Pressable style={styles.cancelBtn} onPress={() => { setShowMedListModal(false); setShowMedListDoctorPicker(false); setEditingMedListItem(null); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+                <Pressable style={styles.cancelBtn} onPress={() => { setShowMedListModal(false); setShowMedListDoctorPicker(false); setShowMedListDoseTimePickerIndex(null); setEditingMedListItem(null); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
                 <Pressable style={[styles.confirmBtn, !formMedListName.trim() && { opacity: 0.5 }]} onPress={handleSaveMedListItem} disabled={!formMedListName.trim()}>
                   <Text style={styles.confirmText}>{editingMedListItem ? "Update" : "Add"}</Text>
                 </Pressable>
@@ -777,7 +837,7 @@ export default function MedicationsScreen() {
       </Modal>
 
       <Modal visible={showModal} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); }}>
+        <Pressable style={styles.overlay} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); setShowCurrentMedDosePicker(false); }}>
           <Pressable style={styles.modal} onPress={() => {}}>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={styles.modalTitle}>{editingMed ? "Edit Medication" : "Add Medication"}</Text>
@@ -802,13 +862,64 @@ export default function MedicationsScreen() {
                 <View style={styles.dropdown}>
                   {(editingMed && !medListItems.some((m) => m.name === editingMed.name) ? [editingMed.name, ...medListItems.map((m) => m.name)] : medListItems.map((m) => m.name))
                     .filter((name, i, arr) => arr.indexOf(name) === i)
-                    .map((name) => (
-                      <Pressable key={name} style={[styles.dropdownRow, formName === name && styles.dropdownRowSelected]} onPress={() => { setFormName(name); setShowCurrentMedNamePicker(false); Haptics.selectionAsync(); }}>
-                        <Text style={styles.dropdownText}>{name}</Text>
-                      </Pressable>
-                    ))}
+                    .map((name) => {
+                      const med = medListItems.find((m) => m.name === name);
+                      const doses = med?.doses?.length ? med.doses : (med ? [{ dosage: (med as unknown as { dosage?: string }).dosage ?? "", time: "Morning" as MedListDoseTime }] : []);
+                      return (
+                        <Pressable
+                          key={name}
+                          style={[styles.dropdownRow, formName === name && styles.dropdownRowSelected]}
+                          onPress={() => {
+                            setFormName(name);
+                            setShowCurrentMedNamePicker(false);
+                            if (doses.length === 1) {
+                              const d = doses[0];
+                              const parts = d.dosage.trim().split(/\s+/);
+                              setFormDose(parts[0] ?? "");
+                              setFormUnit(parts.slice(1).join(" ") ?? "");
+                              setFormTimeTags([d.time]);
+                              setFormDoses("1");
+                            } else if (doses.length > 1) {
+                              setShowCurrentMedDosePicker(true);
+                            }
+                            Haptics.selectionAsync();
+                          }}
+                        >
+                          <Text style={styles.dropdownText}>{name}</Text>
+                        </Pressable>
+                      );
+                    })}
                 </View>
               )}
+              {showCurrentMedDosePicker && formName && (() => {
+                const med = medListItems.find((m) => m.name === formName);
+                const doses = med?.doses?.length ? med.doses : (med ? [{ dosage: (med as unknown as { dosage?: string }).dosage ?? "", time: "Morning" as MedListDoseTime }] : []);
+                if (doses.length <= 1) return null;
+                return (
+                  <View style={styles.dosePickerBlock}>
+                    <Text style={styles.label}>Which dose?</Text>
+                    <View style={styles.dropdown}>
+                      {doses.map((d, i) => (
+                        <Pressable
+                          key={i}
+                          style={styles.dropdownRow}
+                          onPress={() => {
+                            const parts = d.dosage.trim().split(/\s+/);
+                            setFormDose(parts[0] ?? "");
+                            setFormUnit(parts.slice(1).join(" ") ?? "");
+                            setFormTimeTags([d.time]);
+                            setFormDoses("1");
+                            setShowCurrentMedDosePicker(false);
+                            Haptics.selectionAsync();
+                          }}
+                        >
+                          <Text style={styles.dropdownText}>{d.dosage} · {d.time}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                );
+              })()}
 
               <View style={styles.fieldRow}>
                 <View style={{ flex: 2 }}>
@@ -951,6 +1062,7 @@ const styles = StyleSheet.create({
   medListEmpty: { fontWeight: "400", fontSize: 13, color: C.textTertiary, marginBottom: 12 },
   medListCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border },
   medListCardName: { fontWeight: "600", fontSize: 15, color: C.text },
+  medListCardDoseLine: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 2 },
   medListCardPrescriber: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 2 },
   medListCardRefills: { fontWeight: "500", fontSize: 12, color: C.tint, marginTop: 4 },
   medListCardRefillsWarning: { color: C.red },
@@ -969,6 +1081,16 @@ const styles = StyleSheet.create({
   durationUnitBtn: { paddingHorizontal: 10, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
   durationUnitBtnActive: { backgroundColor: C.tint, borderColor: C.tint },
   durationUnitText: { fontWeight: "600", fontSize: 12, color: C.textSecondary },
+  doseRowWrap: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  doseAmountInput: { flex: 1, marginBottom: 0 },
+  doseTimeBtn: { minWidth: 100, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4, paddingVertical: 12, paddingHorizontal: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  doseTimeBtnText: { fontWeight: "500", fontSize: 13, color: C.text },
+  doseTimePickerWrap: { position: "relative", minWidth: 100 },
+  doseTimeDropdown: { position: "absolute", left: 0, right: 0, top: "100%", marginTop: 2, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, borderRadius: 10, zIndex: 10, maxHeight: 160 },
+  doseRemoveBtn: { padding: 4 },
+  addDoseBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, marginBottom: 14, borderWidth: 1, borderStyle: "dashed", borderColor: C.border, borderRadius: 10 },
+  addDoseBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
+  dosePickerBlock: { marginBottom: 14 },
   tagBadge: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
   tagText: { fontWeight: "600", fontSize: 12 },
   medCard: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border },

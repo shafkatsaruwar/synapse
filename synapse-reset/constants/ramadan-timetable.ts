@@ -5,6 +5,11 @@ export interface RamadanDay {
   maghrib: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const hijriConverter = require("hijri-converter") as {
+  toHijri: (gy: number, gm: number, gd: number) => { hy: number; hm: number; hd: number };
+};
+
 const RAMADAN_2026: RamadanDay[] = [
   { hijriDay: 1,  date: "2026-02-18", fajr: "05:19", maghrib: "05:20" },
   { hijriDay: 2,  date: "2026-02-19", fajr: "05:17", maghrib: "05:21" },
@@ -39,7 +44,13 @@ const RAMADAN_2026: RamadanDay[] = [
 ];
 
 export function getTodayRamadan(dateStr: string): RamadanDay | undefined {
-  return RAMADAN_2026.find(d => d.date === dateStr);
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return undefined;
+  const gy = date.getFullYear();
+  const gm = date.getMonth() + 1;
+  const gd = date.getDate();
+  const h = hijriConverter.toHijri(gy, gm, gd);
+  return RAMADAN_2026.find((d) => d.hijriDay === h.hd);
 }
 
 export function getRamadanDayNumber(dateStr: string): number | undefined {

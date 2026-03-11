@@ -172,9 +172,9 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const energyLabels = ["Low", "Fair", "Good", "Great", "Excellent"];
 
   const sunriseTime =
-    (ramadanDay && formatTime12h(ramadanDay.fajr)) || fastingLog?.suhoorTime || "--";
+    (ramadanDay && `${ramadanDay.fajr} AM`) || fastingLog?.suhoorTime || "--";
   const sunsetTime =
-    (ramadanDay && formatTime12h(ramadanDay.maghrib)) || fastingLog?.iftarTime || "--";
+    (ramadanDay && `${ramadanDay.maghrib} PM`) || fastingLog?.iftarTime || "--";
 
   const getIftarCountdown = () => {
     if (!fastingLog?.iftarTime) return null;

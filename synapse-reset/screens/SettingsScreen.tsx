@@ -253,6 +253,8 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           )}
         </View>
 
+        <Text style={styles.sectionGroupLabel}>My Health</Text>
+
         {/* ——— Health Profile ——— */}
         <View style={styles.card}>
           <Pressable
@@ -308,6 +310,8 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           </Pressable>
         </View>
 
+        <Text style={styles.sectionGroupLabel}>Preferences</Text>
+
         <Pressable
           style={styles.card}
           testID="ramadan-mode-toggle"
@@ -333,7 +337,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           <View style={styles.toggleHeader}>
             <View style={{ flex: 1 }}>
               <Text style={styles.sectionTitle}>Ramadan Mode</Text>
-              <Text style={styles.desc}>Enable fasting tracking with suhoor/iftar</Text>
+              <Text style={styles.desc}>Enable fasting tracking with Fajr & Iftar times</Text>
             </View>
             <View style={[styles.toggle, settings.ramadanMode && styles.toggleActive]}>
               <View style={[styles.toggleThumb, settings.ramadanMode && styles.toggleThumbActive]} />
@@ -489,6 +493,15 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
+  sectionGroupLabel: {
+    fontWeight: "600",
+    fontSize: 11,
+    color: C.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+    marginTop: 20,
+    marginBottom: 6,
+  },
   scrollView: { flex: 1 },
   scrollViewContent: { flexGrow: 1 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 24 },

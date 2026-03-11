@@ -107,7 +107,9 @@ export default function PharmaciesScreen({ onBack }: PharmaciesScreenProps) {
                   <View key={med.id} style={styles.medRow}>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.medName} numberOfLines={1}>{med.name}</Text>
-                      {med.dosage ? <Text style={styles.medDosage} numberOfLines={1}>{med.dosage}</Text> : null}
+                      {med.doses?.length ? med.doses.map((d, i) => (
+                        <Text key={i} style={styles.medDosage} numberOfLines={1}>{d.dosage} · {d.time}</Text>
+                      )) : (med.dosage ? <Text style={styles.medDosage} numberOfLines={1}>{(med as unknown as { dosage?: string }).dosage}</Text> : null)}
                     </View>
                     <Text style={[styles.medRefills, med.refillsRemaining <= 1 && styles.medRefillsLow]}>
                       {med.refillsRemaining === 0 ? "No refills" : `${med.refillsRemaining} refill${med.refillsRemaining === 1 ? "" : "s"} left`}

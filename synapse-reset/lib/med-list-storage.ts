@@ -5,10 +5,19 @@ const MED_LIST_KEY = "med_list";
 
 export type DurationUnit = "Days" | "Weeks" | "Months";
 
+export type MedListDoseTime = "Morning" | "Afternoon" | "Evening" | "Night" | "As Needed";
+
+export interface MedListDose {
+  dosage: string;
+  time: MedListDoseTime;
+}
+
 export interface MedListItem {
   id: string;
   name: string;
-  dosage: string;
+  /** @deprecated Use doses[].dosage for display; kept for migration only. */
+  dosage?: string;
+  doses: MedListDose[];
   prescribingDoctor: string;
   pharmacyName: string;
   pharmacyPhone: string;
@@ -16,6 +25,21 @@ export interface MedListItem {
   refillsRemaining: number;
   duration?: number;
   durationUnit?: DurationUnit;
+}
+
+function parseDoses(o: Record<string, unknown>): MedListDose[] {
+  if (Array.isArray(o.doses) && o.doses.length > 0) {
+    const times: MedListDoseTime[] = ["Morning", "Afternoon", "Evening", "Night", "As Needed"];
+    return o.doses.map((d: unknown) => {
+      if (d == null || typeof d !== "object") return { dosage: "", time: "Morning" as MedListDoseTime };
+      const dk = d as Record<string, unknown>;
+      const dosage = typeof dk.dosage === "string" ? dk.dosage : "";
+      const time = typeof dk.time === "string" && times.includes(dk.time as MedListDoseTime) ? (dk.time as MedListDoseTime) : "Morning";
+      return { dosage, time };
+    });
+  }
+  const legacyDosage = typeof o.dosage === "string" ? o.dosage : "";
+  return [{ dosage: legacyDosage, time: "Morning" }];
 }
 
 function normalizeItem(x: unknown): MedListItem | null {
@@ -26,13 +50,13 @@ function normalizeItem(x: unknown): MedListItem | null {
   const refillsRemaining = typeof o.refillsRemaining === "number" ? o.refillsRemaining : 0;
   if (!id || !name) return null;
   const prescribingDoctor = typeof o.prescribingDoctor === "string" ? o.prescribingDoctor : (typeof o.prescriberName === "string" ? o.prescriberName : "");
-  const dosage = typeof o.dosage === "string" ? o.dosage : "";
+  const doses = parseDoses(o);
   const pharmacyName = typeof o.pharmacyName === "string" ? o.pharmacyName : (typeof o.pharmacy === "string" ? o.pharmacy : "");
   const pharmacyPhone = typeof o.pharmacyPhone === "string" ? o.pharmacyPhone : "";
   const pharmacyAddress = typeof o.pharmacyAddress === "string" ? o.pharmacyAddress : "";
   const duration = typeof o.duration === "number" ? o.duration : undefined;
   const durationUnit = o.durationUnit === "Days" || o.durationUnit === "Weeks" || o.durationUnit === "Months" ? o.durationUnit : undefined;
-  return { id, name, dosage, prescribingDoctor, pharmacyName, pharmacyPhone, pharmacyAddress, refillsRemaining, duration, durationUnit };
+  return { id, name, doses, prescribingDoctor, pharmacyName, pharmacyPhone, pharmacyAddress, refillsRemaining, duration, durationUnit };
 }
 
 export async function getMedList(): Promise<MedListItem[]> {

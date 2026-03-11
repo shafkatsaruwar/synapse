@@ -74,8 +74,8 @@ export default function RamadanDailyLogScreen({ onBack }: RamadanDailyLogScreenP
   const today = getToday();
   const ramadanDay = getTodayRamadan(today);
 
-  const fajrTime = ramadanDay ? formatTime12h(ramadanDay.fajr) : "--";
-  const iftarTime = ramadanDay ? formatTime12h(ramadanDay.maghrib) : "--";
+  const fajrTime = ramadanDay ? `${ramadanDay.fajr} AM` : "--";
+  const iftarTime = ramadanDay ? `${ramadanDay.maghrib} PM` : "--";
 
   const [fasted, setFasted] = useState(true);
   const [waterIntake, setWaterIntake] = useState("");
