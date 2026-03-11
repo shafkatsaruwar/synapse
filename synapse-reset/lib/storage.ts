@@ -70,6 +70,10 @@ export interface AllergyInfo {
   noTreatmentConsequence: string;
 }
 
+export interface HealthProfileInfo {
+  age?: number;
+}
+
 export type RepeatUnit = "day" | "week" | "month";
 
 export interface Doctor {
@@ -247,6 +251,7 @@ const KEYS = {
   MED_COMPARISONS: "fir_med_comparisons",
   ALLERGY_INFO: "fir_allergy_info",
   CONDITIONS: "fir_conditions",
+  HEALTH_PROFILE_INFO: "fir_health_profile_info",
   MONTHLY_CHECK_INS: "fir_monthly_check_ins",
   EATING_LOGS: "fir_eating_logs",
   MENTAL_HEALTH_MODE: "fir_mental_health_mode",
@@ -629,6 +634,46 @@ export const allergyStorage = {
       await AsyncStorage.setItem(KEYS.ALLERGY_INFO, JSON.stringify(data));
     } catch (e) {
       console.warn("AsyncStorage allergy save failed", e);
+    }
+  },
+};
+
+export const emergencyDoctorStorage = {
+  getDocId: async (): Promise<string | null> => {
+    try {
+      return await AsyncStorage.getItem("emergency_doctor");
+    } catch {
+      return null;
+    }
+  },
+  setDocId: async (id: string | null): Promise<void> => {
+    try {
+      if (id === null) {
+        await AsyncStorage.removeItem("emergency_doctor");
+      } else {
+        await AsyncStorage.setItem("emergency_doctor", id);
+      }
+    } catch (e) {
+      console.warn("AsyncStorage emergencyDoctor setDocId failed", e);
+    }
+  },
+};
+
+export const healthProfileStorage = {
+  get: async (): Promise<HealthProfileInfo> => {
+    try {
+      const raw = await AsyncStorage.getItem(KEYS.HEALTH_PROFILE_INFO);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      console.warn("AsyncStorage healthProfile get failed", e);
+      return {};
+    }
+  },
+  save: async (data: HealthProfileInfo) => {
+    try {
+      await AsyncStorage.setItem(KEYS.HEALTH_PROFILE_INFO, JSON.stringify(data));
+    } catch (e) {
+      console.warn("AsyncStorage healthProfile save failed", e);
     }
   },
 };

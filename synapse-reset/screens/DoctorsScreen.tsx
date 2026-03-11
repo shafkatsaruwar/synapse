@@ -7,10 +7,11 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
-import { doctorsStorage, type Doctor } from "@/lib/storage";
+import { doctorsStorage, emergencyDoctorStorage, type Doctor } from "@/lib/storage";
 import { fetchDoctorsFromSupabase, createDoctorInSupabase, deleteDoctorFromSupabase } from "@/lib/doctors-api";
 
 const C = Colors.dark;
+const MAROON = "#800020";
 
 interface DoctorsScreenProps {
   onBack: () => void;
@@ -23,6 +24,7 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [addName, setAddName] = useState("");
   const [addSpecialty, setAddSpecialty] = useState("");
+  const [emergencyDocId, setEmergencyDocId] = useState<string | null>(null);
 
   const loadDoctors = useCallback(async () => {
     let list = await doctorsStorage.getAll();
@@ -34,9 +36,17 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
       }
     }
     setDoctors(list.sort((a, b) => a.name.localeCompare(b.name)));
+    setEmergencyDocId(await emergencyDoctorStorage.getDocId());
   }, [user?.id]);
 
   useEffect(() => { loadDoctors(); }, [loadDoctors]);
+
+  const handleSetEmergencyDoc = async (doc: Doctor) => {
+    const newId = emergencyDocId === doc.id ? null : doc.id;
+    await emergencyDoctorStorage.setDocId(newId);
+    setEmergencyDocId(newId);
+    Haptics.selectionAsync();
+  };
 
   const handleAdd = async () => {
     const name = addName.trim();
@@ -99,6 +109,7 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
         showsVerticalScrollIndicator={true}
       >
         <Text style={styles.hint}>These doctors appear when you create an appointment. Add or remove names here.</Text>
+        <Text style={styles.emergencyHint}>Tap the shield icon to designate your emergency contact doctor.</Text>
         {doctors.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="medical-outline" size={40} color={C.textTertiary} />
@@ -106,17 +117,39 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
             <Text style={styles.emptySub}>Tap + to add a doctor</Text>
           </View>
         ) : (
-          doctors.map((doc) => (
-            <View key={doc.id} style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.doctorName}>{doc.name}</Text>
-                {doc.specialty ? <Text style={styles.doctorSpec}>{doc.specialty}</Text> : null}
+          doctors.map((doc) => {
+            const isEmergency = emergencyDocId === doc.id;
+            return (
+              <View key={doc.id} style={[styles.row, isEmergency && styles.rowEmergency]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.doctorName}>{doc.name}</Text>
+                  {doc.specialty ? <Text style={styles.doctorSpec}>{doc.specialty}</Text> : null}
+                  {isEmergency && (
+                    <View style={styles.emergencyBadge}>
+                      <Ionicons name="shield-half" size={11} color={MAROON} />
+                      <Text style={styles.emergencyBadgeText}>Emergency Doctor</Text>
+                    </View>
+                  )}
+                </View>
+                <Pressable
+                  onPress={() => handleSetEmergencyDoc(doc)}
+                  hitSlop={12}
+                  accessibilityRole="button"
+                  accessibilityLabel={isEmergency ? `Remove ${doc.name} as emergency doctor` : `Set ${doc.name} as emergency doctor`}
+                  style={styles.emergencyBtn}
+                >
+                  <Ionicons
+                    name={isEmergency ? "shield-half" : "shield-half-outline"}
+                    size={22}
+                    color={isEmergency ? MAROON : C.textTertiary}
+                  />
+                </Pressable>
+                <Pressable onPress={() => handleDelete(doc)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Remove ${doc.name}`}>
+                  <Ionicons name="trash-outline" size={20} color={C.textTertiary} />
+                </Pressable>
               </View>
-              <Pressable onPress={() => handleDelete(doc)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Remove ${doc.name}`}>
-                <Ionicons name="trash-outline" size={20} color={C.textTertiary} />
-              </Pressable>
-            </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
 
@@ -168,9 +201,14 @@ const styles = StyleSheet.create({
   empty: { alignItems: "center", paddingVertical: 48, gap: 8 },
   emptyText: { fontWeight: "600", fontSize: 16, color: C.text },
   emptySub: { fontSize: 13, color: C.textTertiary },
-  row: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 12, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border },
+  emergencyHint: { fontSize: 12, color: C.textTertiary, marginBottom: 16, marginTop: -12 },
+  row: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 12, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border, gap: 12 },
+  rowEmergency: { borderColor: "#800020", borderWidth: 1.5, backgroundColor: "rgba(128,0,32,0.04)" },
   doctorName: { fontWeight: "600", fontSize: 15, color: C.text },
   doctorSpec: { fontSize: 13, color: C.textSecondary, marginTop: 2 },
+  emergencyBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 5 },
+  emergencyBadgeText: { fontSize: 11, fontWeight: "600", color: "#800020" },
+  emergencyBtn: { padding: 2 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
   modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: C.border },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },

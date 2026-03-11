@@ -238,6 +238,24 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
         </View>
 
         <Pressable
+          style={[styles.card, styles.emergencyCard]}
+          onPress={() => onNavigate?.("emergency")}
+          accessibilityRole="button"
+          accessibilityLabel="Emergency Protocol"
+        >
+          <View style={styles.profileRow}>
+            <View style={[styles.profileIcon, { backgroundColor: MAROON + "22" }]}>
+              <Ionicons name="shield-half-outline" size={18} color={MAROON} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.profileRowTitle, { color: MAROON }]}>Emergency Protocol</Text>
+              <Text style={styles.profileRowDesc}>Critical medical info for first responders</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={MAROON} />
+          </View>
+        </Pressable>
+
+        <Pressable
           style={styles.card}
           testID="ramadan-mode-toggle"
           onPress={() => {
@@ -484,4 +502,5 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center", backgroundColor: C.surface, marginRight: 12,
   },
   sectionCheckboxActive: { backgroundColor: MAROON, borderColor: MAROON },
+  emergencyCard: { borderColor: MAROON + "55" },
 });

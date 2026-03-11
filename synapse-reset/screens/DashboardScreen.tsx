@@ -522,13 +522,31 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           </Pressable>
         )}
       </View>
+
     </>
+  );
+
+  const fabBottom = Platform.OS === "web"
+    ? 100
+    : isWide ? insets.bottom + 32 : insets.bottom + 96;
+
+  const fab = (
+    <Pressable
+      style={({ pressed }) => [styles.fab, { bottom: fabBottom, opacity: pressed ? 0.85 : 1 }]}
+      onPress={() => { Haptics.selectionAsync(); onNavigate("emergency"); }}
+      accessibilityRole="button"
+      accessibilityLabel="Emergency Protocol"
+      accessibilityHint="View critical medical information"
+    >
+      <Ionicons name="medkit" size={28} color="#fff" />
+    </Pressable>
   );
 
   if (isWide) {
     return (
       <View style={[styles.container, styles.content, contentPadding, { alignSelf: "stretch" }]}>
         {inner}
+        {fab}
       </View>
     );
   }
@@ -544,6 +562,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       >
         {inner}
       </ScrollView>
+      {fab}
     </View>
   );
 }
@@ -726,4 +745,19 @@ const styles = StyleSheet.create({
   reportDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 14 },
   reportBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
   reportBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
+  fab: {
+    position: "absolute",
+    right: 20,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#800020",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
 });

@@ -49,6 +49,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "reports", label: "Reports", icon: "document-text-outline", iconActive: "document-text" },
   { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
   { key: "settings", label: "Settings", icon: "person-outline", iconActive: "person" },
+  { key: "emergency", label: "Emergency Protocol", icon: "shield-half-outline", iconActive: "shield-half" },
 ];
 
 const PRIMARY_KEYS = ["dashboard", "healthdata", "settings"];
@@ -56,6 +57,7 @@ const PRIMARY_ITEMS = NAV_ITEMS.filter((n) => PRIMARY_KEYS.includes(n.key));
 const MORE_ITEMS = NAV_ITEMS.filter((n) => !PRIMARY_KEYS.includes(n.key));
 
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
+  { title: "Emergency", keys: ["emergency"] },
   { title: "Primary", keys: ["log", "medications", "healthdata", "appointments"] },
   { title: "Health & Insights", keys: ["reports", "monthlycheckin", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
   { title: "System", keys: ["privacy", "settings"] },
@@ -287,7 +289,7 @@ export default function SidebarLayout({
                       ? [...navItems, { key: "logout", label: "Logout", icon: "log-out-outline", iconActive: "log-out-outline" }]
                       : navItems;
                   if (items.length === 0) return null;
-                  const isFirstGroup = group.title === "Primary";
+                  const isFirstGroup = group.title === "Emergency";
                   return (
                     <View
                       key={group.title}
@@ -296,14 +298,17 @@ export default function SidebarLayout({
                       <Text style={styles.drawerGroupTitle}>{group.title}</Text>
                       {items.map((item) => {
                         const isLogout = item.key === "logout";
+                        const isEmergency = item.key === "emergency";
                         const active = !isLogout && activeScreen === item.key;
                         const dimmed = !isLogout && sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
                         const accentColor = sickMode ? C.red : C.accent;
+                        const itemColor = isEmergency ? "#800020" : (active ? accentColor : C.textSecondary);
                         return (
                           <Pressable
                             key={item.key}
                             style={({ pressed }) => [
                               styles.drawerRow,
+                              isEmergency && styles.drawerRowEmergency,
                               active && [styles.drawerRowActive, { borderLeftColor: accentColor }],
                               dimmed && { opacity: 0.35 },
                               pressed && styles.drawerRowPressed,
@@ -325,16 +330,16 @@ export default function SidebarLayout({
                             <Ionicons
                               name={item.icon}
                               size={20}
-                              color={active ? accentColor : C.textSecondary}
+                              color={itemColor}
                               style={styles.drawerRowIcon}
                             />
                             <Text
-                              style={[styles.drawerRowLabel, active && { color: accentColor }]}
+                              style={[styles.drawerRowLabel, { color: itemColor }, active && !isEmergency && { color: accentColor }]}
                               numberOfLines={1}
                             >
                               {item.label}
                             </Text>
-                            <Ionicons name="chevron-forward" size={16} color={C.textSecondary} />
+                            <Ionicons name="chevron-forward" size={16} color={isEmergency ? "#800020" : C.textSecondary} />
                           </Pressable>
                         );
                       })}
@@ -594,6 +599,12 @@ const styles = StyleSheet.create({
   },
   drawerRowPressed: {
     backgroundColor: C.surface,
+  },
+  drawerRowEmergency: {
+    backgroundColor: "rgba(128,0,32,0.08)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(128,0,32,0.25)",
   },
   drawerRowIcon: {
     marginRight: 10,

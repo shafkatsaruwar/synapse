@@ -31,6 +31,7 @@ import RamadanDailyLogScreen from "@/screens/RamadanDailyLogScreen";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import AuthScreen from "@/screens/AuthScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
+import EmergencyProtocolScreen from "@/screens/EmergencyProtocolScreen";
 import { settingsStorage } from "@/lib/storage";
 import Colors from "@/constants/colors";
 
@@ -149,6 +150,8 @@ export default function MainScreen() {
         return <AllergyScreen onBack={() => handleNavigate("healthprofile")} />;
       case "auth":
         return <AuthScreen onBack={() => handleNavigate("settings")} onSuccess={() => handleNavigate("settings")} />;
+      case "emergency":
+        return <EmergencyProtocolScreen onBack={() => handleNavigate("settings")} />;
       case "editprofile":
         return (
           <EditProfileScreen

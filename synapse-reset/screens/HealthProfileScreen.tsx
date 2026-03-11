@@ -1,10 +1,10 @@
 import React, { useState, useCallback } from "react";
-import { StyleSheet, Text, View, ScrollView, Pressable, Platform } from "react-native";
+import { StyleSheet, Text, View, ScrollView, Pressable, Platform, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { conditionStorage } from "@/lib/storage";
+import { conditionStorage, healthProfileStorage } from "@/lib/storage";
 
 const C = Colors.dark;
 
@@ -16,15 +16,25 @@ interface HealthProfileScreenProps {
 export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfileScreenProps) {
   const insets = useSafeAreaInsets();
   const [conditionsCount, setConditionsCount] = useState(0);
+  const [ageText, setAgeText] = useState("");
+  const [ageSaved, setAgeSaved] = useState(true);
 
   const loadData = useCallback(async () => {
-    const conds = await conditionStorage.getAll();
+    const [conds, profile] = await Promise.all([conditionStorage.getAll(), healthProfileStorage.get()]);
     setConditionsCount(conds.length);
+    setAgeText(profile.age != null ? String(profile.age) : "");
   }, []);
 
   React.useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const handleSaveAge = async () => {
+    const parsed = ageText.trim() === "" ? undefined : parseInt(ageText, 10);
+    await healthProfileStorage.save({ age: isNaN(parsed as number) ? undefined : parsed });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setAgeSaved(true);
+  };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
 
@@ -42,6 +52,36 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
 
         <Text style={styles.title}>Health Profile</Text>
         <Text style={styles.subtitle}>Conditions and allergy & emergency info</Text>
+
+        <View style={styles.card}>
+          <View style={styles.profileRow}>
+            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
+              <Ionicons name="person-outline" size={16} color={C.tint} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.profileRowTitle}>Age</Text>
+              {ageSaved && ageText !== "" ? (
+                <Text style={styles.profileRowDesc}>{ageText} years old</Text>
+              ) : null}
+            </View>
+            <TextInput
+              style={styles.ageInput}
+              value={ageText}
+              onChangeText={(t) => {
+                setAgeText(t.replace(/[^0-9]/g, ""));
+                setAgeSaved(false);
+              }}
+              onBlur={handleSaveAge}
+              keyboardType="number-pad"
+              placeholder="—"
+              placeholderTextColor={C.textTertiary}
+              maxLength={3}
+              accessibilityLabel="Age"
+            />
+          </View>
+        </View>
+
+        <View style={{ height: 12 }} />
 
         <View style={styles.card}>
           <Pressable
@@ -104,4 +144,5 @@ const styles = StyleSheet.create({
   profileRowTitle: { fontWeight: "600", fontSize: 15, color: C.text },
   profileRowDesc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
   divider: { height: 1, backgroundColor: C.border, marginLeft: 16, marginRight: 16 },
+  ageInput: { fontWeight: "500", fontSize: 15, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: C.border, minWidth: 60, textAlign: "center" },
 });
