@@ -21,13 +21,21 @@ import {
   conditionStorage,
   clearAllData,
   ALL_SECTION_KEYS,
+  medicationStorage,
+  medicationLogStorage,
+  appointmentStorage,
   type UserSettings,
+  type Medication,
+  type MedicationLog,
+  type Appointment,
 } from "@/lib/storage";
+import { getToday } from "@/lib/date-utils";
 import { getBackupStatus, backupNow, restoreFromCloud, type BackupStatus } from "@/lib/backup";
 import { isCurrentMonthRamadan } from "@/lib/hijri";
 
 const C = Colors.dark;
 const MAROON = "#800020";
+const CREAM = "#FDF1E5";
 
 const SECTION_LABELS: Record<string, string> = {
   log: "Daily Log", healthdata: "Health Data", medications: "Medications", symptoms: "Symptoms",
@@ -64,6 +72,9 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [showSectionsModal, setShowSectionsModal] = useState(false);
   const [sectionSelections, setSectionSelections] = useState<Set<string>>(new Set());
+  const [medications, setMedications] = useState<Medication[]>([]);
+  const [medLogs, setMedLogs] = useState<MedicationLog[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
 
   const handleResetApp = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -73,11 +84,26 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   };
 
   const loadData = useCallback(async () => {
-    const [s, conds] = await Promise.all([settingsStorage.get(), conditionStorage.getAll()]);
+    const today = getToday();
+    const [s, conds, meds, logs, apts] = await Promise.all([
+      settingsStorage.get(),
+      conditionStorage.getAll(),
+      medicationStorage.getAll(),
+      medicationLogStorage.getByDate(today),
+      appointmentStorage.getAll(),
+    ]);
     setSettings(s);
     setConditionsCount(conds.length);
     setSectionSelections(
       new Set((s.enabledSections?.length ? s.enabledSections : ALL_SECTION_KEYS) as unknown as string[])
+    );
+    setMedications(meds.filter((m) => m.active));
+    setMedLogs(logs);
+    setAppointments(
+      apts
+        .filter((a) => !a.status || a.status !== "cancelled")
+        .filter((a) => a.date >= today)
+        .sort((a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || ""))
     );
   }, []);
 
@@ -153,8 +179,38 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     onRestoreComplete?.();
   };
 
-  const displayName = user?.user_metadata?.first_name ?? user?.email?.split("@")[0] ?? "—";
-  const createdDate = user?.created_at ? new Date(user.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : null;
+  const dateObj = new Date();
+  const greeting =
+    dateObj.getHours() < 12 ? "Good morning," : dateObj.getHours() < 17 ? "Good afternoon," : "Good evening,";
+  const fullName =
+    (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : null) ??
+    [user?.user_metadata?.first_name, user?.user_metadata?.last_name]
+      .filter(Boolean)
+      .join(" ") ||
+    user?.email?.split("@")[0] ||
+    "—";
+  const initials = (() => {
+    const words = fullName.trim().split(/\s+/).filter(Boolean);
+    if (words.length >= 2)
+      return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+    if (words[0]?.length >= 2) return (words[0][0] + words[0][1]).toUpperCase();
+    return (words[0]?.[0] ?? "?").toUpperCase().repeat(2);
+  })();
+  const getDoseCount = (med: Medication) => (med.doses ?? 1);
+  const totalDoses = medications.reduce((s, m) => s + getDoseCount(m), 0);
+  const takenDoses = medications.reduce((s, m) => {
+    const dc = getDoseCount(m);
+    let t = 0;
+    for (let i = 0; i < dc; i++) {
+      if (medLogs.find((l) => l.medicationId === m.id && (l.doseIndex ?? 0) === i)?.taken) t++;
+    }
+    return s + t;
+  }, 0);
+  const medProgressLabel = totalDoses > 0 ? `${takenDoses}/${totalDoses} today` : "0/0 today";
+  const nextApt = appointments[0];
+  const nextAptLabel = nextApt
+    ? `${new Date(nextApt.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${nextApt.doctorName}`
+    : "None scheduled";
 
   const contentPadding = {
     paddingTop: isWide ? 40 : Platform.OS === "web" ? 67 : insets.top + 16,
@@ -190,35 +246,31 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
             </>
           ) : (
             <>
-              <View style={styles.accountRow}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
+              {/* Part 1 — Profile header */}
+              <View style={styles.profileHeader}>
+                <View style={styles.profileAvatar}>
+                  <Text style={styles.profileAvatarText}>{initials}</Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.profileRowTitle}>{displayName}</Text>
-                  <Text style={styles.profileRowDesc} numberOfLines={1}>
-                    {user.email}
-                  </Text>
-                  {createdDate && (
-                    <Text style={[styles.profileRowDesc, { marginTop: 2 }]}>Account created {createdDate}</Text>
-                  )}
-                  {backupStatus?.hasBackup && (
-                    <View style={styles.syncedBadge}>
-                      <Ionicons name="checkmark-circle" size={12} color={C.green} />
-                      <Text style={styles.syncedText}>Synced</Text>
-                    </View>
-                  )}
+                <View style={styles.profileInfo}>
+                  <Text style={styles.profileGreeting}>{greeting}</Text>
+                  <Text style={styles.profileFullName}>{fullName}</Text>
+                  <Text style={styles.profileEmail} numberOfLines={1}>{user.email}</Text>
                 </View>
               </View>
-              <Text style={[styles.sectionTitle, { marginTop: 12, marginBottom: 4 }]}>Cloud Backup</Text>
-              <Text style={styles.desc}>
-                {backupStatus?.hasBackup ? "Backup status: Synced" : "Backup status: Not synced"}
-              </Text>
-              {backupStatus?.lastSyncedAt && (
-                <Text style={[styles.profileRowDesc, { marginTop: 2 }]}>
-                  Last synced: {new Date(backupStatus.lastSyncedAt).toLocaleString()}
-                </Text>
-              )}
+              {/* Part 2 — Stat cards */}
+              <View style={styles.statCardsRow}>
+                <View style={styles.statCard}>
+                  <Ionicons name="medical-outline" size={20} color={MAROON} />
+                  <Text style={styles.statCardLabel}>Medications</Text>
+                  <Text style={styles.statCardValue}>{medProgressLabel}</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Ionicons name="calendar-outline" size={20} color={MAROON} />
+                  <Text style={styles.statCardLabel}>Appointments</Text>
+                  <Text style={styles.statCardValue} numberOfLines={1}>{nextAptLabel}</Text>
+                </View>
+              </View>
+              {/* Part 3 — Action buttons */}
               <View style={styles.backupActions}>
                 <Pressable
                   style={[styles.secondaryBtn, backupLoading && { opacity: 0.6 }]}
@@ -514,6 +566,25 @@ const styles = StyleSheet.create({
   profileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   profileRowTitle: { fontWeight: "600", fontSize: 14, color: C.text },
   profileRowDesc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
+  profileHeader: { flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 20 },
+  profileAvatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: MAROON, alignItems: "center", justifyContent: "center" },
+  profileAvatarText: { fontWeight: "600", fontSize: 22, color: "#fff" },
+  profileInfo: { flex: 1, minWidth: 0 },
+  profileGreeting: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 2 },
+  profileFullName: { fontWeight: "700", fontSize: 18, color: C.text },
+  profileEmail: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
+  statCardsRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
+  statCard: {
+    flex: 1,
+    backgroundColor: CREAM,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: MAROON + "30",
+    padding: 14,
+    minHeight: 80,
+  },
+  statCardLabel: { fontWeight: "600", fontSize: 12, color: C.textSecondary, marginTop: 6 },
+  statCardValue: { fontWeight: "600", fontSize: 14, color: C.text, marginTop: 2 },
   accountRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
   avatarText: { fontWeight: "600", fontSize: 16, color: C.tint },
