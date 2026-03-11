@@ -19,8 +19,8 @@ module.exports = {
   expo: {
     name: "Synapse",
     slug: "synapse",
-    version: "1.9.1",
-    orientation: "portrait",
+    version: "1.9.2",
+    orientation: "default",
     icon: "./assets/icon.png",
     scheme: "myapp",
     userInterfaceStyle: "automatic",
@@ -30,7 +30,7 @@ module.exports = {
       backgroundColor: "#FDF1E5",
     },
     ios: {
-      supportsTablet: false,
+      supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
       buildNumber: "1",
       infoPlist: {

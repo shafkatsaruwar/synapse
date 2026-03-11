@@ -52,7 +52,7 @@ export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKe
     >
       <Ionicons name="shield-outline" size={16} color={isActive ? C.red : "#8B2635"} />
       <Text style={[styles.pillText, isActive && styles.pillTextActive]}>
-        {isActive ? "Sick Mode Active" : "Sick Mode"}
+        {isActive ? "Sick Mode Active" : "Activate Sick Mode"}
       </Text>
     </Pressable>
   );

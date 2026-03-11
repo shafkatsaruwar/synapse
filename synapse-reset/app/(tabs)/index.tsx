@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, StyleSheet } from "react-native";
 import SidebarLayout from "@/components/SidebarLayout";
+import TabletSidebar from "@/components/TabletSidebar";
+import { useIsTablet } from "@/lib/device";
 import SickModeHeaderButton from "@/components/SickModeHeaderButton";
 import DashboardScreen from "@/screens/DashboardScreen";
 import DailyLogScreen from "@/screens/DailyLogScreen";
@@ -25,6 +27,7 @@ import HealthProfileConditionsScreen from "@/screens/HealthProfileConditionsScre
 import AllergyScreen from "@/screens/AllergyScreen";
 import DoctorsScreen from "@/screens/DoctorsScreen";
 import PharmaciesScreen from "@/screens/PharmaciesScreen";
+import RamadanDailyLogScreen from "@/screens/RamadanDailyLogScreen";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import AuthScreen from "@/screens/AuthScreen";
 import { settingsStorage } from "@/lib/storage";
@@ -33,6 +36,7 @@ import Colors from "@/constants/colors";
 const C = Colors.dark;
 
 export default function MainScreen() {
+  const isTablet = useIsTablet();
   const [activeScreen, setActiveScreen] = useState("dashboard");
   const [refreshKey, setRefreshKey] = useState(0);
   const [sickMode, setSickMode] = useState(false);
@@ -135,6 +139,8 @@ export default function MainScreen() {
         return <DoctorsScreen onBack={() => handleNavigate("settings")} />;
       case "pharmacies":
         return <PharmaciesScreen onBack={() => handleNavigate("settings")} />;
+      case "ramadandailylog":
+        return <RamadanDailyLogScreen onBack={() => handleNavigate("dashboard")} />;
       case "healthprofileconditions":
         return <HealthProfileConditionsScreen onBack={() => handleNavigate("healthprofile")} />;
       case "allergy":
@@ -148,24 +154,41 @@ export default function MainScreen() {
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <SidebarLayout
-        activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
-        onNavigate={handleNavigate}
-        sickMode={sickMode}
-        headerRight={activeScreen === "dashboard" ? <SickModeHeaderButton onActivate={handleActivateSickMode} onNavigate={handleNavigate} refreshKey={refreshKey} /> : undefined}
-      >
-        {renderScreen()}
-      </SidebarLayout>
-    </View>
+  const content = (
+    <SidebarLayout
+      activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
+      onNavigate={handleNavigate}
+      sickMode={sickMode}
+      headerRight={activeScreen === "dashboard" ? <SickModeHeaderButton onActivate={handleActivateSickMode} onNavigate={handleNavigate} refreshKey={refreshKey} /> : undefined}
+    >
+      {renderScreen()}
+    </SidebarLayout>
   );
+
+  if (isTablet) {
+    return (
+      <View style={styles.container}>
+        <TabletSidebar
+          activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
+          onNavigate={handleNavigate}
+        />
+        <View style={styles.tabletContent}>{content}</View>
+      </View>
+    );
+  }
+
+  return <View style={styles.container}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    flexDirection: "row",
     minHeight: 1,
     backgroundColor: C.background,
+  },
+  tabletContent: {
+    flex: 1,
+    minWidth: 0,
   },
 });

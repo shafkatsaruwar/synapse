@@ -1,0 +1,165 @@
+import React from "react";
+import { View, StyleSheet, Text, Pressable, ScrollView } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import Colors from "@/constants/colors";
+import { useIsTablet } from "@/lib/device";
+import { featureFlags } from "@/constants/feature-flags";
+
+const C = Colors.dark;
+const MAROON = "#800020";
+
+type IconName = React.ComponentProps<typeof Ionicons>["name"];
+
+interface NavItem {
+  key: string;
+  label: string;
+  icon: IconName;
+  iconActive: IconName;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { key: "dashboard", label: "Dashboard", icon: "grid-outline", iconActive: "grid" },
+  { key: "log", label: "Daily Log", icon: "heart-outline", iconActive: "heart" },
+  { key: "healthdata", label: "Health Data", icon: "analytics-outline", iconActive: "analytics" },
+  { key: "medications", label: "Medications", icon: "medical-outline", iconActive: "medical" },
+  { key: "symptoms", label: "Symptoms", icon: "pulse-outline", iconActive: "pulse" },
+  ...(featureFlags.documentScannerEnabled
+    ? [
+        { key: "documents", label: "Documents", icon: "scan-outline" as IconName, iconActive: "scan" as IconName },
+        { key: "insights", label: "Insights", icon: "sparkles-outline" as IconName, iconActive: "sparkles" as IconName },
+      ]
+    : []),
+  { key: "monthlycheckin", label: "Monthly check-in", icon: "fitness-outline", iconActive: "fitness" },
+  { key: "eating", label: "Eating", icon: "restaurant-outline", iconActive: "restaurant" },
+  { key: "mentalhealth", label: "Mental health day", icon: "heart-outline", iconActive: "heart" },
+  { key: "comfort", label: "Mood lifters", icon: "happy-outline", iconActive: "happy" },
+  { key: "goals", label: "Goals", icon: "flag-outline", iconActive: "flag" },
+  { key: "appointments", label: "Appointments", icon: "calendar-outline", iconActive: "calendar" },
+  { key: "reports", label: "Reports", icon: "document-text-outline", iconActive: "document-text" },
+  { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
+  { key: "settings", label: "Settings", icon: "settings-outline", iconActive: "settings" },
+];
+
+const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
+  { title: "Primary", keys: ["log", "medications", "healthdata", "appointments"] },
+  { title: "Health & Insights", keys: ["reports", "monthlycheckin", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
+  { title: "System", keys: ["privacy", "settings"] },
+];
+
+interface TabletSidebarProps {
+  activeScreen: string;
+  onNavigate: (screen: string) => void;
+}
+
+const SIDEBAR_WIDTH = 260;
+
+export default function TabletSidebar({ activeScreen, onNavigate }: TabletSidebarProps) {
+  const isTablet = useIsTablet();
+  const insets = useSafeAreaInsets();
+
+  if (!isTablet) return null;
+
+  return (
+    <View style={[styles.sidebar, { width: SIDEBAR_WIDTH, paddingTop: insets.top + 8 }]}>
+      <Text style={styles.logo} numberOfLines={1}>
+        Synapse
+      </Text>
+      <ScrollView style={styles.navScroll} contentContainerStyle={styles.navScrollContent} showsVerticalScrollIndicator={false}>
+        {DRAWER_GROUPS.map((group, groupIndex) => {
+          const items = group.keys
+            .map((key) => NAV_ITEMS.find((n) => n.key === key))
+            .filter((n): n is NavItem => n != null);
+          if (items.length === 0) return null;
+          return (
+            <View key={group.title} style={[styles.group, groupIndex === 0 && styles.groupFirst]}>
+              <Text style={styles.groupTitle}>{group.title}</Text>
+              {items.map((item) => {
+                const active = activeScreen === item.key;
+                return (
+                  <Pressable
+                    key={item.key}
+                    style={[styles.navItem, styles.navItemExpanded, active && styles.navItemActive]}
+                    onPress={() => onNavigate(item.key)}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.label}
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Ionicons
+                      name={active ? item.iconActive : item.icon}
+                      size={24}
+                      color={active ? MAROON : C.textSecondary}
+                    />
+                    <Text style={[styles.navLabel, active && styles.navLabelActive]} numberOfLines={1}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  sidebar: {
+    backgroundColor: C.surface,
+    borderRightWidth: 1,
+    borderRightColor: C.border,
+  },
+  logo: {
+    fontWeight: "700",
+    fontSize: 20,
+    color: C.text,
+    marginHorizontal: 16,
+    marginBottom: 24,
+  },
+  navScroll: {
+    flex: 1,
+  },
+  navScrollContent: {
+    paddingBottom: 24,
+  },
+  group: {
+    marginTop: 14,
+    marginBottom: 10,
+  },
+  groupFirst: {
+    marginTop: 10,
+  },
+  groupTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: C.textTertiary,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginBottom: 4,
+    paddingHorizontal: 16,
+  },
+  navItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  navItemExpanded: {
+    paddingHorizontal: 16,
+  },
+  navItemActive: {
+    backgroundColor: C.sidebarActive,
+  },
+  navLabel: {
+    fontWeight: "500",
+    fontSize: 15,
+    color: C.textSecondary,
+    flex: 1,
+  },
+  navLabelActive: {
+    color: MAROON,
+    fontWeight: "600",
+  },
+});

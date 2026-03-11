@@ -24,6 +24,7 @@ import {
   type UserSettings,
 } from "@/lib/storage";
 import { getBackupStatus, backupNow, restoreFromCloud, type BackupStatus } from "@/lib/backup";
+import { isCurrentMonthRamadan } from "@/lib/hijri";
 
 const C = Colors.dark;
 const MAROON = "#800020";
@@ -311,7 +312,18 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           style={styles.card}
           testID="ramadan-mode-toggle"
           onPress={() => {
-            setSettings((p) => ({ ...p, ramadanMode: !p.ramadanMode }));
+            const next = !settings.ramadanMode;
+            if (next) {
+              if (!isCurrentMonthRamadan()) {
+                Alert.alert(
+                  "Not Ramadan Yet",
+                  "We're so glad you're looking forward to Ramadan! The toggle will activate automatically when Ramadan begins. Come back then 🌙",
+                  [{ text: "Got it" }]
+                );
+                return;
+              }
+            }
+            setSettings((p) => ({ ...p, ramadanMode: next }));
             setSaved(false);
             Haptics.selectionAsync();
           }}

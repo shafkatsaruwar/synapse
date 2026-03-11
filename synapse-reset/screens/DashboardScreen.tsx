@@ -370,12 +370,12 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             </View>
             <View style={styles.ramadanHeroBottomRow}>
               <View style={styles.ramadanTimeCard}>
-                <Text style={styles.ramadanTimeLabel}>Sunrise</Text>
+                <Text style={styles.ramadanTimeLabel}>{settings.ramadanMode ? "Fajr" : "Sunrise"}</Text>
                 <Text style={styles.ramadanTimeValue}>{sunriseTime}</Text>
               </View>
               <View style={styles.ramadanDivider} />
               <View style={styles.ramadanTimeCard}>
-                <Text style={styles.ramadanTimeLabel}>Sunset</Text>
+                <Text style={styles.ramadanTimeLabel}>{settings.ramadanMode ? "Iftar" : "Sunset"}</Text>
                 <Text style={styles.ramadanTimeValue}>{sunsetTime}</Text>
               </View>
             </View>
@@ -464,6 +464,22 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             </View>
             <Ionicons name="chevron-forward" size={18} color={C.tint} />
           </Pressable>
+
+          {settings.ramadanMode && (
+            <Pressable
+              style={styles.feelingCard}
+              onPress={() => onNavigate("ramadandailylog")}
+              accessibilityRole="button"
+              accessibilityLabel="Ramadan Daily Log"
+              accessibilityHint="Opens the Ramadan daily log screen"
+            >
+              <View>
+                <Text style={styles.feelingTitle}>Ramadan Daily Log</Text>
+                <Text style={styles.feelingSubtitle}>Log your fast, water, energy, mood & motivation.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.tint} />
+            </Pressable>
+          )}
 
           {settings.ramadanMode && (
             <View style={styles.ramadanQuoteCard}>

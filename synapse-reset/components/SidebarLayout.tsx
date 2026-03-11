@@ -144,15 +144,17 @@ export default function SidebarLayout({
   return (
     <View style={styles.mobileContainer}>
       <View style={[styles.mobileHeaderRow, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 4 }]}>
-        <Pressable
-          style={styles.mobileMenuBtn}
-          onPress={() => setMoreOpen(true)}
-          testID="tab-more"
-          accessibilityRole="button"
-          accessibilityLabel="Open menu"
-        >
-          <Ionicons name="menu" size={26} color={C.text} />
-        </Pressable>
+        {isWide ? <View style={styles.headerSpacerLeft} /> : (
+          <Pressable
+            style={styles.mobileMenuBtn}
+            onPress={() => setMoreOpen(true)}
+            testID="tab-more"
+            accessibilityRole="button"
+            accessibilityLabel="Open menu"
+          >
+            <Ionicons name="menu" size={26} color={C.text} />
+          </Pressable>
+        )}
         {headerRight != null ? headerRight : <View style={styles.mobileHeaderSpacer} />}
       </View>
 
@@ -209,6 +211,7 @@ export default function SidebarLayout({
         </View>
       )}
 
+      {!isWide && (
       <Modal
           visible={moreOpen}
           transparent
@@ -352,6 +355,7 @@ export default function SidebarLayout({
             </Animated.View>
           </View>
         </Modal>
+      )}
     </View>
   );
 }
@@ -446,6 +450,7 @@ const styles = StyleSheet.create({
     marginLeft: -6,
   },
   mobileHeaderSpacer: { width: 1, minWidth: 1 },
+  headerSpacerLeft: { flex: 1 },
   mobileContent: {
     flex: 1,
     minHeight: 1,

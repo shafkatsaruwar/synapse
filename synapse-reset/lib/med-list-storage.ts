@@ -64,3 +64,11 @@ export async function removeMedListItem(id: string): Promise<void> {
   const list = await getMedList();
   await saveMedList(list.filter((x) => x.id !== id));
 }
+
+export async function updateMedListItem(item: MedListItem): Promise<void> {
+  const list = await getMedList();
+  const idx = list.findIndex((x) => x.id === item.id);
+  if (idx === -1) return;
+  list[idx] = item;
+  await saveMedList(list);
+}
