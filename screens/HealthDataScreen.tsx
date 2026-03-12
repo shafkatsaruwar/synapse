@@ -12,22 +12,21 @@ import { getDaysAgo, formatDate, getToday } from "@/lib/date-utils";
 
 type Category = "weight" | "blood_pressure" | "blood_sugar" | "heart_rate" | "sleep" | "hydration" | "labs";
 
-const CATEGORIES: { key: Category; label: string; icon: string; color: string; unit: string; units: string[] }[] = [
-  { key: "weight", label: "Weight", icon: "scale-outline", color: C.cyan, unit: "kg", units: ["lbs", "kg", "stones"] },
-  { key: "blood_pressure", label: "Blood Pressure", icon: "heart-outline", color: C.red, unit: "mmHg", units: ["mmHg"] },
-  { key: "blood_sugar", label: "Blood Sugar", icon: "water-outline", color: C.orange, unit: "mg/dL", units: ["mg/dL", "mmol/L"] },
-  { key: "heart_rate", label: "Heart Rate", icon: "pulse-outline", color: C.pink, unit: "bpm", units: ["bpm"] },
-  { key: "sleep", label: "Sleep", icon: "moon-outline", color: C.purple, unit: "hours", units: ["hours"] },
-  { key: "hydration", label: "Hydration", icon: "cafe-outline", color: C.tint, unit: "glasses", units: ["glasses", "L", "ml"] },
-  { key: "labs", label: "Labs", icon: "flask-outline", color: C.green, unit: "", units: [] },
-];
-
 export default function HealthDataScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { theme: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
+  const CATEGORIES: { key: Category; label: string; icon: string; color: string; unit: string; units: string[] }[] = [
+    { key: "weight", label: "Weight", icon: "scale-outline", color: C.cyan, unit: "kg", units: ["lbs", "kg", "stones"] },
+    { key: "blood_pressure", label: "Blood Pressure", icon: "heart-outline", color: C.red, unit: "mmHg", units: ["mmHg"] },
+    { key: "blood_sugar", label: "Blood Sugar", icon: "water-outline", color: C.orange, unit: "mg/dL", units: ["mg/dL", "mmol/L"] },
+    { key: "heart_rate", label: "Heart Rate", icon: "pulse-outline", color: C.pink, unit: "bpm", units: ["bpm"] },
+    { key: "sleep", label: "Sleep", icon: "moon-outline", color: C.purple, unit: "hours", units: ["hours"] },
+    { key: "hydration", label: "Hydration", icon: "cafe-outline", color: C.tint, unit: "glasses", units: ["glasses", "L", "ml"] },
+    { key: "labs", label: "Labs", icon: "flask-outline", color: C.green, unit: "", units: [] },
+  ];
 
   const [vitals, setVitals] = useState<Vital[]>([]);
   const [logs, setLogs] = useState<HealthLog[]>([]);

@@ -51,6 +51,8 @@ function getRecurrenceLabel(apt: Appointment, allAppointments: Appointment[]): s
 }
 
 function CalendarView({ appointments, selectedDate, onSelectDate }: { appointments: Appointment[]; selectedDate: string; onSelectDate: (d: string) => void }) {
+  const { theme: C } = useTheme();
+  const calStyles = useMemo(() => makeCalStyles(C), [C]);
   const [viewMonth, setViewMonth] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -100,7 +102,8 @@ function CalendarView({ appointments, selectedDate, onSelectDate }: { appointmen
   );
 }
 
-const calStyles = StyleSheet.create({
+function makeCalStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   cal: { backgroundColor: C.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.border, marginBottom: 16 },
   calHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
   calMonth: { fontWeight: "600", fontSize: 15, color: C.text },
@@ -112,7 +115,8 @@ const calStyles = StyleSheet.create({
   calCellToday: { backgroundColor: C.tintLight, borderRadius: 8 },
   calDay: { fontWeight: "500", fontSize: 13, color: C.text },
   calDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.purple, marginTop: 2 },
-});
+  });
+}
 
 export default function AppointmentsScreen() {
   const insets = useSafeAreaInsets();
