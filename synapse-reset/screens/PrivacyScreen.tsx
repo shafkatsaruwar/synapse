@@ -1,16 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Platform, useWindowDimensions, Alert, Share,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { exportAllData, clearAllData } from "@/lib/storage";
 
-const C = Colors.dark;
-
 export default function PrivacyScreen() {
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -144,23 +144,25 @@ export default function PrivacyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
-  content: { paddingHorizontal: 24 },
-  title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
-  subtitle: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 24 },
-  card: { backgroundColor: C.surface, borderRadius: 14, padding: 18, marginBottom: 10, borderWidth: 1, borderColor: C.border },
-  featureRow: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
-  featureIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  featureTitle: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 4 },
-  featureDesc: { fontWeight: "400", fontSize: 12, color: C.textSecondary, lineHeight: 17 },
-  divider: { height: 1, backgroundColor: C.border, marginVertical: 20 },
-  sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 14 },
-  actionBtn: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: C.border },
-  dangerAction: { borderColor: "rgba(255,69,58,0.2)" },
-  actionIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  actionTitle: { fontWeight: "600", fontSize: 14, color: C.text },
-  actionDesc: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2 },
-  infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 16, marginTop: 16 },
-  infoText: { fontWeight: "400", fontSize: 12, color: C.textTertiary, flex: 1, lineHeight: 17 },
-});
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    content: { paddingHorizontal: 24 },
+    title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
+    subtitle: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 24 },
+    card: { backgroundColor: C.surface, borderRadius: 14, padding: 18, marginBottom: 10, borderWidth: 1, borderColor: C.border },
+    featureRow: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
+    featureIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+    featureTitle: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 4 },
+    featureDesc: { fontWeight: "400", fontSize: 12, color: C.textSecondary, lineHeight: 17 },
+    divider: { height: 1, backgroundColor: C.border, marginVertical: 20 },
+    sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 14 },
+    actionBtn: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: C.border },
+    dangerAction: { borderColor: "rgba(255,69,58,0.2)" },
+    actionIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+    actionTitle: { fontWeight: "600", fontSize: 14, color: C.text },
+    actionDesc: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2 },
+    infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 16, marginTop: 16 },
+    infoText: { fontWeight: "400", fontSize: 12, color: C.textTertiary, flex: 1, lineHeight: 17 },
+  });
+}

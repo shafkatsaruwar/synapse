@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -12,13 +12,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { getBackupStatus, backupNow, restoreFromCloud, type BackupStatus } from "@/lib/backup";
 import { conditionStorage } from "@/lib/storage";
-
-const C = Colors.dark;
-const MAROON = "#800020";
 
 interface EditProfileScreenProps {
   onBack: () => void;
@@ -29,6 +26,8 @@ interface EditProfileScreenProps {
 export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplete }: EditProfileScreenProps) {
   const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -113,7 +112,7 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Ionicons name="chevron-back" size={24} color={MAROON} />
+          <Ionicons name="chevron-back" size={24} color={C.tint} />
         </Pressable>
         <Text style={styles.headerTitle}>Edit Profile</Text>
         <View style={styles.backBtn} />
@@ -190,7 +189,7 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
               accessibilityLabel="Backup Now"
             >
               {backupLoading
-                ? <ActivityIndicator size="small" color={MAROON} />
+                ? <ActivityIndicator size="small" color={C.tint} />
                 : <Text style={styles.secondaryBtnText}>Backup Now</Text>}
             </Pressable>
             <Pressable
@@ -242,7 +241,7 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
               <Pressable style={styles.cancelBtn} onPress={() => setShowRestoreConfirm(false)}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </Pressable>
-              <Pressable style={[styles.confirmBtn, { backgroundColor: MAROON }]} onPress={handleRestore}>
+              <Pressable style={[styles.confirmBtn, { backgroundColor: C.tint }]} onPress={handleRestore}>
                 <Text style={styles.confirmText}>Restore</Text>
               </Pressable>
             </View>
@@ -253,7 +252,8 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   header: {
     flexDirection: "row",
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: MAROON,
+    backgroundColor: C.tint,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -362,3 +362,4 @@ const styles = StyleSheet.create({
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
   confirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
 });
+}

@@ -1,14 +1,14 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Colors from "@/constants/colors";
-
-const C = Colors.dark;
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 
 /**
  * Minimal auth gate placeholder. Shown when not signed in (if used by a route).
  */
 export default function AuthStub() {
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const insets = useSafeAreaInsets();
 
   return (
@@ -22,26 +22,28 @@ export default function AuthStub() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: C.background,
-    paddingHorizontal: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: C.text,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: C.textSecondary,
-    marginBottom: 16,
-  },
-  body: {
-    fontSize: 15,
-    color: C.textSecondary,
-    lineHeight: 22,
-  },
-});
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: C.background,
+      paddingHorizontal: 24,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: "700",
+      color: C.text,
+      marginBottom: 4,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: C.textSecondary,
+      marginBottom: 16,
+    },
+    body: {
+      fontSize: 15,
+      color: C.textSecondary,
+      lineHeight: 22,
+    },
+  });
+}

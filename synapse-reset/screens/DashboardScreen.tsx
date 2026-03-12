@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -14,7 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { featureFlags } from "@/constants/feature-flags";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import {
   healthLogStorage,
   medicationStorage,
@@ -32,8 +32,6 @@ import {
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
 import { useAuth } from "@/contexts/AuthContext";
-
-const C = Colors.dark;
 
 // Gradient pairs: [top (darker), bottom (lighter)]. Soft, desaturated, top-to-bottom.
 const PRIORITY_GRADIENTS: Record<string, [string, string]> = {
@@ -55,7 +53,7 @@ const GOOD_DAY_MESSAGES = [
   "Have a good day.",
   "Good day, matey!",
   "Today is a good day to be kind to your body.",
-  "Take it gently today — you’re doing enough.",
+  "Take it gently today — you're doing enough.",
 ];
 
 interface DashboardScreenProps {
@@ -83,14 +81,14 @@ function PriorityCard({ colors, icon, label, onPress, children }: { colors: [str
       accessibilityHint={`Opens ${label} screen`}
       style={{ minHeight: 44 }}
     >
-      <Animated.View style={[styles.priorityCard, { transform: [{ scale }], overflow: "hidden" }]}>
+      <Animated.View style={[priorityCardStyle, { transform: [{ scale }], overflow: "hidden" }]}>
         <LinearGradient colors={colors} style={StyleSheet.absoluteFillObject} />
-        <View style={styles.priorityCardContent}>
-          <View style={styles.priorityHeader}>
-            <View style={styles.priorityIconWrap}>
+        <View style={priorityCardContentStyle}>
+          <View style={priorityHeaderStyle}>
+            <View style={priorityIconWrapStyle}>
               <Ionicons name={icon as any} size={18} color="#fff" />
             </View>
-            <Text style={styles.priorityLabel}>{label}</Text>
+            <Text style={priorityLabelStyle}>{label}</Text>
             <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.6)" />
           </View>
           {children}
@@ -100,10 +98,28 @@ function PriorityCard({ colors, icon, label, onPress, children }: { colors: [str
   );
 }
 
+// Static styles for PriorityCard (no theme colors needed — gradient covers everything)
+const priorityCardStyle = {
+  borderRadius: 16,
+  aspectRatio: 1.1,
+  justifyContent: "space-between" as const,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.08,
+  shadowRadius: 16,
+  elevation: 4,
+};
+const priorityCardContentStyle = { flex: 1, padding: 16, justifyContent: "space-between" as const };
+const priorityHeaderStyle = { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginBottom: 10 };
+const priorityIconWrapStyle = { width: 28, height: 28, borderRadius: 7, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center" as const, justifyContent: "center" as const };
+const priorityLabelStyle = { fontWeight: "600" as const, fontSize: 12, color: "#fff", flex: 1 };
+
 export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { user } = useAuth();
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
   const today = getToday();
 
@@ -441,7 +457,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
                   <Ionicons
                     name="sunny-outline"
                     size={13}
-                    color={isToday ? "#2D1340" : "rgba(255,255,255,0.7)"}
+                    color={isToday ? "#2D1340" : C.textTertiary}
                     style={{ marginBottom: 2 }}
                   />
                   <Text style={isToday ? styles.ramadanWeekDayTextActive : styles.ramadanWeekDayText}>{dayNum}</Text>
@@ -459,7 +475,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           >
             <View>
               <Text style={styles.feelingTitle}>How are you feeling today?</Text>
-              <Text style={styles.feelingSubtitle}>Tap to log today’s energy, mood, and sleep.</Text>
+              <Text style={styles.feelingSubtitle}>Tap to log today's energy, mood, and sleep.</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={C.tint} />
           </Pressable>
@@ -482,7 +498,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
           {settings.ramadanMode && (
             <View style={styles.ramadanQuoteCard}>
-              <Ionicons name="sparkles" size={16} color="#FFD5FF" />
+              <Ionicons name="sparkles" size={16} color={C.pink} />
               <Text style={styles.ramadanQuoteText}>{ramadanQuote}</Text>
             </View>
           )}
@@ -567,197 +583,183 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, minHeight: 1, backgroundColor: C.background },
-  scrollView: { flex: 1, minHeight: 1 },
-  scrollViewContent: { flexGrow: 1 },
-  content: { paddingHorizontal: 24 }, // used when isWide; mobile uses inline 0 so layout's 16 applies
-  welcome: { marginBottom: 4 },
-  greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
-  dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
-  hijriDate: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 20 },
-  ramadanSection: { marginTop: 8, marginBottom: 16 },
-  ramadanHero: { borderRadius: 20, padding: 16, marginBottom: 12, gap: 12 },
-  ramadanHeroTopRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
-  ramadanDateText: { fontWeight: "600", fontSize: 14, color: C.text },
-  ramadanLocationText: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 2 },
-  ramadanCountdownPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    gap: 6,
-  },
-  ramadanCountdownLabel: { fontWeight: "500", fontSize: 11, color: "#FBE9FF" },
-  ramadanHeroBottomRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  ramadanTimeCard: { flex: 1 },
-  ramadanTimeLabel: { fontWeight: "400", fontSize: 11, color: C.textSecondary },
-  ramadanTimeValue: { fontWeight: "600", fontSize: 16, color: C.text, marginTop: 2 },
-  ramadanDivider: { width: 1, height: 32, backgroundColor: C.border, marginHorizontal: 12 },
-  ramadanCountdownText: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 4 },
-  ramadanWeekStrip: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: C.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  ramadanWeekDay: {
-    width: 28,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ramadanWeekDayActive: { backgroundColor: "#F6C94D" },
-  ramadanWeekDayText: { fontWeight: "500", fontSize: 12, color: "#5A3510" },
-  ramadanWeekDayTextActive: { fontWeight: "700", fontSize: 12, color: "#2D1340" },
-  ramadanQuoteCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#69747C",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginTop: 12,
-  },
-  ramadanQuoteText: { flex: 1, fontWeight: "400", fontSize: 13, color: "#FFFFFF" },
-  ramadanNextMedPill: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: C.surface,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  ramadanNextMedName: { fontWeight: "600", fontSize: 11, color: C.text },
-  ramadanNextMedDose: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
-  ramadanNextMedTime: { fontWeight: "500", fontSize: 11, color: C.tint, marginTop: 2 },
-  ramadanInfoRow: {
-    flexDirection: "column",
-    alignItems: "stretch",
-    justifyContent: "flex-start",
-    marginTop: 8,
-    gap: 8,
-  },
-  ramadanNextAptPill: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: C.surface,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  ramadanNextAptTitle: { fontWeight: "600", fontSize: 11, color: C.text },
-  ramadanNextAptName: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
-  ramadanNextAptMeta: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
-  ramadanNextAptLocation: { fontWeight: "500", fontSize: 11, color: C.tint, marginTop: 2 },
-  feelingCard: {
-    marginTop: 0,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 16,
-    backgroundColor: C.surface,
-    borderWidth: 1,
-    borderColor: C.border,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  feelingTitle: { fontWeight: "600", fontSize: 14, color: C.text },
-  feelingSubtitle: { marginTop: 4, fontWeight: "400", fontSize: 12, color: C.textSecondary },
-  sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
-  priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 12, width: "100%" },
-  priorityGridItem: { marginBottom: 12 },
-  priorityCard: {
-    borderRadius: 16,
-    aspectRatio: 1.1,
-    justifyContent: "space-between",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  priorityCardContent: {
-    flex: 1,
-    padding: 16,
-    justifyContent: "space-between",
-  },
-  priorityHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  priorityIconWrap: { width: 28, height: 28, borderRadius: 7, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  priorityLabel: { fontWeight: "600", fontSize: 12, color: "#fff", flex: 1 },
-  priBigNum: { fontWeight: "700", fontSize: 28, color: "#fff", letterSpacing: -1, marginBottom: 4 },
-  priBigNumSub: { fontSize: 16, color: "rgba(255,255,255,0.6)" },
-  priProgress: { height: 4, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden", marginBottom: 8 },
-  priProgressFill: { height: "100%", backgroundColor: "#fff", borderRadius: 2 },
-  priMeta: { fontWeight: "400", fontSize: 12, color: "rgba(255,255,255,0.7)" },
-  priEmpty: { fontWeight: "500", fontSize: 14, color: "rgba(255,255,255,0.8)" },
-  priAptName: { fontWeight: "600", fontSize: 13, color: "#fff", marginBottom: 2 },
-  priAptSpec: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.7)", marginBottom: 6 },
-  priAptDateRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  priAptDate: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.7)", marginRight: 4 },
-  priLogRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-  priLogItem: { flex: 1, alignItems: "center" },
-  priLogLabel: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 4 },
-  priLogValue: { fontWeight: "600", fontSize: 15, color: "#fff" },
-  priLogDivider: { width: 1, height: 28, backgroundColor: "rgba(255,255,255,0.2)" },
-  grid: { gap: 12 },
-  gridWide: { flexDirection: "row", flexWrap: "wrap" },
-  card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: C.border },
-  cardWide: { width: "48.5%", marginRight: "1%" },
-  cardHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
-  cardIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  cardLabel: { fontWeight: "600", fontSize: 14, color: C.text },
-  cardBigNum: { fontWeight: "700", fontSize: 36, color: C.text, letterSpacing: -1, marginBottom: 8 },
-  cardBigNumSub: { fontSize: 20, color: C.textTertiary },
-  progressTrack: { height: 4, backgroundColor: C.surfaceElevated, borderRadius: 2, overflow: "hidden", marginBottom: 8 },
-  progressFill: { height: "100%", backgroundColor: C.tint, borderRadius: 2 },
-  cardMeta: { fontWeight: "400", fontSize: 12, color: C.textSecondary },
-  cardEmpty: { paddingVertical: 8 },
-  cardEmptyText: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
-  fastingRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  fastingItem: { flex: 1, alignItems: "center" },
-  fastingDivider: { width: 1, height: 28, backgroundColor: C.border },
-  fastingLabel: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginBottom: 4 },
-  fastingValue: { fontWeight: "600", fontSize: 14, color: C.text },
-  energyRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  energyDots: { flexDirection: "row", gap: 4 },
-  energyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.surfaceElevated },
-  reportDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 14 },
-  reportBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
-  reportBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
-  fab: {
-    position: "absolute",
-    right: 20,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#800020",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-});
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, minHeight: 1, backgroundColor: C.background },
+    scrollView: { flex: 1, minHeight: 1 },
+    scrollViewContent: { flexGrow: 1 },
+    content: { paddingHorizontal: 24 },
+    welcome: { marginBottom: 4 },
+    greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
+    dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
+    hijriDate: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 20 },
+    ramadanSection: { marginTop: 8, marginBottom: 16 },
+    ramadanHero: { borderRadius: 20, padding: 16, marginBottom: 12, gap: 12 },
+    ramadanHeroTopRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
+    ramadanDateText: { fontWeight: "600", fontSize: 14, color: C.text },
+    ramadanLocationText: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 2 },
+    ramadanCountdownPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: "rgba(255,255,255,0.12)",
+      gap: 6,
+    },
+    ramadanCountdownLabel: { fontWeight: "500", fontSize: 11, color: "#FBE9FF" },
+    ramadanHeroBottomRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 8,
+      marginBottom: 4,
+    },
+    ramadanTimeCard: { flex: 1 },
+    ramadanTimeLabel: { fontWeight: "400", fontSize: 11, color: C.textSecondary },
+    ramadanTimeValue: { fontWeight: "600", fontSize: 16, color: C.text, marginTop: 2 },
+    ramadanDivider: { width: 1, height: 32, backgroundColor: C.border, marginHorizontal: 12 },
+    ramadanCountdownText: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 4 },
+    ramadanWeekStrip: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: C.surface,
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      borderBottomLeftRadius: 0,
+      borderBottomRightRadius: 0,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    ramadanWeekDay: {
+      width: 28,
+      height: 32,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    ramadanWeekDayActive: { backgroundColor: "#F6C94D" },
+    ramadanWeekDayText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
+    ramadanWeekDayTextActive: { fontWeight: "700", fontSize: 12, color: "#2D1340" },
+    ramadanQuoteCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: C.surfaceElevated,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      marginTop: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    ramadanQuoteText: { flex: 1, fontWeight: "400", fontSize: 13, color: C.textSecondary },
+    ramadanNextMedPill: {
+      flex: 1,
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+      borderRadius: 16,
+      backgroundColor: C.surface,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    ramadanNextMedName: { fontWeight: "600", fontSize: 11, color: C.text },
+    ramadanNextMedDose: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
+    ramadanNextMedTime: { fontWeight: "500", fontSize: 11, color: C.tint, marginTop: 2 },
+    ramadanInfoRow: {
+      flexDirection: "column",
+      alignItems: "stretch",
+      justifyContent: "flex-start",
+      marginTop: 8,
+      gap: 8,
+    },
+    ramadanNextAptPill: {
+      flex: 1,
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+      borderRadius: 16,
+      backgroundColor: C.surface,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    ramadanNextAptTitle: { fontWeight: "600", fontSize: 11, color: C.text },
+    ramadanNextAptName: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
+    ramadanNextAptMeta: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
+    ramadanNextAptLocation: { fontWeight: "500", fontSize: 11, color: C.tint, marginTop: 2 },
+    feelingCard: {
+      marginTop: 0,
+      marginBottom: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderRadius: 16,
+      backgroundColor: C.surface,
+      borderWidth: 1,
+      borderColor: C.border,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    feelingTitle: { fontWeight: "600", fontSize: 14, color: C.text },
+    feelingSubtitle: { marginTop: 4, fontWeight: "400", fontSize: 12, color: C.textSecondary },
+    sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
+    priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 12, width: "100%" },
+    priorityGridItem: { marginBottom: 12 },
+    priBigNum: { fontWeight: "700", fontSize: 28, color: "#fff", letterSpacing: -1, marginBottom: 4 },
+    priBigNumSub: { fontSize: 16, color: "rgba(255,255,255,0.6)" },
+    priProgress: { height: 4, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden", marginBottom: 8 },
+    priProgressFill: { height: "100%", backgroundColor: "#fff", borderRadius: 2 },
+    priMeta: { fontWeight: "400", fontSize: 12, color: "rgba(255,255,255,0.7)" },
+    priEmpty: { fontWeight: "500", fontSize: 14, color: "rgba(255,255,255,0.8)" },
+    priAptName: { fontWeight: "600", fontSize: 13, color: "#fff", marginBottom: 2 },
+    priAptSpec: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.7)", marginBottom: 6 },
+    priAptDateRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
+    priAptDate: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.7)", marginRight: 4 },
+    priLogRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+    priLogItem: { flex: 1, alignItems: "center" },
+    priLogLabel: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 4 },
+    priLogValue: { fontWeight: "600", fontSize: 15, color: "#fff" },
+    priLogDivider: { width: 1, height: 28, backgroundColor: "rgba(255,255,255,0.2)" },
+    grid: { gap: 12 },
+    gridWide: { flexDirection: "row", flexWrap: "wrap" },
+    card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: C.border },
+    cardWide: { width: "48.5%", marginRight: "1%" },
+    cardHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
+    cardIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+    cardLabel: { fontWeight: "600", fontSize: 14, color: C.text },
+    cardBigNum: { fontWeight: "700", fontSize: 36, color: C.text, letterSpacing: -1, marginBottom: 8 },
+    cardBigNumSub: { fontSize: 20, color: C.textTertiary },
+    progressTrack: { height: 4, backgroundColor: C.surfaceElevated, borderRadius: 2, overflow: "hidden", marginBottom: 8 },
+    progressFill: { height: "100%", backgroundColor: C.tint, borderRadius: 2 },
+    cardMeta: { fontWeight: "400", fontSize: 12, color: C.textSecondary },
+    cardEmpty: { paddingVertical: 8 },
+    cardEmptyText: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
+    fastingRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+    fastingItem: { flex: 1, alignItems: "center" },
+    fastingDivider: { width: 1, height: 28, backgroundColor: C.border },
+    fastingLabel: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginBottom: 4 },
+    fastingValue: { fontWeight: "600", fontSize: 14, color: C.text },
+    energyRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    energyDots: { flexDirection: "row", gap: 4 },
+    energyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.surfaceElevated },
+    reportDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 14 },
+    reportBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+    reportBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
+    fab: {
+      position: "absolute",
+      right: 20,
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: C.tint,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.35,
+      shadowRadius: 10,
+      elevation: 8,
+    },
+  });
+}

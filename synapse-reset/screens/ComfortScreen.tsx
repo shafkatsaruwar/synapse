@@ -1,16 +1,16 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { comfortStorage, type ComfortItem } from "@/lib/storage";
 
-const C = Colors.dark;
-
 export default function ComfortScreen() {
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -113,25 +113,27 @@ export default function ComfortScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
-  content: { paddingHorizontal: 24 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
-  title: { fontWeight: "700", fontSize: 28, color: C.text, marginBottom: 4 },
-  subtitle: { fontSize: 14, color: C.textSecondary, maxWidth: 280 },
-  addBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
-  empty: { alignItems: "center", paddingVertical: 48 },
-  emptyTitle: { fontWeight: "600", fontSize: 18, color: C.text, marginTop: 12 },
-  emptyDesc: { fontSize: 14, color: C.textTertiary, marginTop: 4 },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 8 },
-  rowLabel: { fontWeight: "500", fontSize: 16, color: C.text, flex: 1 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 },
-  modalBox: { backgroundColor: C.surface, borderRadius: 20, padding: 24 },
-  modalTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 16 },
-  modalInput: { backgroundColor: C.background, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: C.text, marginBottom: 20 },
-  modalActions: { flexDirection: "row", gap: 12, justifyContent: "flex-end" },
-  modalCancel: { paddingVertical: 10, paddingHorizontal: 16 },
-  modalCancelText: { fontSize: 16, color: C.textSecondary },
-  modalSave: { backgroundColor: C.tint, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12 },
-  modalSaveText: { fontSize: 16, fontWeight: "600", color: "#fff" },
-});
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    content: { paddingHorizontal: 24 },
+    header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
+    title: { fontWeight: "700", fontSize: 28, color: C.text, marginBottom: 4 },
+    subtitle: { fontSize: 14, color: C.textSecondary, maxWidth: 280 },
+    addBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+    empty: { alignItems: "center", paddingVertical: 48 },
+    emptyTitle: { fontWeight: "600", fontSize: 18, color: C.text, marginTop: 12 },
+    emptyDesc: { fontSize: 14, color: C.textTertiary, marginTop: 4 },
+    row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 8 },
+    rowLabel: { fontWeight: "500", fontSize: 16, color: C.text, flex: 1 },
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 },
+    modalBox: { backgroundColor: C.surface, borderRadius: 20, padding: 24 },
+    modalTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 16 },
+    modalInput: { backgroundColor: C.background, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: C.text, marginBottom: 20 },
+    modalActions: { flexDirection: "row", gap: 12, justifyContent: "flex-end" },
+    modalCancel: { paddingVertical: 10, paddingHorizontal: 16 },
+    modalCancelText: { fontSize: 16, color: C.textSecondary },
+    modalSave: { backgroundColor: C.tint, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12 },
+    modalSaveText: { fontSize: 16, fontWeight: "600", color: "#fff" },
+  });
+}

@@ -1,12 +1,10 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { StyleSheet, Text, View, ScrollView, Pressable, Platform, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { conditionStorage, healthProfileStorage } from "@/lib/storage";
-
-const C = Colors.dark;
 
 interface HealthProfileScreenProps {
   onBack: () => void;
@@ -15,6 +13,8 @@ interface HealthProfileScreenProps {
 
 export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfileScreenProps) {
   const insets = useSafeAreaInsets();
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [conditionsCount, setConditionsCount] = useState(0);
   const [ageText, setAgeText] = useState("");
   const [ageSaved, setAgeSaved] = useState(true);
@@ -129,7 +129,8 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 20 },
@@ -149,3 +150,4 @@ const styles = StyleSheet.create({
   ageSaveBtnSaved: { backgroundColor: C.green },
   ageSaveBtnText: { fontWeight: "600", fontSize: 14, color: "#fff" },
 });
+}

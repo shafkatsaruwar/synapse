@@ -1,3 +1,5 @@
+// Legacy color constants — kept for backward compatibility.
+// New code should use `useTheme()` from @/contexts/ThemeContext instead.
 const Colors = {
   dark: {
     background: "#FDF1E5",

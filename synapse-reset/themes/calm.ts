@@ -1,0 +1,38 @@
+import { Theme } from "@/contexts/ThemeContext";
+
+const calm: Theme = {
+  background: "#FDF1E5",
+  surface: "#F5E0C8",
+  surfaceElevated: "#F0D8BC",
+  surfaceHover: "#EBCFAF",
+  border: "rgba(128,0,32,0.15)",
+  borderLight: "rgba(128,0,32,0.08)",
+  text: "#1A1A1A",
+  textSecondary: "#5C4033",
+  textTertiary: "#8B7355",
+  tint: "#800020",
+  tintLight: "rgba(128,0,32,0.10)",
+  accent: "#800020",
+  accentLight: "rgba(128,0,32,0.10)",
+  green: "#2D7D46",
+  greenLight: "rgba(45,125,70,0.12)",
+  orange: "#CC6600",
+  orangeLight: "rgba(204,102,0,0.12)",
+  red: "#CC0000",
+  redLight: "rgba(204,0,0,0.12)",
+  yellow: "#B8860B",
+  yellowLight: "rgba(184,134,11,0.12)",
+  cyan: "#2E8B8B",
+  cyanLight: "rgba(46,139,139,0.12)",
+  pink: "#CC3355",
+  pinkLight: "rgba(204,51,85,0.12)",
+  purple: "#6B3FA0",
+  purpleLight: "rgba(107,63,160,0.12)",
+  tabIconDefault: "#8B7355",
+  tabIconSelected: "#800020",
+  sidebar: "#F5E0C8",
+  sidebarActive: "rgba(128,0,32,0.08)",
+  sidebarHover: "rgba(128,0,32,0.05)",
+};
+
+export default calm;

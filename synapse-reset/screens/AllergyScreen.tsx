@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -12,10 +12,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { allergyStorage, type AllergyInfo } from "@/lib/storage";
-
-const C = Colors.dark;
 
 const DEFAULT_ALLERGY: AllergyInfo = {
   hasAllergies: false,
@@ -32,6 +30,8 @@ interface AllergyScreenProps {
 }
 
 export default function AllergyScreen({ onBack }: AllergyScreenProps) {
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -204,22 +204,24 @@ export default function AllergyScreen({ onBack }: AllergyScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
-  content: { paddingHorizontal: 24 },
-  backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 20 },
-  backText: { fontWeight: "600", fontSize: 15, color: C.text },
-  title: { fontWeight: "700", fontSize: 26, color: C.text, letterSpacing: -0.5, marginBottom: 8 },
-  subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginBottom: 24 },
-  card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
-  label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
-  input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border },
-  toggleHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  toggle: { width: 48, height: 28, borderRadius: 14, backgroundColor: C.surfaceElevated, justifyContent: "center", paddingHorizontal: 3 },
-  toggleActive: { backgroundColor: C.tint },
-  toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#fff" },
-  toggleThumbActive: { alignSelf: "flex-end" },
-  saveBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
-  saveBtnSaved: { backgroundColor: C.green },
-  saveBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
-});
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    content: { paddingHorizontal: 24 },
+    backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 20 },
+    backText: { fontWeight: "600", fontSize: 15, color: C.text },
+    title: { fontWeight: "700", fontSize: 26, color: C.text, letterSpacing: -0.5, marginBottom: 8 },
+    subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginBottom: 24 },
+    card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
+    label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
+    input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border },
+    toggleHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    toggle: { width: 48, height: 28, borderRadius: 14, backgroundColor: C.surfaceElevated, justifyContent: "center", paddingHorizontal: 3 },
+    toggleActive: { backgroundColor: C.tint },
+    toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#fff" },
+    toggleThumbActive: { alignSelf: "flex-end" },
+    saveBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
+    saveBtnSaved: { backgroundColor: C.green },
+    saveBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
+  });
+}

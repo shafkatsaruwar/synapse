@@ -33,9 +33,8 @@ import AuthScreen from "@/screens/AuthScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
 import EmergencyProtocolScreen from "@/screens/EmergencyProtocolScreen";
 import { settingsStorage } from "@/lib/storage";
-import Colors from "@/constants/colors";
-
-const C = Colors.dark;
+import { useMemo } from "react";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 
 export default function MainScreen() {
   const isTablet = useIsTablet();
@@ -89,6 +88,9 @@ export default function MainScreen() {
     setActiveScreen("dashboard");
     setSickMode(false);
   };
+
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   // When storage hasn't loaded yet, show main app so the content area is never blank (avoids stuck splash-like screen).
   if (showOnboarding === true) {
@@ -193,15 +195,17 @@ export default function MainScreen() {
   return <View style={styles.container}>{content}</View>;
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: "row",
-    minHeight: 1,
-    backgroundColor: C.background,
-  },
-  tabletContent: {
-    flex: 1,
-    minWidth: 0,
-  },
-});
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      flexDirection: "row",
+      minHeight: 1,
+      backgroundColor: C.background,
+    },
+    tabletContent: {
+      flex: 1,
+      minWidth: 0,
+    },
+  });
+}

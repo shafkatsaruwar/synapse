@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -13,13 +13,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import SynapseLogo from "@/components/SynapseLogo";
 import { featureFlags } from "@/constants/feature-flags";
 import { useAuth } from "@/contexts/AuthContext";
 import { settingsStorage } from "@/lib/storage";
-
-const C = Colors.dark;
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -86,6 +84,8 @@ export default function SidebarLayout({
   const [moreOpen, setMoreOpen] = useState(false);
   const drawerSlide = useRef(new Animated.Value(1)).current;
   const { user, session, signOut } = useAuth();
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [settingsName, setSettingsName] = useState<string | undefined>(undefined);
   const [enabledSections, setEnabledSections] = useState<string[] | undefined>(undefined);
 
@@ -302,7 +302,7 @@ export default function SidebarLayout({
                         const active = !isLogout && activeScreen === item.key;
                         const dimmed = !isLogout && sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
                         const accentColor = sickMode ? C.red : C.accent;
-                        const itemColor = isEmergency ? "#800020" : (active ? accentColor : C.textSecondary);
+                        const itemColor = isEmergency ? C.tint : (active ? accentColor : C.textSecondary);
                         return (
                           <Pressable
                             key={item.key}
@@ -339,7 +339,7 @@ export default function SidebarLayout({
                             >
                               {item.label}
                             </Text>
-                            <Ionicons name="chevron-forward" size={16} color={isEmergency ? "#800020" : C.textSecondary} />
+                            <Ionicons name="chevron-forward" size={16} color={isEmergency ? C.tint : C.textSecondary} />
                           </Pressable>
                         );
                       })}
@@ -364,273 +364,275 @@ export default function SidebarLayout({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: "row",
-    backgroundColor: C.background,
-  },
-  sidebar: {
-    width: 220,
-    backgroundColor: C.sidebar,
-    borderRightWidth: 1,
-    borderRightColor: C.border,
-    paddingHorizontal: 12,
-    justifyContent: "space-between",
-  },
-  brand: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingBottom: 28,
-  },
-  brandText: {
-    fontWeight: "700",
-    fontSize: 20,
-    color: C.text,
-    letterSpacing: -0.5,
-  },
-  navList: {
-    flex: 1,
-    gap: 2,
-  },
-  navItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  navItemActive: {
-    backgroundColor: C.sidebarActive,
-  },
-  navLabel: {
-    fontWeight: "500",
-    fontSize: 14,
-    color: C.textTertiary,
-  },
-  navLabelActive: {
-    color: C.text,
-    fontWeight: "600",
-  },
-  sidebarFooter: {
-    paddingBottom: 20,
-  },
-  sidebarDivider: {
-    height: 1,
-    backgroundColor: C.border,
-    marginBottom: 12,
-  },
-  sidebarVersion: {
-    fontWeight: "400",
-    fontSize: 11,
-    color: C.textTertiary,
-    paddingHorizontal: 12,
-  },
-  main: {
-    flex: 1,
-    minWidth: 0,
-    backgroundColor: C.background,
-  },
-  mobileContainer: {
-    flex: 1,
-    minHeight: 1,
-    backgroundColor: C.background,
-  },
-  mobileHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    backgroundColor: C.background,
-  },
-  mobileMenuBtn: {
-    padding: 6,
-    marginLeft: -6,
-  },
-  mobileHeaderSpacer: { width: 1, minWidth: 1 },
-  headerSpacerLeft: { flex: 1 },
-  mobileContent: {
-    flex: 1,
-    minHeight: 1,
-    paddingHorizontal: 8,
-  },
-  mobileNav: {
-    position: "absolute",
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: C.surface,
-    borderRadius: 28,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: C.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  mobileNavContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    flex: 1,
-  },
-  mobileNavItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-  },
-  drawerContainer: {
-    flex: 1,
-    flexDirection: "row",
-  },
-  drawerOverlay: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    right: 0,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  drawerPanel: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: C.background,
-    borderRightWidth: 1,
-    borderRightColor: C.border,
-    paddingHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  drawerScroll: {
-    flex: 1,
-  },
-  drawerScrollContent: {
-    flexGrow: 1,
-    paddingBottom: 8,
-  },
-  drawerProfile: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  drawerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: C.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 6,
-  },
-  drawerAvatarText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: C.accent,
-  },
-  drawerProfileName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: C.text,
-    marginBottom: 1,
-  },
-  drawerProfileEmail: {
-    fontSize: 12,
-    color: C.textTertiary,
-    marginBottom: 2,
-  },
-  drawerProfileStatus: {
-    fontSize: 11,
-    color: C.textTertiary,
-  },
-  drawerSignInLink: {
-    alignSelf: "flex-start",
-    marginTop: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 0,
-  },
-  drawerSignInLinkText: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: C.accent,
-  },
-  drawerGroup: {
-    marginTop: 14,
-    marginBottom: 10,
-  },
-  drawerGroupFirst: {
-    marginTop: 10,
-  },
-  drawerGroupTitle: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: C.textTertiary,
-    letterSpacing: 0.5,
-    marginBottom: 4,
-    paddingHorizontal: 4,
-  },
-  drawerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    marginBottom: 1,
-  },
-  drawerRowActive: {
-    backgroundColor: (C.accent + "12") as string,
-    borderLeftWidth: 3,
-    borderLeftColor: C.accent,
-    paddingLeft: 11,
-  },
-  drawerRowPressed: {
-    backgroundColor: C.surface,
-  },
-  drawerRowEmergency: {
-    backgroundColor: "rgba(128,0,32,0.08)",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(128,0,32,0.25)",
-  },
-  drawerRowIcon: {
-    marginRight: 10,
-  },
-  drawerRowLabel: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "500",
-    color: C.text,
-  },
-  drawerFooter: {
-    marginTop: 6,
-    paddingBottom: 4,
-  },
-  drawerFooterDivider: {
-    height: 1,
-    backgroundColor: C.border,
-    marginBottom: 6,
-  },
-  drawerFooterContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 4,
-  },
-  drawerFooterText: {
-    fontSize: 11,
-    color: C.textTertiary,
-  },
-});
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      flexDirection: "row",
+      backgroundColor: C.background,
+    },
+    sidebar: {
+      width: 220,
+      backgroundColor: C.sidebar,
+      borderRightWidth: 1,
+      borderRightColor: C.border,
+      paddingHorizontal: 12,
+      justifyContent: "space-between",
+    },
+    brand: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 12,
+      paddingBottom: 28,
+    },
+    brandText: {
+      fontWeight: "700",
+      fontSize: 20,
+      color: C.text,
+      letterSpacing: -0.5,
+    },
+    navList: {
+      flex: 1,
+      gap: 2,
+    },
+    navItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+    },
+    navItemActive: {
+      backgroundColor: C.sidebarActive,
+    },
+    navLabel: {
+      fontWeight: "500",
+      fontSize: 14,
+      color: C.textTertiary,
+    },
+    navLabelActive: {
+      color: C.text,
+      fontWeight: "600",
+    },
+    sidebarFooter: {
+      paddingBottom: 20,
+    },
+    sidebarDivider: {
+      height: 1,
+      backgroundColor: C.border,
+      marginBottom: 12,
+    },
+    sidebarVersion: {
+      fontWeight: "400",
+      fontSize: 11,
+      color: C.textTertiary,
+      paddingHorizontal: 12,
+    },
+    main: {
+      flex: 1,
+      minWidth: 0,
+      backgroundColor: C.background,
+    },
+    mobileContainer: {
+      flex: 1,
+      minHeight: 1,
+      backgroundColor: C.background,
+    },
+    mobileHeaderRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 8,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: C.border,
+      backgroundColor: C.background,
+    },
+    mobileMenuBtn: {
+      padding: 6,
+      marginLeft: -6,
+    },
+    mobileHeaderSpacer: { width: 1, minWidth: 1 },
+    headerSpacerLeft: { flex: 1 },
+    mobileContent: {
+      flex: 1,
+      minHeight: 1,
+      paddingHorizontal: 8,
+    },
+    mobileNav: {
+      position: "absolute",
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: C.surface,
+      borderRadius: 28,
+      paddingVertical: 10,
+      paddingHorizontal: 8,
+      borderWidth: 1,
+      borderColor: C.border,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    mobileNavContent: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-around",
+      flex: 1,
+    },
+    mobileNavItem: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 8,
+      paddingHorizontal: 20,
+    },
+    drawerContainer: {
+      flex: 1,
+      flexDirection: "row",
+    },
+    drawerOverlay: {
+      position: "absolute",
+      left: 0,
+      top: 0,
+      bottom: 0,
+      right: 0,
+      backgroundColor: "rgba(0,0,0,0.4)",
+    },
+    drawerPanel: {
+      position: "absolute",
+      left: 0,
+      top: 0,
+      bottom: 0,
+      backgroundColor: C.background,
+      borderRightWidth: 1,
+      borderRightColor: C.border,
+      paddingHorizontal: 20,
+      shadowColor: "#000",
+      shadowOffset: { width: 2, height: 0 },
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      elevation: 8,
+    },
+    drawerScroll: {
+      flex: 1,
+    },
+    drawerScrollContent: {
+      flexGrow: 1,
+      paddingBottom: 8,
+    },
+    drawerProfile: {
+      paddingVertical: 8,
+      paddingHorizontal: 4,
+    },
+    drawerAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: C.surface,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 6,
+    },
+    drawerAvatarText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: C.accent,
+    },
+    drawerProfileName: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: C.text,
+      marginBottom: 1,
+    },
+    drawerProfileEmail: {
+      fontSize: 12,
+      color: C.textTertiary,
+      marginBottom: 2,
+    },
+    drawerProfileStatus: {
+      fontSize: 11,
+      color: C.textTertiary,
+    },
+    drawerSignInLink: {
+      alignSelf: "flex-start",
+      marginTop: 4,
+      paddingVertical: 2,
+      paddingHorizontal: 0,
+    },
+    drawerSignInLinkText: {
+      fontSize: 13,
+      fontWeight: "500",
+      color: C.accent,
+    },
+    drawerGroup: {
+      marginTop: 14,
+      marginBottom: 10,
+    },
+    drawerGroupFirst: {
+      marginTop: 10,
+    },
+    drawerGroupTitle: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: C.textTertiary,
+      letterSpacing: 0.5,
+      marginBottom: 4,
+      paddingHorizontal: 4,
+    },
+    drawerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 8,
+      paddingHorizontal: 8,
+      borderRadius: 8,
+      marginBottom: 1,
+    },
+    drawerRowActive: {
+      backgroundColor: (C.accent + "12") as string,
+      borderLeftWidth: 3,
+      borderLeftColor: C.accent,
+      paddingLeft: 11,
+    },
+    drawerRowPressed: {
+      backgroundColor: C.surface,
+    },
+    drawerRowEmergency: {
+      backgroundColor: C.tintLight,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: C.tint + "40",
+    },
+    drawerRowIcon: {
+      marginRight: 10,
+    },
+    drawerRowLabel: {
+      flex: 1,
+      fontSize: 14,
+      fontWeight: "500",
+      color: C.text,
+    },
+    drawerFooter: {
+      marginTop: 6,
+      paddingBottom: 4,
+    },
+    drawerFooterDivider: {
+      height: 1,
+      backgroundColor: C.border,
+      marginBottom: 6,
+    },
+    drawerFooterContent: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      paddingHorizontal: 4,
+    },
+    drawerFooterText: {
+      fontSize: 11,
+      color: C.textTertiary,
+    },
+  });
+}

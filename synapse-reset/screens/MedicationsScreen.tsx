@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, Alert, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import ReadAloudButton from "@/components/ReadAloudButton";
 import {
   medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage, doctorsStorage,
@@ -14,16 +14,18 @@ import {
 import { getMedList, addMedListItem, removeMedListItem, updateMedListItem, type MedListItem, type MedListDose, type MedListDoseTime } from "@/lib/med-list-storage";
 import { getToday } from "@/lib/date-utils";
 
-const C = Colors.dark;
 const TIME_TAGS: string[] = ["Morning", "Afternoon", "Night", "Before Fajr", "After Iftar"];
 const MED_LIST_DOSE_TIMES: MedListDoseTime[] = ["Morning", "Afternoon", "Evening", "Night", "As Needed"];
-const TAG_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
-  Morning: { bg: C.tintLight, text: C.tint, icon: "sunny-outline" },
-  Afternoon: { bg: C.yellowLight, text: C.yellow, icon: "partly-sunny-outline" },
-  Night: { bg: C.purpleLight, text: C.purple, icon: "moon-outline" },
-  "Before Fajr": { bg: C.accentLight, text: C.accent, icon: "moon-outline" },
-  "After Iftar": { bg: C.orangeLight, text: C.orange, icon: "restaurant-outline" },
-};
+
+function makeTagColors(C: Theme): Record<string, { bg: string; text: string; icon: string }> {
+  return {
+    Morning: { bg: C.tintLight, text: C.tint, icon: "sunny-outline" },
+    Afternoon: { bg: C.yellowLight, text: C.yellow, icon: "partly-sunny-outline" },
+    Night: { bg: C.purpleLight, text: C.purple, icon: "moon-outline" },
+    "Before Fajr": { bg: C.accentLight, text: C.accent, icon: "moon-outline" },
+    "After Iftar": { bg: C.orangeLight, text: C.orange, icon: "restaurant-outline" },
+  };
+}
 
 const ROUTE_EMOJIS: Record<string, string> = {
   oral: "💊", tablet: "💊", capsule: "💊", chewable: "💊",
@@ -49,6 +51,9 @@ export default function MedicationsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
+  const TAG_COLORS = useMemo(() => makeTagColors(C), [C]);
   const today = getToday();
 
   const [medications, setMedications] = useState<Medication[]>([]);
@@ -1038,7 +1043,8 @@ export default function MedicationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   headerSticky: { paddingHorizontal: 24 },
@@ -1174,4 +1180,5 @@ const styles = StyleSheet.create({
   symptomChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
   symptomChipActive: { borderColor: "rgba(255,69,58,0.4)", backgroundColor: "rgba(255,69,58,0.1)" },
   symptomChipText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
-});
+  });
+}

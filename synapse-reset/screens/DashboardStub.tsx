@@ -1,14 +1,14 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Colors from "@/constants/colors";
-
-const C = Colors.dark;
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 
 /**
  * Batch E (1.8.5) — Dashboard stub; Reanimated removed to avoid TestFlight crash.
  */
 export default function DashboardStub() {
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const insets = useSafeAreaInsets();
 
   return (
@@ -33,41 +33,43 @@ export default function DashboardStub() {
   );
 }
 
-const styles = StyleSheet.create({
-  scroll: { flex: 1 },
-  container: {
-    flexGrow: 1,
-    backgroundColor: C.background,
-    paddingHorizontal: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: C.text,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: C.textSecondary,
-    marginBottom: 24,
-  },
-  card: {
-    backgroundColor: C.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: C.borderLight,
-  },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: C.text,
-    marginBottom: 6,
-  },
-  cardBody: {
-    fontSize: 14,
-    color: C.textSecondary,
-    lineHeight: 20,
-  },
-});
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
+    scroll: { flex: 1 },
+    container: {
+      flexGrow: 1,
+      backgroundColor: C.background,
+      paddingHorizontal: 20,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: "700",
+      color: C.text,
+      marginBottom: 4,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: C.textSecondary,
+      marginBottom: 24,
+    },
+    card: {
+      backgroundColor: C.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: C.borderLight,
+    },
+    cardTitle: {
+      fontSize: 17,
+      fontWeight: "600",
+      color: C.text,
+      marginBottom: 6,
+    },
+    cardBody: {
+      fontSize: 14,
+      color: C.textSecondary,
+      lineHeight: 20,
+    },
+  });
+}

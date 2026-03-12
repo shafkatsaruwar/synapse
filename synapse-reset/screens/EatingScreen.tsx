@@ -1,15 +1,13 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Modal, TextInput, Platform, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { eatingStorage, type EatingEntry, type EatingAmount } from "@/lib/storage";
 import { getToday, getDaysAgo, formatDate } from "@/lib/date-utils";
-
-const C = Colors.dark;
 
 const AMOUNTS: { key: EatingAmount; label: string }[] = [
   { key: "small", label: "Small" },
@@ -18,6 +16,8 @@ const AMOUNTS: { key: EatingAmount; label: string }[] = [
 ];
 
 export default function EatingScreen() {
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -180,40 +180,42 @@ export default function EatingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
-  content: { paddingHorizontal: 24 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
-  title: { fontWeight: "700", fontSize: 28, color: C.text, marginBottom: 4 },
-  subtitle: { fontSize: 14, color: C.textSecondary },
-  addBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
-  rangeRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
-  rangeChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: C.surface },
-  rangeChipActive: { backgroundColor: C.tintLight },
-  rangeChipText: { fontSize: 14, fontWeight: "500", color: C.textSecondary },
-  rangeChipTextActive: { color: C.tint },
-  empty: { alignItems: "center", paddingVertical: 48 },
-  emptyTitle: { fontWeight: "600", fontSize: 18, color: C.text, marginTop: 12 },
-  emptyDesc: { fontSize: 14, color: C.textTertiary, marginTop: 4 },
-  dateBlock: { marginBottom: 20 },
-  dateLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 8 },
-  entryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 8 },
-  entryMain: { flex: 1 },
-  entryWhat: { fontWeight: "500", fontSize: 15, color: C.text },
-  entryAmount: { fontSize: 13, color: C.textSecondary, marginTop: 2, textTransform: "capitalize" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 },
-  modalBox: { backgroundColor: C.surface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: C.border },
-  modalTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 16 },
-  modalInput: { backgroundColor: C.background, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: C.text, marginBottom: 16 },
-  modalLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 8 },
-  amountRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
-  amountChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: C.background },
-  amountChipActive: { backgroundColor: C.tintLight },
-  amountChipText: { fontSize: 14, fontWeight: "500", color: C.textSecondary },
-  amountChipTextActive: { color: C.tint },
-  modalActions: { flexDirection: "row", gap: 12, justifyContent: "flex-end" },
-  modalCancel: { paddingVertical: 10, paddingHorizontal: 16 },
-  modalCancelText: { fontSize: 16, color: C.textSecondary },
-  modalSave: { backgroundColor: C.tint, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12 },
-  modalSaveText: { fontSize: 16, fontWeight: "600", color: "#fff" },
-});
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    content: { paddingHorizontal: 24 },
+    header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
+    title: { fontWeight: "700", fontSize: 28, color: C.text, marginBottom: 4 },
+    subtitle: { fontSize: 14, color: C.textSecondary },
+    addBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+    rangeRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
+    rangeChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: C.surface },
+    rangeChipActive: { backgroundColor: C.tintLight },
+    rangeChipText: { fontSize: 14, fontWeight: "500", color: C.textSecondary },
+    rangeChipTextActive: { color: C.tint },
+    empty: { alignItems: "center", paddingVertical: 48 },
+    emptyTitle: { fontWeight: "600", fontSize: 18, color: C.text, marginTop: 12 },
+    emptyDesc: { fontSize: 14, color: C.textTertiary, marginTop: 4 },
+    dateBlock: { marginBottom: 20 },
+    dateLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 8 },
+    entryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 8 },
+    entryMain: { flex: 1 },
+    entryWhat: { fontWeight: "500", fontSize: 15, color: C.text },
+    entryAmount: { fontSize: 13, color: C.textSecondary, marginTop: 2, textTransform: "capitalize" },
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 },
+    modalBox: { backgroundColor: C.surface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: C.border },
+    modalTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 16 },
+    modalInput: { backgroundColor: C.background, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: C.text, marginBottom: 16 },
+    modalLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 8 },
+    amountRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
+    amountChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: C.background },
+    amountChipActive: { backgroundColor: C.tintLight },
+    amountChipText: { fontSize: 14, fontWeight: "500", color: C.textSecondary },
+    amountChipTextActive: { color: C.tint },
+    modalActions: { flexDirection: "row", gap: 12, justifyContent: "flex-end" },
+    modalCancel: { paddingVertical: 10, paddingHorizontal: 16 },
+    modalCancelText: { fontSize: 16, color: C.textSecondary },
+    modalSave: { backgroundColor: C.tint, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12 },
+    modalSaveText: { fontSize: 16, fontWeight: "600", color: "#fff" },
+  });
+}

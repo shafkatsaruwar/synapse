@@ -1,0 +1,38 @@
+import { Theme } from "@/contexts/ThemeContext";
+
+const light: Theme = {
+  background: "#FFFFFF",
+  surface: "#F7F8FA",
+  surfaceElevated: "#EDEEF0",
+  surfaceHover: "#E5E7EB",
+  border: "#E5E7EB",
+  borderLight: "#F3F4F6",
+  text: "#111111",
+  textSecondary: "#6B7280",
+  textTertiary: "#9CA3AF",
+  tint: "#8B1E2D",
+  tintLight: "rgba(139,30,45,0.10)",
+  accent: "#8B1E2D",
+  accentLight: "rgba(139,30,45,0.10)",
+  green: "#2D7D46",
+  greenLight: "rgba(45,125,70,0.12)",
+  orange: "#CC6600",
+  orangeLight: "rgba(204,102,0,0.12)",
+  red: "#CC0000",
+  redLight: "rgba(204,0,0,0.12)",
+  yellow: "#B8860B",
+  yellowLight: "rgba(184,134,11,0.12)",
+  cyan: "#2E8B8B",
+  cyanLight: "rgba(46,139,139,0.12)",
+  pink: "#CC3355",
+  pinkLight: "rgba(204,51,85,0.12)",
+  purple: "#6B3FA0",
+  purpleLight: "rgba(107,63,160,0.12)",
+  tabIconDefault: "#9CA3AF",
+  tabIconSelected: "#8B1E2D",
+  sidebar: "#F7F8FA",
+  sidebarActive: "rgba(139,30,45,0.08)",
+  sidebarHover: "rgba(139,30,45,0.05)",
+};
+
+export default light;

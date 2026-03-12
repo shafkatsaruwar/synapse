@@ -9,9 +9,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import * as SplashScreen from "expo-splash-screen";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { queryClient } from "@/lib/query-client";
-import Colors from "@/constants/colors";
-
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
@@ -28,7 +27,7 @@ export default function RootLayout() {
   if (!ready) {
     return (
       <View
-        style={{ flex: 1, backgroundColor: Colors.dark.background }}
+        style={{ flex: 1, backgroundColor: "#FDF1E5" }}
       />
     );
   }
@@ -38,9 +37,11 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              <Stack screenOptions={{ headerShown: false }} />
-            </AuthProvider>
+            <ThemeProvider>
+              <AuthProvider>
+                <Stack screenOptions={{ headerShown: false }} />
+              </AuthProvider>
+            </ThemeProvider>
           </QueryClientProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>

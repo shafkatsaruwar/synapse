@@ -1,11 +1,9 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { StyleSheet, Text, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { settingsStorage, sickModeStorage } from "@/lib/storage";
-
-const C = Colors.dark;
 
 interface SickModeHeaderButtonProps {
   onActivate: () => void;
@@ -14,6 +12,8 @@ interface SickModeHeaderButtonProps {
 }
 
 export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKey }: SickModeHeaderButtonProps) {
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [isActive, setIsActive] = useState(false);
 
   const load = useCallback(async () => {
@@ -58,28 +58,30 @@ export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKe
   );
 }
 
-const styles = StyleSheet.create({
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "rgba(139, 38, 53, 0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(139, 38, 53, 0.35)",
-  },
-  pillActive: {
-    backgroundColor: "rgba(139, 38, 53, 0.18)",
-    borderColor: "rgba(139, 38, 53, 0.5)",
-  },
-  pillText: {
-    fontWeight: "600",
-    fontSize: 12,
-    color: "#8B2635",
-  },
-  pillTextActive: {
-    color: C.red,
-  },
-});
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
+    pill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: "rgba(139, 38, 53, 0.1)",
+      borderWidth: 1,
+      borderColor: "rgba(139, 38, 53, 0.35)",
+    },
+    pillActive: {
+      backgroundColor: "rgba(139, 38, 53, 0.18)",
+      borderColor: "rgba(139, 38, 53, 0.5)",
+    },
+    pillText: {
+      fontWeight: "600",
+      fontSize: 12,
+      color: "#8B2635",
+    },
+    pillTextActive: {
+      color: C.red,
+    },
+  });
+}

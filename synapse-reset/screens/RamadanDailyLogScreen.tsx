@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { getToday, formatTime12h } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
 import {
@@ -21,8 +21,6 @@ import {
   type RamadanDailyLogEntry,
   type WaterUnit,
 } from "@/lib/ramadan-daily-log-storage";
-
-const C = Colors.dark;
 
 const energyLabels = ["Low", "Fair", "Good", "Great", "Excellent"];
 const moodLabels = ["Down", "Low", "Okay", "Good", "Great"];
@@ -71,6 +69,8 @@ export default function RamadanDailyLogScreen({ onBack }: RamadanDailyLogScreenP
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const today = getToday();
   const ramadanDay = getTodayRamadan(today);
 
@@ -245,7 +245,8 @@ export default function RamadanDailyLogScreen({ onBack }: RamadanDailyLogScreenP
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   header: {
     flexDirection: "row",
@@ -353,3 +354,4 @@ const styles = StyleSheet.create({
   saveBtnSaved: { backgroundColor: C.green },
   saveBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
 });
+}
