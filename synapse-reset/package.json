@@ -4,6 +4,8 @@
   "version": "1.9.5",
   "scripts": {
     "postinstall": "node scripts/patch-dom-webview.js",
+    "install-hooks": "node scripts/install-hooks.js",
+    "prepare": "node scripts/install-hooks.js",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",

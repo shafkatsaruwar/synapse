@@ -1,0 +1,16 @@
+#!/bin/sh
+# Auto-increment iOS build number on every commit (so each change gets a new build).
+# Install once: npm run install-hooks (or node scripts/install-hooks.js)
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT" || exit 1
+
+if [ -f "synapse-reset/scripts/bump-build.js" ]; then
+  node synapse-reset/scripts/bump-build.js
+  git add synapse-reset/app.config.js
+elif [ -f "scripts/bump-build.js" ]; then
+  node scripts/bump-build.js
+  git add app.config.js
+fi
+
+exit 0

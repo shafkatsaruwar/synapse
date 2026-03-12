@@ -85,14 +85,14 @@ function DashboardHero({
 
   const heroGradientColors =
     themeId === "dark"
-      ? ["#0F172A", "#0F172A"]
+      ? ["#0F0F10", "#0F0F10"]
       : ["#E6D3BD", "#E6D3BD"];
 
-  const heroBorderColor = themeId === "dark" ? C.border : "#D6BFA6";
+  const heroBorderColor = themeId === "dark" ? "#2A2A2A" : "#D6BFA6";
 
   const miniCardBackground =
-    themeId === "dark" ? "#1E293B" : "#F3E6D8";
-  const miniCardBorderColor = themeId === "dark" ? C.border : "#E2CFC0";
+    themeId === "dark" ? "#161616" : "#F3E6D8";
+  const miniCardBorderColor = themeId === "dark" ? "#2A2A2A" : "#E2CFC0";
 
   return (
     <View style={[styles.dashboardHero, { borderColor: heroBorderColor }]}>

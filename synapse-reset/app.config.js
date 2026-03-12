@@ -32,7 +32,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
-      buildNumber: "4",
+      buildNumber: "5",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSAppTransportSecurity: {
