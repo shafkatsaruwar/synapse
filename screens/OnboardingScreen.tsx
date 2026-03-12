@@ -14,8 +14,6 @@ import { getBackupStatus, restoreFromCloud } from "@/lib/backup";
 const brainLogo = require("../assets/images/brain-logo.jpeg");
 
 
-const MAROON_LIGHT = "rgba(128,0,32,0.12)";
-
 interface OnboardingScreenProps {
   onComplete: () => void;
 }
@@ -309,7 +307,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           <Image source={founderImage} style={styles.photoImage} />
         </View>
       </AnimatedView>
-      <AnimatedLine text="Why Synapse exists" delay={300} style={styles.founderTitle} color={MAROON} />
+      <AnimatedLine text="Why Synapse exists" delay={300} style={styles.founderTitle} color={C.tint} />
       <AnimatedLine text="This app was not built in a boardroom." delay={600} style={styles.founderSub} />
       <AnimatedLine text="It was built from a hospital bed," delay={900} style={styles.founderSub} />
       <AnimatedLine text="from years of managing a condition" delay={1200} style={styles.founderSub} />
@@ -321,7 +319,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     {
       lines: [
         { text: "The app you are about to use", delay: 0, color: C.text },
-        { text: "was built for survival.", delay: 400, color: MAROON },
+        { text: "was built for survival.", delay: 400, color: C.tint },
       ],
     },
     {
@@ -340,7 +338,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         { text: "Every symptom is a decision.", delay: 800, color: C.text },
         { text: "", delay: 1000, color: C.text },
         { text: "This is not fitness.", delay: 1200, color: C.textSecondary },
-        { text: "This is stability.", delay: 1500, color: MAROON },
+        { text: "This is stability.", delay: 1500, color: C.tint },
       ],
     },
     {
@@ -350,7 +348,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         { text: "I needed something", delay: 500, color: C.text },
         { text: "that tracks life-saving routines.", delay: 800, color: C.text },
         { text: "", delay: 1000, color: C.text },
-        { text: "So I built it.", delay: 1300, color: MAROON },
+        { text: "So I built it.", delay: 1300, color: C.tint },
       ],
     },
     {
@@ -363,7 +361,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         { emoji: "🧠", text: "Brain fog and fatigue", delay: 1000 },
         { emoji: "🩺", text: "The need for structure", delay: 1300 },
       ],
-      footer: { text: "Because I live it.", delay: 1700, color: MAROON },
+      footer: { text: "Because I live it.", delay: 1700, color: C.tint },
     },
     {
       lines: [
@@ -373,7 +371,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         { text: "I depend on every day.", delay: 800, color: C.text },
       ],
       divider: true,
-      footer: { text: "Built by a patient.\nFor patients who cannot afford mistakes.", delay: 1400, color: MAROON },
+      footer: { text: "Built by a patient.\nFor patients who cannot afford mistakes.", delay: 1400, color: C.tint },
     },
   ];
 
@@ -601,7 +599,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           return (
             <Pressable
               key={key}
-              style={[styles.medChip, isSelected && { borderColor: MAROON, backgroundColor: MAROON_LIGHT }]}
+              style={[styles.medChip, isSelected && { borderColor: C.tint, backgroundColor: C.tintLight }]}
               onPress={() => toggleSection(key)}
             >
               <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
@@ -623,7 +621,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           <Ionicons name="checkmark" size={48} color="#fff" />
         </Animated.View>
       </Animated.View>
-      <AnimatedLine text="Synapse is ready." delay={800} style={styles.completionTitle} color={MAROON} />
+      <AnimatedLine text="Synapse is ready." delay={800} style={styles.completionTitle} color={C.tint} />
       <AnimatedLine text="Your stability system. Built to prevent mistakes." delay={1200} style={styles.completionSub} color={C.textSecondary} />
     </View>
   );
@@ -684,10 +682,10 @@ function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTh
   dotContainer: { width: 14, height: 14, alignItems: "center", justifyContent: "center" },
   dotGlow: {
     position: "absolute", width: 14, height: 14, borderRadius: 7,
-    backgroundColor: MAROON_LIGHT,
+    backgroundColor: C.tintLight,
   },
   dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "rgba(128,0,32,0.2)" },
-  dotActive: { width: 10, height: 10, borderRadius: 5, backgroundColor: MAROON },
+  dotActive: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.tint },
   dotDone: { backgroundColor: "rgba(128,0,32,0.4)" },
 
   welcomeCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
@@ -703,7 +701,7 @@ function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTh
 
   photoCircle: {
     width: 120, height: 120, borderRadius: 60, overflow: "hidden",
-    borderWidth: 3, borderColor: MAROON,
+    borderWidth: 3, borderColor: C.tint,
     alignSelf: "center", marginBottom: 28,
   },
   photoImage: { width: "100%", height: "100%", resizeMode: "cover" },
@@ -741,7 +739,7 @@ function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTh
   },
   nameInput: {
     fontWeight: "500", fontSize: 22, color: C.text, textAlign: "center",
-    borderBottomWidth: 2, borderBottomColor: MAROON, paddingVertical: 14,
+    borderBottomWidth: 2, borderBottomColor: C.tint, paddingVertical: 14,
     width: 260,
   },
   nameHint: {
@@ -772,7 +770,7 @@ function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTh
     borderWidth: 1, borderColor: C.border,
   },
   addBtn: {
-    width: 48, borderRadius: 14, backgroundColor: MAROON,
+    width: 48, borderRadius: 14, backgroundColor: C.tint,
     alignItems: "center", justifyContent: "center",
   },
   unitRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
@@ -780,9 +778,9 @@ function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTh
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
     borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
   },
-  unitChipActive: { borderColor: MAROON, backgroundColor: MAROON_LIGHT },
+  unitChipActive: { borderColor: C.tint, backgroundColor: C.tintLight },
   unitChipText: { fontWeight: "500", fontSize: 14, color: C.textSecondary },
-  unitChipTextActive: { color: MAROON, fontWeight: "600" },
+  unitChipTextActive: { color: C.tint, fontWeight: "600" },
   fieldHint: {
     fontWeight: "400", fontSize: 14, color: C.textTertiary,
     textAlign: "center", marginTop: 16,
@@ -792,7 +790,7 @@ function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTh
     width: 24, height: 24, borderRadius: 8, borderWidth: 2, borderColor: C.border,
     alignItems: "center", justifyContent: "center", backgroundColor: C.surface,
   },
-  sectionCheckboxActive: { backgroundColor: MAROON, borderColor: MAROON },
+  sectionCheckboxActive: { backgroundColor: C.tint, borderColor: C.tint },
   medChipRow: { marginBottom: 8 },
   medChip: {
     flexDirection: "row", alignItems: "center", gap: 12,
@@ -814,7 +812,7 @@ function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTh
   completionCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
   completionCircle: {
     width: 100, height: 100, borderRadius: 50,
-    backgroundColor: MAROON, alignItems: "center", justifyContent: "center",
+    backgroundColor: C.tint, alignItems: "center", justifyContent: "center",
     marginBottom: 32,
   },
   completionTitle: {
@@ -828,7 +826,7 @@ function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTh
 
   continueBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: MAROON, borderRadius: 16, paddingVertical: 18,
+    backgroundColor: C.tint, borderRadius: 16, paddingVertical: 18,
   },
   continueBtnText: { fontWeight: "600", fontSize: 17, color: "#fff" },
   });
