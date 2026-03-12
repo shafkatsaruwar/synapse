@@ -15,6 +15,7 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
 import { getBackupStatus, backupNow, restoreFromCloud, type BackupStatus } from "@/lib/backup";
+import { conditionStorage } from "@/lib/storage";
 
 const C = Colors.dark;
 const MAROON = "#800020";
@@ -33,6 +34,7 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
   const [backupLoading, setBackupLoading] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [conditionsCount, setConditionsCount] = useState(0);
 
   useEffect(() => {
     if (user?.id) {
@@ -40,6 +42,7 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
     } else {
       setBackupStatus(null);
     }
+    conditionStorage.getAll().then((conds) => setConditionsCount(conds.length));
   }, [user?.id]);
 
   const handleBackupNow = async () => {
@@ -133,6 +136,45 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
               {user?.email ? <Text style={styles.email}>{user.email}</Text> : null}
             </View>
           </View>
+        </View>
+
+        {/* Conditions & Allergy */}
+        <View style={styles.card}>
+          <Pressable
+            style={styles.navRow}
+            onPress={() => { Haptics.selectionAsync(); onNavigate?.("healthprofileconditions"); }}
+            accessibilityRole="button"
+            accessibilityLabel={`Conditions, ${conditionsCount} added`}
+          >
+            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
+              <Ionicons name="clipboard-outline" size={16} color={C.tint} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>Conditions</Text>
+              <Text style={styles.rowDesc}>
+                {conditionsCount > 0 ? `${conditionsCount} condition${conditionsCount !== 1 ? "s" : ""} added` : "None added yet"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+          </Pressable>
+
+          <View style={styles.divider} />
+
+          <Pressable
+            style={styles.navRow}
+            onPress={() => { Haptics.selectionAsync(); onNavigate?.("allergy"); }}
+            accessibilityRole="button"
+            accessibilityLabel="Allergy and emergency info"
+          >
+            <View style={[styles.profileIcon, { backgroundColor: C.orangeLight }]}>
+              <Ionicons name="warning-outline" size={16} color={C.orange} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>Allergy & Emergency Info</Text>
+              <Text style={styles.rowDesc}>Allergies, EpiPen, emergency details</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+          </Pressable>
         </View>
 
         {/* Cloud Backup Card */}
@@ -248,6 +290,11 @@ const styles = StyleSheet.create({
   profileInfo: { flex: 1, minWidth: 0 },
   fullName: { fontWeight: "700", fontSize: 18, color: C.text },
   email: { fontWeight: "400", fontSize: 13, color: C.textTertiary, marginTop: 2 },
+  navRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 16 },
+  profileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  rowTitle: { fontWeight: "600", fontSize: 15, color: C.text },
+  rowDesc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
+  divider: { height: 1, backgroundColor: C.border, marginLeft: 16, marginRight: 16 },
   cardTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 4 },
   lastSynced: { fontWeight: "400", fontSize: 13, color: C.textTertiary, marginBottom: 14 },
   backupActions: { flexDirection: "row", gap: 10 },
