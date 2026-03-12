@@ -2,8 +2,8 @@ import { Theme } from "@/contexts/ThemeContext";
 
 const calm: Theme = {
   background: "#FDF1E5",
-  surface: "#F5E0C8",
-  surfaceElevated: "#F0D8BC",
+  surface: "#EEDCCB",
+  surfaceElevated: "#E6D0BC",
   surfaceHover: "#EBCFAF",
   heroCardBackground: "#E9D5C1",
   border: "rgba(128,0,32,0.15)",

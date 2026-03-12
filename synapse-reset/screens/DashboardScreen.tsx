@@ -61,6 +61,106 @@ interface DashboardScreenProps {
   onRefreshKey?: number;
 }
 
+interface DashboardHeroProps {
+  ramadanDayLabel: string;
+  subtitle: string;
+  fajrTime: string;
+  iftarTime: string;
+  nextMedication: { name: string; time: string } | null;
+  nextApt: Appointment | null;
+  onNavigate: (screen: string) => void;
+}
+
+function DashboardHero({
+  ramadanDayLabel,
+  subtitle,
+  fajrTime,
+  iftarTime,
+  nextMedication,
+  nextApt,
+  onNavigate,
+}: DashboardHeroProps) {
+  const { colors: C, themeId } = useTheme();
+  const styles = useMemo(() => makeHeroStyles(C), [C]);
+
+  const heroGradientColors =
+    themeId === "dark"
+      ? ["#0F172A", "#0F172A"]
+      : ["#E6D3BD", "#E6D3BD"];
+
+  const heroBorderColor = themeId === "dark" ? C.border : "#D6BFA6";
+
+  const miniCardBackground =
+    themeId === "dark" ? "#1E293B" : "#F3E6D8";
+  const miniCardBorderColor = themeId === "dark" ? C.border : "#E2CFC0";
+
+  return (
+    <View style={[styles.dashboardHero, { borderColor: heroBorderColor }]}>
+      <LinearGradient
+        colors={heroGradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.dashboardHeroGradient}
+      >
+        <View style={styles.dashboardHeroHeader}>
+          <Text style={styles.dashboardHeroRamadan}>{ramadanDayLabel}</Text>
+          <Text style={styles.dashboardHeroSubtitle}>{subtitle}</Text>
+        </View>
+
+        <View style={styles.dashboardHeroTimesRow}>
+          <View style={styles.dashboardHeroTimeCol}>
+            <Text style={styles.dashboardHeroTimeLabel}>Fajr</Text>
+            <Text style={styles.dashboardHeroTimeValue}>{fajrTime}</Text>
+          </View>
+          <View style={styles.dashboardHeroTimeCol}>
+            <Text style={styles.dashboardHeroTimeLabel}>Iftar</Text>
+            <Text style={styles.dashboardHeroTimeValue}>{iftarTime}</Text>
+          </View>
+        </View>
+
+        <View style={styles.dashboardHeroMiniRow}>
+          <Pressable
+            style={[
+              styles.dashboardHeroMiniCard,
+              { backgroundColor: miniCardBackground, borderColor: miniCardBorderColor },
+            ]}
+            onPress={() => onNavigate("medications")}
+            accessibilityRole="button"
+            accessibilityLabel="Open Medications"
+          >
+            <Text style={styles.dashboardHeroMiniTitle}>
+              {nextMedication?.name || "Hydrocortisone"}
+            </Text>
+            <Text style={styles.dashboardHeroMiniSubtitle}>
+              {nextMedication?.time || "Morning dose"}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.dashboardHeroMiniCard,
+              { backgroundColor: miniCardBackground, borderColor: miniCardBorderColor },
+            ]}
+            onPress={() => onNavigate("appointments")}
+            accessibilityRole="button"
+            accessibilityLabel="Open Appointments"
+          >
+            <Text style={styles.dashboardHeroMiniTitle}>Next appointment</Text>
+            <Text style={styles.dashboardHeroMiniSubtitle}>
+              {nextApt?.doctorName || "Dr. Jordon LICSW"}
+            </Text>
+            <Text style={styles.dashboardHeroMiniSubtitle}>
+              {nextApt
+                ? `${formatDate(nextApt.date)} · ${formatTime12h(nextApt.time)}`
+                : "Tue Mar 17 · 10:00 AM"}
+            </Text>
+          </Pressable>
+        </View>
+      </LinearGradient>
+    </View>
+  );
+}
+
 function PriorityCard({ colors, icon, label, onPress, children }: { colors: [string, string]; icon: string; label: string; onPress: () => void; children: React.ReactNode }) {
   const scale = React.useRef(new Animated.Value(1)).current;
 
@@ -352,7 +452,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const contentPadding = {
     paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : 12),
     paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
-    paddingHorizontal: isWide ? 24 : 16,
   };
 
   const inner = (
@@ -368,77 +467,15 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
       {ramadanDay && (
         <View style={styles.ramadanSection}>
-          <LinearGradient
-            colors={[C.heroCardBackground, C.heroCardBackground]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.ramadanHero}
-          >
-            <View style={styles.ramadanHeroTopRow}>
-              <View style={{ flex: 1 }}>
-                {settings.ramadanMode && (
-                  <Text style={styles.ramadanDateText}>
-                    Ramadan {ramadanDay.hijriDay}{ordinalSuffix(ramadanDay.hijriDay)}, 1447 AH
-                  </Text>
-                )}
-                <Text style={styles.ramadanLocationText}>{goodDayMessage}</Text>
-              </View>
-            </View>
-            <View style={styles.ramadanHeroBottomRow}>
-              <View style={styles.ramadanTimeCard}>
-                <Text style={styles.ramadanTimeLabel}>{settings.ramadanMode ? "Fajr" : "Sunrise"}</Text>
-                <Text style={styles.ramadanTimeValue}>{sunriseTime}</Text>
-              </View>
-              <View style={styles.ramadanDivider} />
-              <View style={styles.ramadanTimeCard}>
-                <Text style={styles.ramadanTimeLabel}>{settings.ramadanMode ? "Iftar" : "Sunset"}</Text>
-                <Text style={styles.ramadanTimeValue}>{sunsetTime}</Text>
-              </View>
-            </View>
-            <View style={styles.ramadanInfoRow}>
-              <Pressable
-                style={styles.ramadanNextMedPill}
-                onPress={() => onNavigate("medications")}
-                accessibilityRole="button"
-                accessibilityLabel="Next medication"
-                accessibilityHint="Opens the medications screen"
-              >
-                {nextMedication ? (
-                  <>
-                    <Text style={styles.ramadanNextMedName}>
-                      {nextMedication.name}{nextMedication.dosage ? ` · ${nextMedication.dosage}` : ""}
-                    </Text>
-                    <Text style={styles.ramadanNextMedTime}>{nextMedication.time}</Text>
-                  </>
-                ) : (
-                  <Text style={styles.ramadanNextMedName}>All meds are done for today</Text>
-                )}
-              </Pressable>
-              <Pressable
-                style={styles.ramadanNextAptPill}
-                onPress={() => onNavigate("appointments")}
-                accessibilityRole="button"
-                accessibilityLabel="Next appointment"
-                accessibilityHint="Opens the appointments screen"
-              >
-                {nextApt ? (
-                  <>
-                    <Text style={styles.ramadanNextAptTitle}>Next appointment</Text>
-                    <Text style={styles.ramadanNextAptName}>{nextApt.doctorName}</Text>
-                    <Text style={styles.ramadanNextAptMeta}>
-                      {formatDate(nextApt.date)} · {formatTime12h(nextApt.time)}
-                    </Text>
-                    {!!nextApt.location && (
-                      <Text style={styles.ramadanNextAptLocation}>{nextApt.location}</Text>
-                    )}
-                  </>
-                ) : (
-                  <Text style={styles.ramadanNextAptTitle}>No upcoming appointments</Text>
-                )}
-              </Pressable>
-            </View>
-            <Text style={styles.ramadanCountdownText}>{getIftarCountdown() ?? "Log today's fast to see your countdown"}</Text>
-          </LinearGradient>
+          <DashboardHero
+            ramadanDayLabel={`Ramadan ${ramadanDay.hijriDay}${ordinalSuffix(ramadanDay.hijriDay)}, 1447 AH`}
+            subtitle={goodDayMessage}
+            fajrTime={sunriseTime}
+            iftarTime={sunsetTime}
+            nextMedication={nextMedication ? { name: nextMedication.name, time: nextMedication.time } : null}
+            nextApt={nextApt ?? null}
+            onNavigate={onNavigate}
+          />
 
           <View style={styles.ramadanWeekStrip}>
             {Array.from({ length: 7 }).map((_, idx) => {
@@ -583,12 +620,94 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   );
 }
 
+function makeHeroStyles(C: Theme) {
+  return StyleSheet.create({
+    dashboardHero: {
+      marginHorizontal: 16,
+      marginTop: 12,
+      marginBottom: 16,
+      borderRadius: 28,
+      borderWidth: 1,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.06,
+      shadowRadius: 14,
+      elevation: 6,
+    },
+    dashboardHeroGradient: {
+      borderRadius: 28,
+      padding: 24,
+    },
+    dashboardHeroHeader: {
+      marginBottom: 16,
+    },
+    dashboardHeroRamadan: {
+      fontWeight: "700",
+      fontSize: 16,
+      color: C.text,
+      marginBottom: 4,
+    },
+    dashboardHeroSubtitle: {
+      fontWeight: "400",
+      fontSize: 13,
+      color: C.textSecondary,
+    },
+    dashboardHeroTimesRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 20,
+    },
+    dashboardHeroTimeCol: {
+      flex: 1,
+    },
+    dashboardHeroTimeLabel: {
+      fontWeight: "500",
+      fontSize: 12,
+      color: C.textSecondary,
+      marginBottom: 4,
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+    },
+    dashboardHeroTimeValue: {
+      fontWeight: "700",
+      fontSize: 18,
+      color: C.text,
+    },
+    dashboardHeroMiniRow: {
+      flexDirection: "row",
+      gap: 12,
+    },
+    dashboardHeroMiniCard: {
+      flex: 1,
+      borderRadius: 16,
+      padding: 12,
+      borderWidth: 1,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 6,
+      elevation: 2,
+    },
+    dashboardHeroMiniTitle: {
+      fontWeight: "600",
+      fontSize: 14,
+      color: C.text,
+      marginBottom: 2,
+    },
+    dashboardHeroMiniSubtitle: {
+      fontWeight: "400",
+      fontSize: 12,
+      color: C.textSecondary,
+    },
+  });
+}
+
 function makeStyles(C: Theme) {
   return StyleSheet.create({
     container: { flex: 1, minHeight: 1, backgroundColor: C.background },
     scrollView: { flex: 1, minHeight: 1 },
-    scrollViewContent: { flexGrow: 1 },
-    content: { paddingHorizontal: 24 },
+    scrollViewContent: { flexGrow: 1, paddingHorizontal: 16 },
+    content: { paddingHorizontal: 16 },
     welcome: { marginBottom: 4 },
     greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
     dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
@@ -643,6 +762,7 @@ function makeStyles(C: Theme) {
       borderBottomRightRadius: 0,
       borderWidth: 1,
       borderColor: C.border,
+      marginHorizontal: 16,
       paddingHorizontal: 12,
       paddingVertical: 8,
     },
@@ -665,6 +785,7 @@ function makeStyles(C: Theme) {
       paddingHorizontal: 14,
       paddingVertical: 10,
       marginTop: 12,
+      marginHorizontal: 16,
       borderWidth: 1,
       borderColor: C.border,
     },
@@ -712,6 +833,7 @@ function makeStyles(C: Theme) {
       borderColor: C.border,
       flexDirection: "row",
       alignItems: "center",
+      marginHorizontal: 16,
       justifyContent: "space-between",
     },
     feelingTitle: { fontWeight: "600", fontSize: 14, color: C.text },
