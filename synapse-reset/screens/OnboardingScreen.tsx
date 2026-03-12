@@ -18,7 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
-import { settingsStorage, ALL_SECTION_KEYS } from "@/lib/storage";
+import { settingsStorage, healthProfileStorage, ALL_SECTION_KEYS } from "@/lib/storage";
 import SynapseLogo from "@/components/SynapseLogo";
 
 const founderImage = require("../assets/images/founder.png");
@@ -77,6 +77,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [authLastName, setAuthLastName] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+  const [showAgePrompt, setShowAgePrompt] = useState(false);
+  const [onboardingAge, setOnboardingAge] = useState("");
   const [showAddMedsPrompt, setShowAddMedsPrompt] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
@@ -151,10 +153,21 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (authChoice === "signup") {
-      setShowAddMedsPrompt(true);
+      setShowAgePrompt(true);
     } else {
       goNext();
     }
+  };
+
+  const handleAgeAction = async (skip: boolean) => {
+    if (!skip && onboardingAge.trim()) {
+      const parsed = parseInt(onboardingAge, 10);
+      if (!isNaN(parsed)) {
+        await healthProfileStorage.save({ age: parsed });
+      }
+    }
+    setShowAgePrompt(false);
+    setShowAddMedsPrompt(true);
   };
 
   const handleAddMedsChoice = (add: boolean) => {
@@ -259,7 +272,28 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={60}
       >
-        {showAddMedsPrompt ? (
+        {showAgePrompt ? (
+          <View style={styles.slideCenter}>
+            <Text style={styles.setupTitle}>One last thing.</Text>
+            <Text style={styles.setupSub}>How old are you? This helps in emergencies.</Text>
+            <TextInput
+              style={styles.ageOnboardInput}
+              value={onboardingAge}
+              onChangeText={(t) => setOnboardingAge(t.replace(/[^0-9]/g, ""))}
+              keyboardType="number-pad"
+              placeholder="Your age"
+              placeholderTextColor={C.textTertiary}
+              maxLength={3}
+              autoFocus
+            />
+            <Pressable style={[styles.primaryAuthBtn, { alignSelf: "stretch" }]} onPress={() => handleAgeAction(false)}>
+              <Text style={styles.primaryAuthBtnText}>Continue</Text>
+            </Pressable>
+            <Pressable style={styles.skipLink} onPress={() => handleAgeAction(true)}>
+              <Text style={styles.skipLinkText}>Skip for now</Text>
+            </Pressable>
+          </View>
+        ) : showAddMedsPrompt ? (
           <View style={styles.slideCenter}>
             <Text style={styles.setupTitle}>Add your medications?</Text>
             <Text style={styles.setupSub}>You can add them now or later from the Medications screen.</Text>
@@ -627,6 +661,18 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 
+  ageOnboardInput: {
+    fontWeight: "700",
+    fontSize: 56,
+    color: C.text,
+    textAlign: "center",
+    borderBottomWidth: 2,
+    borderBottomColor: MAROON,
+    paddingVertical: 12,
+    width: 160,
+    marginBottom: 32,
+    marginTop: 16,
+  },
   authSlide: { flex: 1, justifyContent: "center" },
   authHeading: {
     fontWeight: "700",

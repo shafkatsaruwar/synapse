@@ -53,32 +53,30 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
         <Text style={styles.title}>Health Profile</Text>
         <Text style={styles.subtitle}>Conditions and allergy & emergency info</Text>
 
-        <View style={styles.card}>
-          <View style={styles.profileRow}>
-            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
-              <Ionicons name="person-outline" size={16} color={C.tint} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.profileRowTitle}>Age</Text>
-              {ageSaved && ageText !== "" ? (
-                <Text style={styles.profileRowDesc}>{ageText} years old</Text>
-              ) : null}
-            </View>
-            <TextInput
-              style={styles.ageInput}
-              value={ageText}
-              onChangeText={(t) => {
-                setAgeText(t.replace(/[^0-9]/g, ""));
-                setAgeSaved(false);
-              }}
-              onBlur={handleSaveAge}
-              keyboardType="number-pad"
-              placeholder="—"
-              placeholderTextColor={C.textTertiary}
-              maxLength={3}
-              accessibilityLabel="Age"
-            />
-          </View>
+        <View style={styles.ageCard}>
+          <Text style={styles.ageLabel}>Age</Text>
+          <TextInput
+            style={styles.ageInput}
+            value={ageText}
+            onChangeText={(t) => {
+              setAgeText(t.replace(/[^0-9]/g, ""));
+              setAgeSaved(false);
+            }}
+            keyboardType="number-pad"
+            placeholder="Enter your age"
+            placeholderTextColor={C.textTertiary}
+            maxLength={3}
+            accessibilityLabel="Age"
+          />
+          <Pressable
+            style={({ pressed }) => [styles.ageSaveBtn, ageSaved && styles.ageSaveBtnSaved, { opacity: pressed ? 0.85 : 1 }]}
+            onPress={handleSaveAge}
+            accessibilityRole="button"
+            accessibilityLabel={ageSaved ? "Age saved" : "Save age"}
+          >
+            <Ionicons name={ageSaved ? "checkmark-circle" : "save-outline"} size={16} color="#fff" />
+            <Text style={styles.ageSaveBtnText}>{ageSaved ? "Saved" : "Save"}</Text>
+          </Pressable>
         </View>
 
         <View style={{ height: 12 }} />
@@ -144,5 +142,10 @@ const styles = StyleSheet.create({
   profileRowTitle: { fontWeight: "600", fontSize: 15, color: C.text },
   profileRowDesc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
   divider: { height: 1, backgroundColor: C.border, marginLeft: 16, marginRight: 16 },
-  ageInput: { fontWeight: "500", fontSize: 15, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: C.border, minWidth: 60, textAlign: "center" },
+  ageCard: { backgroundColor: C.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: C.border },
+  ageLabel: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 8 },
+  ageInput: { fontWeight: "400", fontSize: 16, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: C.border, marginBottom: 12 },
+  ageSaveBtn: { backgroundColor: C.tint, borderRadius: 10, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  ageSaveBtnSaved: { backgroundColor: C.green },
+  ageSaveBtnText: { fontWeight: "600", fontSize: 14, color: "#fff" },
 });

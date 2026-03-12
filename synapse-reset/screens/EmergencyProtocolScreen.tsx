@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -70,6 +72,22 @@ export default function EmergencyProtocolScreen({ onBack }: EmergencyProtocolScr
     loadData();
   }, [loadData]);
 
+  const [editingAge, setEditingAge] = useState(false);
+  const [editAgeText, setEditAgeText] = useState("");
+
+  const openAgeEdit = () => {
+    setEditAgeText(profile.age != null ? String(profile.age) : "");
+    setEditingAge(true);
+  };
+
+  const saveAge = async () => {
+    const parsed = editAgeText.trim() === "" ? undefined : parseInt(editAgeText, 10);
+    const newAge = parsed != null && !isNaN(parsed) ? parsed : undefined;
+    await healthProfileStorage.save({ age: newAge });
+    setProfile((p) => ({ ...p, age: newAge }));
+    setEditingAge(false);
+  };
+
   const callNumber = (phone: string) => {
     Linking.openURL(`tel:${phone.replace(/\s/g, "")}`);
   };
@@ -112,7 +130,19 @@ export default function EmergencyProtocolScreen({ onBack }: EmergencyProtocolScr
         <Section title="Basic Info">
           <InfoRow label="Name" value={settings?.name || "—"} />
           <Divider />
-          <InfoRow label="Age" value={profile.age != null ? `${profile.age} years old` : "—"} />
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Age</Text>
+            {profile.age != null ? (
+              <Pressable style={styles.ageValueRow} onPress={openAgeEdit} accessibilityRole="button" accessibilityLabel="Edit age">
+                <Text style={styles.infoValue}>{profile.age} years old</Text>
+                <Ionicons name="pencil-outline" size={16} color={TEXT_SECONDARY} style={{ marginLeft: 6 }} />
+              </Pressable>
+            ) : (
+              <Pressable onPress={openAgeEdit} accessibilityRole="button" accessibilityLabel="Add age">
+                <Text style={styles.ageNotSet}>Age not set — tap to add</Text>
+              </Pressable>
+            )}
+          </View>
         </Section>
 
         {/* ── Medical Conditions ── */}
@@ -240,6 +270,32 @@ export default function EmergencyProtocolScreen({ onBack }: EmergencyProtocolScr
           )}
         </Section>
       </ScrollView>
+
+      <Modal visible={editingAge} transparent animationType="fade" onRequestClose={() => setEditingAge(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setEditingAge(false)}>
+          <Pressable style={styles.modalBox} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Edit Age</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={editAgeText}
+              onChangeText={(t) => setEditAgeText(t.replace(/[^0-9]/g, ""))}
+              keyboardType="number-pad"
+              placeholder="Enter age"
+              placeholderTextColor={TEXT_SECONDARY}
+              maxLength={3}
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <Pressable style={styles.modalCancelBtn} onPress={() => setEditingAge(false)}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.modalSaveBtn} onPress={saveAge}>
+                <Text style={styles.modalSaveText}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -331,4 +387,17 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   callBtnText: { fontWeight: "700", fontSize: 16, color: "#fff" },
+
+  ageValueRow: { flexDirection: "row", alignItems: "center" },
+  ageNotSet: { fontSize: 16, color: TEXT_SECONDARY, fontStyle: "italic", textDecorationLine: "underline" },
+
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 32 },
+  modalBox: { backgroundColor: "#fff", borderRadius: 18, padding: 24, width: "100%", maxWidth: 320 },
+  modalTitle: { fontWeight: "700", fontSize: 20, color: TEXT_PRIMARY, marginBottom: 16, textAlign: "center" },
+  modalInput: { fontSize: 32, fontWeight: "700", color: TEXT_PRIMARY, textAlign: "center", borderBottomWidth: 2, borderBottomColor: MAROON, paddingVertical: 8, marginBottom: 24 },
+  modalActions: { flexDirection: "row", gap: 10 },
+  modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: "#F0F0F0", alignItems: "center" },
+  modalCancelText: { fontWeight: "600", fontSize: 15, color: TEXT_SECONDARY },
+  modalSaveBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: MAROON, alignItems: "center" },
+  modalSaveText: { fontWeight: "600", fontSize: 15, color: "#fff" },
 });

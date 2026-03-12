@@ -54,6 +54,7 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const status = await getBackupStatus(user.id);
       setBackupStatus(status);
+      Alert.alert("Backup complete", "Your data has been backed up to the cloud.", [{ text: "OK" }]);
     } finally {
       setBackupLoading(false);
     }
@@ -70,7 +71,7 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onRestoreComplete?.();
+    Alert.alert("Restore complete", "Your data has been restored from the cloud.", [{ text: "OK", onPress: () => onRestoreComplete?.() }]);
   };
 
   const fullName =
@@ -89,8 +90,8 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
     return (words[0]?.[0] ?? "?").toUpperCase().repeat(2);
   })();
 
-  const lastSyncedLabel = backupStatus?.lastBackedUpAt
-    ? `Last synced: ${new Date(backupStatus.lastBackedUpAt).toLocaleString("en-US", {
+  const lastSyncedLabel = backupStatus?.lastSyncedAt
+    ? `Last synced: ${new Date(backupStatus.lastSyncedAt).toLocaleString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
