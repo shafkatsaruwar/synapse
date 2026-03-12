@@ -5,6 +5,7 @@ const dark: Theme = {
   surface: "#0A0A0A",
   surfaceElevated: "#141414",
   surfaceHover: "#1F1F1F",
+  heroCardBackground: "#111111",
   border: "#1F1F1F",
   borderLight: "#141414",
   text: "#FFFFFF",

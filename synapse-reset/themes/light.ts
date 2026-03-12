@@ -5,6 +5,7 @@ const light: Theme = {
   surface: "#F7F8FA",
   surfaceElevated: "#EDEEF0",
   surfaceHover: "#E5E7EB",
+  heroCardBackground: "#E3EDFF",
   border: "#E5E7EB",
   borderLight: "#F3F4F6",
   text: "#111111",

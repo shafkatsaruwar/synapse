@@ -5,6 +5,7 @@ const calm: Theme = {
   surface: "#F5E0C8",
   surfaceElevated: "#F0D8BC",
   surfaceHover: "#EBCFAF",
+  heroCardBackground: "#E9D5C1",
   border: "rgba(128,0,32,0.15)",
   borderLight: "rgba(128,0,32,0.08)",
   text: "#1A1A1A",

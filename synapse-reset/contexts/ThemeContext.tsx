@@ -6,6 +6,7 @@ export interface Theme {
   surface: string;
   surfaceElevated: string;
   surfaceHover: string;
+  heroCardBackground: string;
   border: string;
   borderLight: string;
   text: string;

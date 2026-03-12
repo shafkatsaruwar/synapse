@@ -369,7 +369,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       {ramadanDay && (
         <View style={styles.ramadanSection}>
           <LinearGradient
-            colors={[C.surface, C.surface]}
+            colors={[C.heroCardBackground, C.heroCardBackground]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.ramadanHero}
@@ -594,7 +594,20 @@ function makeStyles(C: Theme) {
     dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
     hijriDate: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 20 },
     ramadanSection: { marginTop: 8, marginBottom: 16 },
-    ramadanHero: { borderRadius: 20, padding: 16, marginBottom: 12, gap: 12 },
+    ramadanHero: {
+      borderRadius: 20,
+      padding: 16,
+      marginBottom: 12,
+      gap: 12,
+      backgroundColor: C.heroCardBackground,
+      borderWidth: 1,
+      borderColor: C.border,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 4,
+    },
     ramadanHeroTopRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
     ramadanDateText: { fontWeight: "600", fontSize: 14, color: C.text },
     ramadanLocationText: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 2 },
