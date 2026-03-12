@@ -428,44 +428,6 @@ export default function MedicationsScreen() {
       >
         <View style={styles.sectionPanel}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Medications List</Text>
-            <Pressable testID="add-med-list" style={({ pressed }) => [styles.sectionAddBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={openMedListAddModal} accessibilityRole="button" accessibilityLabel="Add to Medications" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="add" size={22} color="#fff" />
-            </Pressable>
-          </View>
-          {medListItems.length === 0 ? (
-            <Text style={styles.medListEmpty}>No entries. Tap + to add medication name, prescriber, and refills.</Text>
-          ) : (
-            medListItems.map((item) => (
-              <View key={item.id} style={styles.medListCard}>
-                <Pressable style={{ flex: 1 }} onPress={() => openEditMedListItem(item)} accessibilityRole="button" accessibilityLabel={`Edit ${item.name}`}>
-                  <Text style={styles.medListCardName}>{item.name}</Text>
-                  {(item.doses?.length ? item.doses : [{ dosage: (item as unknown as { dosage?: string }).dosage ?? "", time: "Morning" as MedListDoseTime }]).map((d, i) => (
-                    d.dosage ? <Text key={i} style={styles.medListCardDoseLine}>{d.dosage} · {d.time}</Text> : null
-                  ))}
-                  {item.prescribingDoctor ? <Text style={styles.medListCardPrescriber}>{item.prescribingDoctor}</Text> : null}
-                  {item.pharmacyName ? <Text style={styles.medListCardPrescriber}>{item.pharmacyName}</Text> : null}
-                  {item.pharmacyPhone ? <Text style={styles.medListCardPrescriber}>{item.pharmacyPhone}</Text> : null}
-                  {item.pharmacyAddress ? <Text style={styles.medListCardPrescriber}>{item.pharmacyAddress}</Text> : null}
-                  <Text style={[styles.medListCardRefills, item.refillsRemaining <= 1 && styles.medListCardRefillsWarning]}>
-                    {item.refillsRemaining === 0 ? "No refills remaining" : `${item.refillsRemaining} refill${item.refillsRemaining === 1 ? "" : "s"} remaining`}
-                  </Text>
-                  {item.duration != null && item.durationUnit ? (
-                    <Text style={styles.medListCardPrescriber}>{item.duration} {item.durationUnit}</Text>
-                  ) : null}
-                </Pressable>
-                <Pressable onPress={() => handleRemoveMedListItem(item)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Remove ${item.name} from Medications`}>
-                  <Ionicons name="trash-outline" size={16} color={C.textTertiary} />
-                </Pressable>
-              </View>
-            ))
-          )}
-        </View>
-
-        <View style={styles.sectionDivider} />
-
-        <View style={styles.sectionPanel}>
-          <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Current Medications</Text>
             <Pressable testID="add-medication" style={({ pressed }) => [styles.sectionAddBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={openAddModal} accessibilityRole="button" accessibilityLabel="Add medication" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="add" size={22} color="#fff" />
@@ -572,6 +534,44 @@ export default function MedicationsScreen() {
             })}
           </View>
         )))}
+        </View>
+
+        <View style={styles.sectionDivider} />
+
+        <View style={styles.sectionPanel}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Medications List</Text>
+            <Pressable testID="add-med-list" style={({ pressed }) => [styles.sectionAddBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={openMedListAddModal} accessibilityRole="button" accessibilityLabel="Add to Medications" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="add" size={22} color="#fff" />
+            </Pressable>
+          </View>
+          {medListItems.length === 0 ? (
+            <Text style={styles.medListEmpty}>No entries. Tap + to add medication name, prescriber, and refills.</Text>
+          ) : (
+            medListItems.map((item) => (
+              <View key={item.id} style={styles.medListCard}>
+                <Pressable style={{ flex: 1 }} onPress={() => openEditMedListItem(item)} accessibilityRole="button" accessibilityLabel={`Edit ${item.name}`}>
+                  <Text style={styles.medListCardName}>{item.name}</Text>
+                  {(item.doses?.length ? item.doses : [{ dosage: (item as unknown as { dosage?: string }).dosage ?? "", time: "Morning" as MedListDoseTime }]).map((d, i) => (
+                    d.dosage ? <Text key={i} style={styles.medListCardDoseLine}>{d.dosage} · {d.time}</Text> : null
+                  ))}
+                  {item.prescribingDoctor ? <Text style={styles.medListCardPrescriber}>{item.prescribingDoctor}</Text> : null}
+                  {item.pharmacyName ? <Text style={styles.medListCardPrescriber}>{item.pharmacyName}</Text> : null}
+                  {item.pharmacyPhone ? <Text style={styles.medListCardPrescriber}>{item.pharmacyPhone}</Text> : null}
+                  {item.pharmacyAddress ? <Text style={styles.medListCardPrescriber}>{item.pharmacyAddress}</Text> : null}
+                  <Text style={[styles.medListCardRefills, item.refillsRemaining <= 1 && styles.medListCardRefillsWarning]}>
+                    {item.refillsRemaining === 0 ? "No refills remaining" : `${item.refillsRemaining} refill${item.refillsRemaining === 1 ? "" : "s"} remaining`}
+                  </Text>
+                  {item.duration != null && item.durationUnit ? (
+                    <Text style={styles.medListCardPrescriber}>{item.duration} {item.durationUnit}</Text>
+                  ) : null}
+                </Pressable>
+                <Pressable onPress={() => handleRemoveMedListItem(item)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Remove ${item.name} from Medications`}>
+                  <Ionicons name="trash-outline" size={16} color={C.textTertiary} />
+                </Pressable>
+              </View>
+            ))
+          )}
         </View>
 
         {medications.length > 0 && (
