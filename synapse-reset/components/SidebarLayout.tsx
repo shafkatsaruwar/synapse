@@ -352,7 +352,6 @@ export default function SidebarLayout({
                   <View style={styles.drawerFooterContent}>
                     <Text style={styles.drawerFooterText}>
                       Synapse v{Constants.expoConfig?.version ?? "1.3"}
-                      {__DEV__ ? " (dev)" : ""}
                     </Text>
                   </View>
                 </View>
