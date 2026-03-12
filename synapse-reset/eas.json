@@ -1,10 +1,9 @@
 {
-  "cli": { "version": ">= 18.0.5", "appVersionSource": "remote" },
+  "cli": { "version": ">= 18.0.5", "appVersionSource": "local" },
   "build": {
     "development": { "distribution": "internal" },
     "preview": { "distribution": "internal", "environment": "preview" },
     "production": {
-      "autoIncrement": true,
       "ios": { "resourceClass": "m-medium" },
       "environment": "production"
     }
