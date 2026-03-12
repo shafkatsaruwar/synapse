@@ -439,7 +439,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
                   ]}
                 >
                   <Ionicons
-                    name="moon"
+                    name="sunny-outline"
                     size={13}
                     color={isToday ? "#2D1340" : "rgba(255,255,255,0.7)"}
                     style={{ marginBottom: 2 }}
