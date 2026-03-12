@@ -219,7 +219,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       }
       return {
         name: med.name || "Next medication",
-        dosage: med.dosage || "",
+        dosage: med.dosage ? `${med.dosage}${med.unit && !med.dosage.includes(med.unit) ? ` ${med.unit}` : ""}` : "",
         time: timeLabel,
       };
     }
