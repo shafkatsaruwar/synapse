@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useMemo, useState, useCallback, useRef } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Platform, useWindowDimensions, Alert,
 } from "react-native";
@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Sharing from "expo-sharing";
 import ViewShot, { captureRef } from "react-native-view-shot";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   healthLogStorage, medicationStorage, medicationLogStorage, appointmentStorage,
   doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage, eatingStorage, monthlyCheckInStorage,
@@ -15,7 +15,6 @@ import {
 } from "@/lib/storage";
 import { getDaysAgo, formatDate, formatDateWithYear, getToday } from "@/lib/date-utils";
 
-const C = Colors.dark;
 
 interface SummaryEvent {
   date: string;
@@ -27,6 +26,8 @@ interface SummaryEvent {
 export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
   const summaryRef = useRef<View>(null);
 
@@ -426,7 +427,8 @@ export default function ReportsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
@@ -478,4 +480,5 @@ const styles = StyleSheet.create({
   generateBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
   generateBtnDisabled: { opacity: 0.6 },
   generateText: { fontWeight: "600", fontSize: 15, color: "#fff" },
-});
+  });
+}

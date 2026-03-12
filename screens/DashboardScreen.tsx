@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -14,7 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { featureFlags } from "@/constants/feature-flags";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   healthLogStorage,
   medicationStorage,
@@ -32,8 +32,6 @@ import {
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
 
-const C = Colors.dark;
-
 // Gradient pairs: [top (darker), bottom (lighter)]. Soft, desaturated, top-to-bottom.
 const PRIORITY_GRADIENTS: Record<string, [string, string]> = {
   medications: ["#6B2835", "#8E5A5A"],
@@ -43,12 +41,37 @@ const PRIORITY_GRADIENTS: Record<string, [string, string]> = {
   medicationsStress: ["#7B3535", "#9E6A6A"],
 };
 
+// Dark-mode gradient pairs: subtle tinted overlays on #111111 base
+const PRIORITY_GRADIENTS_DARK: Record<string, [string, string]> = {
+  medications: ["#1A0508", "#200B10"],
+  appointments: ["#0E0A1A", "#150F22"],
+  dailylog: ["#081408", "#0D1A0D"],
+  ramadan: ["#111111", "#161616"],
+  medicationsStress: ["#1A0808", "#200E0E"],
+};
+
 interface DashboardScreenProps {
   onNavigate: (screen: string) => void;
   onRefreshKey?: number;
 }
 
-function PriorityCard({ colors, icon, label, onPress, children }: { colors: [string, string]; icon: string; label: string; onPress: () => void; children: React.ReactNode }) {
+function PriorityCard({
+  gradientColors,
+  isDark,
+  borderColor,
+  icon,
+  label,
+  onPress,
+  children,
+}: {
+  gradientColors: [string, string];
+  isDark: boolean;
+  borderColor: string;
+  icon: string;
+  label: string;
+  onPress: () => void;
+  children: React.ReactNode;
+}) {
   const scale = React.useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -68,14 +91,20 @@ function PriorityCard({ colors, icon, label, onPress, children }: { colors: [str
       accessibilityHint={`Opens ${label} screen`}
       style={{ minHeight: 44 }}
     >
-      <Animated.View style={[styles.priorityCard, { transform: [{ scale }], overflow: "hidden" }]}>
-        <LinearGradient colors={colors} style={StyleSheet.absoluteFillObject} />
-        <View style={styles.priorityCardContent}>
-          <View style={styles.priorityHeader}>
-            <View style={styles.priorityIconWrap}>
+      <Animated.View
+        style={[
+          priorityCardBase,
+          isDark && { backgroundColor: "#111111", borderWidth: 1, borderColor },
+          { transform: [{ scale }], overflow: "hidden" },
+        ]}
+      >
+        <LinearGradient colors={gradientColors} style={StyleSheet.absoluteFillObject} />
+        <View style={priorityCardContent}>
+          <View style={priorityHeader}>
+            <View style={priorityIconWrap}>
               <Ionicons name={icon as any} size={18} color="#fff" />
             </View>
-            <Text style={styles.priorityLabel}>{label}</Text>
+            <Text style={priorityLabel}>{label}</Text>
             <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.6)" />
           </View>
           {children}
@@ -85,11 +114,29 @@ function PriorityCard({ colors, icon, label, onPress, children }: { colors: [str
   );
 }
 
+// Static styles that don't depend on theme
+const priorityCardBase = {
+  borderRadius: 16,
+  aspectRatio: 1.1,
+  justifyContent: "space-between" as const,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.08,
+  shadowRadius: 16,
+  elevation: 4,
+};
+const priorityCardContent = { flex: 1, padding: 16, justifyContent: "space-between" as const };
+const priorityHeader = { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginBottom: 10 };
+const priorityIconWrap = { width: 28, height: 28, borderRadius: 7, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center" as const, justifyContent: "center" as const };
+const priorityLabel = { fontWeight: "600" as const, fontSize: 12, color: "#fff", flex: 1 };
+
 export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const today = getToday();
+  const { theme: C, themeId } = useTheme();
+  const isDark = themeId === "dark";
 
   const [todayLog, setTodayLog] = useState<HealthLog | undefined>();
   const [medications, setMedications] = useState<Medication[]>([]);
@@ -150,8 +197,19 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   const energyLabels = ["Low", "Fair", "Good", "Great", "Excellent"];
 
+  const styles = useMemo(() => makeStyles(C), [C]);
+
+  const gradients = isDark ? PRIORITY_GRADIENTS_DARK : PRIORITY_GRADIENTS;
+
   const renderMedicationsCard = () => (
-    <PriorityCard colors={isSickMode ? PRIORITY_GRADIENTS.medicationsStress : PRIORITY_GRADIENTS.medications} icon="medical" label={isSickMode ? "Stress Dosing" : "Medications Today"} onPress={() => onNavigate("medications")}>
+    <PriorityCard
+      gradientColors={isSickMode ? gradients.medicationsStress : gradients.medications}
+      isDark={isDark}
+      borderColor={C.borderLight}
+      icon="medical"
+      label={isSickMode ? "Stress Dosing" : "Medications Today"}
+      onPress={() => onNavigate("medications")}
+    >
       {totalDoses > 0 ? (
         <View>
           <Text style={styles.priBigNum}>{takenDoses}<Text style={styles.priBigNumSub}>/{totalDoses}</Text></Text>
@@ -167,7 +225,14 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   );
 
   const renderAppointmentsCard = () => (
-    <PriorityCard colors={PRIORITY_GRADIENTS.appointments} icon="calendar" label="Upcoming Appointments" onPress={() => onNavigate("appointments")}>
+    <PriorityCard
+      gradientColors={gradients.appointments}
+      isDark={isDark}
+      borderColor={C.borderLight}
+      icon="calendar"
+      label="Upcoming Appointments"
+      onPress={() => onNavigate("appointments")}
+    >
       {nextApt ? (
         <View>
           <Text style={styles.priAptName}>{nextApt.doctorName}</Text>
@@ -188,7 +253,14 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const renderRamadanCard = () => {
     if (isSickMode) {
       return (
-        <PriorityCard colors={PRIORITY_GRADIENTS.ramadan} icon="moon" label="Ramadan" onPress={() => onNavigate("ramadan")}>
+        <PriorityCard
+          gradientColors={gradients.ramadan}
+          isDark={isDark}
+          borderColor={C.borderLight}
+          icon="moon"
+          label="Ramadan"
+          onPress={() => onNavigate("ramadan")}
+        >
           <View>
             <Text style={[styles.priEmpty, { fontSize: 14, lineHeight: 20 }]}>Focus on recovery today.</Text>
             <Text style={[styles.priMeta, { marginTop: 6 }]}>Your health comes first</Text>
@@ -198,7 +270,14 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     }
 
     return (
-      <PriorityCard colors={PRIORITY_GRADIENTS.ramadan} icon="moon" label="Ramadan" onPress={() => onNavigate("ramadan")}>
+      <PriorityCard
+        gradientColors={gradients.ramadan}
+        isDark={isDark}
+        borderColor={C.borderLight}
+        icon="moon"
+        label="Ramadan"
+        onPress={() => onNavigate("ramadan")}
+      >
         {fastingLog ? (
           <View>
             <View style={styles.priLogRow}>
@@ -225,7 +304,14 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   };
 
   const renderDailyLogCard = () => (
-    <PriorityCard colors={PRIORITY_GRADIENTS.dailylog} icon="heart" label="Daily Log" onPress={() => onNavigate("log")}>
+    <PriorityCard
+      gradientColors={gradients.dailylog}
+      isDark={isDark}
+      borderColor={C.borderLight}
+      icon="heart"
+      label="Daily Log"
+      onPress={() => onNavigate("log")}
+    >
       {todayLog ? (
         <View>
           <View style={styles.priLogRow}>
@@ -307,18 +393,18 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
         {featureFlags.documentScannerEnabled && (
           <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("insights")} accessibilityLabel="AI Health Insights" accessibilityRole="button" accessibilityHint="Get personalized analysis of your health patterns">
-          <View style={[styles.cardHeader, { marginBottom: 0 }]}>
-            <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
-              <Ionicons name="sparkles" size={16} color={C.accent} />
+            <View style={[styles.cardHeader, { marginBottom: 0 }]}>
+              <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
+                <Ionicons name="sparkles" size={16} color={C.accent} />
+              </View>
+              <Text style={styles.cardLabel}>AI Health Insights</Text>
             </View>
-            <Text style={styles.cardLabel}>AI Health Insights</Text>
-          </View>
-          <Text style={styles.reportDesc}>Get personalized analysis of your health patterns</Text>
-          <View style={styles.reportBtn}>
-            <Ionicons name="arrow-forward" size={16} color={C.tint} />
-            <Text style={styles.reportBtnText}>View Insights</Text>
-          </View>
-        </Pressable>
+            <Text style={styles.reportDesc}>Get personalized analysis of your health patterns</Text>
+            <View style={styles.reportBtn}>
+              <Ionicons name="arrow-forward" size={16} color={C.tint} />
+              <Text style={styles.reportBtnText}>View Insights</Text>
+            </View>
+          </Pressable>
         )}
 
         <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("reports")} accessibilityLabel="Generate Report" accessibilityRole="button" accessibilityHint="Create a health summary for your doctor visit">
@@ -361,74 +447,58 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, minHeight: 1, backgroundColor: C.background },
-  scrollView: { flex: 1, minHeight: 1 },
-  scrollViewContent: { flexGrow: 1 },
-  content: { paddingHorizontal: 24 }, // used when isWide; mobile uses inline 0 so layout's 16 applies
-  welcome: { marginBottom: 8 },
-  greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
-  dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
-  hijriDate: { fontWeight: "600", fontSize: 14, color: "#3C2415", marginBottom: 20 },
-  sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
-  priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 12, width: "100%" },
-  priorityGridItem: { marginBottom: 12 },
-  priorityCard: {
-    borderRadius: 16,
-    aspectRatio: 1.1,
-    justifyContent: "space-between",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  priorityCardContent: {
-    flex: 1,
-    padding: 16,
-    justifyContent: "space-between",
-  },
-  priorityHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  priorityIconWrap: { width: 28, height: 28, borderRadius: 7, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  priorityLabel: { fontWeight: "600", fontSize: 12, color: "#fff", flex: 1 },
-  priBigNum: { fontWeight: "700", fontSize: 28, color: "#fff", letterSpacing: -1, marginBottom: 4 },
-  priBigNumSub: { fontSize: 16, color: "rgba(255,255,255,0.6)" },
-  priProgress: { height: 4, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden", marginBottom: 8 },
-  priProgressFill: { height: "100%", backgroundColor: "#fff", borderRadius: 2 },
-  priMeta: { fontWeight: "400", fontSize: 12, color: "rgba(255,255,255,0.7)" },
-  priEmpty: { fontWeight: "500", fontSize: 14, color: "rgba(255,255,255,0.8)" },
-  priAptName: { fontWeight: "600", fontSize: 13, color: "#fff", marginBottom: 2 },
-  priAptSpec: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.7)", marginBottom: 6 },
-  priAptDateRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  priAptDate: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.7)", marginRight: 4 },
-  priLogRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-  priLogItem: { flex: 1, alignItems: "center" },
-  priLogLabel: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 4 },
-  priLogValue: { fontWeight: "600", fontSize: 15, color: "#fff" },
-  priLogDivider: { width: 1, height: 28, backgroundColor: "rgba(255,255,255,0.2)" },
-  grid: { gap: 12 },
-  gridWide: { flexDirection: "row", flexWrap: "wrap" },
-  card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: C.border },
-  cardWide: { width: "48.5%", marginRight: "1%" },
-  cardHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
-  cardIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  cardLabel: { fontWeight: "600", fontSize: 14, color: C.text },
-  cardBigNum: { fontWeight: "700", fontSize: 36, color: C.text, letterSpacing: -1, marginBottom: 8 },
-  cardBigNumSub: { fontSize: 20, color: C.textTertiary },
-  progressTrack: { height: 4, backgroundColor: C.surfaceElevated, borderRadius: 2, overflow: "hidden", marginBottom: 8 },
-  progressFill: { height: "100%", backgroundColor: C.tint, borderRadius: 2 },
-  cardMeta: { fontWeight: "400", fontSize: 12, color: C.textSecondary },
-  cardEmpty: { paddingVertical: 8 },
-  cardEmptyText: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
-  fastingRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  fastingItem: { flex: 1, alignItems: "center" },
-  fastingDivider: { width: 1, height: 28, backgroundColor: C.border },
-  fastingLabel: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginBottom: 4 },
-  fastingValue: { fontWeight: "600", fontSize: 14, color: C.text },
-  energyRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  energyDots: { flexDirection: "row", gap: 4 },
-  energyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.surfaceElevated },
-  reportDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 14 },
-  reportBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
-  reportBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
-});
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
+    container: { flex: 1, minHeight: 1, backgroundColor: C.background },
+    scrollView: { flex: 1, minHeight: 1 },
+    scrollViewContent: { flexGrow: 1 },
+    content: { paddingHorizontal: 24 },
+    welcome: { marginBottom: 8 },
+    greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
+    dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
+    hijriDate: { fontWeight: "600", fontSize: 14, color: C.textSecondary, marginBottom: 20 },
+    sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
+    priorityGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 12, width: "100%" },
+    priorityGridItem: { marginBottom: 12 },
+    priBigNum: { fontWeight: "700", fontSize: 28, color: "#fff", letterSpacing: -1, marginBottom: 4 },
+    priBigNumSub: { fontSize: 16, color: "rgba(255,255,255,0.6)" },
+    priProgress: { height: 4, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 2, overflow: "hidden", marginBottom: 8 },
+    priProgressFill: { height: "100%", backgroundColor: "#fff", borderRadius: 2 },
+    priMeta: { fontWeight: "400", fontSize: 12, color: "rgba(255,255,255,0.7)" },
+    priEmpty: { fontWeight: "500", fontSize: 14, color: "rgba(255,255,255,0.8)" },
+    priAptName: { fontWeight: "600", fontSize: 13, color: "#fff", marginBottom: 2 },
+    priAptSpec: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.7)", marginBottom: 6 },
+    priAptDateRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
+    priAptDate: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.7)", marginRight: 4 },
+    priLogRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+    priLogItem: { flex: 1, alignItems: "center" },
+    priLogLabel: { fontWeight: "400", fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 4 },
+    priLogValue: { fontWeight: "600", fontSize: 15, color: "#fff" },
+    priLogDivider: { width: 1, height: 28, backgroundColor: "rgba(255,255,255,0.2)" },
+    grid: { gap: 12 },
+    gridWide: { flexDirection: "row", flexWrap: "wrap" },
+    card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: C.border },
+    cardWide: { width: "48.5%", marginRight: "1%" },
+    cardHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
+    cardIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+    cardLabel: { fontWeight: "600", fontSize: 14, color: C.text },
+    cardBigNum: { fontWeight: "700", fontSize: 36, color: C.text, letterSpacing: -1, marginBottom: 8 },
+    cardBigNumSub: { fontSize: 20, color: C.textTertiary },
+    progressTrack: { height: 4, backgroundColor: C.surfaceElevated, borderRadius: 2, overflow: "hidden", marginBottom: 8 },
+    progressFill: { height: "100%", backgroundColor: C.tint, borderRadius: 2 },
+    cardMeta: { fontWeight: "400", fontSize: 12, color: C.textSecondary },
+    cardEmpty: { paddingVertical: 8 },
+    cardEmptyText: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
+    fastingRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+    fastingItem: { flex: 1, alignItems: "center" },
+    fastingDivider: { width: 1, height: 28, backgroundColor: C.border },
+    fastingLabel: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginBottom: 4 },
+    fastingValue: { fontWeight: "600", fontSize: 14, color: C.text },
+    energyRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    energyDots: { flexDirection: "row", gap: 4 },
+    energyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.surfaceElevated },
+    reportDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 14 },
+    reportBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+    reportBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
+  });
+}

@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, TextInput, Platform, useWindowDimensions, Animated, Alert, Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage, comfortStorage,
   type Medication, type MedicationLog, type SickModeData, type ComfortItem,
@@ -13,7 +13,6 @@ import {
 import { getToday } from "@/lib/date-utils";
 import { useAccessibility } from "@/lib/accessibility";
 
-const C = Colors.dark;
 const HYDRATION_GOAL = 2000;
 const CHECK_IN_INTERVAL_MS = 2 * 60 * 60 * 1000;
 const COMFORT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -37,6 +36,8 @@ function formatCountdown(ms: number): string {
 export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
   const today = getToday();
   const { reduceMotion } = useAccessibility();
@@ -539,7 +540,8 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F5D5D0" },
   content: { paddingHorizontal: 24 },
   warningHeader: {
@@ -683,4 +685,5 @@ const styles = StyleSheet.create({
   modalSubmitBtnText: { fontWeight: "600", fontSize: 16, color: "#fff" },
   modalSkipBtn: { paddingVertical: 8 },
   modalSkipBtnText: { fontWeight: "500", fontSize: 14, color: C.textTertiary },
-});
+  });
+}

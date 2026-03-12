@@ -1,11 +1,9 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { StyleSheet, Pressable, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Speech from "expo-speech";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
-
-const C = Colors.dark;
+import { useTheme } from "@/contexts/ThemeContext";
 
 interface ReadAloudButtonProps {
   getText: () => string;
@@ -13,6 +11,8 @@ interface ReadAloudButtonProps {
 
 export default function ReadAloudButton({ getText }: ReadAloudButtonProps) {
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const handlePress = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -54,7 +54,8 @@ export default function ReadAloudButton({ getText }: ReadAloudButtonProps) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   wrapper: {
     position: "absolute",
     bottom: 140,
@@ -77,4 +78,5 @@ const styles = StyleSheet.create({
   buttonActive: {
     backgroundColor: C.red,
   },
-});
+  });
+}

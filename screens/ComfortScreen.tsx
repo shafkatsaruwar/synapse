@@ -1,18 +1,19 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { comfortStorage, type ComfortItem } from "@/lib/storage";
 
-const C = Colors.dark;
 
 export default function ComfortScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
 
   const [items, setItems] = useState<ComfortItem[]>([]);
@@ -113,7 +114,8 @@ export default function ComfortScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
@@ -134,4 +136,5 @@ const styles = StyleSheet.create({
   modalCancelText: { fontSize: 16, color: C.textSecondary },
   modalSave: { backgroundColor: C.tint, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12 },
   modalSaveText: { fontSize: 16, fontWeight: "600", color: "#fff" },
-});
+  });
+}

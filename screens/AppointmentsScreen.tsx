@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, Alert, useWindowDimensions, KeyboardAvoidingView, Keyboard, TouchableOpacity,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   appointmentStorage,
@@ -26,7 +26,6 @@ import {
 } from "@/lib/appointments-api";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 
-const C = Colors.dark;
 
 const REPEAT_OPTIONS: { value: "none" | "week" | "2weeks" | "month" | "custom"; label: string; interval?: number; unit?: RepeatUnit }[] = [
   { value: "none", label: "Does not repeat" },
@@ -118,6 +117,8 @@ const calStyles = StyleSheet.create({
 export default function AppointmentsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const { user } = useAuth();
   const isWide = width >= 768;
   const today = getToday();
@@ -596,7 +597,8 @@ export default function AppointmentsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
@@ -658,4 +660,5 @@ const styles = StyleSheet.create({
   cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.purple, alignItems: "center" },
   confirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-});
+  });
+}

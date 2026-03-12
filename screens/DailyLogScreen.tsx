@@ -13,12 +13,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { healthLogStorage, settingsStorage, type HealthLog, type UserSettings } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import RAMADAN_2026 from "@/constants/ramadan-timetable";
 
-const C = Colors.dark;
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function formatYYYYMMDD(year: number, month: number, day: number): string {
@@ -46,6 +45,8 @@ function getHijriDay(dateStr: string): number | undefined {
 export default function DailyLogScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
   const todayStr = getToday();
 
@@ -357,7 +358,8 @@ export default function DailyLogScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   title: {
@@ -595,4 +597,5 @@ const styles = StyleSheet.create({
   },
   saveBtnSaved: { backgroundColor: C.green },
   saveBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
-});
+  });
+}

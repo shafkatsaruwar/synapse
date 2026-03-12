@@ -1,12 +1,11 @@
-import React, { useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { StyleSheet, Text, View, ScrollView, Pressable, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { conditionStorage } from "@/lib/storage";
 
-const C = Colors.dark;
 
 interface HealthProfileScreenProps {
   onBack: () => void;
@@ -15,6 +14,8 @@ interface HealthProfileScreenProps {
 
 export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfileScreenProps) {
   const insets = useSafeAreaInsets();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [conditionsCount, setConditionsCount] = useState(0);
 
   const loadData = useCallback(async () => {
@@ -91,7 +92,8 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 20 },
@@ -104,4 +106,5 @@ const styles = StyleSheet.create({
   profileRowTitle: { fontWeight: "600", fontSize: 15, color: C.text },
   profileRowDesc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
   divider: { height: 1, backgroundColor: C.border, marginLeft: 16, marginRight: 16 },
-});
+  });
+}

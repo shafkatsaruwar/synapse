@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -12,10 +12,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { allergyStorage, type AllergyInfo } from "@/lib/storage";
 
-const C = Colors.dark;
 
 const DEFAULT_ALLERGY: AllergyInfo = {
   hasAllergies: false,
@@ -34,6 +33,8 @@ interface AllergyScreenProps {
 export default function AllergyScreen({ onBack }: AllergyScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
 
   const [allergy, setAllergy] = useState<AllergyInfo>({ ...DEFAULT_ALLERGY });
@@ -204,7 +205,8 @@ export default function AllergyScreen({ onBack }: AllergyScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 20 },
@@ -222,4 +224,5 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
   saveBtnSaved: { backgroundColor: C.green },
   saveBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
-});
+  });
+}

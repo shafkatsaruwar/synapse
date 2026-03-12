@@ -1,16 +1,15 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { doctorsStorage, type Doctor } from "@/lib/storage";
 import { fetchDoctorsFromSupabase, createDoctorInSupabase, deleteDoctorFromSupabase } from "@/lib/doctors-api";
 
-const C = Colors.dark;
 
 interface DoctorsScreenProps {
   onBack: () => void;
@@ -18,6 +17,8 @@ interface DoctorsScreenProps {
 
 export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
   const insets = useSafeAreaInsets();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const { user } = useAuth();
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -156,7 +157,8 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border },
   backBtn: { marginRight: 8 },
@@ -181,4 +183,5 @@ const styles = StyleSheet.create({
   cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.tint, alignItems: "center" },
   confirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-});
+  });
+}

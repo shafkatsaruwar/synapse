@@ -1,18 +1,17 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Modal, TextInput, Platform, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   goalStorage, medicationStorage, medicationLogStorage,
   type Goal, type Medication, type MedicationLog,
 } from "@/lib/storage";
 import { getToday, getDaysAgo } from "@/lib/date-utils";
 
-const C = Colors.dark;
 
 function getDoseCount(med: Medication): number {
   if (med.doses != null && med.doses > 0) return med.doses;
@@ -51,6 +50,8 @@ function computeMedsStreak(meds: Medication[], logs: MedicationLog[]): number {
 export default function GoalsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
 
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -251,7 +252,8 @@ export default function GoalsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
@@ -294,4 +296,5 @@ const styles = StyleSheet.create({
   modalCancelText: { fontSize: 16, color: C.textSecondary },
   modalSave: { backgroundColor: C.tint, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12 },
   modalSaveText: { fontSize: 16, fontWeight: "600", color: "#fff" },
-});
+  });
+}

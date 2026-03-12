@@ -27,15 +27,14 @@ import DoctorsScreen from "@/screens/DoctorsScreen";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import AuthScreen from "@/screens/AuthScreen";
 import { settingsStorage } from "@/lib/storage";
-import Colors from "@/constants/colors";
-
-const C = Colors.dark;
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function MainScreen() {
   const [activeScreen, setActiveScreen] = useState("dashboard");
   const [refreshKey, setRefreshKey] = useState(0);
   const [sickMode, setSickMode] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const { theme: C } = useTheme();
 
   const checkInitialState = useCallback(async () => {
     try {
@@ -163,6 +162,5 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     minHeight: 1,
-    backgroundColor: C.background,
   },
 });

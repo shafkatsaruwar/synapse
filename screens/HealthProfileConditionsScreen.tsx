@@ -5,11 +5,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { conditionStorage, type HealthCondition } from "@/lib/storage";
 import conditionsDatabase from "@/constants/conditions.json";
 
-const C = Colors.dark;
 
 interface Props {
   onBack?: () => void;
@@ -18,6 +17,8 @@ interface Props {
 export default function HealthProfileConditionsScreen({ onBack }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
 
   const [conditions, setConditions] = useState<HealthCondition[]>([]);
@@ -341,7 +342,8 @@ export default function HealthProfileConditionsScreen({ onBack }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   backBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 16, minHeight: 44 },
@@ -409,4 +411,5 @@ const styles = StyleSheet.create({
   editCancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
   saveBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10, backgroundColor: C.tint, minHeight: 44, justifyContent: "center" },
   saveText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-});
+  });
+}

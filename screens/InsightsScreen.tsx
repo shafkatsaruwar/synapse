@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Platform, useWindowDimensions, ActivityIndicator, Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   healthLogStorage, symptomStorage, medicationStorage, medicationLogStorage, vitalStorage,
   fastingLogStorage, settingsStorage, documentStorage, insightStorage, conditionStorage,
@@ -14,11 +14,12 @@ import {
 import { getHealthInsights } from "@/lib/api";
 import { getToday, formatDate } from "@/lib/date-utils";
 
-const C = Colors.dark;
 
 export default function InsightsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
 
   const [insight, setInsight] = useState<HealthInsight | null>(null);
@@ -238,7 +239,8 @@ export default function InsightsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
@@ -271,4 +273,5 @@ const styles = StyleSheet.create({
   medNoteType: { fontWeight: "500", fontSize: 10, textTransform: "uppercase" },
   ramCatBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginTop: 2 },
   ramCatText: { fontWeight: "500", fontSize: 10, textTransform: "uppercase" },
-});
+  });
+}

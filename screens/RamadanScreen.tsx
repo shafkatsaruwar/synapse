@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -13,12 +13,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { fastingLogStorage, settingsStorage, sickModeStorage, type FastingLog } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
-
-const C = Colors.dark;
 
 const ENERGY_LABELS = ["Low", "Fair", "Good", "Great", "Excellent"];
 
@@ -38,6 +36,8 @@ interface RamadanScreenProps {
 export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
   const today = getToday();
 
@@ -364,7 +364,8 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", alignItems: "flex-start", gap: 14, marginBottom: 24 },
@@ -474,4 +475,5 @@ const styles = StyleSheet.create({
   },
   saveBtnSaved: { backgroundColor: "#2D7D46" },
   saveBtnText: { fontWeight: "600", fontSize: 16, color: "#fff" },
-});
+  });
+}

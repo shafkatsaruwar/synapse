@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import {
   StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform,
   useWindowDimensions, Animated, Image, StatusBar, KeyboardAvoidingView, Alert,
@@ -6,16 +6,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { settingsStorage, medicationStorage, ALL_SECTION_KEYS } from "@/lib/storage";
 import { getBackupStatus, restoreFromCloud } from "@/lib/backup";
 
 const brainLogo = require("../assets/images/brain-logo.jpeg");
 
-const C = Colors.dark;
 
-const MAROON = "#800020";
 const MAROON_LIGHT = "rgba(128,0,32,0.12)";
 
 interface OnboardingScreenProps {
@@ -127,6 +125,8 @@ const founderImage = require("../assets/images/founder.png");
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const { signIn, signUp, user } = useAuth();
   const [step, setStep] = useState(0);
   const [animKey, setAnimKey] = useState(0);
@@ -674,7 +674,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background, paddingHorizontal: 28 },
   body: { flex: 1, justifyContent: "center" },
   footer: { gap: 16, paddingBottom: 8 },
@@ -830,4 +831,5 @@ const styles = StyleSheet.create({
     backgroundColor: MAROON, borderRadius: 16, paddingVertical: 18,
   },
   continueBtnText: { fontWeight: "600", fontSize: 17, color: "#fff" },
-});
+  });
+}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -13,13 +13,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import SynapseLogo from "@/components/SynapseLogo";
 import { featureFlags } from "@/constants/feature-flags";
 import { useAuth } from "@/contexts/AuthContext";
 import { settingsStorage } from "@/lib/storage";
-
-const C = Colors.dark;
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -80,6 +78,8 @@ export default function SidebarLayout({
 }: SidebarLayoutProps) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
   const [moreOpen, setMoreOpen] = useState(false);
   const drawerSlide = useRef(new Animated.Value(1)).current;
@@ -356,7 +356,8 @@ export default function SidebarLayout({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: "row",
@@ -618,4 +619,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: C.textTertiary,
   },
-});
+  });
+}

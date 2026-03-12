@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, useWindowDimensions, ActivityIndicator, Alert,
 } from "react-native";
@@ -6,16 +6,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { documentStorage, medicationStorage, medComparisonStorage, type DocumentExtraction } from "@/lib/storage";
 import { analyzeDocument, compareMedications } from "@/lib/api";
 import { formatDate, getToday } from "@/lib/date-utils";
 
-const C = Colors.dark;
 
 export default function DocumentsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
 
   const [documents, setDocuments] = useState<DocumentExtraction[]>([]);
@@ -330,7 +331,8 @@ export default function DocumentsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
@@ -390,4 +392,5 @@ const styles = StyleSheet.create({
   compItem: { fontWeight: "400", fontSize: 13, color: C.text, marginLeft: 10, marginBottom: 4 },
   compCloseBtn: { backgroundColor: C.tint, borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 6 },
   compCloseText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-});
+  });
+}

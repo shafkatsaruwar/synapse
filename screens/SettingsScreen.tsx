@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type ThemeId } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   settingsStorage,
@@ -24,9 +24,6 @@ import {
   type UserSettings,
 } from "@/lib/storage";
 import { getBackupStatus, backupNow, restoreFromCloud, type BackupStatus } from "@/lib/backup";
-
-const C = Colors.dark;
-const MAROON = "#800020";
 
 const SECTION_LABELS: Record<string, string> = {
   log: "Daily Log", healthdata: "Health Data", medications: "Medications", symptoms: "Symptoms",
@@ -46,11 +43,18 @@ const SECTION_ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"
   goals: "flag-outline", appointments: "calendar-outline", reports: "document-text-outline", privacy: "shield-outline",
 };
 
+const THEME_OPTIONS: { id: ThemeId; label: string; icon: React.ComponentProps<typeof Ionicons>["name"] }[] = [
+  { id: "calm", label: "Calm", icon: "leaf-outline" },
+  { id: "light", label: "Light", icon: "sunny-outline" },
+  { id: "dark", label: "Dark", icon: "moon-outline" },
+];
+
 export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComplete }: SettingsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const { user, signOut } = useAuth();
+  const { theme: C, themeId, setTheme } = useTheme();
 
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
   const [saved, setSaved] = useState(true);
@@ -63,6 +67,8 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [showSectionsModal, setShowSectionsModal] = useState(false);
   const [sectionSelections, setSectionSelections] = useState<Set<string>>(new Set());
+
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const handleResetApp = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -224,7 +230,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
                   onPress={handleBackupNow}
                   disabled={backupLoading}
                 >
-                  {backupLoading ? <ActivityIndicator size="small" color={MAROON} /> : <Text style={styles.secondaryBtnText}>Backup Now</Text>}
+                  {backupLoading ? <ActivityIndicator size="small" color={C.tint} /> : <Text style={styles.secondaryBtnText}>Backup Now</Text>}
                 </Pressable>
                 <Pressable
                   style={[styles.outlineBtn, restoreLoading && { opacity: 0.6 }]}
@@ -289,6 +295,32 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           </Pressable>
         </View>
 
+        {/* ——— Appearance ——— */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Appearance</Text>
+          <Text style={[styles.desc, { marginBottom: 12 }]}>Choose your preferred theme</Text>
+          <View style={styles.themeRow}>
+            {THEME_OPTIONS.map((opt) => {
+              const active = themeId === opt.id;
+              return (
+                <Pressable
+                  key={opt.id}
+                  style={[styles.themeOption, active && styles.themeOptionActive]}
+                  onPress={() => { setTheme(opt.id); Haptics.selectionAsync(); }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: active }}
+                  accessibilityLabel={`${opt.label} theme`}
+                >
+                  <Ionicons name={opt.icon} size={18} color={active ? C.tint : C.textTertiary} />
+                  <Text style={[styles.themeOptionLabel, active && styles.themeOptionLabelActive]}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
         <Pressable
           style={styles.card}
           testID="ramadan-mode-toggle"
@@ -307,28 +339,6 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
             </View>
             <View style={[styles.toggle, settings.ramadanMode && styles.toggleActive]}>
               <View style={[styles.toggleThumb, settings.ramadanMode && styles.toggleThumbActive]} />
-            </View>
-          </View>
-        </Pressable>
-
-        <Pressable
-          style={styles.card}
-          testID="high-contrast-toggle"
-          onPress={() => {
-            setSettings((p) => ({ ...p, highContrast: !p.highContrast }));
-            setSaved(false);
-            Haptics.selectionAsync();
-          }}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: !!settings.highContrast }}
-        >
-          <View style={styles.toggleHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sectionTitle}>High Contrast</Text>
-              <Text style={styles.desc}>Increase contrast for better readability</Text>
-            </View>
-            <View style={[styles.toggle, settings.highContrast && styles.toggleActive]}>
-              <View style={[styles.toggleThumb, settings.highContrast && styles.toggleThumbActive]} />
             </View>
           </View>
         </Pressable>
@@ -404,7 +414,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
               <Pressable style={styles.cancelBtn} onPress={() => setShowRestoreConfirm(false)}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </Pressable>
-              <Pressable style={[styles.resetConfirmBtn, { backgroundColor: MAROON }]} onPress={handleRestore}>
+              <Pressable style={[styles.resetConfirmBtn, { backgroundColor: C.tint }]} onPress={handleRestore}>
                 <Text style={styles.resetConfirmText}>Restore</Text>
               </Pressable>
             </View>
@@ -425,13 +435,13 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
                 return (
                   <Pressable
                     key={key}
-                    style={[styles.profileRow, { marginBottom: 8, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: isSelected ? MAROON : C.border, backgroundColor: isSelected ? "rgba(128,0,32,0.08)" : C.surface }]}
+                    style={[styles.profileRow, { marginBottom: 8, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: isSelected ? C.tint : C.border, backgroundColor: isSelected ? C.tintLight : C.surface }]}
                     onPress={() => toggleSection(key)}
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: isSelected }}
                     accessibilityLabel={`${label}, ${isSelected ? "on" : "off"}`}
                   >
-                    <View style={[styles.profileIcon, { backgroundColor: (isSelected ? MAROON : C.surfaceElevated) + "99" }]}>
+                    <View style={[styles.profileIcon, { backgroundColor: (isSelected ? C.tint : C.surfaceElevated) + "99" }]}>
                       <Ionicons name={iconName} size={18} color={isSelected ? "#fff" : C.textSecondary} />
                     </View>
                     <Text style={[styles.profileRowTitle, { flex: 1, marginBottom: 0 }]} numberOfLines={1}>{label}</Text>
@@ -446,7 +456,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
               <Pressable style={styles.cancelBtn} onPress={() => setShowSectionsModal(false)}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </Pressable>
-              <Pressable style={[styles.resetConfirmBtn, { backgroundColor: MAROON }]} onPress={handleSaveSections}>
+              <Pressable style={[styles.resetConfirmBtn, { backgroundColor: C.tint }]} onPress={handleSaveSections}>
                 <Text style={styles.resetConfirmText}>Done</Text>
               </Pressable>
             </View>
@@ -457,57 +467,65 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
-  scrollView: { flex: 1 },
-  scrollViewContent: { flexGrow: 1 },
-  title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 24 },
-  card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
-  sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 4 },
-  desc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 14 },
-  label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
-  input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border },
-  profileRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, minHeight: 50 },
-  profileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  profileRowTitle: { fontWeight: "600", fontSize: 14, color: C.text },
-  profileRowDesc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
-  accountRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontWeight: "600", fontSize: 16, color: C.tint },
-  syncedBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
-  syncedText: { fontWeight: "500", fontSize: 11, color: C.green },
-  accountActions: { flexDirection: "row", gap: 10 },
-  primaryBtn: { backgroundColor: MAROON, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  primaryBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
-  secondaryBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.tintLight, alignItems: "center" },
-  secondaryBtnText: { fontWeight: "600", fontSize: 14, color: C.tint },
-  outlineBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "center" },
-  outlineBtnText: { fontWeight: "600", fontSize: 14, color: C.text },
-  backupActions: { flexDirection: "row", gap: 10, marginTop: 8 },
-  localHint: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 12 },
-  toggleHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  toggle: { width: 48, height: 28, borderRadius: 14, backgroundColor: C.surfaceElevated, justifyContent: "center", paddingHorizontal: 3 },
-  toggleActive: { backgroundColor: C.tint },
-  toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#fff" },
-  toggleThumbActive: { alignSelf: "flex-end" },
-  saveBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
-  saveBtnSaved: { backgroundColor: C.green },
-  saveBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
-  modalActions: { flexDirection: "row", gap: 10 },
-  cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center" },
-  cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
-  resetAppBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 28, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: C.red + "30" },
-  resetAppText: { fontWeight: "500", fontSize: 14, color: C.red },
-  resetModal: { backgroundColor: C.surface, borderRadius: 22, padding: 28, width: "100%", maxWidth: 320, borderWidth: 1, borderColor: C.border, alignItems: "center" },
-  resetEmoji: { fontSize: 56, marginBottom: 16 },
-  resetTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 8, textAlign: "center" },
-  resetDesc: { fontWeight: "400", fontSize: 15, color: C.textSecondary, textAlign: "center", marginBottom: 24, lineHeight: 22 },
-  resetConfirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.red, alignItems: "center" },
-  resetConfirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-  sectionCheckbox: {
-    width: 24, height: 24, borderRadius: 8, borderWidth: 2, borderColor: C.border,
-    alignItems: "center", justifyContent: "center", backgroundColor: C.surface, marginRight: 12,
-  },
-  sectionCheckboxActive: { backgroundColor: MAROON, borderColor: MAROON },
-});
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    scrollView: { flex: 1 },
+    scrollViewContent: { flexGrow: 1 },
+    title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 24 },
+    card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
+    sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 4 },
+    desc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 14 },
+    label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
+    input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border },
+    profileRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, minHeight: 50 },
+    profileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+    profileRowTitle: { fontWeight: "600", fontSize: 14, color: C.text },
+    profileRowDesc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
+    accountRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
+    avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
+    avatarText: { fontWeight: "600", fontSize: 16, color: C.tint },
+    syncedBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+    syncedText: { fontWeight: "500", fontSize: 11, color: C.green },
+    accountActions: { flexDirection: "row", gap: 10 },
+    primaryBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
+    primaryBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
+    secondaryBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.tintLight, alignItems: "center" },
+    secondaryBtnText: { fontWeight: "600", fontSize: 14, color: C.tint },
+    outlineBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "center" },
+    outlineBtnText: { fontWeight: "600", fontSize: 14, color: C.text },
+    backupActions: { flexDirection: "row", gap: 10, marginTop: 8 },
+    localHint: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 12 },
+    toggleHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    toggle: { width: 48, height: 28, borderRadius: 14, backgroundColor: C.surfaceElevated, justifyContent: "center", paddingHorizontal: 3 },
+    toggleActive: { backgroundColor: C.tint },
+    toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#fff" },
+    toggleThumbActive: { alignSelf: "flex-end" },
+    // Appearance / theme selector
+    themeRow: { flexDirection: "row", gap: 10 },
+    themeOption: { flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated, gap: 6 },
+    themeOptionActive: { borderColor: C.tint, backgroundColor: C.tintLight },
+    themeOptionLabel: { fontWeight: "500", fontSize: 12, color: C.textTertiary },
+    themeOptionLabelActive: { color: C.tint, fontWeight: "600" },
+    saveBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
+    saveBtnSaved: { backgroundColor: C.green },
+    saveBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
+    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
+    modalActions: { flexDirection: "row", gap: 10 },
+    cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center" },
+    cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
+    resetAppBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 28, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: C.red + "30" },
+    resetAppText: { fontWeight: "500", fontSize: 14, color: C.red },
+    resetModal: { backgroundColor: C.surface, borderRadius: 22, padding: 28, width: "100%", maxWidth: 320, borderWidth: 1, borderColor: C.border, alignItems: "center" },
+    resetEmoji: { fontSize: 56, marginBottom: 16 },
+    resetTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 8, textAlign: "center" },
+    resetDesc: { fontWeight: "400", fontSize: 15, color: C.textSecondary, textAlign: "center", marginBottom: 24, lineHeight: 22 },
+    resetConfirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.red, alignItems: "center" },
+    resetConfirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
+    sectionCheckbox: {
+      width: 24, height: 24, borderRadius: 8, borderWidth: 2, borderColor: C.border,
+      alignItems: "center", justifyContent: "center", backgroundColor: C.surface, marginRight: 12,
+    },
+    sectionCheckboxActive: { backgroundColor: C.tint, borderColor: C.tint },
+  });
+}

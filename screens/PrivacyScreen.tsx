@@ -1,18 +1,19 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Platform, useWindowDimensions, Alert, Share,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { exportAllData, clearAllData } from "@/lib/storage";
 
-const C = Colors.dark;
 
 export default function PrivacyScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
   const [exporting, setExporting] = useState(false);
 
@@ -144,7 +145,8 @@ export default function PrivacyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
@@ -163,4 +165,5 @@ const styles = StyleSheet.create({
   actionDesc: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2 },
   infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 16, marginTop: 16 },
   infoText: { fontWeight: "400", fontSize: 12, color: C.textTertiary, flex: 1, lineHeight: 17 },
-});
+  });
+}

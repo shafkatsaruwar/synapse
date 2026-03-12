@@ -1,15 +1,14 @@
-import React, { useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, Alert, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { symptomStorage, settingsStorage, sickModeStorage, type Symptom } from "@/lib/storage";
 import { getToday, getRelativeDay, getDaysAgo } from "@/lib/date-utils";
 
-const C = Colors.dark;
 
 const COMMON_SYMPTOMS = [
   "Fever", "Headache", "Fatigue", "Nausea", "Dizziness", "Joint Pain",
@@ -24,6 +23,8 @@ interface SymptomsScreenProps {
 export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
   const today = getToday();
 
@@ -256,7 +257,8 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
@@ -316,4 +318,5 @@ const styles = StyleSheet.create({
   feverAlertBtnText: { fontWeight: "600", fontSize: 14, color: "#fff" },
   feverAlertDismiss: { paddingVertical: 12 },
   feverAlertDismissText: { fontWeight: "500", fontSize: 13, color: C.textTertiary },
-});
+  });
+}

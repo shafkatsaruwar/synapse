@@ -1,11 +1,9 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { StyleSheet, Text, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { settingsStorage, sickModeStorage } from "@/lib/storage";
-
-const C = Colors.dark;
 
 interface SickModeHeaderButtonProps {
   onActivate: () => void;
@@ -15,6 +13,8 @@ interface SickModeHeaderButtonProps {
 
 export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKey }: SickModeHeaderButtonProps) {
   const [isActive, setIsActive] = useState(false);
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const load = useCallback(async () => {
     const settings = await settingsStorage.get();
@@ -58,7 +58,8 @@ export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKe
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   pill: {
     flexDirection: "row",
     alignItems: "center",
@@ -82,4 +83,5 @@ const styles = StyleSheet.create({
   pillTextActive: {
     color: C.red,
   },
-});
+  });
+}

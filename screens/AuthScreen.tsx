@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -14,12 +14,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { getBackupStatus, restoreFromCloud } from "@/lib/backup";
 
-const C = Colors.dark;
-const MAROON = "#800020";
 
 type Mode = "signin" | "signup" | "forgot";
 
@@ -30,6 +28,8 @@ interface AuthScreenProps {
 
 export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
   const insets = useSafeAreaInsets();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const { signIn, signUp, user, resetPassword } = useAuth();
 
   const [mode, setMode] = useState<Mode>("signin");
@@ -216,7 +216,7 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
 
           {loading ? (
             <View style={styles.loaderWrap}>
-              <ActivityIndicator size="small" color={MAROON} />
+              <ActivityIndicator size="small" color={C.tint} />
             </View>
           ) : (
             <Pressable
@@ -258,7 +258,8 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   scroll: { paddingHorizontal: 24 },
   backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 20 },
@@ -270,11 +271,12 @@ const styles = StyleSheet.create({
   input: { fontWeight: "400", fontSize: 15, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
   messageBox: { marginBottom: 14, padding: 12, borderRadius: 10 },
   messageError: { backgroundColor: C.redLight },
-  messageSuccess: { backgroundColor: Colors.dark.greenLight },
+  messageSuccess: { backgroundColor: C.greenLight },
   messageText: { fontWeight: "500", fontSize: 13, color: C.text },
   loaderWrap: { paddingVertical: 14, alignItems: "center" },
-  primaryBtn: { backgroundColor: MAROON, borderRadius: 12, paddingVertical: 16, alignItems: "center" },
+  primaryBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 16, alignItems: "center" },
   primaryBtnText: { fontWeight: "600", fontSize: 16, color: "#fff" },
   links: { gap: 12 },
   linkText: { fontWeight: "500", fontSize: 14, color: C.tint },
-});
+  });
+}

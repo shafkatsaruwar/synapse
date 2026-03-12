@@ -1,15 +1,14 @@
-import React, { useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Modal, TextInput, Platform, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { vitalStorage, healthLogStorage, type Vital, type HealthLog } from "@/lib/storage";
 import { getDaysAgo, formatDate, getToday } from "@/lib/date-utils";
 
-const C = Colors.dark;
 
 type Category = "weight" | "blood_pressure" | "blood_sugar" | "heart_rate" | "sleep" | "hydration" | "labs";
 
@@ -26,6 +25,8 @@ const CATEGORIES: { key: Category; label: string; icon: string; color: string; u
 export default function HealthDataScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { theme: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
 
   const [vitals, setVitals] = useState<Vital[]>([]);
@@ -284,7 +285,8 @@ export default function HealthDataScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: ReturnType<typeof import("@/contexts/ThemeContext").useTheme>["theme"]) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
@@ -333,4 +335,5 @@ const styles = StyleSheet.create({
   cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
   confirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-});
+  });
+}
