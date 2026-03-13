@@ -182,7 +182,7 @@ export default function EatingScreen() {
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: C.background },
+    container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 24 },
     header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
     title: { fontWeight: "700", fontSize: 28, color: C.text, marginBottom: 4 },

@@ -454,7 +454,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: C.background },
+    container: { flex: 1, backgroundColor: "transparent" },
     scrollView: { flex: 1 },
     scrollViewContent: { flexGrow: 1 },
     title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 24 },

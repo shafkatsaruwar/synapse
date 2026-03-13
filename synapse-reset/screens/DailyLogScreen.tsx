@@ -359,7 +359,7 @@ export default function DailyLogScreen() {
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
   title: {
     fontWeight: "700",

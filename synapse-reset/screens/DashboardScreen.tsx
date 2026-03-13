@@ -87,15 +87,118 @@ function DashboardHero({
   const heroGradientColors =
     themeId === "dark"
       ? ["#0F0F10", "#0F0F10"]
-      : themeId === "light"
-      ? ["#D6E6FF", "#D6E6FF"]
+      : themeId === "calm"
+      ? ["#E6D2B8", "#E6D2B8"]
       : ["#E6D3BD", "#E6D3BD"];
 
   const heroBorderColor = themeId === "dark" ? "#2A2A2A" : "#D6BFA6";
 
   const miniCardBackground =
-    themeId === "dark" ? "#161616" : themeId === "light" ? "#F5F7FA" : "#F3E6D8";
+    themeId === "dark" ? "#161616" : themeId === "light" ? "#FFFFFF" : "#F3E6D8";
   const miniCardBorderColor = themeId === "dark" ? "#2A2A2A" : "#E2CFC0";
+
+  const renderHeroInner = () => (
+    <View style={styles.dashboardHeroGradient}>
+      <View style={styles.dashboardHeroHeader}>
+        <Text
+          style={[
+            styles.dashboardHeroRamadan,
+            themeId === "light" && { color: "#1F2937" },
+          ]}
+        >
+          {ramadanDayLabel}
+        </Text>
+        <Text style={styles.dashboardHeroSubtitle}>{subtitle}</Text>
+      </View>
+
+      <View style={styles.dashboardHeroTimesRow}>
+        <View style={styles.dashboardHeroTimeCol}>
+          <Text style={styles.dashboardHeroTimeLabel}>Fajr</Text>
+          <Text
+            style={[
+              styles.dashboardHeroTimeValue,
+              themeId === "light" && { color: "#2F6FCF" },
+            ]}
+          >
+            {fajrTime}
+          </Text>
+        </View>
+        <View style={styles.dashboardHeroTimeCol}>
+          <Text style={styles.dashboardHeroTimeLabel}>Iftar</Text>
+          <Text
+            style={[
+              styles.dashboardHeroTimeValue,
+              themeId === "light" && { color: "#2F6FCF" },
+            ]}
+          >
+            {iftarTime}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.dashboardHeroMiniRow}>
+        <Pressable
+          style={[
+            styles.dashboardHeroMiniCard,
+            { backgroundColor: miniCardBackground, borderColor: miniCardBorderColor },
+          ]}
+          onPress={() => onNavigate("medications")}
+          accessibilityRole="button"
+          accessibilityLabel="Open Medications"
+        >
+          <Text style={styles.dashboardHeroMiniTitle}>
+            {nextMedication?.name || "Hydrocortisone"}
+          </Text>
+          {(nextMedication?.lines?.length ? nextMedication.lines : ["Morning dose"]).map((line, i) => (
+            <Text key={i} style={styles.dashboardHeroMiniSubtitle}>
+              {line}
+            </Text>
+          ))}
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.dashboardHeroMiniCard,
+            { backgroundColor: miniCardBackground, borderColor: miniCardBorderColor },
+          ]}
+          onPress={() => onNavigate("appointments")}
+          accessibilityRole="button"
+          accessibilityLabel="Open Appointments"
+        >
+          <Text style={styles.dashboardHeroMiniTitle}>Next appointment</Text>
+          <Text style={styles.dashboardHeroMiniSubtitle}>
+            {nextApt?.doctorName || "Dr. Jordon LICSW"}
+          </Text>
+          <Text style={styles.dashboardHeroMiniSubtitle}>
+            {nextApt
+              ? `${formatDate(nextApt.date)} · ${formatTime12h(nextApt.time)}`
+              : "Tue Mar 17 · 10:00 AM"}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+
+  if (themeId === "light") {
+    return (
+      <View
+        style={[
+          styles.dashboardHero,
+          {
+            backgroundColor: "#FFFFFF",
+            borderColor: "rgba(255,255,255,0.9)",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 4,
+          },
+        ]}
+      >
+        {renderHeroInner()}
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.dashboardHero, { borderColor: heroBorderColor }]}>
@@ -105,62 +208,7 @@ function DashboardHero({
         end={{ x: 1, y: 1 }}
         style={styles.dashboardHeroGradient}
       >
-        <View style={styles.dashboardHeroHeader}>
-          <Text style={styles.dashboardHeroRamadan}>{ramadanDayLabel}</Text>
-          <Text style={styles.dashboardHeroSubtitle}>{subtitle}</Text>
-        </View>
-
-        <View style={styles.dashboardHeroTimesRow}>
-          <View style={styles.dashboardHeroTimeCol}>
-            <Text style={styles.dashboardHeroTimeLabel}>Fajr</Text>
-            <Text style={styles.dashboardHeroTimeValue}>{fajrTime}</Text>
-          </View>
-          <View style={styles.dashboardHeroTimeCol}>
-            <Text style={styles.dashboardHeroTimeLabel}>Iftar</Text>
-            <Text style={styles.dashboardHeroTimeValue}>{iftarTime}</Text>
-          </View>
-        </View>
-
-        <View style={styles.dashboardHeroMiniRow}>
-          <Pressable
-            style={[
-              styles.dashboardHeroMiniCard,
-              { backgroundColor: miniCardBackground, borderColor: miniCardBorderColor },
-            ]}
-            onPress={() => onNavigate("medications")}
-            accessibilityRole="button"
-            accessibilityLabel="Open Medications"
-          >
-            <Text style={styles.dashboardHeroMiniTitle}>
-              {nextMedication?.name || "Hydrocortisone"}
-            </Text>
-            {(nextMedication?.lines?.length ? nextMedication.lines : ["Morning dose"]).map((line, i) => (
-              <Text key={i} style={styles.dashboardHeroMiniSubtitle}>
-                {line}
-              </Text>
-            ))}
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.dashboardHeroMiniCard,
-              { backgroundColor: miniCardBackground, borderColor: miniCardBorderColor },
-            ]}
-            onPress={() => onNavigate("appointments")}
-            accessibilityRole="button"
-            accessibilityLabel="Open Appointments"
-          >
-            <Text style={styles.dashboardHeroMiniTitle}>Next appointment</Text>
-            <Text style={styles.dashboardHeroMiniSubtitle}>
-              {nextApt?.doctorName || "Dr. Jordon LICSW"}
-            </Text>
-            <Text style={styles.dashboardHeroMiniSubtitle}>
-              {nextApt
-                ? `${formatDate(nextApt.date)} · ${formatTime12h(nextApt.time)}`
-                : "Tue Mar 17 · 10:00 AM"}
-            </Text>
-          </Pressable>
-        </View>
+        {renderHeroInner()}
       </LinearGradient>
     </View>
   );
@@ -223,7 +271,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { user } = useAuth();
-  const { colors: C } = useTheme();
+  const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
   const today = getToday();
@@ -518,7 +566,18 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           </View>
 
           <Pressable
-            style={styles.feelingCard}
+            style={[
+              styles.feelingCard,
+              themeId === "light" && {
+                backgroundColor: "#FFFFFF",
+                borderColor: "rgba(255,255,255,0.9)",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 4,
+              },
+            ]}
             onPress={() => onNavigate("log")}
             accessibilityRole="button"
             accessibilityLabel="How are you feeling today?"
@@ -533,7 +592,18 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
           {settings.ramadanMode && (
             <Pressable
-              style={styles.feelingCard}
+              style={[
+                styles.feelingCard,
+                themeId === "light" && {
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "rgba(255,255,255,0.9)",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 8,
+                  elevation: 4,
+                },
+              ]}
               onPress={() => onNavigate("ramadandailylog")}
               accessibilityRole="button"
               accessibilityLabel="Ramadan Daily Log"
@@ -548,7 +618,20 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           )}
 
           {settings.ramadanMode && (
-            <View style={styles.ramadanQuoteCard}>
+            <View
+              style={[
+                styles.ramadanQuoteCard,
+                themeId === "light" && {
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "rgba(255,255,255,0.9)",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 8,
+                  elevation: 4,
+                },
+              ]}
+            >
               <Ionicons name="sparkles" size={16} color={C.pink} />
               <Text style={styles.ramadanQuoteText}>{ramadanQuote}</Text>
             </View>
@@ -609,17 +692,34 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     </Pressable>
   );
 
+  const isLightTheme = themeId === "light";
+
   if (isWide) {
-    return (
-      <View style={[styles.container, styles.content, contentPadding, { alignSelf: "stretch" }]}>
+    const content = (
+      <View style={[styles.container, styles.content, contentPadding, { alignSelf: "stretch", backgroundColor: isLightTheme ? "transparent" : C.background }]}>
         {inner}
         {fab}
       </View>
     );
+
+    if (isLightTheme) {
+      return (
+        <LinearGradient
+          colors={["#C9D8F6", "#BFD2F0", "#B7E3D9"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradientContainer}
+        >
+          {content}
+        </LinearGradient>
+      );
+    }
+
+    return content;
   }
 
-  return (
-    <View style={styles.container}>
+  const main = (
+    <View style={[styles.container, { backgroundColor: isLightTheme ? "transparent" : C.background }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[contentPadding, styles.scrollViewContent]}
@@ -632,6 +732,21 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       {fab}
     </View>
   );
+
+  if (isLightTheme) {
+    return (
+      <LinearGradient
+        colors={["#C9D8F6", "#BFD2F0", "#B7E3D9"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradientContainer}
+      >
+        {main}
+      </LinearGradient>
+    );
+  }
+
+  return main;
 }
 
 function makeHeroStyles(C: Theme) {
@@ -640,7 +755,7 @@ function makeHeroStyles(C: Theme) {
       marginHorizontal: 16,
       marginTop: 12,
       marginBottom: 16,
-      borderRadius: 28,
+      borderRadius: 24,
       borderWidth: 1,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 6 },
@@ -649,8 +764,8 @@ function makeHeroStyles(C: Theme) {
       elevation: 6,
     },
     dashboardHeroGradient: {
-      borderRadius: 28,
-      padding: 24,
+      borderRadius: 24,
+      padding: 20,
     },
     dashboardHeroHeader: {
       marginBottom: 16,
@@ -718,6 +833,7 @@ function makeHeroStyles(C: Theme) {
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
+    gradientContainer: { flex: 1, width: "100%", height: "100%" },
     container: { flex: 1, minHeight: 1, backgroundColor: C.background },
     scrollView: { flex: 1, minHeight: 1 },
     scrollViewContent: { flexGrow: 1, paddingHorizontal: 16 },

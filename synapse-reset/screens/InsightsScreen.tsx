@@ -239,7 +239,7 @@ export default function InsightsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
   subtitle: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 20 },

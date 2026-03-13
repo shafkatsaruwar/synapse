@@ -342,7 +342,7 @@ export default function HealthProfileConditionsScreen({ onBack }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
   backBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 16, minHeight: 44 },
   backText: { fontWeight: "500", fontSize: 15, color: C.tint },

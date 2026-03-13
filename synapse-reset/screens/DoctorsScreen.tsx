@@ -190,7 +190,7 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: C.background },
+    container: { flex: 1, backgroundColor: "transparent" },
     header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border },
     backBtn: { marginRight: 8 },
     title: { flex: 1, fontWeight: "700", fontSize: 20, color: C.text },

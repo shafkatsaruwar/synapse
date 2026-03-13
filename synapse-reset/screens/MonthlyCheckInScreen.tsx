@@ -200,7 +200,7 @@ export default function MonthlyCheckInScreen() {
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, marginBottom: 8 },
   subtitle: { fontSize: 14, color: C.textSecondary, marginBottom: 24 },

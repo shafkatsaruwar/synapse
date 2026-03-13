@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { View, StyleSheet } from "react-native";
 import SidebarLayout from "@/components/SidebarLayout";
 import TabletSidebar from "@/components/TabletSidebar";
@@ -33,8 +33,8 @@ import AuthScreen from "@/screens/AuthScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
 import EmergencyProtocolScreen from "@/screens/EmergencyProtocolScreen";
 import { settingsStorage } from "@/lib/storage";
-import { useMemo } from "react";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import AppBackground from "@/components/AppBackground";
 
 export default function MainScreen() {
   const isTablet = useIsTablet();
@@ -94,7 +94,11 @@ export default function MainScreen() {
 
   // When storage hasn't loaded yet, show main app so the content area is never blank (avoids stuck splash-like screen).
   if (showOnboarding === true) {
-    return <OnboardingScreen onComplete={handleOnboardingComplete} />;
+    return (
+      <AppBackground>
+        <OnboardingScreen onComplete={handleOnboardingComplete} />
+      </AppBackground>
+    );
   }
 
   const renderScreen = () => {
@@ -182,17 +186,23 @@ export default function MainScreen() {
 
   if (isTablet) {
     return (
-      <View style={styles.container}>
-        <TabletSidebar
-          activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
-          onNavigate={handleNavigate}
-        />
-        <View style={styles.tabletContent}>{content}</View>
-      </View>
+      <AppBackground>
+        <View style={styles.container}>
+          <TabletSidebar
+            activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
+            onNavigate={handleNavigate}
+          />
+          <View style={styles.tabletContent}>{content}</View>
+        </View>
+      </AppBackground>
     );
   }
 
-  return <View style={styles.container}>{content}</View>;
+  return (
+    <AppBackground>
+      <View style={styles.container}>{content}</View>
+    </AppBackground>
+  );
 }
 
 function makeStyles(C: Theme) {
@@ -201,7 +211,7 @@ function makeStyles(C: Theme) {
       flex: 1,
       flexDirection: "row",
       minHeight: 1,
-      backgroundColor: C.background,
+      backgroundColor: "transparent",
     },
     tabletContent: {
       flex: 1,

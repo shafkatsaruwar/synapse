@@ -289,7 +289,7 @@ export default function HealthDataScreen() {
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },

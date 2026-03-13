@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
-import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import { useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
 import SynapseLogo from "@/components/SynapseLogo";
 import { featureFlags } from "@/constants/feature-flags";
 import { useAuth } from "@/contexts/AuthContext";
@@ -84,8 +84,8 @@ export default function SidebarLayout({
   const [moreOpen, setMoreOpen] = useState(false);
   const drawerSlide = useRef(new Animated.Value(1)).current;
   const { user, session, signOut } = useAuth();
-  const { colors: C } = useTheme();
-  const styles = useMemo(() => makeStyles(C), [C]);
+  const { colors: C, themeId } = useTheme();
+  const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
   const [settingsName, setSettingsName] = useState<string | undefined>(undefined);
   const [enabledSections, setEnabledSections] = useState<string[] | undefined>(undefined);
 
@@ -364,12 +364,12 @@ export default function SidebarLayout({
   );
 }
 
-function makeStyles(C: Theme) {
+function makeStyles(C: Theme, themeId: ThemeId) {
   return StyleSheet.create({
     container: {
       flex: 1,
       flexDirection: "row",
-      backgroundColor: C.background,
+      backgroundColor: themeId === "light" ? "transparent" : C.background,
     },
     sidebar: {
       width: 220,
@@ -433,12 +433,12 @@ function makeStyles(C: Theme) {
     main: {
       flex: 1,
       minWidth: 0,
-      backgroundColor: C.background,
+      backgroundColor: themeId === "light" ? "transparent" : C.background,
     },
     mobileContainer: {
       flex: 1,
       minHeight: 1,
-      backgroundColor: C.background,
+      backgroundColor: themeId === "light" ? "transparent" : C.background,
     },
     mobileHeaderRow: {
       flexDirection: "row",
@@ -448,7 +448,7 @@ function makeStyles(C: Theme) {
       paddingBottom: 10,
       borderBottomWidth: 1,
       borderBottomColor: C.border,
-      backgroundColor: C.background,
+      backgroundColor: themeId === "light" ? "transparent" : C.background,
     },
     mobileMenuBtn: {
       padding: 6,
@@ -466,7 +466,7 @@ function makeStyles(C: Theme) {
       flexDirection: "row",
       justifyContent: "center",
       alignItems: "center",
-      backgroundColor: C.surface,
+      backgroundColor: themeId === "light" ? "rgba(255,255,255,0.7)" : C.surface,
       borderRadius: 28,
       paddingVertical: 10,
       paddingHorizontal: 8,
@@ -507,7 +507,7 @@ function makeStyles(C: Theme) {
       left: 0,
       top: 0,
       bottom: 0,
-      backgroundColor: C.background,
+      backgroundColor: themeId === "light" ? "transparent" : C.background,
       borderRightWidth: 1,
       borderRightColor: C.border,
       paddingHorizontal: 20,

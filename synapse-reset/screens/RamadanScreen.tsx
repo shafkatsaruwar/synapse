@@ -365,7 +365,7 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", alignItems: "flex-start", gap: 14, marginBottom: 24 },
   headerIconWrap: {

@@ -131,7 +131,7 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
   backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 20 },
   backText: { fontWeight: "600", fontSize: 15, color: C.text },

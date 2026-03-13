@@ -1098,7 +1098,7 @@ export default function MedicationsScreen() {
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
   headerSticky: { paddingHorizontal: 24 },
   sickBanner: { marginBottom: 16, backgroundColor: "rgba(255,69,58,0.12)", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "rgba(255,69,58,0.3)" },

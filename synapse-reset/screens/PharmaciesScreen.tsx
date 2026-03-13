@@ -127,7 +127,7 @@ export default function PharmaciesScreen({ onBack }: PharmaciesScreenProps) {
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: C.background },
+    container: { flex: 1, backgroundColor: "transparent" },
     header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingBottom: 16 },
     backBtn: { marginRight: 12, padding: 4 },
     title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },

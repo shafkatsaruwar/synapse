@@ -481,7 +481,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
+  container: { flex: 1, backgroundColor: "transparent" },
   containerCream: { backgroundColor: CREAM_BG },
   sliderWrap: { flex: 1, overflow: "hidden" },
   sliderRow: { flexDirection: "row", flex: 1 },

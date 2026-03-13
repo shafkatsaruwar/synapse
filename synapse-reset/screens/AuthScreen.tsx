@@ -327,7 +327,7 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
+  container: { flex: 1, backgroundColor: "transparent" },
   scroll: { paddingHorizontal: 24 },
   backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 20 },
   backText: { fontWeight: "600", fontSize: 15, color: C.text },

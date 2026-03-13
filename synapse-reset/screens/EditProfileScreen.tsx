@@ -254,7 +254,7 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
+  container: { flex: 1, backgroundColor: "transparent" },
   header: {
     flexDirection: "row",
     alignItems: "center",
