@@ -50,7 +50,7 @@ export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKe
       accessibilityLabel={isActive ? "Sick Mode active, open recovery" : "Activate Sick Mode"}
       accessibilityHint={isActive ? "Opens sick mode screen" : "Activates recovery protocol"}
     >
-      <Ionicons name="shield-outline" size={16} color={isActive ? C.red : C.tint} />
+      <Ionicons name="shield-outline" size={16} color={isActive ? C.red : "#4A78C2"} />
       <Text style={[styles.pillText, isActive && styles.pillTextActive]}>
         {isActive ? "Sick Mode Active" : "Activate Sick Mode"}
       </Text>
@@ -66,10 +66,10 @@ function makeStyles(C: Theme) {
       gap: 6,
       paddingHorizontal: 12,
       paddingVertical: 8,
-      borderRadius: 999,
-      backgroundColor: C.tintLight,
-      borderWidth: 1,
-      borderColor: C.tint,
+      borderRadius: 20,
+      backgroundColor: "rgba(74,120,194,0.08)",
+      borderWidth: 1.5,
+      borderColor: "#4A78C2",
     },
     pillActive: {
       backgroundColor: C.tint,
@@ -78,7 +78,7 @@ function makeStyles(C: Theme) {
     pillText: {
       fontWeight: "600",
       fontSize: 12,
-      color: C.tint,
+      color: "#4A78C2",
     },
     pillTextActive: {
       color: C.red,

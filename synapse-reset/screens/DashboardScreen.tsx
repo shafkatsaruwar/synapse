@@ -50,10 +50,65 @@ const RAMADAN_QUOTES = [
 ];
 
 const GOOD_DAY_MESSAGES = [
+  // Existing
   "Have a good day.",
   "Good day, matey!",
   "Today is a good day to be kind to your body.",
   "Take it gently today — you're doing enough.",
+  // Calm everyday
+  "Hope you’re feeling well today.",
+  "Take a moment to check in with yourself.",
+  "Let’s see how you’re doing today.",
+  "One small step for your health today.",
+  "A new day to care for yourself.",
+  "Let’s keep your health on track today.",
+  // Supportive
+  "Your health matters today and every day.",
+  "Checking in is a powerful habit.",
+  "Small steps lead to stronger days.",
+  "You’re doing something good for yourself today.",
+  "Every check-in helps you understand your health better.",
+  // Gentle wellness
+  "Be kind to yourself today.",
+  "Take it slow and steady today.",
+  "A quiet moment for your health.",
+  "Your wellbeing starts with a small check-in.",
+  // Ramadan-friendly
+  "Wishing you strength and ease today.",
+  "Take care of your body today.",
+  "A gentle day for your health.",
+  "May today bring you balance and strength.",
+  // Extra suggestions
+  "Take a moment to check in with yourself today.",
+  "Small steps today build stronger health tomorrow.",
+  "Let’s see how you’re doing today.",
+  "Your health journey continues today.",
+  "A quick check-in can make a big difference.",
+  "Your wellbeing starts with a small moment of care.",
+  "Let’s take a look at your day so far.",
+  "Every day is a chance to care for yourself.",
+  "A little attention to your health goes a long way.",
+  "Today is a good day to check in with yourself.",
+];
+
+const RAMADAN_WELLNESS_MESSAGES = [
+  // Ramadan wellness
+  "Wishing you strength and ease during your fast today.",
+  "Take care of your body and spirit today.",
+  "May today bring you patience and balance.",
+  "A calm day for reflection and care.",
+  "Be gentle with yourself during your fast today.",
+  "Small moments of care can bring great reward.",
+  "Wishing you health and peace this Ramadan.",
+  "May today bring you energy and clarity.",
+  "Take a quiet moment to check in with yourself.",
+  "Your wellbeing matters during this blessed month.",
+  // Subtle spiritual
+  "May your fast bring you strength and calm today.",
+  "Wishing you ease and barakah today.",
+  "May today bring you patience and good health.",
+  "A day of reflection, balance, and care.",
+  "May your day be filled with strength and peace.",
 ];
 
 interface DashboardScreenProps {
@@ -325,13 +380,31 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const nextApt = appointments[0];
 
   const dateObj = new Date();
-  const greeting = dateObj.getHours() < 12 ? "Good morning" : dateObj.getHours() < 17 ? "Good afternoon" : "Good evening";
   const authNameRaw =
     user?.user_metadata?.first_name ??
     (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : undefined) ??
     (user?.email ? user.email.split("@")[0] : undefined);
   const settingsFirstName = settings.name?.trim() ? settings.name.trim().split(/\s+/)[0] : "";
   const displayFirstName = (typeof authNameRaw === "string" ? authNameRaw.trim().split(/\s+/)[0] : "") || settingsFirstName || "";
+  const hour = dateObj.getHours();
+  let greeting: string;
+  if (hour < 12) {
+    greeting = displayFirstName
+      ? `Good morning, ${displayFirstName}. Let’s start the day well.`
+      : "Good morning. Let’s start the day well.";
+  } else if (hour < 17) {
+    greeting = displayFirstName
+      ? `Good afternoon, ${displayFirstName}. How are you feeling today?`
+      : "Good afternoon. How are you feeling today?";
+  } else if (hour < 22) {
+    greeting = displayFirstName
+      ? `Good evening, ${displayFirstName}. Time for a quick check-in.`
+      : "Good evening. Time for a quick check-in.";
+  } else {
+    greeting = displayFirstName
+      ? `Good night, ${displayFirstName}. How was today for your health?`
+      : "Good night. How was today for your health?";
+  }
 
   const ramadanDay = getTodayRamadan(today);
   const ordinalSuffix = (n: number) => {
@@ -371,7 +444,10 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const ramadanQuote =
     ramadanDay ? RAMADAN_QUOTES[(ramadanDay.hijriDay - 1) % RAMADAN_QUOTES.length] : RAMADAN_QUOTES[0];
 
-  const goodDayMessage = GOOD_DAY_MESSAGES[dateObj.getDate() % GOOD_DAY_MESSAGES.length];
+  const goodDayMessage =
+    ramadanDay && settings.ramadanMode
+      ? RAMADAN_WELLNESS_MESSAGES[dateObj.getDate() % RAMADAN_WELLNESS_MESSAGES.length]
+      : GOOD_DAY_MESSAGES[dateObj.getDate() % GOOD_DAY_MESSAGES.length];
 
   const getNextMedicationInfo = (): { name: string; lines: string[] } | null => {
     if (!medications.length) return null;
@@ -520,7 +596,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     <>
       <View style={styles.welcome} accessibilityRole="header">
         <Text style={styles.greetingText}>
-          {greeting}{displayFirstName ? `, ${displayFirstName}` : ""}
+          {greeting}
         </Text>
         <Text style={styles.dateText}>
           {dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
@@ -539,56 +615,54 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             onNavigate={onNavigate}
           />
 
-          <View style={styles.ramadanWeekStrip}>
-            {Array.from({ length: 7 }).map((_, idx) => {
-              const start = Math.max(1, (ramadanDay.hijriDay ?? 1) - 3);
-              const dayNum = start + idx;
-              if (dayNum > 30) return null;
-              const isToday = dayNum === ramadanDay.hijriDay;
-              return (
-                <View
-                  key={dayNum}
-                  style={[
-                    styles.ramadanWeekDay,
-                    isToday && styles.ramadanWeekDayActive,
-                  ]}
-                >
-                  <Ionicons
-                    name="sunny-outline"
-                    size={13}
-                    color={isToday ? "#2D1340" : C.textTertiary}
-                    style={{ marginBottom: 2 }}
-                  />
-                  <Text style={isToday ? styles.ramadanWeekDayTextActive : styles.ramadanWeekDayText}>{dayNum}</Text>
-                </View>
-              );
-            })}
-          </View>
-
-          <Pressable
+          <View
             style={[
-              styles.feelingCard,
-              themeId === "light" && {
-                backgroundColor: "#FFFFFF",
-                borderColor: "rgba(255,255,255,0.9)",
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.08,
-                shadowRadius: 8,
-                elevation: 4,
-              },
+              styles.moodCard,
+              themeId === "light" && styles.moodCardLight,
             ]}
-            onPress={() => onNavigate("log")}
-            accessibilityRole="button"
-            accessibilityLabel="How are you feeling today?"
-            accessibilityHint="Opens the daily log screen"
           >
-            <View>
-              <Text style={styles.feelingTitle}>How are you feeling today?</Text>
-              <Text style={styles.feelingSubtitle}>Tap to log today's energy, mood, and sleep.</Text>
+            <View style={styles.ramadanWeekStrip}>
+              {Array.from({ length: 7 }).map((_, idx) => {
+                const start = Math.max(1, (ramadanDay.hijriDay ?? 1) - 3);
+                const dayNum = start + idx;
+                if (dayNum > 30) return null;
+                const isToday = dayNum === ramadanDay.hijriDay;
+                return (
+                  <View
+                    key={dayNum}
+                    style={[
+                      styles.ramadanWeekDay,
+                      isToday && styles.ramadanWeekDayActive,
+                    ]}
+                  >
+                    <Ionicons
+                      name="sunny-outline"
+                      size={13}
+                      color={isToday ? "#2D1340" : C.textTertiary}
+                      style={{ marginBottom: 2 }}
+                    />
+                    <Text style={isToday ? styles.ramadanWeekDayTextActive : styles.ramadanWeekDayText}>{dayNum}</Text>
+                  </View>
+                );
+              })}
             </View>
-            <Ionicons name="chevron-forward" size={18} color={C.tint} />
-          </Pressable>
+
+            <View style={styles.moodDivider} />
+
+            <Pressable
+              style={styles.moodFeelingRow}
+              onPress={() => onNavigate("log")}
+              accessibilityRole="button"
+              accessibilityLabel="How are you feeling today?"
+              accessibilityHint="Opens the daily log screen"
+            >
+              <View>
+                <Text style={styles.feelingTitle}>How are you feeling today?</Text>
+                <Text style={styles.feelingSubtitle}>Tap to log today's energy, mood, and sleep.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.tint} />
+            </Pressable>
+          </View>
 
           {settings.ramadanMode && (
             <Pressable
@@ -886,15 +960,10 @@ function makeStyles(C: Theme) {
       alignItems: "center",
       justifyContent: "space-between",
       backgroundColor: C.surface,
-      borderTopLeftRadius: 16,
-      borderTopRightRadius: 16,
-      borderBottomLeftRadius: 0,
-      borderBottomRightRadius: 0,
-      borderWidth: 1,
-      borderColor: C.border,
-      marginHorizontal: 16,
+      borderRadius: 16,
       paddingHorizontal: 12,
       paddingVertical: 8,
+      width: "100%",
     },
     ramadanWeekDay: {
       width: 28,
@@ -952,6 +1021,36 @@ function makeStyles(C: Theme) {
     ramadanNextAptName: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
     ramadanNextAptMeta: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
     ramadanNextAptLocation: { fontWeight: "500", fontSize: 11, color: C.tint, marginTop: 2 },
+    moodCard: {
+      marginTop: 12,
+      marginBottom: 12,
+      marginHorizontal: 16,
+      borderRadius: 22,
+      backgroundColor: C.surface,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    moodCardLight: {
+      backgroundColor: "rgba(255,255,255,0.85)",
+      borderColor: "rgba(255,255,255,0.9)",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      elevation: 6,
+    },
+    moodDivider: {
+      height: 1,
+      backgroundColor: "rgba(0,0,0,0.08)",
+      marginVertical: 10,
+    },
+    moodFeelingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
     feelingCard: {
       marginTop: 0,
       marginBottom: 12,

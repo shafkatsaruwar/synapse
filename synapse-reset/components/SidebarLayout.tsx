@@ -204,7 +204,7 @@ export default function SidebarLayout({
                   <Ionicons
                     name={active ? item.iconActive : item.icon}
                     size={24}
-                    color={active ? (sickMode ? C.red : C.accent) : C.textTertiary}
+                    color={active ? (sickMode ? C.red : "#4A78C2") : "#8E8E93"}
                   />
                 </Pressable>
               );
