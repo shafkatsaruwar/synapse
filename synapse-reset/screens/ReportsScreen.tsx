@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useMemo } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Platform, useWindowDimensions, Alert,
 } from "react-native";
@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Sharing from "expo-sharing";
 import ViewShot, { captureRef } from "react-native-view-shot";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import {
   healthLogStorage, medicationStorage, medicationLogStorage, appointmentStorage,
   doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage, eatingStorage, monthlyCheckInStorage,
@@ -15,8 +15,6 @@ import {
 } from "@/lib/storage";
 import { getMedList, type MedListItem } from "@/lib/med-list-storage";
 import { getDaysAgo, formatDate, formatDateWithYear, getToday } from "@/lib/date-utils";
-
-const C = Colors.dark;
 
 interface SummaryEvent {
   date: string;
@@ -28,6 +26,8 @@ interface SummaryEvent {
 export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
   const summaryRef = useRef<View>(null);
 
@@ -65,7 +65,7 @@ export default function ReportsScreen() {
   const fastingDays = recentLogs.filter((l) => l.fasting).length;
   const activeMeds = medications.filter((m) => m.active);
   const recentMedLogs = medLogs.filter((ml) => ml.date >= cutoff && ml.date <= today);
-  const getDoseCount = (med: Medication) => (Array.isArray(med.timeTag) ? med.timeTag.length : (med.doses ?? 1));
+  const getDoseCount = (med: Medication) => (Array.isArray(med.doses) && med.doses.length > 0 ? med.doses.length : Array.isArray(med.timeTag) ? med.timeTag.length : ((med as { doses?: number }).doses ?? 1));
   const countDaysInclusive = (from: string, to: string) => {
     const a = new Date(from + "T00:00:00").getTime();
     const b = new Date(to + "T00:00:00").getTime();
@@ -154,7 +154,12 @@ export default function ReportsScreen() {
     else r += `  None\n`;
     r += `\nMEDICATIONS\n`;
     r += `Active: ${activeMeds.length} | Adherence: ${adherence}% | Missed: ${missedDoses}\n`;
-    activeMeds.forEach((m) => { r += `  - ${m.name} ${m.dosage} (${Array.isArray(m.timeTag) ? m.timeTag.join(", ") : m.timeTag})\n`; });
+    activeMeds.forEach((m) => {
+      const doseStr = Array.isArray(m.doses) && m.doses.length > 0
+        ? m.doses.map((d) => `${d.amount} ${d.unit} ${d.timeOfDay}`).join("; ")
+        : `${(m as { dosage?: string }).dosage ?? ""} (${Array.isArray((m as { timeTag?: string[] }).timeTag) ? (m as { timeTag: string[] }).timeTag.join(", ") : (m as { timeTag?: string }).timeTag ?? "—"})`;
+      r += `  - ${m.name} ${doseStr}\n`;
+    });
     r += `\nMED LIST (prescriber, refills)\n`;
     if (medListItems.length > 0) medListItems.forEach((item) => { r += `  - ${item.name} | Prescriber: ${item.prescribingDoctor || "—"} | ${item.refillsRemaining === 0 ? "No refills remaining" : `${item.refillsRemaining} refill(s) remaining`}\n`; });
     else r += `  None\n`;
@@ -355,9 +360,12 @@ export default function ReportsScreen() {
         <View style={styles.summaryBlock}>
           <Text style={styles.summaryBlockTitle}>Medications ({activeMeds.length} active)</Text>
           <Text style={styles.summaryItem}>Adherence: {adherence}% | Missed doses: {missedDoses}</Text>
-          {activeMeds.map((m) => (
-            <Text key={m.id} style={styles.summaryItem}>{m.name} {m.dosage} ({Array.isArray(m.timeTag) ? m.timeTag.join(", ") : m.timeTag})</Text>
-          ))}
+          {activeMeds.map((m) => {
+            const doseStr = Array.isArray(m.doses) && m.doses.length > 0
+              ? m.doses.map((d) => `${d.amount} ${d.unit} ${d.timeOfDay}`).join("; ")
+              : `${(m as { dosage?: string }).dosage ?? ""} (${Array.isArray((m as { timeTag?: string[] }).timeTag) ? (m as { timeTag: string[] }).timeTag.join(", ") : (m as { timeTag?: string }).timeTag ?? "—"})`;
+            return <Text key={m.id} style={styles.summaryItem}>{m.name} {doseStr}</Text>;
+          })}
         </View>
 
         <View style={styles.summaryBlock}>
@@ -440,7 +448,8 @@ export default function ReportsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
@@ -472,7 +481,7 @@ const styles = StyleSheet.create({
   summarySection: { marginTop: 8, marginBottom: 12 },
   sectionTitle: { fontWeight: "700", fontSize: 20, color: C.text, letterSpacing: -0.3 },
   sectionSubtitle: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 2 },
-  summaryCapture: { backgroundColor: "#FFFAF5", borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
+  summaryCapture: { backgroundColor: C.surfaceElevated, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
   summaryHeader: { marginBottom: 16, borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 12 },
   summaryHeaderTitle: { fontWeight: "700", fontSize: 18, color: C.tint, letterSpacing: -0.3 },
   summaryHeaderConditions: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2 },
@@ -492,4 +501,5 @@ const styles = StyleSheet.create({
   generateBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
   generateBtnDisabled: { opacity: 0.6 },
   generateText: { fontWeight: "600", fontSize: 15, color: "#fff" },
-});
+  });
+}

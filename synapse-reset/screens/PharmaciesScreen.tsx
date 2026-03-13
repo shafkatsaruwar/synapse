@@ -1,13 +1,11 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Linking, Platform, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { getMedList, type MedListItem } from "@/lib/med-list-storage";
-
-const C = Colors.dark;
 
 interface PharmaciesScreenProps {
   onBack: () => void;
@@ -27,6 +25,8 @@ export default function PharmaciesScreen({ onBack }: PharmaciesScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [items, setItems] = useState<MedListItem[]>([]);
 
   const loadData = useCallback(async () => {
@@ -125,27 +125,29 @@ export default function PharmaciesScreen({ onBack }: PharmaciesScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingBottom: 16 },
-  backBtn: { marginRight: 12, padding: 4 },
-  title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 24 },
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
-  emptyTitle: { fontWeight: "600", fontSize: 17, color: C.text, marginTop: 16 },
-  emptyDesc: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginTop: 8, textAlign: "center" },
-  card: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
-  cardTitle: { fontWeight: "700", fontSize: 16, color: C.text, marginBottom: 12 },
-  buttonRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
-  actionBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
-  actionBtnDisabled: { backgroundColor: C.surface, opacity: 0.7 },
-  actionBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
-  actionBtnTextDisabled: { color: C.textTertiary },
-  medList: { gap: 10 },
-  medRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, paddingHorizontal: 12, backgroundColor: C.background, borderRadius: 10 },
-  medName: { fontWeight: "600", fontSize: 14, color: C.text },
-  medDosage: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 2 },
-  medRefills: { fontWeight: "500", fontSize: 12, color: C.tint, marginLeft: 8 },
-  medRefillsLow: { color: C.red },
-});
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingBottom: 16 },
+    backBtn: { marginRight: 12, padding: 4 },
+    title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
+    scroll: { flex: 1 },
+    scrollContent: { paddingHorizontal: 24, paddingBottom: 24 },
+    empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
+    emptyTitle: { fontWeight: "600", fontSize: 17, color: C.text, marginTop: 16 },
+    emptyDesc: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginTop: 8, textAlign: "center" },
+    card: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
+    cardTitle: { fontWeight: "700", fontSize: 16, color: C.text, marginBottom: 12 },
+    buttonRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
+    actionBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+    actionBtnDisabled: { backgroundColor: C.surface, opacity: 0.7 },
+    actionBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
+    actionBtnTextDisabled: { color: C.textTertiary },
+    medList: { gap: 10 },
+    medRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, paddingHorizontal: 12, backgroundColor: C.background, borderRadius: 10 },
+    medName: { fontWeight: "600", fontSize: 14, color: C.text },
+    medDosage: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 2 },
+    medRefills: { fontWeight: "500", fontSize: 12, color: C.tint, marginLeft: 8 },
+    medRefillsLow: { color: C.red },
+  });
+}

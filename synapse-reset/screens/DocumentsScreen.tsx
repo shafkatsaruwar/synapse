@@ -70,7 +70,13 @@ export default function DocumentsScreen() {
         const activeMeds = currentMeds.filter((m) => m.active);
         if (activeMeds.length > 0) {
           const comparison = await compareMedications(
-            activeMeds.map((m) => ({ name: m.name, dosage: m.dosage, frequency: Array.isArray(m.timeTag) ? m.timeTag.join(", ") : m.timeTag })),
+            activeMeds.map((m) => {
+              const dosageStr = Array.isArray(m.doses) && m.doses.length > 0
+                ? m.doses.map((d) => `${d.amount} ${d.unit} ${d.timeOfDay}`).join("; ")
+                : (m as { dosage?: string }).dosage ?? "";
+              const freqStr = Array.isArray((m as { timeTag?: string[] }).timeTag) ? (m as { timeTag: string[] }).timeTag.join(", ") : (m as { timeTag?: string }).timeTag ?? "";
+              return { name: m.name, dosage: dosageStr, frequency: freqStr };
+            }),
             analysis.medications
           );
           await medComparisonStorage.save({

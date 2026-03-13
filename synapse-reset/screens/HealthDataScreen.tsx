@@ -1,32 +1,35 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Modal, TextInput, Platform, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { vitalStorage, healthLogStorage, type Vital, type HealthLog } from "@/lib/storage";
 import { getDaysAgo, formatDate, getToday } from "@/lib/date-utils";
 
-const C = Colors.dark;
-
 type Category = "weight" | "blood_pressure" | "blood_sugar" | "heart_rate" | "sleep" | "hydration" | "labs";
 
-const CATEGORIES: { key: Category; label: string; icon: string; color: string; unit: string; units: string[] }[] = [
-  { key: "weight", label: "Weight", icon: "scale-outline", color: C.cyan, unit: "kg", units: ["lbs", "kg", "stones"] },
-  { key: "blood_pressure", label: "Blood Pressure", icon: "heart-outline", color: C.red, unit: "mmHg", units: ["mmHg"] },
-  { key: "blood_sugar", label: "Blood Sugar", icon: "water-outline", color: C.orange, unit: "mg/dL", units: ["mg/dL", "mmol/L"] },
-  { key: "heart_rate", label: "Heart Rate", icon: "pulse-outline", color: C.pink, unit: "bpm", units: ["bpm"] },
-  { key: "sleep", label: "Sleep", icon: "moon-outline", color: C.purple, unit: "hours", units: ["hours"] },
-  { key: "hydration", label: "Hydration", icon: "cafe-outline", color: C.tint, unit: "glasses", units: ["glasses", "L", "ml"] },
-  { key: "labs", label: "Labs", icon: "flask-outline", color: C.green, unit: "", units: [] },
-];
+function getCategories(C: Theme): { key: Category; label: string; icon: string; color: string; unit: string; units: string[] }[] {
+  return [
+    { key: "weight", label: "Weight", icon: "scale-outline", color: C.cyan, unit: "kg", units: ["lbs", "kg", "stones"] },
+    { key: "blood_pressure", label: "Blood Pressure", icon: "heart-outline", color: C.red, unit: "mmHg", units: ["mmHg"] },
+    { key: "blood_sugar", label: "Blood Sugar", icon: "water-outline", color: C.orange, unit: "mg/dL", units: ["mg/dL", "mmol/L"] },
+    { key: "heart_rate", label: "Heart Rate", icon: "pulse-outline", color: C.pink, unit: "bpm", units: ["bpm"] },
+    { key: "sleep", label: "Sleep", icon: "moon-outline", color: C.purple, unit: "hours", units: ["hours"] },
+    { key: "hydration", label: "Hydration", icon: "cafe-outline", color: C.tint, unit: "glasses", units: ["glasses", "L", "ml"] },
+    { key: "labs", label: "Labs", icon: "flask-outline", color: C.green, unit: "", units: [] },
+  ];
+}
 
 export default function HealthDataScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const { colors: C } = useTheme();
+  const CATEGORIES = useMemo(() => getCategories(C), [C]);
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const [vitals, setVitals] = useState<Vital[]>([]);
   const [logs, setLogs] = useState<HealthLog[]>([]);
@@ -284,7 +287,8 @@ export default function HealthDataScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
@@ -333,4 +337,5 @@ const styles = StyleSheet.create({
   cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
   confirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-});
+  });
+}

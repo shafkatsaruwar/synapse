@@ -154,7 +154,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     if (words[0]?.length >= 2) return (words[0][0] + words[0][1]).toUpperCase();
     return (words[0]?.[0] ?? "?").toUpperCase().repeat(2);
   })();
-  const getDoseCount = (med: Medication) => (med.doses ?? 1);
+  const getDoseCount = (med: Medication) => (Array.isArray(med.doses) && med.doses.length > 0 ? med.doses.length : (med as { doses?: number }).doses ?? 1);
   const totalDoses = medications.reduce((s, m) => s + getDoseCount(m), 0);
   const takenDoses = medications.reduce((s, m) => {
     const dc = getDoseCount(m);

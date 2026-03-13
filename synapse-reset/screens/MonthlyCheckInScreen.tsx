@@ -1,20 +1,20 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, TextInput, Platform, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { monthlyCheckInStorage, type MonthlyCheckIn } from "@/lib/storage";
 import { getToday, formatDate } from "@/lib/date-utils";
-
-const C = Colors.dark;
 
 export default function MonthlyCheckInScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const [latest, setLatest] = useState<MonthlyCheckIn | null>(null);
   const [bp, setBp] = useState("");
@@ -198,7 +198,8 @@ export default function MonthlyCheckInScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, marginBottom: 8 },
@@ -241,4 +242,5 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   saveBtnText: { fontWeight: "600", fontSize: 16, color: "#fff" },
-});
+  });
+}

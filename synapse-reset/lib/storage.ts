@@ -20,22 +20,60 @@ export interface Symptom {
   temperature?: number;
 }
 
+/** A single dose: amount, unit, time of day. Each is tracked independently for reminders and logging. */
+export interface MedicationDose {
+  id: string;
+  amount: string;
+  unit: string;
+  timeOfDay: string;
+  optionalNotes?: string;
+}
+
 export interface Medication {
   id: string;
   name: string;
-  dosage: string;
+  /** @deprecated Use doses[].amount + unit. Kept for migration. */
+  dosage?: string;
   frequency: string;
+  /** @deprecated Use doses[].unit. Kept for migration. */
   unit?: string;
   route?: string;
   emoji?: string;
-  doses?: number;
-  timeTag: string | string[];
+  /** New: array of independent doses. If present, use this instead of dosage/timeTag/doses count. */
+  doses?: MedicationDose[];
+  /** @deprecated Use doses[].timeOfDay. Kept for migration. */
+  timeTag?: string | string[];
   active: boolean;
   hasStressDose?: boolean;
   stressDoseAmount?: string;
   stressDoseFrequency?: string;
   stressDoseDurationDays?: number;
   stressDoseInstructions?: string;
+}
+
+/** Normalize legacy medication (dosage + timeTag + doses count) to doses array. */
+export function normalizeMedication(med: Medication): Medication {
+  if (Array.isArray(med.doses) && med.doses.length > 0) {
+    return { ...med, doses: med.doses };
+  }
+  const legacyDosage = (med as { dosage?: string }).dosage ?? "";
+  const legacyUnit = (med as { unit?: string }).unit ?? "mg";
+  const legacyTimeTag = (med as { timeTag?: string | string[] }).timeTag;
+  const tags = Array.isArray(legacyTimeTag)
+    ? legacyTimeTag
+    : typeof legacyTimeTag === "string"
+    ? [legacyTimeTag]
+    : ["Morning"];
+  const count = Math.max(1, (med as { doses?: number }).doses ?? tags.length);
+  const timeLabels = count <= tags.length ? tags.slice(0, count) : [...tags, ...Array.from({ length: count - tags.length }, (_, i) => `Dose ${i + 1}`)];
+  const doses: MedicationDose[] = timeLabels.map((timeOfDay, i) => ({
+    id: `legacy-${med.id}-${i}`,
+    amount: i === 0 ? legacyDosage : "",
+    unit: legacyUnit,
+    timeOfDay,
+    optionalNotes: undefined,
+  }));
+  return { ...med, doses };
 }
 
 export interface MedicationLog {
@@ -318,7 +356,10 @@ export const symptomStorage = {
 };
 
 export const medicationStorage = {
-  getAll: () => getItem<Medication>(KEYS.MEDICATIONS),
+  getAll: async () => {
+    const raw = await getItem<Medication>(KEYS.MEDICATIONS);
+    return raw.map(normalizeMedication);
+  },
   save: async (med: Omit<Medication, "id">) => {
     const meds = await getItem<Medication>(KEYS.MEDICATIONS);
     meds.push({ ...med, id: Crypto.randomUUID() });

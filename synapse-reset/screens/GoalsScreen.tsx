@@ -13,8 +13,9 @@ import {
 import { getToday, getDaysAgo } from "@/lib/date-utils";
 
 function getDoseCount(med: Medication): number {
-  if (med.doses != null && med.doses > 0) return med.doses;
-  const tag = med.timeTag;
+  if (Array.isArray(med.doses) && med.doses.length > 0) return med.doses.length;
+  if (typeof (med as { doses?: number }).doses === "number" && (med as { doses?: number }).doses! > 0) return (med as { doses?: number }).doses!;
+  const tag = (med as { timeTag?: string | string[] }).timeTag;
   if (Array.isArray(tag)) return tag.length;
   return 1;
 }

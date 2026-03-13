@@ -1,14 +1,12 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, useWindowDimensions, Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { mentalHealthModeStorage, comfortStorage, type MentalHealthModeData, type ComfortItem } from "@/lib/storage";
-
-const C = Colors.dark;
 const HOURLY_CHECK_IN_MS = 60 * 60 * 1000;
 const COMFORT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -30,6 +28,8 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const [mhData, setMhData] = useState<MentalHealthModeData | null>(null);
   const [comfortItems, setComfortItems] = useState<ComfortItem[]>([]);
@@ -276,7 +276,8 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   inactiveCard: {
@@ -341,4 +342,5 @@ const styles = StyleSheet.create({
   modalBtnText: { fontWeight: "600", fontSize: 16, color: C.text },
   modalSubmitBtn: { backgroundColor: C.tint, paddingVertical: 14, borderRadius: 12, alignItems: "center" },
   modalSubmitBtnText: { fontWeight: "600", fontSize: 16, color: "#fff" },
-});
+  });
+}

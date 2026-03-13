@@ -66,7 +66,8 @@ interface DashboardHeroProps {
   subtitle: string;
   fajrTime: string;
   iftarTime: string;
-  nextMedication: { name: string; time: string } | null;
+  /** Next medication: name + dose lines (e.g. ["15 mg — Morning", "5 mg — Afternoon"]) */
+  nextMedication: { name: string; lines: string[] } | null;
   nextApt: Appointment | null;
   onNavigate: (screen: string) => void;
 }
@@ -86,12 +87,14 @@ function DashboardHero({
   const heroGradientColors =
     themeId === "dark"
       ? ["#0F0F10", "#0F0F10"]
+      : themeId === "light"
+      ? ["#D6E6FF", "#D6E6FF"]
       : ["#E6D3BD", "#E6D3BD"];
 
   const heroBorderColor = themeId === "dark" ? "#2A2A2A" : "#D6BFA6";
 
   const miniCardBackground =
-    themeId === "dark" ? "#161616" : "#F3E6D8";
+    themeId === "dark" ? "#161616" : themeId === "light" ? "#F5F7FA" : "#F3E6D8";
   const miniCardBorderColor = themeId === "dark" ? "#2A2A2A" : "#E2CFC0";
 
   return (
@@ -131,9 +134,11 @@ function DashboardHero({
             <Text style={styles.dashboardHeroMiniTitle}>
               {nextMedication?.name || "Hydrocortisone"}
             </Text>
-            <Text style={styles.dashboardHeroMiniSubtitle}>
-              {nextMedication?.time || "Morning dose"}
-            </Text>
+            {(nextMedication?.lines?.length ? nextMedication.lines : ["Morning dose"]).map((line, i) => (
+              <Text key={i} style={styles.dashboardHeroMiniSubtitle}>
+                {line}
+              </Text>
+            ))}
           </Pressable>
 
           <Pressable
@@ -255,7 +260,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   const isSickMode = settings.sickMode;
   const getDoseCount = (med: Medication) => {
-    const base = (med as any).doses || 1;
+    if (Array.isArray(med.doses) && med.doses.length > 0) return med.doses.length;
+    const base = (med as { doses?: number }).doses ?? 1;
     if (isSickMode && med.name === "Hydrocortisone") return base * 3;
     return base;
   };
@@ -319,25 +325,33 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   const goodDayMessage = GOOD_DAY_MESSAGES[dateObj.getDate() % GOOD_DAY_MESSAGES.length];
 
-  const getNextMedicationInfo = () => {
+  const getNextMedicationInfo = (): { name: string; lines: string[] } | null => {
     if (!medications.length) return null;
     for (const med of medications) {
       const doseCount = getDoseCount(med);
       if (doseCount <= 0) continue;
       const takenForMed = medLogs.filter((l) => l.medicationId === med.id && l.taken).length;
       if (takenForMed >= doseCount) continue;
-      const timeTag = Array.isArray(med.timeTag) ? med.timeTag[0] : med.timeTag;
-      let timeLabel = "";
-      if (typeof timeTag === "string" && timeTag.trim().length > 0) {
-        timeLabel = timeTag.trim();
+      const doses = Array.isArray(med.doses) && med.doses.length > 0 ? med.doses : [];
+      const untakenIndices = Array.from({ length: doseCount }, (_, i) => i).filter((i) => !medLogs.some((l) => l.medicationId === med.id && (l.doseIndex ?? 0) === i && l.taken));
+      const name = med.name || "Next medication";
+      const lines: string[] = [];
+      if (doses.length > 0) {
+        untakenIndices.forEach((idx) => {
+          const d = doses[idx];
+          if (d) {
+            const text = d.amount && d.unit ? `${d.amount} ${d.unit} — ${d.timeOfDay}` : d.timeOfDay;
+            lines.push(text);
+          }
+        });
       } else {
-        timeLabel = "Today";
+        const dosage = (med as { dosage?: string }).dosage ? `${(med as { dosage?: string }).dosage}${(med as { unit?: string }).unit ? ` ${(med as { unit?: string }).unit}` : ""}` : "";
+        const timeTag = Array.isArray(med.timeTag) ? med.timeTag[0] : (med as { timeTag?: string }).timeTag;
+        const timeLabel = typeof timeTag === "string" && timeTag.trim().length > 0 ? timeTag.trim() : "Today";
+        lines.push(dosage ? `${dosage} — ${timeLabel}` : timeLabel);
       }
-      return {
-        name: med.name || "Next medication",
-        dosage: med.dosage ? `${med.dosage}${med.unit && !med.dosage.includes(med.unit) ? ` ${med.unit}` : ""}` : "",
-        time: timeLabel,
-      };
+      if (lines.length === 0) lines.push("Morning dose");
+      return { name, lines };
     }
     return null;
   };
@@ -472,7 +486,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             subtitle={goodDayMessage}
             fajrTime={sunriseTime}
             iftarTime={sunsetTime}
-            nextMedication={nextMedication ? { name: nextMedication.name, time: nextMedication.time } : null}
+            nextMedication={nextMedication ? { name: nextMedication.name, lines: nextMedication.lines } : null}
             nextApt={nextApt ?? null}
             onNavigate={onNavigate}
           />

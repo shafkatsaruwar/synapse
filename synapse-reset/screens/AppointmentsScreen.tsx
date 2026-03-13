@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, Alert, useWindowDimensions, KeyboardAvoidingView, Keyboard, TouchableOpacity,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   appointmentStorage,
@@ -25,8 +25,6 @@ import {
   deleteAppointmentFromSupabase,
 } from "@/lib/appointments-api";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
-
-const C = Colors.dark;
 
 const REPEAT_OPTIONS: { value: "none" | "week" | "2weeks" | "month" | "custom"; label: string; interval?: number; unit?: RepeatUnit }[] = [
   { value: "none", label: "Does not repeat" },
@@ -51,7 +49,7 @@ function getRecurrenceLabel(apt: Appointment, allAppointments: Appointment[]): s
   return `Repeats every ${i} ${u}s`;
 }
 
-function CalendarView({ appointments, selectedDate, onSelectDate }: { appointments: Appointment[]; selectedDate: string; onSelectDate: (d: string) => void }) {
+function CalendarView({ appointments, selectedDate, onSelectDate, calStyles, colors: C }: { appointments: Appointment[]; selectedDate: string; onSelectDate: (d: string) => void; calStyles: ReturnType<typeof makeCalStyles>; colors: Theme }) {
   const [viewMonth, setViewMonth] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -101,24 +99,29 @@ function CalendarView({ appointments, selectedDate, onSelectDate }: { appointmen
   );
 }
 
-const calStyles = StyleSheet.create({
-  cal: { backgroundColor: C.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.border, marginBottom: 16 },
-  calHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
-  calMonth: { fontWeight: "600", fontSize: 15, color: C.text },
-  calWeekRow: { flexDirection: "row", marginBottom: 6 },
-  calWeekDay: { flex: 1, textAlign: "center", fontWeight: "500", fontSize: 11, color: C.textTertiary },
-  calGrid: { flexDirection: "row", flexWrap: "wrap" },
-  calCell: { width: "14.28%", alignItems: "center", paddingVertical: 6 },
-  calCellSelected: { backgroundColor: C.tint, borderRadius: 8 },
-  calCellToday: { backgroundColor: C.tintLight, borderRadius: 8 },
-  calDay: { fontWeight: "500", fontSize: 13, color: C.text },
-  calDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.purple, marginTop: 2 },
-});
+function makeCalStyles(C: Theme) {
+  return StyleSheet.create({
+    cal: { backgroundColor: C.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.border, marginBottom: 16 },
+    calHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
+    calMonth: { fontWeight: "600", fontSize: 15, color: C.text },
+    calWeekRow: { flexDirection: "row", marginBottom: 6 },
+    calWeekDay: { flex: 1, textAlign: "center", fontWeight: "500", fontSize: 11, color: C.textTertiary },
+    calGrid: { flexDirection: "row", flexWrap: "wrap" },
+    calCell: { width: "14.28%", alignItems: "center", paddingVertical: 6 },
+    calCellSelected: { backgroundColor: C.tint, borderRadius: 8 },
+    calCellToday: { backgroundColor: C.tintLight, borderRadius: 8 },
+    calDay: { fontWeight: "500", fontSize: 13, color: C.text },
+    calDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.purple, marginTop: 2 },
+  });
+}
 
 export default function AppointmentsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { user } = useAuth();
+  const { colors: C } = useTheme();
+  const calStyles = useMemo(() => makeCalStyles(C), [C]);
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
   const today = getToday();
 
@@ -444,7 +447,7 @@ export default function AppointmentsScreen() {
         {tab === "calendar" ? (
           <View style={isWide ? styles.calLayout : undefined}>
             <View style={isWide ? { flex: 1, marginRight: 16 } : undefined}>
-              <CalendarView appointments={appointments} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+              <CalendarView appointments={appointments} selectedDate={selectedDate} onSelectDate={setSelectedDate} calStyles={calStyles} colors={C} />
               {todayApts.length > 0 && (
                 <View style={{ marginTop: 16 }}>
                   <Text style={styles.sectionLabel}>Today</Text>
@@ -717,7 +720,8 @@ export default function AppointmentsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
@@ -784,4 +788,5 @@ const styles = StyleSheet.create({
   cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.purple, alignItems: "center" },
   confirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-});
+  });
+}
