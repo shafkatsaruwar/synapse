@@ -43,6 +43,8 @@ import {
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import AppBackground from "@/components/AppBackground";
 import BiometricGate from "@/components/BiometricGate";
+import AppWalkthrough from "@/components/AppWalkthrough";
+import { getHasSeenWalkthrough, setHasSeenWalkthrough } from "@/lib/walkthrough-storage";
 
 export default function MainScreen() {
   const isTablet = useIsTablet();
@@ -50,6 +52,7 @@ export default function MainScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [sickMode, setSickMode] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
 
   const checkInitialState = useCallback(async () => {
     try {
@@ -118,6 +121,23 @@ export default function MainScreen() {
     });
     return () => sub.remove();
   }, []);
+
+  useEffect(() => {
+    if (showOnboarding !== false) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const seen = await getHasSeenWalkthrough();
+        if (!cancelled && !seen) setShowWalkthrough(true);
+      } catch {
+        if (!cancelled) setShowWalkthrough(true);
+      }
+    }, 600);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [showOnboarding]);
 
   const handleNavigate = (screen: string) => {
     setActiveScreen(screen);
@@ -229,7 +249,14 @@ export default function MainScreen() {
           />
         );
       case "settings":
-        return <SettingsScreen onResetApp={handleResetApp} onNavigate={handleNavigate} onRestoreComplete={() => setRefreshKey((k) => k + 1)} />;
+        return (
+          <SettingsScreen
+            onResetApp={handleResetApp}
+            onNavigate={handleNavigate}
+            onRestoreComplete={() => setRefreshKey((k) => k + 1)}
+            onShowAppTour={() => setShowWalkthrough(true)}
+          />
+        );
       default:
         return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
     }
@@ -257,6 +284,13 @@ export default function MainScreen() {
             />
             <View style={styles.tabletContent}>{content}</View>
           </View>
+          <AppWalkthrough
+            visible={showWalkthrough}
+            onComplete={async () => {
+              await setHasSeenWalkthrough(true);
+              setShowWalkthrough(false);
+            }}
+          />
         </BiometricGate>
       </AppBackground>
     );
@@ -266,6 +300,13 @@ export default function MainScreen() {
     <AppBackground>
       <BiometricGate>
         <View style={styles.container}>{content}</View>
+        <AppWalkthrough
+          visible={showWalkthrough}
+          onComplete={async () => {
+            await setHasSeenWalkthrough(true);
+            setShowWalkthrough(false);
+          }}
+        />
       </BiometricGate>
     </AppBackground>
   );

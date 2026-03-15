@@ -42,6 +42,7 @@ interface SettingsScreenProps {
   onResetApp?: () => void;
   onNavigate?: (screen: string) => void;
   onRestoreComplete?: () => void;
+  onShowAppTour?: () => void;
 }
 
 const SECTION_ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
@@ -57,7 +58,7 @@ const THEME_OPTIONS: { id: ThemePreference; label: string; description: string }
   { id: "dark", label: "Dark", description: "True black, OLED-friendly" },
 ];
 
-export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComplete }: SettingsScreenProps) {
+export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComplete, onShowAppTour }: SettingsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -351,6 +352,32 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
             </Pressable>
           ))}
         </View>
+
+        {/* ——— Help ——— */}
+        {onShowAppTour && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Help</Text>
+            <Pressable
+              style={({ pressed }) => [styles.profileRow, { opacity: pressed ? 0.8 : 1 }]}
+              onPress={() => {
+                Haptics.selectionAsync();
+                onShowAppTour();
+                onNavigate?.("dashboard");
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Show app tour again"
+            >
+              <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
+                <Ionicons name="compass-outline" size={16} color={C.tint} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.profileRowTitle}>Show App Tour Again</Text>
+                <Text style={styles.profileRowDesc}>Walk through the main features of the app.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+            </Pressable>
+          </View>
+        )}
 
         {/* ——— Appearance ——— */}
         <View style={styles.card}>
