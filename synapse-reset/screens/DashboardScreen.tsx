@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -35,6 +35,7 @@ import {
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
 
 // Gradient pairs: [top (darker), bottom (lighter)]. Soft, desaturated, top-to-bottom.
 const PRIORITY_GRADIENTS: Record<string, [string, string]> = {
@@ -122,22 +123,30 @@ interface DashboardScreenProps {
 interface DashboardHeroProps {
   ramadanDayLabel: string;
   subtitle: string;
-  fajrTime: string;
-  iftarTime: string;
+  leftTimeLabel: string;
+  rightTimeLabel: string;
+  leftTime: string;
+  rightTime: string;
   /** Next medication: name + dose lines (e.g. ["15 mg — Morning", "5 mg — Afternoon"]) */
   nextMedication: { name: string; lines: string[] } | null;
   nextApt: Appointment | null;
   onNavigate: (screen: string) => void;
+  medicationCardRef?: React.RefObject<View>;
+  appointmentCardRef?: React.RefObject<View>;
 }
 
 function DashboardHero({
   ramadanDayLabel,
   subtitle,
-  fajrTime,
-  iftarTime,
+  leftTimeLabel,
+  rightTimeLabel,
+  leftTime,
+  rightTime,
   nextMedication,
   nextApt,
   onNavigate,
+  medicationCardRef,
+  appointmentCardRef,
 }: DashboardHeroProps) {
   const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeHeroStyles(C), [C]);
@@ -171,58 +180,61 @@ function DashboardHero({
 
       <View style={styles.dashboardHeroTimesRow}>
         <View style={styles.dashboardHeroTimeCol}>
-          <Text style={styles.dashboardHeroTimeLabel}>Fajr</Text>
+          <Text style={styles.dashboardHeroTimeLabel}>{leftTimeLabel}</Text>
           <Text
             style={[
               styles.dashboardHeroTimeValue,
               themeId === "light" && { color: "#2F6FCF" },
             ]}
           >
-            {fajrTime}
+            {leftTime}
           </Text>
         </View>
         <View style={styles.dashboardHeroTimeCol}>
-          <Text style={styles.dashboardHeroTimeLabel}>Iftar</Text>
+          <Text style={styles.dashboardHeroTimeLabel}>{rightTimeLabel}</Text>
           <Text
             style={[
               styles.dashboardHeroTimeValue,
               themeId === "light" && { color: "#2F6FCF" },
             ]}
           >
-            {iftarTime}
+            {rightTime}
           </Text>
         </View>
       </View>
 
       <View style={styles.dashboardHeroMiniRow}>
-        <Pressable
-          style={[
-            styles.dashboardHeroMiniCard,
-            { backgroundColor: miniCardBackground, borderColor: miniCardBorderColor },
-          ]}
-          onPress={() => onNavigate("medications")}
-          accessibilityRole="button"
-          accessibilityLabel="Open Medications"
-        >
-          <Text style={styles.dashboardHeroMiniTitle}>
-            {nextMedication?.name || "Hydrocortisone"}
-          </Text>
-          {(nextMedication?.lines?.length ? nextMedication.lines : ["Morning dose"]).map((line, i) => (
-            <Text key={i} style={styles.dashboardHeroMiniSubtitle}>
-              {line}
+        <View ref={medicationCardRef} collapsable={false}>
+          <Pressable
+            style={[
+              styles.dashboardHeroMiniCard,
+              { backgroundColor: miniCardBackground, borderColor: miniCardBorderColor },
+            ]}
+            onPress={() => onNavigate("medications")}
+            accessibilityRole="button"
+            accessibilityLabel="Open Medications"
+          >
+            <Text style={styles.dashboardHeroMiniTitle}>
+              {nextMedication?.name || "Hydrocortisone"}
             </Text>
-          ))}
-        </Pressable>
+            {(nextMedication?.lines?.length ? nextMedication.lines : ["Morning dose"]).map((line, i) => (
+              <Text key={i} style={styles.dashboardHeroMiniSubtitle}>
+                {line}
+              </Text>
+            ))}
+          </Pressable>
+        </View>
 
-        <Pressable
-          style={[
-            styles.dashboardHeroMiniCard,
-            { backgroundColor: miniCardBackground, borderColor: miniCardBorderColor },
-          ]}
-          onPress={() => onNavigate("appointments")}
-          accessibilityRole="button"
-          accessibilityLabel="Open Appointments"
-        >
+        <View ref={appointmentCardRef} collapsable={false}>
+          <Pressable
+            style={[
+              styles.dashboardHeroMiniCard,
+              { backgroundColor: miniCardBackground, borderColor: miniCardBorderColor },
+            ]}
+            onPress={() => onNavigate("appointments")}
+            accessibilityRole="button"
+            accessibilityLabel="Open Appointments"
+          >
           <Text style={styles.dashboardHeroMiniTitle}>Next appointment</Text>
           <Text style={styles.dashboardHeroMiniSubtitle}>
             {nextApt?.doctorName || "Dr. Jordon LICSW"}
@@ -233,6 +245,7 @@ function DashboardHero({
               : "Tue Mar 17 · 10:00 AM"}
           </Text>
         </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -333,6 +346,22 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
   const today = getToday();
+  const walkthrough = useWalkthroughTargets();
+  const refMed = useRef<View>(null);
+  const refApt = useRef<View>(null);
+  const refDailyLog = useRef<View>(null);
+
+  useEffect(() => {
+    if (!walkthrough) return;
+    walkthrough.registerTarget("medication", () => measureInWindow(refMed));
+    walkthrough.registerTarget("appointments", () => measureInWindow(refApt));
+    walkthrough.registerTarget("dailylog", () => measureInWindow(refDailyLog));
+    return () => {
+      walkthrough.unregisterTarget("medication");
+      walkthrough.unregisterTarget("appointments");
+      walkthrough.unregisterTarget("dailylog");
+    };
+  }, [walkthrough]);
 
   const [todayLog, setTodayLog] = useState<HealthLog | undefined>();
   const [medications, setMedications] = useState<Medication[]>([]);
@@ -418,10 +447,15 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   const energyLabels = ["Low", "Fair", "Good", "Great", "Excellent"];
 
-  const sunriseTime =
-    (ramadanDay && `${ramadanDay.fajr} AM`) || fastingLog?.suhoorTime || "--";
-  const sunsetTime =
-    (ramadanDay && `${ramadanDay.maghrib} PM`) || fastingLog?.iftarTime || "--";
+  const isRamadanMode = settings.ramadanMode;
+  const leftLabel = isRamadanMode ? "Fajr" : "Sunrise";
+  const rightLabel = isRamadanMode ? "Iftar" : "Sunset";
+  const leftTimeRaw = ramadanDay?.fajr ?? null;
+  const rightTimeRaw = ramadanDay?.maghrib ?? null;
+  const leftTime = leftTimeRaw ? `${leftTimeRaw} AM` : (fastingLog?.suhoorTime ?? "—");
+  const rightTime = rightTimeRaw ? `${rightTimeRaw} PM` : (fastingLog?.iftarTime ?? "—");
+  const sunriseTime = leftTime;
+  const sunsetTime = rightTime;
 
   const getIftarCountdown = () => {
     if (!fastingLog?.iftarTime) return null;
@@ -622,13 +656,18 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           <DashboardHero
             ramadanDayLabel={`Ramadan ${ramadanDay.hijriDay}${ordinalSuffix(ramadanDay.hijriDay)}, 1447 AH`}
             subtitle={goodDayMessage}
-            fajrTime={sunriseTime}
-            iftarTime={sunsetTime}
+            leftTimeLabel={leftLabel}
+            rightTimeLabel={rightLabel}
+            leftTime={leftTime}
+            rightTime={rightTime}
             nextMedication={nextMedication ? { name: nextMedication.name, lines: nextMedication.lines } : null}
             nextApt={nextApt ?? null}
             onNavigate={onNavigate}
+            medicationCardRef={refMed}
+            appointmentCardRef={refApt}
           />
 
+          <View ref={refDailyLog} collapsable={false}>
           <GlassView
             intensity={50}
             tint={themeId === "dark" ? "dark" : "light"}
@@ -676,6 +715,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               <Ionicons name="chevron-forward" size={18} color={C.tint} />
             </Pressable>
           </GlassView>
+          </View>
 
           {settings.ramadanMode && (
             <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.feelingCardGlass, themeId === "light" && styles.feelingCardLight]}>

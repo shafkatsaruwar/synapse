@@ -1,19 +1,18 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, TextInput, Platform, useWindowDimensions, Animated, Alert, Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
 import {
   medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage, comfortStorage,
   type Medication, type MedicationLog, type SickModeData, type ComfortItem,
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { useAccessibility } from "@/lib/accessibility";
-
-const C = Colors.dark;
+import { useTheme } from "@/contexts/ThemeContext";
+import { getSickModePalette } from "@/constants/sick-mode-colors";
 const HYDRATION_GOAL = 2000;
 const CHECK_IN_INTERVAL_MS = 2 * 60 * 60 * 1000;
 const COMFORT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -40,6 +39,8 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
   const isWide = width >= 768;
   const today = getToday();
   const { reduceMotion } = useAccessibility();
+  const { colors: C, themeId } = useTheme();
+  const S = getSickModePalette(themeId);
 
   const [medications, setMedications] = useState<Medication[]>([]);
   const [medLogs, setMedLogs] = useState<MedicationLog[]>([]);
@@ -244,11 +245,12 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
 
   if (!sickData) return null;
 
-  const accentColor = isRecovery ? C.green : C.red;
-  const accentLight = isRecovery ? "rgba(45,125,70,0.12)" : "rgba(255,69,58,0.15)";
-  const accentBorder = isRecovery ? "rgba(45,125,70,0.3)" : "rgba(255,69,58,0.3)";
-  const bgColor = isRecovery ? "#E0F2E9" : "#F5D5D0";
+  const accentColor = isRecovery ? C.green : S.accent;
+  const accentLight = isRecovery ? "rgba(45,125,70,0.12)" : S.accentLight;
+  const accentBorder = isRecovery ? "rgba(45,125,70,0.3)" : S.accentBorder;
+  const bgColor = isRecovery ? (themeId === "dark" ? "#0F2A1F" : "#E0F2E9") : S.background;
 
+  const styles = useMemo(() => makeStyles(C, S), [C, S]);
   return (
     <View style={[styles.container, { backgroundColor: bgColor }]}>
       <ScrollView
@@ -264,22 +266,22 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
             <Ionicons name={isRecovery ? "leaf" : "warning"} size={22} color="#fff" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.warningTitle}>{isRecovery ? "Recovery Mode" : "Sick Mode Active"}</Text>
+            <Text style={[styles.warningTitle, !isRecovery && { color: S.text }]}>{isRecovery ? "Recovery Mode" : "Sick Mode Active"}</Text>
             <Text style={[styles.warningSubtitle, { color: accentColor }]}>
               {isRecovery ? "You're on the mend" : "Focus on recovery"}
             </Text>
           </View>
           {latestTemp && (
             <View style={[styles.latestTemp, latestTemp.value >= 100 && styles.latestTempHigh]}>
-              <Text style={[styles.latestTempText, latestTemp.value >= 100 && { color: C.red }]}>{latestTemp.value}°F</Text>
+              <Text style={[styles.latestTempText, latestTemp.value >= 100 && { color: S.accent }]}>{latestTemp.value}°F</Text>
             </View>
           )}
         </View>
 
         {showActivated && (
-          <Animated.View style={[styles.activatedMsg, { opacity: activatedOpacity }]}>
-            <Ionicons name="shield-checkmark" size={16} color={C.red} />
-            <Text style={styles.activatedText}>Sick Mode activated. Focus on recovery.</Text>
+          <Animated.View style={[styles.activatedMsg, { opacity: activatedOpacity, backgroundColor: S.card }]}>
+            <Ionicons name="shield-checkmark" size={16} color={S.accent} />
+            <Text style={[styles.activatedText, { color: S.accent }]}>Sick Mode activated. Focus on recovery.</Text>
           </Animated.View>
         )}
 
@@ -297,10 +299,10 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
         <View style={styles.progressSection}>
           <View style={styles.progressHeader}>
             <Text style={styles.progressLabel}>Recovery Progress</Text>
-            <Text style={[styles.progressCount, { color: accentColor === C.red ? C.green : accentColor }]}>{completedActions}/{totalActions}</Text>
+            <Text style={[styles.progressCount, { color: accentColor }]}>{completedActions}/{totalActions}</Text>
           </View>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${(completedActions / totalActions) * 100}%` }]} />
+          <View style={[styles.progressBar, isRecovery && { backgroundColor: C.surfaceElevated }]}>
+            <View style={[styles.progressFill, { width: `${(completedActions / totalActions) * 100}%` }, isRecovery && { backgroundColor: C.green }]} />
           </View>
         </View>
 
@@ -539,28 +541,29 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F5D5D0" },
+function makeStyles(C: Record<string, string>, S: import("@/constants/sick-mode-colors").SickModePalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: S.background },
   content: { paddingHorizontal: 24 },
   warningHeader: {
     flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20,
-    backgroundColor: "rgba(255,69,58,0.15)", borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: "rgba(255,69,58,0.3)",
+    backgroundColor: S.accentLight, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: S.accentBorder,
   },
   warningIcon: {
-    width: 44, height: 44, borderRadius: 12, backgroundColor: C.red,
+    width: 44, height: 44, borderRadius: 12, backgroundColor: S.accent,
     alignItems: "center", justifyContent: "center",
   },
-  warningTitle: { fontWeight: "700", fontSize: 20, color: C.text, letterSpacing: -0.3 },
-  warningSubtitle: { fontWeight: "400", fontSize: 13, color: C.red, marginTop: 2 },
+  warningTitle: { fontWeight: "700", fontSize: 20, color: S.text, letterSpacing: -0.3 },
+  warningSubtitle: { fontWeight: "400", fontSize: 13, color: S.accent, marginTop: 2 },
   latestTemp: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: C.orangeLight },
   latestTempHigh: { backgroundColor: C.redLight },
   latestTempText: { fontWeight: "700", fontSize: 15, color: C.orange },
   activatedMsg: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: "rgba(255,69,58,0.08)", borderRadius: 10, padding: 12, marginBottom: 16,
+    backgroundColor: S.card, borderRadius: 10, padding: 12, marginBottom: 16,
   },
-  activatedText: { fontWeight: "500", fontSize: 13, color: C.red },
+  activatedText: { fontWeight: "500", fontSize: 13, color: S.accent },
 
   checkInCountdownCard: {
     backgroundColor: C.orangeLight, borderRadius: 14, padding: 16, marginBottom: 20,
@@ -577,8 +580,8 @@ const styles = StyleSheet.create({
   progressHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
   progressLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary },
   progressCount: { fontWeight: "700", fontSize: 13, color: C.green },
-  progressBar: { height: 6, borderRadius: 3, backgroundColor: C.surfaceElevated, overflow: "hidden" },
-  progressFill: { height: "100%", borderRadius: 3, backgroundColor: C.green },
+  progressBar: { height: 6, borderRadius: 3, backgroundColor: S.progress, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 3, backgroundColor: S.accent },
   recoveryRemindersCard: {
     backgroundColor: "rgba(45,125,70,0.1)", borderRadius: 14, padding: 16, marginBottom: 20,
     borderWidth: 1, borderColor: "rgba(45,125,70,0.25)",
@@ -591,36 +594,36 @@ const styles = StyleSheet.create({
   comfortRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
   comfortRowText: { fontWeight: "500", fontSize: 14, color: C.text },
   stressCard: {
-    backgroundColor: "rgba(255,69,58,0.08)", borderRadius: 16, padding: 18, marginBottom: 20,
-    borderWidth: 1, borderColor: "rgba(255,69,58,0.25)",
+    backgroundColor: S.card, borderRadius: 16, padding: 18, marginBottom: 20,
+    borderWidth: 1, borderColor: S.accentBorder,
   },
   stressHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
-  stressTitle: { fontWeight: "700", fontSize: 17, color: C.text },
-  stressDose: { fontWeight: "400", fontSize: 12, color: C.red, marginTop: 2 },
-  stressBadge: { backgroundColor: C.red, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
+  stressTitle: { fontWeight: "700", fontSize: 17, color: S.text },
+  stressDose: { fontWeight: "400", fontSize: 12, color: S.accent, marginTop: 2 },
+  stressBadge: { backgroundColor: S.accent, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
   stressBadgeText: { fontWeight: "700", fontSize: 10, color: "#fff", letterSpacing: 1 },
   stressSectionSubtext: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginBottom: 12 },
   stressDetailRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
   stressDetailText: { fontWeight: "400", fontSize: 13, color: C.textSecondary, flex: 1 },
   stressDoseCount: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginBottom: 12, marginTop: 4 },
   stressTakeBtn: {
-    backgroundColor: C.red, borderRadius: 12, paddingVertical: 14, alignItems: "center",
+    backgroundColor: S.accent, borderRadius: 12, paddingVertical: 14, alignItems: "center",
     flexDirection: "row", justifyContent: "center",
   },
   stressTakeBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
   stressDoneRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
   stressDoneText: { fontWeight: "600", fontSize: 14, color: C.green },
   tempSection: {
-    backgroundColor: C.surface, borderRadius: 16, padding: 16, marginBottom: 20,
-    borderWidth: 1, borderColor: C.border,
+    backgroundColor: S.card, borderRadius: 16, padding: 16, marginBottom: 20,
+    borderWidth: 1, borderColor: S.accentBorder,
   },
   tempHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  tempTitle: { fontWeight: "600", fontSize: 15, color: C.text },
+  tempTitle: { fontWeight: "600", fontSize: 15, color: S.text },
   tempInputRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
   tempInput: {
-    flex: 1, fontWeight: "400", fontSize: 14, color: C.text,
-    backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: C.border,
+    flex: 1, fontWeight: "400", fontSize: 14, color: S.text,
+    backgroundColor: S.background, borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: S.accentBorder,
   },
   tempLogBtn: { paddingHorizontal: 20, borderRadius: 10, backgroundColor: C.tint, justifyContent: "center" },
   tempLogBtnText: { fontWeight: "600", fontSize: 14, color: "#fff" },
@@ -637,10 +640,10 @@ const styles = StyleSheet.create({
   },
   actionCard: {
     flexDirection: "row", alignItems: "center", gap: 14,
-    backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 8,
-    borderWidth: 1, borderColor: C.border,
+    backgroundColor: S.card, borderRadius: 14, padding: 16, marginBottom: 8,
+    borderWidth: 1, borderColor: S.accentBorder,
   },
-  actionLabel: { fontWeight: "600", fontSize: 15, color: C.text },
+  actionLabel: { fontWeight: "600", fontSize: 15, color: S.text },
   actionMeta: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 2 },
   actionTap: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: C.tintLight },
   actionTapText: { fontWeight: "600", fontSize: 13, color: C.tint },
@@ -683,4 +686,5 @@ const styles = StyleSheet.create({
   modalSubmitBtnText: { fontWeight: "600", fontSize: 16, color: "#fff" },
   modalSkipBtn: { paddingVertical: 8 },
   modalSkipBtnText: { fontWeight: "500", fontSize: 14, color: C.textTertiary },
-});
+  });
+}

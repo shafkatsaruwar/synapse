@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import { getSickModePalette, type SickModePalette } from "@/constants/sick-mode-colors";
 import ReadAloudButton from "@/components/ReadAloudButton";
 import * as Crypto from "expo-crypto";
 import {
@@ -81,8 +82,9 @@ export default function MedicationsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
-  const { colors: C } = useTheme();
-  const styles = useMemo(() => makeStyles(C), [C]);
+  const { colors: C, themeId } = useTheme();
+  const sickPalette = useMemo(() => getSickModePalette(themeId), [themeId]);
+  const styles = useMemo(() => makeStyles(C, sickPalette), [C, sickPalette]);
   const TAG_COLORS = useMemo(() => makeTagColors(C), [C]);
   const today = getToday();
 
@@ -479,25 +481,25 @@ export default function MedicationsScreen() {
   const topPad = isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16);
 
   return (
-    <View style={[styles.container, isSickMode && { backgroundColor: "#F5D5D0" }]}>
+    <View style={[styles.container, isSickMode && { backgroundColor: sickPalette.background }]}>
       <View style={[styles.headerSticky, { paddingTop: topPad }]}>
         {isSickMode && (
-          <View style={styles.sickBanner}>
+          <View style={[styles.sickBanner, { backgroundColor: sickPalette.accentLight, borderColor: sickPalette.accentBorder }]}>
             <View style={styles.sickBannerInner}>
-              <Ionicons name="warning" size={16} color={C.red} />
-              <Text style={styles.sickBannerText}>Recovery protocol active</Text>
+              <Ionicons name="warning" size={16} color={sickPalette.accent} />
+              <Text style={[styles.sickBannerText, { color: sickPalette.accent }]}>Recovery protocol active</Text>
             </View>
           </View>
         )}
         <View style={styles.header}>
           <View>
-            <Text style={[styles.title, isSickMode && { color: "#FF6B6B" }]}>Medications</Text>
-            <Text style={styles.subtitle}>{takenDoses}/{totalDoses} doses taken today</Text>
+            <Text style={[styles.title, isSickMode && { color: sickPalette.accent }]}>Medications</Text>
+            <Text style={[styles.subtitle, isSickMode && { color: sickPalette.text }]}>{takenDoses}/{totalDoses} doses taken today</Text>
           </View>
         </View>
         {totalDoses > 0 && (
-          <View style={[styles.progressBar, isSickMode && { backgroundColor: "rgba(255,69,58,0.15)" }]}>
-            <View style={[styles.progressFill, { width: `${(takenDoses / totalDoses) * 100}%` }, isSickMode && { backgroundColor: C.red }]} />
+          <View style={[styles.progressBar, isSickMode && { backgroundColor: sickPalette.progress }]}>
+            <View style={[styles.progressFill, { width: `${(takenDoses / totalDoses) * 100}%` }, isSickMode && { backgroundColor: sickPalette.accent }]} />
           </View>
         )}
       </View>
@@ -509,29 +511,20 @@ export default function MedicationsScreen() {
         }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.sectionPanel}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Current Medications</Text>
-            <Pressable testID="add-medication" style={({ pressed }) => [styles.sectionAddBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={openAddModal} accessibilityRole="button" accessibilityLabel="Add medication" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="add" size={22} color="#fff" />
-            </Pressable>
+        {grouped.length === 0 ? (
+          <View style={styles.empty}>
+            <Ionicons name="medical-outline" size={40} color={C.textTertiary} />
+            <Text style={styles.emptyTitle}>No medications yet</Text>
+            <Text style={styles.emptyDesc}>Tap the + button to add your first medication.</Text>
           </View>
-
-          {grouped.length === 0 ? (
-            <View style={styles.empty}>
-              <Ionicons name="medical-outline" size={40} color={C.textTertiary} />
-              <Text style={styles.emptyTitle}>No medications yet</Text>
-              <Text style={styles.emptyDesc}>Add your first medication to get started.</Text>
-            </View>
-          ) : (
-            grouped.map(({ tag, meds }) => (
+        ) : (
+          grouped.map(({ tag, meds }) => (
           <View key={tag} style={{ marginBottom: 20 }}>
-            <View style={[styles.tagBadge, { backgroundColor: TAG_COLORS[tag].bg }]}>
-              <Ionicons name={TAG_COLORS[tag].icon as any} size={12} color={TAG_COLORS[tag].text} />
-              <Text style={[styles.tagText, { color: TAG_COLORS[tag].text }]}>{tag}</Text>
+            <View style={[styles.tagBadge, { backgroundColor: TAG_COLORS[tag]?.bg ?? C.surfaceElevated }]}>
+              <Ionicons name={(TAG_COLORS[tag]?.icon ?? "ellipse-outline") as any} size={12} color={TAG_COLORS[tag]?.text ?? C.textSecondary} />
+              <Text style={[styles.tagText, { color: TAG_COLORS[tag]?.text ?? C.textSecondary }]}>{tag}</Text>
             </View>
             {meds.map((med) => {
-              // For this time-of-day section, only consider doses that actually belong to this tag.
               const indicesForTag: number[] = [];
               if (Array.isArray(med.doses) && med.doses.length > 0) {
                 med.doses.forEach((d, idx) => {
@@ -551,9 +544,13 @@ export default function MedicationsScreen() {
               if (indicesForTag.length === 0) return null;
 
               const doseCountForTag = indicesForTag.length;
-              const allTaken = indicesForTag.every((i) => isDoseTaken(med.id, i));
+              const takenForTag = indicesForTag.filter((i) => isDoseTaken(med.id, i)).length;
+              const allTaken = takenForTag === doseCountForTag;
               const labels = doseLabels(med);
               const emoji = getAutoEmoji(med);
+              const totalDosesMed = getDoseCount(med);
+              const takenTotalMed = Array.from({ length: totalDosesMed }, (_, i) => isDoseTaken(med.id, i)).filter(Boolean).length;
+              const showRefill = med.pillsRemaining != null;
 
               return (
                 <Pressable
@@ -585,12 +582,28 @@ export default function MedicationsScreen() {
                           {med.route ? ` · ${med.route}` : ""}
                         </Text>
                       ) : null}
-                      {!!med.frequency && <Text style={styles.medFreq}>{med.frequency}</Text>}
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+                        {!!med.frequency && <Text style={styles.medFreq}>{med.frequency}</Text>}
+                        {totalDosesMed > 0 && (
+                          <Text style={[styles.medFreq, { marginTop: 0, marginLeft: 0 }]}>
+                            ({takenTotalMed}/{totalDosesMed} doses today)
+                          </Text>
+                        )}
+                      </View>
                     </View>
                     <Pressable onPress={() => handleDelete(med)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Remove ${med.name}`}>
                       <Ionicons name="trash-outline" size={16} color={C.textTertiary} />
                     </Pressable>
                   </View>
+
+                  {showRefill && (
+                    <View style={styles.refillRow}>
+                      <Ionicons name="alert-circle-outline" size={14} color={C.textTertiary} />
+                      <Text style={[styles.refillText, (med.pillsRemaining ?? 0) <= 5 && styles.refillTextWarning]}>
+                        Refill reminder · {(med.pillsRemaining ?? 0)} pills remaining
+                      </Text>
+                    </View>
+                  )}
 
                   {doseCountForTag === 1 ? (
                     allTaken ? (
@@ -656,45 +669,6 @@ export default function MedicationsScreen() {
             })}
           </View>
         )))}
-        </View>
-
-        <View style={styles.sectionDivider} />
-
-        <View style={styles.sectionPanel}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Medications List</Text>
-            <Pressable testID="add-med-list" style={({ pressed }) => [styles.sectionAddBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={openMedListAddModal} accessibilityRole="button" accessibilityLabel="Add to Medications" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="add" size={22} color="#fff" />
-            </Pressable>
-          </View>
-          {medListItems.length === 0 ? (
-            <Text style={styles.medListEmpty}>No entries. Tap + to add medication name, prescriber, and refills.</Text>
-          ) : (
-            medListItems.map((item) => (
-              <View key={item.id} style={styles.medListCard}>
-                <Pressable style={{ flex: 1 }} onPress={() => openEditMedListItem(item)} accessibilityRole="button" accessibilityLabel={`Edit ${item.name}`}>
-                  <Text style={styles.medListCardName}>{item.name}</Text>
-                  {(item.doses?.length ? item.doses : [{ dosage: (item as unknown as { dosage?: string }).dosage ?? "", time: "Morning" as MedListDoseTime }]).map((d, i) => (
-                    d.dosage ? <Text key={i} style={styles.medListCardDoseLine}>{d.dosage} · {d.time}</Text> : null
-                  ))}
-                  {item.prescribingDoctor ? <Text style={styles.medListCardPrescriber}>{item.prescribingDoctor}</Text> : null}
-                  {item.pharmacyName ? <Text style={styles.medListCardPrescriber}>{item.pharmacyName}</Text> : null}
-                  {item.pharmacyPhone ? <Text style={styles.medListCardPrescriber}>{item.pharmacyPhone}</Text> : null}
-                  {item.pharmacyAddress ? <Text style={styles.medListCardPrescriber}>{item.pharmacyAddress}</Text> : null}
-                  <Text style={[styles.medListCardRefills, item.refillsRemaining <= 1 && styles.medListCardRefillsWarning]}>
-                    {item.refillsRemaining === 0 ? "No refills remaining" : `${item.refillsRemaining} refill${item.refillsRemaining === 1 ? "" : "s"} remaining`}
-                  </Text>
-                  {item.duration != null && item.durationUnit ? (
-                    <Text style={styles.medListCardPrescriber}>{item.duration} {item.durationUnit}</Text>
-                  ) : null}
-                </Pressable>
-                <Pressable onPress={() => handleRemoveMedListItem(item)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Remove ${item.name} from Medications`}>
-                  <Ionicons name="trash-outline" size={16} color={C.textTertiary} />
-                </Pressable>
-              </View>
-            ))
-          )}
-        </View>
 
         {medications.length > 0 && (
           <View style={styles.safetyNote}>
@@ -820,6 +794,23 @@ export default function MedicationsScreen() {
           </View>
         )}
       </ScrollView>
+
+      <Pressable
+        testID="add-medication"
+        style={({ pressed }) => [
+          styles.fab,
+          {
+            right: isWide ? 24 : 20,
+            bottom: Platform.OS === "web" ? 100 : insets.bottom + 80,
+            opacity: pressed ? 0.9 : 1,
+          },
+        ]}
+        onPress={openAddModal}
+        accessibilityRole="button"
+        accessibilityLabel="Add medication"
+      >
+        <Ionicons name="add" size={28} color="#fff" />
+      </Pressable>
 
       <Modal visible={showTempModal} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowTempModal(false)}>
@@ -976,7 +967,7 @@ export default function MedicationsScreen() {
               <Text style={styles.label}>Name</Text>
               <Pressable style={styles.input} onPress={() => medListItems.length > 0 && setShowCurrentMedNamePicker((v) => !v)}>
                 <Text style={[styles.pickerPlaceholder, formName && { color: C.text }]}>
-                  {formName || (medListItems.length === 0 ? "No medications found. Add medications in Medications List first." : "Select medication")}
+                  {formName || (medListItems.length === 0 ? "e.g. Hydrocortisone" : "Select or type medication name")}
                 </Text>
                 {medListItems.length > 0 && <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />}
               </Pressable>
@@ -1208,14 +1199,14 @@ export default function MedicationsScreen() {
   );
 }
 
-function makeStyles(C: Theme) {
+function makeStyles(C: Theme, S: SickModePalette) {
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
   headerSticky: { paddingHorizontal: 24 },
-  sickBanner: { marginBottom: 16, backgroundColor: "rgba(255,69,58,0.12)", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "rgba(255,69,58,0.3)" },
+  sickBanner: { marginBottom: 16, borderRadius: 12, padding: 12, borderWidth: 1 },
   sickBannerInner: { flexDirection: "row", alignItems: "center", gap: 8 },
-  sickBannerText: { fontWeight: "600", fontSize: 13, color: C.red },
+  sickBannerText: { fontWeight: "600", fontSize: 13 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
@@ -1225,6 +1216,10 @@ function makeStyles(C: Theme) {
   empty: { alignItems: "center", paddingVertical: 60, gap: 8 },
   emptyTitle: { fontWeight: "600", fontSize: 17, color: C.text, marginTop: 8 },
   emptyDesc: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
+  fab: { position: "absolute", width: 56, height: 56, borderRadius: 28, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 8 },
+  refillRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10, marginLeft: 26 },
+  refillText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
+  refillTextWarning: { color: C.red },
   sectionPanel: { marginBottom: 0, paddingVertical: 16, paddingHorizontal: 4 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   sectionTitle: { fontWeight: "700", fontSize: 18, color: C.text },
@@ -1325,28 +1320,28 @@ function makeStyles(C: Theme) {
   nudgeBtnText: { fontWeight: "600", fontSize: 14, color: "#fff" },
   nudgeDismiss: { paddingVertical: 10 },
   nudgeDismissText: { fontWeight: "500", fontSize: 13, color: C.textTertiary },
-  protocolSection: { marginTop: 12, paddingTop: 20, borderTopWidth: 1, borderTopColor: "rgba(255,69,58,0.2)" },
+  protocolSection: { marginTop: 12, paddingTop: 20, borderTopWidth: 1, borderTopColor: S.accentBorder },
   protocolHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
-  protocolTitle: { fontWeight: "700", fontSize: 18, color: C.red, letterSpacing: -0.3 },
-  protocolCard: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: "rgba(255,69,58,0.15)" },
+  protocolTitle: { fontWeight: "700", fontSize: 18, color: S.accent, letterSpacing: -0.3 },
+  protocolCard: { backgroundColor: S.card, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: S.accentBorder },
   protocolCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  protocolCardTitle: { fontWeight: "600", fontSize: 14, color: C.text, flex: 1 },
+  protocolCardTitle: { fontWeight: "600", fontSize: 14, color: S.text, flex: 1 },
   protocolMeta: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
   protocolEmpty: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
-  hydrationBar: { height: 8, borderRadius: 4, backgroundColor: "rgba(10,132,255,0.15)", marginBottom: 12, overflow: "hidden" },
-  hydrationFill: { height: "100%", backgroundColor: C.tint, borderRadius: 4 },
+  hydrationBar: { height: 8, borderRadius: 4, backgroundColor: S.progress, marginBottom: 12, overflow: "hidden" },
+  hydrationFill: { height: "100%", backgroundColor: S.accent, borderRadius: 4 },
   hydrationBtns: { flexDirection: "row", gap: 8 },
-  hydrationBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, borderRadius: 10, backgroundColor: C.tintLight, borderWidth: 1, borderColor: "rgba(10,132,255,0.2)" },
-  hydrationBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
-  checkRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
-  checkLabel: { fontWeight: "500", fontSize: 14, color: C.text, flex: 1 },
-  tempAddBtn: { width: 28, height: 28, borderRadius: 7, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
-  tempRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
+  hydrationBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, borderRadius: 10, backgroundColor: S.accentLight, borderWidth: 1, borderColor: S.accentBorder },
+  hydrationBtnText: { fontWeight: "600", fontSize: 13, color: S.accent },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: S.accentBorder },
+  checkLabel: { fontWeight: "500", fontSize: 14, color: S.text, flex: 1 },
+  tempAddBtn: { width: 28, height: 28, borderRadius: 7, backgroundColor: S.accentLight, alignItems: "center", justifyContent: "center" },
+  tempRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: S.accentBorder },
   tempTime: { fontWeight: "400", fontSize: 13, color: C.textSecondary },
-  tempValue: { fontWeight: "600", fontSize: 14, color: C.text },
+  tempValue: { fontWeight: "600", fontSize: 14, color: S.text },
   symptomGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  symptomChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
-  symptomChipActive: { borderColor: "rgba(255,69,58,0.4)", backgroundColor: "rgba(255,69,58,0.1)" },
-  symptomChipText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
+  symptomChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: S.accentBorder, backgroundColor: S.card },
+  symptomChipActive: { borderColor: S.accent, backgroundColor: S.accentLight },
+  symptomChipText: { fontWeight: "500", fontSize: 12, color: S.text },
   });
 }

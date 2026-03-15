@@ -11,7 +11,6 @@ import {
   Alert,
   Share,
   Modal,
-  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,6 +23,7 @@ import {
   saveEmergencyCard,
   type EmergencyCardData,
 } from "@/lib/emergency-card-storage";
+import { allergyStorage, type AllergyInfo } from "@/lib/storage";
 
 const CARD_BG = "#FFFFFF";
 const CARD_HEADER = "#800020";
@@ -32,9 +32,10 @@ const CARD_LABEL = "#555555";
 
 interface EmergencyCardScreenProps {
   onBack: () => void;
+  onNavigate?: (screen: string) => void;
 }
 
-export default function EmergencyCardScreen({ onBack }: EmergencyCardScreenProps) {
+export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCardScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { colors: C } = useTheme();
@@ -53,19 +54,28 @@ export default function EmergencyCardScreen({ onBack }: EmergencyCardScreenProps
     doctorPhone: "",
     optionalNotes: "",
   });
+  const [allergyInfo, setAllergyInfo] = useState<AllergyInfo | null>(null);
   const [saved, setSaved] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
 
   const load = useCallback(async () => {
-    const stored = await getEmergencyCard();
+    const [stored, allergy] = await Promise.all([getEmergencyCard(), allergyStorage.get()]);
     setData(stored);
+    setAllergyInfo(allergy);
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const allergiesDisplay = allergyInfo?.hasAllergies && allergyInfo?.allergyName?.trim()
+    ? allergyInfo.allergyName.trim()
+    : "None";
+  const epipenDisplay = allergyInfo?.hasEpiPen ? "Yes" : "No";
+  const noTreatmentDisplay = allergyInfo?.noTreatmentConsequence?.trim() || null;
+  const hasAllergyInfoFromProfile = Boolean(allergyInfo?.allergyName?.trim());
 
   const update = useCallback((patch: Partial<EmergencyCardData>) => {
     setData((prev) => ({ ...prev, ...patch }));
@@ -151,9 +161,12 @@ export default function EmergencyCardScreen({ onBack }: EmergencyCardScreenProps
         <View style={styles.cardBody}>
           <Row label="Name" value={data.fullName || "—"} />
           <Row label="Date of Birth" value={data.dateOfBirth || "—"} />
-          <Row label="Allergies" value={data.allergies || "None"} />
+          <Row label="Allergies" value={allergiesDisplay} />
           <Row label="Current Medications" value={data.currentMedications || "—"} />
-          <Row label="EpiPen" value={data.epipenAvailable ? "Yes" : "No"} />
+          <Row label="EpiPen" value={epipenDisplay} />
+          {noTreatmentDisplay ? (
+            <Row label="If untreated" value={noTreatmentDisplay} />
+          ) : null}
           <Row label="Emergency Contact" value={data.emergencyContactName || "—"} />
           <Row label="Contact Phone" value={data.emergencyContactPhone || "—"} />
           <Row label="Primary Doctor" value={data.primaryDoctorName || "—"} />
@@ -189,17 +202,19 @@ export default function EmergencyCardScreen({ onBack }: EmergencyCardScreenProps
           <Text style={styles.sectionTitle}>Your details</Text>
           <Field label="Full Name" value={data.fullName} onChange={(v) => update({ fullName: v })} placeholder="Full name" />
           <Field label="Date of Birth" value={data.dateOfBirth} onChange={(v) => update({ dateOfBirth: v })} placeholder="e.g. Jan 15, 1990" />
-          <Field label="Allergies" value={data.allergies} onChange={(v) => update({ allergies: v })} placeholder="List allergies" multiline />
           <Field label="Current Medications" value={data.currentMedications} onChange={(v) => update({ currentMedications: v })} placeholder="List medications" multiline />
-          <View style={styles.toggleRow}>
-            <Text style={styles.label}>EpiPen available</Text>
-            <Switch
-              value={data.epipenAvailable}
-              onValueChange={(v) => update({ epipenAvailable: v })}
-              trackColor={{ false: C.border, true: C.tintLight }}
-              thumbColor={data.epipenAvailable ? C.tint : "#f4f3f4"}
-            />
-          </View>
+          {!hasAllergyInfoFromProfile && onNavigate && (
+            <Pressable
+              style={styles.allergyPrompt}
+              onPress={() => { Haptics.selectionAsync(); onNavigate("allergy"); }}
+              accessibilityRole="button"
+              accessibilityLabel="Add allergy information in Health Profile"
+            >
+              <Ionicons name="information-circle-outline" size={18} color={C.tint} />
+              <Text style={styles.allergyPromptText}>Add allergy information in Health Profile to include it on your Emergency Card.</Text>
+              <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+            </Pressable>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -272,9 +287,10 @@ export default function EmergencyCardScreen({ onBack }: EmergencyCardScreenProps
             <View style={styles.cardBody}>
               <Row label="Name" value={data.fullName || "—"} large />
               <Row label="Date of Birth" value={data.dateOfBirth || "—"} large />
-              <Row label="Allergies" value={data.allergies || "None"} large />
+              <Row label="Allergies" value={allergiesDisplay} large />
               <Row label="Current Medications" value={data.currentMedications || "—"} large />
-              <Row label="EpiPen" value={data.epipenAvailable ? "Yes" : "No"} large />
+              <Row label="EpiPen" value={epipenDisplay} large />
+              {noTreatmentDisplay ? <Row label="If untreated" value={noTreatmentDisplay} large /> : null}
               <Row label="Emergency Contact" value={data.emergencyContactName || "—"} large />
               <Row label="Contact Phone" value={data.emergencyContactPhone || "—"} large />
               <Row label="Primary Doctor" value={data.primaryDoctorName || "—"} large />
@@ -373,6 +389,24 @@ function makeStyles(C: Theme) {
       alignItems: "center",
       justifyContent: "space-between",
       marginTop: 8,
+    },
+    allergyPrompt: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginTop: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      backgroundColor: C.tintLight,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    allergyPromptText: {
+      flex: 1,
+      fontSize: 13,
+      color: C.textSecondary,
+      lineHeight: 20,
     },
     saveBtn: {
       backgroundColor: C.tint,

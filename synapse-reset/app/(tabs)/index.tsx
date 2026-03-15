@@ -45,6 +45,7 @@ import AppBackground from "@/components/AppBackground";
 import BiometricGate from "@/components/BiometricGate";
 import AppWalkthrough from "@/components/AppWalkthrough";
 import { getHasSeenWalkthrough, setHasSeenWalkthrough } from "@/lib/walkthrough-storage";
+import { WalkthroughProvider } from "@/contexts/WalkthroughContext";
 
 export default function MainScreen() {
   const isTablet = useIsTablet();
@@ -239,7 +240,7 @@ export default function MainScreen() {
       case "emergency":
         return <EmergencyProtocolScreen onBack={() => handleNavigate("settings")} />;
       case "emergencycard":
-        return <EmergencyCardScreen onBack={() => handleNavigate("settings")} />;
+        return <EmergencyCardScreen onBack={() => handleNavigate("settings")} onNavigate={handleNavigate} />;
       case "editprofile":
         return (
           <EditProfileScreen
@@ -277,6 +278,7 @@ export default function MainScreen() {
     return (
       <AppBackground>
         <BiometricGate>
+          <WalkthroughProvider>
           <View style={styles.container}>
             <TabletSidebar
               activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
@@ -291,6 +293,7 @@ export default function MainScreen() {
               setShowWalkthrough(false);
             }}
           />
+          </WalkthroughProvider>
         </BiometricGate>
       </AppBackground>
     );
@@ -299,6 +302,7 @@ export default function MainScreen() {
   return (
     <AppBackground>
       <BiometricGate>
+        <WalkthroughProvider>
         <View style={styles.container}>{content}</View>
         <AppWalkthrough
           visible={showWalkthrough}
@@ -307,6 +311,7 @@ export default function MainScreen() {
             setShowWalkthrough(false);
           }}
         />
+        </WalkthroughProvider>
       </BiometricGate>
     </AppBackground>
   );

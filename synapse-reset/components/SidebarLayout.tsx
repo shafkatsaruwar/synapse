@@ -20,6 +20,7 @@ import SynapseLogo from "@/components/SynapseLogo";
 import { featureFlags } from "@/constants/feature-flags";
 import { useAuth } from "@/contexts/AuthContext";
 import { settingsStorage } from "@/lib/storage";
+import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -91,6 +92,14 @@ export default function SidebarLayout({
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
   const [settingsName, setSettingsName] = useState<string | undefined>(undefined);
   const [enabledSections, setEnabledSections] = useState<string[] | undefined>(undefined);
+  const menuButtonRef = useRef<View>(null);
+  const walkthrough = useWalkthroughTargets();
+
+  useEffect(() => {
+    if (!walkthrough) return;
+    walkthrough.registerTarget("menu", () => measureInWindow(menuButtonRef));
+    return () => walkthrough.unregisterTarget("menu");
+  }, [walkthrough]);
 
   const moreIsActive = MORE_ITEMS.some((n) => n.key === activeScreen);
   const isWideScreen = width >= 768;
@@ -150,15 +159,17 @@ export default function SidebarLayout({
     <View style={styles.mobileContainer}>
       <View style={[styles.mobileHeaderRow, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 4 }]}>
         {isWide ? <View style={styles.headerSpacerLeft} /> : (
-          <Pressable
-            style={styles.mobileMenuBtn}
-            onPress={() => setMoreOpen(true)}
-            testID="tab-more"
-            accessibilityRole="button"
-            accessibilityLabel="Open menu"
-          >
-            <Ionicons name="menu" size={26} color={C.text} />
-          </Pressable>
+          <View ref={menuButtonRef} collapsable={false}>
+            <Pressable
+              style={styles.mobileMenuBtn}
+              onPress={() => setMoreOpen(true)}
+              testID="tab-more"
+              accessibilityRole="button"
+              accessibilityLabel="Open menu"
+            >
+              <Ionicons name="menu" size={26} color={C.text} />
+            </Pressable>
+          </View>
         )}
         {headerRight != null ? headerRight : <View style={styles.mobileHeaderSpacer} />}
       </View>
