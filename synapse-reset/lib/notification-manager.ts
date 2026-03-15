@@ -388,7 +388,17 @@ export async function syncAllFromSettings(): Promise<void> {
         } else {
           for (let i = 0; i < doses.length; i++) {
             const dose = doses[i];
-            const { hour, minute } = DEFAULT_REMINDER_TIMES[dose.timeOfDay] ?? DEFAULT_REMINDER_TIMES["Morning"];
+            let hour: number;
+            let minute: number;
+            if (dose.reminderTime) {
+              const [h, m] = dose.reminderTime.split(":").map((n) => parseInt(n, 10) || 0);
+              hour = h;
+              minute = m;
+            } else {
+              const def = DEFAULT_REMINDER_TIMES[dose.timeOfDay] ?? DEFAULT_REMINDER_TIMES["Morning"];
+              hour = def.hour;
+              minute = def.minute;
+            }
             await scheduleMedicationReminder({
               medicationId: med.id,
               doseIndex: i,

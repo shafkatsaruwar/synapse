@@ -708,35 +708,39 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
       <View style={[styles.grid, isWide && styles.gridWide]}>
         {featureFlags.documentScannerEnabled && (
-          <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("documents")} accessibilityLabel="Document Scanner" accessibilityRole="button" accessibilityHint="Upload lab reports and prescriptions for AI extraction">
-            <View style={[styles.cardHeader, { marginBottom: 0 }]}>
-              <View style={[styles.cardIcon, { backgroundColor: C.pinkLight }]}>
-                <Ionicons name="scan" size={16} color={C.pink} />
+          <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.cardGlass, isWide && styles.cardWide]}>
+            <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("documents")} accessibilityLabel="Document Scanner" accessibilityRole="button" accessibilityHint="Upload lab reports and prescriptions for AI extraction">
+              <View style={[styles.cardHeader, { marginBottom: 0 }]}>
+                <View style={[styles.cardIcon, { backgroundColor: C.pinkLight }]}>
+                  <Ionicons name="scan" size={16} color={C.pink} />
+                </View>
+                <Text style={styles.cardLabel}>Document Scanner</Text>
               </View>
-              <Text style={styles.cardLabel}>Document Scanner</Text>
-            </View>
-            <Text style={styles.reportDesc}>Upload lab reports and prescriptions for AI extraction</Text>
-            <View style={styles.reportBtn}>
-              <Ionicons name="arrow-forward" size={16} color={C.tint} />
-              <Text style={styles.reportBtnText}>Scan Documents</Text>
-            </View>
-          </Pressable>
+              <Text style={styles.reportDesc}>Upload lab reports and prescriptions for AI extraction</Text>
+              <View style={styles.reportBtn}>
+                <Ionicons name="arrow-forward" size={16} color={C.tint} />
+                <Text style={styles.reportBtnText}>Scan Documents</Text>
+              </View>
+            </Pressable>
+          </GlassView>
         )}
 
         {featureFlags.documentScannerEnabled && (
-          <Pressable style={[styles.card, isWide && styles.cardWide]} onPress={() => onNavigate("insights")} accessibilityLabel="AI Health Insights" accessibilityRole="button" accessibilityHint="Get personalized analysis of your health patterns">
-            <View style={[styles.cardHeader, { marginBottom: 0 }]}>
-              <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
-                <Ionicons name="sparkles" size={16} color={C.accent} />
+          <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.cardGlass, isWide && styles.cardWide]}>
+            <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("insights")} accessibilityLabel="AI Health Insights" accessibilityRole="button" accessibilityHint="Get personalized analysis of your health patterns">
+              <View style={[styles.cardHeader, { marginBottom: 0 }]}>
+                <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
+                  <Ionicons name="sparkles" size={16} color={C.accent} />
+                </View>
+                <Text style={styles.cardLabel}>AI Health Insights</Text>
               </View>
-              <Text style={styles.cardLabel}>AI Health Insights</Text>
-            </View>
-            <Text style={styles.reportDesc}>Get personalized analysis of your health patterns</Text>
-            <View style={styles.reportBtn}>
-              <Ionicons name="arrow-forward" size={16} color={C.tint} />
-              <Text style={styles.reportBtnText}>View Insights</Text>
-            </View>
-          </Pressable>
+              <Text style={styles.reportDesc}>Get personalized analysis of your health patterns</Text>
+              <View style={styles.reportBtn}>
+                <Ionicons name="arrow-forward" size={16} color={C.tint} />
+                <Text style={styles.reportBtnText}>View Insights</Text>
+              </View>
+            </Pressable>
+          </GlassView>
         )}
       </View>
 
@@ -979,14 +983,9 @@ function makeStyles(C: Theme) {
       shadowOpacity: 0.08,
       shadowRadius: 6,
       elevation: 6,
+      overflow: "hidden",
     },
-    ramadanQuoteCardLight: {
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.08,
-      shadowRadius: 6,
-      elevation: 6,
-    },
+    ramadanQuoteCardLight: {},
     ramadanQuoteRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -1037,14 +1036,9 @@ function makeStyles(C: Theme) {
       shadowOpacity: 0.08,
       shadowRadius: 6,
       elevation: 6,
+      overflow: "hidden",
     },
-    moodCardLight: {
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.08,
-      shadowRadius: 6,
-      elevation: 6,
-    },
+    moodCardLight: {},
     moodDivider: {
       height: 1,
       backgroundColor: "rgba(0,0,0,0.08)",
@@ -1067,14 +1061,9 @@ function makeStyles(C: Theme) {
       shadowOpacity: 0.08,
       shadowRadius: 6,
       elevation: 6,
+      overflow: "hidden",
     },
-    feelingCardLight: {
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.08,
-      shadowRadius: 6,
-      elevation: 6,
-    },
+    feelingCardLight: {},
     feelingCardInner: {
       flexDirection: "row",
       alignItems: "center",
@@ -1103,6 +1092,17 @@ function makeStyles(C: Theme) {
     grid: { gap: 12 },
     gridWide: { flexDirection: "row", flexWrap: "wrap" },
     card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: C.border },
+    cardGlass: {
+      borderRadius: 20,
+      padding: 20,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      elevation: 6,
+      overflow: "hidden",
+    },
+    cardInner: { backgroundColor: "transparent", borderRadius: 20 },
     cardWide: { width: "48.5%", marginRight: "1%" },
     cardHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
     cardIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },

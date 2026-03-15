@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
@@ -216,7 +217,7 @@ export default function SidebarLayout({
               </View>
             </View>
           ) : (
-            <BlurView intensity={60} tint={themeId === "dark" ? "dark" : "light"} style={styles.mobileNav}>
+            <BlurView intensity={45} tint={themeId === "dark" ? "dark" : "light"} style={styles.mobileNav}>
               <View style={styles.mobileNavContent}>
                 {primaryItemsFiltered.map((item) => {
                   const active = activeScreen === item.key;
@@ -264,14 +265,20 @@ export default function SidebarLayout({
                 styles.drawerPanel,
                 {
                   width: drawerWidth,
-                  paddingTop: Platform.OS === "web" ? 12 : insets.top + 8,
+                  paddingTop: 0,
                   paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 16,
                   transform: [{ translateX: drawerSlide.interpolate({ inputRange: [0, 1], outputRange: [0, -drawerWidth] }) }],
                 },
               ]}
             >
+              <LinearGradient
+                colors={["#D1E0F7", "#BDD4F2"]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
               <ScrollView
-                style={styles.drawerScroll}
+                style={[styles.drawerScroll, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 32 }]}
                 contentContainerStyle={styles.drawerScrollContent}
                 showsVerticalScrollIndicator={false}
                 bounces={false}
@@ -546,17 +553,16 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       left: 0,
       top: 0,
       bottom: 0,
-      backgroundColor: themeId === "light" ? "transparent" : C.background,
+      overflow: "hidden",
       borderRightWidth: 1,
-      borderRightColor: C.border,
+      borderRightColor: "rgba(0,0,0,0.06)",
       paddingHorizontal: 20,
-      paddingTop: 8,
       borderTopRightRadius: 24,
       borderBottomRightRadius: 24,
       shadowColor: "#000",
       shadowOffset: { width: 2, height: 0 },
-      shadowOpacity: 0.12,
-      shadowRadius: 8,
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
       elevation: 8,
     },
     drawerScroll: {

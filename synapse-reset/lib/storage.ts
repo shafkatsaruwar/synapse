@@ -26,6 +26,8 @@ export interface MedicationDose {
   amount: string;
   unit: string;
   timeOfDay: string;
+  /** When to send the reminder (e.g. "08:00", "20:00"). Used by notification scheduler. */
+  reminderTime?: string;
   optionalNotes?: string;
 }
 

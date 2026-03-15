@@ -1,9 +1,12 @@
 import React, { useMemo } from "react";
 import { View, StyleSheet, Text, Pressable, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useIsTablet } from "@/lib/device";
+
+const SIDEBAR_GRADIENT = ["#D1E0F7", "#BDD4F2"];
 import { featureFlags } from "@/constants/feature-flags";
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
@@ -64,7 +67,14 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
   if (!isTablet) return null;
 
   return (
-    <View style={[styles.sidebar, { width: SIDEBAR_WIDTH, paddingTop: insets.top + 8 }]}>
+    <View style={[styles.sidebarWrap, { width: SIDEBAR_WIDTH }]}>
+      <LinearGradient
+        colors={SIDEBAR_GRADIENT}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={[styles.sidebar, { paddingTop: insets.top + 32 }]}>
       <Text style={styles.logo} numberOfLines={1}>
         Synapse
       </Text>
@@ -91,7 +101,7 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
                     <Ionicons
                       name={active ? item.iconActive : item.icon}
                       size={24}
-                      color={active ? C.tint : C.textSecondary}
+                      color={active ? "#2563eb" : "rgba(0,0,0,0.55)"}
                     />
                     <Text style={[styles.navLabel, active && styles.navLabelActive]} numberOfLines={1}>
                       {item.label}
@@ -103,21 +113,30 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
           );
         })}
       </ScrollView>
+      </View>
     </View>
   );
 }
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
-    sidebar: {
-      backgroundColor: C.surface,
+    sidebarWrap: {
+      flex: 1,
       borderRightWidth: 1,
-      borderRightColor: C.border,
+      borderRightColor: "rgba(0,0,0,0.06)",
+      shadowColor: "#000",
+      shadowOffset: { width: 2, height: 0 },
+      shadowOpacity: 0.06,
+      shadowRadius: 4,
+      elevation: 4,
+    },
+    sidebar: {
+      flex: 1,
     },
     logo: {
       fontWeight: "700",
       fontSize: 20,
-      color: C.text,
+      color: "#1a1a1a",
       marginHorizontal: 16,
       marginBottom: 24,
     },
@@ -128,16 +147,16 @@ function makeStyles(C: Theme) {
       paddingBottom: 24,
     },
     group: {
-      marginTop: 14,
-      marginBottom: 10,
+      marginTop: 24,
+      marginBottom: 4,
     },
     groupFirst: {
-      marginTop: 10,
+      marginTop: 0,
     },
     groupTitle: {
       fontSize: 11,
       fontWeight: "600",
-      color: C.textTertiary,
+      color: "rgba(0,0,0,0.5)",
       letterSpacing: 0.5,
       textTransform: "uppercase",
       marginBottom: 4,
@@ -156,18 +175,18 @@ function makeStyles(C: Theme) {
       paddingHorizontal: 16,
     },
     navItemActive: {
-      backgroundColor: C.tintLight,
+      backgroundColor: "rgba(255,255,255,0.25)",
       borderRadius: 10,
       marginHorizontal: 8,
     },
     navLabel: {
       fontWeight: "500",
       fontSize: 15,
-      color: C.textSecondary,
+      color: "#1a1a1a",
       flex: 1,
     },
     navLabelActive: {
-      color: C.tint,
+      color: "#1a1a1a",
       fontWeight: "600",
     },
   });

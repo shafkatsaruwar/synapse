@@ -14,9 +14,35 @@ import {
 } from "@/lib/storage";
 import { getMedList, addMedListItem, removeMedListItem, updateMedListItem, type MedListItem, type MedListDose, type MedListDoseTime } from "@/lib/med-list-storage";
 import { getToday } from "@/lib/date-utils";
+import { DEFAULT_REMINDER_TIMES } from "@/lib/notification-manager";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 const TIME_TAGS: string[] = ["Morning", "Afternoon", "Night", "Before Fajr", "After Iftar"];
 const MED_LIST_DOSE_TIMES: MedListDoseTime[] = ["Morning", "Afternoon", "Evening", "Night", "As Needed"];
+
+/** Default reminder time string (HH:mm) for a time-of-day label. */
+function defaultReminderTimeFor(timeOfDay: string): string {
+  const t = DEFAULT_REMINDER_TIMES[timeOfDay] ?? DEFAULT_REMINDER_TIMES["Morning"];
+  return `${String(t.hour).padStart(2, "0")}:${String(t.minute).padStart(2, "0")}`;
+}
+/** Parse "HH:mm" to a Date (today at that time). */
+function reminderTimeToDate(str: string): Date {
+  const [h, m] = (str || "08:00").split(":").map((n) => parseInt(n, 10) || 0);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+/** Format Date to "HH:mm". */
+function dateToReminderTime(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+/** Format "HH:mm" for display (e.g. "8:00 AM"). */
+function formatReminderTimeDisplay(hhmm: string): string {
+  const [h, m] = (hhmm || "08:00").split(":").map((n) => parseInt(n, 10) || 0);
+  const hour = h % 12 || 12;
+  const ampm = h < 12 ? "AM" : "PM";
+  return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
+}
 
 function makeTagColors(C: Theme): Record<string, { bg: string; text: string; icon: string }> {
   return {
@@ -69,9 +95,10 @@ export default function MedicationsScreen() {
   const [nudgeMedId, setNudgeMedId] = useState<string | null>(null);
 
   const [formName, setFormName] = useState("");
-  const [formDosesArray, setFormDosesArray] = useState<Array<{ id: string; amount: string; unit: string; timeOfDay: string; optionalNotes: string }>>([
-    { id: "", amount: "", unit: "mg", timeOfDay: "Morning", optionalNotes: "" },
+  const [formDosesArray, setFormDosesArray] = useState<Array<{ id: string; amount: string; unit: string; timeOfDay: string; reminderTime: string; optionalNotes: string }>>([
+    { id: "", amount: "", unit: "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" },
   ]);
+  const [showReminderTimePickerIndex, setShowReminderTimePickerIndex] = useState<number | null>(null);
   const [formRoute, setFormRoute] = useState("");
   const [formFreq, setFormFreq] = useState("");
   const [formEmoji, setFormEmoji] = useState("");
@@ -154,7 +181,7 @@ export default function MedicationsScreen() {
   const openAddModal = () => {
     setEditingMed(null);
     setFormName("");
-    setFormDosesArray([{ id: Crypto.randomUUID(), amount: "", unit: "mg", timeOfDay: "Morning", optionalNotes: "" }]);
+    setFormDosesArray([{ id: Crypto.randomUUID(), amount: "", unit: "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }]);
     setFormRoute("");
     setFormFreq("");
     setFormEmoji("");
@@ -167,6 +194,7 @@ export default function MedicationsScreen() {
     setFormPillsRemaining("");
     setShowCurrentMedNamePicker(false);
     setShowDoseTimePickerIndex(null);
+    setShowReminderTimePickerIndex(null);
     setShowModal(true);
   };
 
@@ -174,8 +202,8 @@ export default function MedicationsScreen() {
     setEditingMed(med);
     setFormName(med.name);
     const doses = Array.isArray(med.doses) && med.doses.length > 0
-      ? med.doses.map((d) => ({ id: d.id, amount: d.amount, unit: d.unit, timeOfDay: d.timeOfDay, optionalNotes: d.optionalNotes ?? "" }))
-      : [{ id: Crypto.randomUUID(), amount: (med as { dosage?: string }).dosage ?? "", unit: (med as { unit?: string }).unit ?? "mg", timeOfDay: "Morning", optionalNotes: "" }];
+      ? med.doses.map((d) => ({ id: d.id, amount: d.amount, unit: d.unit, timeOfDay: d.timeOfDay, reminderTime: d.reminderTime ?? defaultReminderTimeFor(d.timeOfDay), optionalNotes: d.optionalNotes ?? "" }))
+      : [{ id: Crypto.randomUUID(), amount: (med as { dosage?: string }).dosage ?? "", unit: (med as { unit?: string }).unit ?? "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }];
     setFormDosesArray(doses);
     setFormRoute(med.route || "");
     setFormFreq(med.frequency);
@@ -188,15 +216,28 @@ export default function MedicationsScreen() {
     setFormTotalPills(med.totalPills != null ? String(med.totalPills) : "");
     setFormPillsRemaining(med.pillsRemaining != null ? String(med.pillsRemaining) : "");
     setShowDoseTimePickerIndex(null);
+    setShowReminderTimePickerIndex(null);
     setShowModal(true);
   };
 
+  const dosesWithAmount = formDosesArray.filter((d) => d.amount.trim().length > 0);
+  const canSaveMedication =
+    formName.trim().length > 0 &&
+    dosesWithAmount.length > 0 &&
+    !dosesWithAmount.some((d) => !d.reminderTime?.trim());
+
   const handleSave = async () => {
     if (!formName.trim()) return;
+    const dosesWithAmount = formDosesArray.filter((d) => d.amount.trim().length > 0);
+    if (dosesWithAmount.length === 0) return;
+    const missingReminder = dosesWithAmount.some((d) => !d.reminderTime?.trim());
+    if (missingReminder) {
+      Alert.alert("Reminder time required", "Every dose must have a reminder time. Please set a time for each dose.");
+      return;
+    }
     const doses: MedicationDose[] = formDosesArray
-      .map((d) => ({ id: d.id || Crypto.randomUUID(), amount: d.amount.trim(), unit: d.unit.trim() || "mg", timeOfDay: d.timeOfDay, optionalNotes: d.optionalNotes?.trim() || undefined }))
+      .map((d) => ({ id: d.id || Crypto.randomUUID(), amount: d.amount.trim(), unit: d.unit.trim() || "mg", timeOfDay: d.timeOfDay, reminderTime: (d.reminderTime?.trim() || defaultReminderTimeFor(d.timeOfDay)), optionalNotes: d.optionalNotes?.trim() || undefined }))
       .filter((d) => d.amount.length > 0);
-    if (doses.length === 0) return;
     const parsedDuration = parseInt(formStressDoseDurationDays, 10);
     const totalPills = formTotalPills.trim() ? parseInt(formTotalPills, 10) : undefined;
     const pillsRemaining = formPillsRemaining.trim() ? parseInt(formPillsRemaining, 10) : undefined;
@@ -1030,7 +1071,7 @@ export default function MedicationsScreen() {
                   />
                 </View>
               ))}
-              <Pressable style={styles.addDoseBtn} onPress={() => setFormDosesArray((prev) => [...prev, { id: Crypto.randomUUID(), amount: "", unit: "mg", timeOfDay: "Morning", optionalNotes: "" }])} accessibilityRole="button" accessibilityLabel="Add dose">
+              <Pressable style={styles.addDoseBtn} onPress={() => setFormDosesArray((prev) => [...prev, { id: Crypto.randomUUID(), amount: "", unit: "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }])} accessibilityRole="button" accessibilityLabel="Add dose">
                 <Ionicons name="add" size={18} color={C.tint} />
                 <Text style={styles.addDoseBtnText}>+ Add Dose</Text>
               </Pressable>
@@ -1040,6 +1081,20 @@ export default function MedicationsScreen() {
 
               <Text style={styles.label}>Frequency</Text>
               <TextInput style={styles.input} placeholder="e.g. Once daily" placeholderTextColor={C.textTertiary} value={formFreq} onChangeText={setFormFreq} />
+
+              <Text style={[styles.label, { marginTop: 16 }]}>Reminder Times</Text>
+              <Text style={[styles.label, { fontSize: 12, color: C.textTertiary, marginTop: 2, marginBottom: 8 }]}>Set when Synapse should remind you for each dose. Used for daily notifications.</Text>
+              {formDosesArray.map((dose, idx) => (
+                <View key={dose.id || idx} style={{ marginBottom: 12 }}>
+                  <Text style={[styles.label, { fontSize: 13, marginBottom: 4 }]}>Dose {idx + 1} – {dose.timeOfDay}</Text>
+                  <Pressable
+                    style={[styles.input, { justifyContent: "center" }]}
+                    onPress={() => setShowReminderTimePickerIndex(idx)}
+                  >
+                    <Text style={{ color: C.textPrimary, fontSize: 16 }}>{formatReminderTimeDisplay(dose.reminderTime)}</Text>
+                  </Pressable>
+                </View>
+              ))}
 
               <Text style={[styles.label, { marginTop: 12 }]}>Refill reminder (optional)</Text>
               <Text style={[styles.label, { fontSize: 11, color: C.textTertiary, marginBottom: 6 }]}>When pills remaining is 5 or less, you'll get a refill reminder.</Text>
@@ -1088,8 +1143,12 @@ export default function MedicationsScreen() {
               </View>
 
               <View style={styles.modalActions}>
-                <Pressable style={styles.cancelBtn} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
-                <Pressable style={[styles.confirmBtn, (!formName.trim() || formDosesArray.every((d) => !d.amount.trim())) && { opacity: 0.5 }]} onPress={handleSave} disabled={!formName.trim() || formDosesArray.every((d) => !d.amount.trim())}>
+                <Pressable style={styles.cancelBtn} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); setShowReminderTimePickerIndex(null); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+                <Pressable
+                  style={[styles.confirmBtn, !canSaveMedication && { opacity: 0.5 }]}
+                  onPress={handleSave}
+                  disabled={!canSaveMedication}
+                >
                   <Text style={styles.confirmText}>{editingMed ? "Save" : "Add"}</Text>
                 </Pressable>
               </View>
@@ -1097,6 +1156,36 @@ export default function MedicationsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {showReminderTimePickerIndex !== null && formDosesArray[showReminderTimePickerIndex] && (
+        <Modal visible transparent animationType="slide">
+          <Pressable style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" }} onPress={() => setShowReminderTimePickerIndex(null)}>
+            <Pressable style={{ backgroundColor: C.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 32 }} onPress={(e) => e.stopPropagation()}>
+              <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+                <Text style={[styles.label, { marginBottom: 8 }]}>
+                  Reminder Time{formDosesArray.length > 1 ? ` – Dose ${showReminderTimePickerIndex + 1} (${formDosesArray[showReminderTimePickerIndex].timeOfDay})` : ""}
+                </Text>
+                <DateTimePicker
+                  value={reminderTimeToDate(formDosesArray[showReminderTimePickerIndex].reminderTime)}
+                  mode="time"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  onChange={(_, date) => {
+                    if (date) {
+                      setFormDosesArray((prev) => prev.map((d, i) => (i === showReminderTimePickerIndex ? { ...d, reminderTime: dateToReminderTime(date) } : d)));
+                    }
+                    if (Platform.OS === "android") setShowReminderTimePickerIndex(null);
+                  }}
+                />
+                {Platform.OS === "ios" && (
+                  <Pressable style={[styles.confirmBtn, { marginTop: 12 }]} onPress={() => setShowReminderTimePickerIndex(null)}>
+                    <Text style={styles.confirmText}>Done</Text>
+                  </Pressable>
+                )}
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
 
       <Modal visible={!!nudgeMedId} transparent animationType="fade">
         <View style={styles.overlay}>
