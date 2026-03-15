@@ -11,6 +11,12 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { queryClient } from "@/lib/query-client";
+import {
+  setNotificationHandler,
+  setupMedicationCategory,
+  addNotificationResponseListener,
+} from "@/lib/notification-manager";
+
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
@@ -22,6 +28,13 @@ export default function RootLayout() {
       SplashScreen.hideAsync().catch(() => {});
     }, 100);
     return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    setNotificationHandler();
+    setupMedicationCategory();
+    const remove = addNotificationResponseListener(() => {}, () => {});
+    return remove;
   }, []);
 
   if (!ready) {

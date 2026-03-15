@@ -30,6 +30,7 @@ import {
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { isCurrentMonthRamadan } from "@/lib/hijri";
+import { syncAllFromSettings } from "@/lib/notification-manager";
 
 const SECTION_LABELS: Record<string, string> = {
   log: "Daily Log", healthdata: "Health Data", medications: "Medications", symptoms: "Symptoms",
@@ -115,6 +116,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     await settingsStorage.save(settings);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaved(true);
+    syncAllFromSettings().catch(() => {});
   };
 
   const toggleSection = (key: string) => {
@@ -317,6 +319,38 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
             </View>
           </View>
         </Pressable>
+
+        {/* ——— Notifications ——— */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Notifications</Text>
+          <Text style={[styles.desc, { marginBottom: 12 }]}>Local reminders for medications, appointments, and check-ins</Text>
+          {[
+            { key: "notificationsMedications" as const, label: "Medication reminders", desc: "Daily reminders to take your medications" },
+            { key: "notificationsAppointments" as const, label: "Appointment reminders", desc: "1 day and 1 hour before appointments" },
+            { key: "notificationsDailyCheckIn" as const, label: "Daily check-in reminders", desc: "Remind to log mood and symptoms (default 8 PM)" },
+            { key: "notificationsMonthly" as const, label: "Monthly reminders", desc: "Monthly health review reminder" },
+          ].map(({ key, label, desc }) => (
+            <Pressable
+              key={key}
+              style={[styles.toggleHeader, { marginTop: 8 }]}
+              onPress={() => {
+                setSettings((p) => ({ ...p, [key]: !(p[key] !== false) }));
+                setSaved(false);
+                Haptics.selectionAsync();
+              }}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: settings[key] !== false }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sectionTitle}>{label}</Text>
+                <Text style={styles.desc}>{desc}</Text>
+              </View>
+              <View style={[styles.toggle, settings[key] !== false && styles.toggleActive]}>
+                <View style={[styles.toggleThumb, settings[key] !== false && styles.toggleThumbActive]} />
+              </View>
+            </Pressable>
+          ))}
+        </View>
 
         {/* ——— Appearance ——— */}
         <View style={styles.card}>

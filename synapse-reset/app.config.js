@@ -32,7 +32,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
-      buildNumber: "13",
+      buildNumber: "15",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSFaceIDUsageDescription: "Unlock Synapse with Face ID to keep your health data private.",
@@ -67,6 +67,7 @@ module.exports = {
     web: { favicon: "./assets/favicon.png" },
     plugins: [
       "expo-router",
+      "expo-notifications",
     ],
     experiments: { typedRoutes: true },
     extra: {

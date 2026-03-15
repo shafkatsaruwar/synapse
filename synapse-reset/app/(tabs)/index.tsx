@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, Alert, Platform, AppState } from "react-native";
 import SidebarLayout from "@/components/SidebarLayout";
 import TabletSidebar from "@/components/TabletSidebar";
 import { useIsTablet } from "@/lib/device";
@@ -34,6 +34,12 @@ import EditProfileScreen from "@/screens/EditProfileScreen";
 import EmergencyProtocolScreen from "@/screens/EmergencyProtocolScreen";
 import EmergencyCardScreen from "@/screens/EmergencyCardScreen";
 import { settingsStorage } from "@/lib/storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  requestPermission,
+  getPermissionStatus,
+  syncAllFromSettings,
+} from "@/lib/notification-manager";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import AppBackground from "@/components/AppBackground";
 import BiometricGate from "@/components/BiometricGate";
@@ -60,6 +66,58 @@ export default function MainScreen() {
     const id = setTimeout(() => checkInitialState(), 200);
     return () => clearTimeout(id);
   }, [checkInitialState]);
+
+  const NOTIFICATION_ASKED_KEY = "notification_permission_asked";
+  useEffect(() => {
+    if (showOnboarding !== false) return;
+    let mounted = true;
+    (async () => {
+      if (Platform.OS !== "ios" && Platform.OS !== "android") return;
+      try {
+        const asked = await AsyncStorage.getItem(NOTIFICATION_ASKED_KEY);
+        if (asked === "true") {
+          syncAllFromSettings();
+          return;
+        }
+        const status = await getPermissionStatus();
+        if (status !== "undetermined") {
+          syncAllFromSettings();
+          return;
+        }
+        Alert.alert(
+          "Reminders",
+          "Synapse can remind you to take medications, attend appointments, and complete daily health logs.",
+          [
+            {
+              text: "Not Now",
+              style: "cancel",
+              onPress: () => {
+                AsyncStorage.setItem(NOTIFICATION_ASKED_KEY, "true");
+              },
+            },
+            {
+              text: "OK",
+              onPress: async () => {
+                await requestPermission();
+                await AsyncStorage.setItem(NOTIFICATION_ASKED_KEY, "true");
+                if (mounted) syncAllFromSettings();
+              },
+            },
+          ]
+        );
+      } catch {
+        if (mounted) syncAllFromSettings();
+      }
+    })();
+    return () => { mounted = false; };
+  }, [showOnboarding]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") syncAllFromSettings().catch(() => {});
+    });
+    return () => sub.remove();
+  }, []);
 
   const handleNavigate = (screen: string) => {
     setActiveScreen(screen);

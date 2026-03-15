@@ -44,6 +44,9 @@ export interface Medication {
   /** @deprecated Use doses[].timeOfDay. Kept for migration. */
   timeTag?: string | string[];
   active: boolean;
+  /** Optional: for refill reminder when pillsRemaining <= threshold. */
+  totalPills?: number;
+  pillsRemaining?: number;
   hasStressDose?: boolean;
   stressDoseAmount?: string;
   stressDoseFrequency?: string;
@@ -271,6 +274,13 @@ export interface UserSettings {
   onboardingCompleted?: true;
   /** Sections the user chose in onboarding (v1.3). Undefined = show all. */
   enabledSections?: string[];
+  /** Notification toggles (default true when enabled). */
+  notificationsMedications?: boolean;
+  notificationsAppointments?: boolean;
+  notificationsDailyCheckIn?: boolean;
+  notificationsMonthly?: boolean;
+  /** Daily check-in reminder time "HH:mm" (default "20:00" = 8 PM). */
+  dailyCheckInReminderTime?: string;
 }
 
 const KEYS = {

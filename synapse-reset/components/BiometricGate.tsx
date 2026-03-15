@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, StyleSheet, Pressable, AppState, Platform } from "react-native";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -14,14 +14,18 @@ export default function BiometricGate({ children }: BiometricGateProps) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [unlocked, setUnlocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasAttemptedAuth, setHasAttemptedAuth] = useState(false);
   const [failCount, setFailCount] = useState(0);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const authenticatingRef = useRef(false);
 
   const authenticate = useCallback(async () => {
     if (Platform.OS === "web") {
       setUnlocked(true);
       return;
     }
+    if (authenticatingRef.current) return;
+    authenticatingRef.current = true;
+    setIsAuthenticating(true);
     setError(null);
     try {
       const result = await LocalAuthentication.authenticateAsync({
@@ -42,6 +46,9 @@ export default function BiometricGate({ children }: BiometricGateProps) {
     } catch (e) {
       setFailCount((c) => c + 1);
       setError("Authentication unavailable.");
+    } finally {
+      authenticatingRef.current = false;
+      setIsAuthenticating(false);
     }
   }, []);
 
@@ -56,33 +63,18 @@ export default function BiometricGate({ children }: BiometricGateProps) {
     return () => { mounted = false; };
   }, []);
 
+  // Only lock when app goes to background. Do NOT set unlocked=false on "active" — that caused the loop.
   useEffect(() => {
     if (Platform.OS === "web" || enabled !== true) return;
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "background") {
         setUnlocked(false);
-        setHasAttemptedAuth(false);
         setError(null);
         setFailCount(0);
-      } else if (state === "active") {
-        setUnlocked(false);
       }
     });
     return () => sub.remove();
   }, [enabled]);
-
-  // Trigger Face ID only once when lock screen first appears (or when returning from background; hasAttemptedAuth is reset there).
-  useEffect(() => {
-    if (
-      Platform.OS === "web" ||
-      enabled !== true ||
-      unlocked ||
-      hasAttemptedAuth
-    )
-      return;
-    setHasAttemptedAuth(true);
-    authenticate();
-  }, [enabled, unlocked, hasAttemptedAuth, authenticate]);
 
   if (enabled === null) {
     return <View style={[styles.centered, { backgroundColor: C.background }]} />;
@@ -122,8 +114,9 @@ export default function BiometricGate({ children }: BiometricGateProps) {
           {failCount >= 3 ? (
             <View style={styles.errorActions}>
               <Pressable
-                style={[styles.unlockBtn, { backgroundColor: C.tint, marginRight: 12 }]}
+                style={[styles.unlockBtn, { backgroundColor: C.tint, marginRight: 12, opacity: isAuthenticating ? 0.7 : 1 }]}
                 onPress={handlePasscodeFallback}
+                disabled={isAuthenticating}
                 accessibilityRole="button"
                 accessibilityLabel="Unlock with passcode"
               >
@@ -132,6 +125,7 @@ export default function BiometricGate({ children }: BiometricGateProps) {
               <Pressable
                 style={[styles.cancelBtn, { borderColor: C.border }]}
                 onPress={handleCancel}
+                disabled={isAuthenticating}
                 accessibilityRole="button"
                 accessibilityLabel="Cancel"
               >
@@ -141,16 +135,18 @@ export default function BiometricGate({ children }: BiometricGateProps) {
           ) : (
             <View style={styles.errorActions}>
               <Pressable
-                style={[styles.unlockBtn, { backgroundColor: C.tint, marginRight: 12 }]}
+                style={[styles.unlockBtn, { backgroundColor: C.tint, marginRight: 12, opacity: isAuthenticating ? 0.7 : 1 }]}
                 onPress={handleTryAgain}
+                disabled={isAuthenticating}
                 accessibilityRole="button"
                 accessibilityLabel="Try again"
               >
-                <Text style={styles.unlockBtnText}>Try Again</Text>
+                <Text style={styles.unlockBtnText}>{isAuthenticating ? "Unlocking…" : "Try Again"}</Text>
               </Pressable>
               <Pressable
                 style={[styles.cancelBtn, { borderColor: C.border }]}
                 onPress={handleCancel}
+                disabled={isAuthenticating}
                 accessibilityRole="button"
                 accessibilityLabel="Cancel"
               >
@@ -161,12 +157,13 @@ export default function BiometricGate({ children }: BiometricGateProps) {
         </>
       ) : (
         <Pressable
-          style={[styles.unlockBtn, { backgroundColor: C.tint }]}
+          style={[styles.unlockBtn, { backgroundColor: C.tint, opacity: isAuthenticating ? 0.7 : 1 }]}
           onPress={authenticate}
+          disabled={isAuthenticating}
           accessibilityRole="button"
           accessibilityLabel="Unlock with biometric or passcode"
         >
-          <Text style={styles.unlockBtnText}>Unlock</Text>
+          <Text style={styles.unlockBtnText}>{isAuthenticating ? "Unlocking…" : "Unlock"}</Text>
         </Pressable>
       )}
     </View>

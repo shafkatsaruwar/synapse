@@ -81,6 +81,8 @@ export default function MedicationsScreen() {
   const [formStressDoseFrequency, setFormStressDoseFrequency] = useState("");
   const [formStressDoseDurationDays, setFormStressDoseDurationDays] = useState("");
   const [formStressDoseInstructions, setFormStressDoseInstructions] = useState("");
+  const [formTotalPills, setFormTotalPills] = useState("");
+  const [formPillsRemaining, setFormPillsRemaining] = useState("");
   const [tempInput, setTempInput] = useState("");
   const [showTempModal, setShowTempModal] = useState(false);
 
@@ -161,6 +163,8 @@ export default function MedicationsScreen() {
     setFormStressDoseFrequency("");
     setFormStressDoseDurationDays("");
     setFormStressDoseInstructions("");
+    setFormTotalPills("");
+    setFormPillsRemaining("");
     setShowCurrentMedNamePicker(false);
     setShowDoseTimePickerIndex(null);
     setShowModal(true);
@@ -181,6 +185,8 @@ export default function MedicationsScreen() {
     setFormStressDoseFrequency(med.stressDoseFrequency || "");
     setFormStressDoseDurationDays(med.stressDoseDurationDays ? String(med.stressDoseDurationDays) : "");
     setFormStressDoseInstructions(med.stressDoseInstructions || "");
+    setFormTotalPills(med.totalPills != null ? String(med.totalPills) : "");
+    setFormPillsRemaining(med.pillsRemaining != null ? String(med.pillsRemaining) : "");
     setShowDoseTimePickerIndex(null);
     setShowModal(true);
   };
@@ -192,6 +198,8 @@ export default function MedicationsScreen() {
       .filter((d) => d.amount.length > 0);
     if (doses.length === 0) return;
     const parsedDuration = parseInt(formStressDoseDurationDays, 10);
+    const totalPills = formTotalPills.trim() ? parseInt(formTotalPills, 10) : undefined;
+    const pillsRemaining = formPillsRemaining.trim() ? parseInt(formPillsRemaining, 10) : undefined;
     const data: Omit<Medication, "id"> = {
       name: formName.trim(),
       frequency: formFreq.trim(),
@@ -199,6 +207,8 @@ export default function MedicationsScreen() {
       emoji: formEmoji || "",
       doses,
       active: true,
+      totalPills: totalPills != null && !isNaN(totalPills) ? totalPills : undefined,
+      pillsRemaining: pillsRemaining != null && !isNaN(pillsRemaining) ? pillsRemaining : undefined,
       hasStressDose: formHasStressDose,
       stressDoseAmount: formHasStressDose ? formStressDoseAmount.trim() : undefined,
       stressDoseFrequency: formHasStressDose ? formStressDoseFrequency.trim() : undefined,
@@ -1030,6 +1040,19 @@ export default function MedicationsScreen() {
 
               <Text style={styles.label}>Frequency</Text>
               <TextInput style={styles.input} placeholder="e.g. Once daily" placeholderTextColor={C.textTertiary} value={formFreq} onChangeText={setFormFreq} />
+
+              <Text style={[styles.label, { marginTop: 12 }]}>Refill reminder (optional)</Text>
+              <Text style={[styles.label, { fontSize: 11, color: C.textTertiary, marginBottom: 6 }]}>When pills remaining is 5 or less, you'll get a refill reminder.</Text>
+              <View style={{ flexDirection: "row", gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.label, { fontSize: 12 }]}>Total pills</Text>
+                  <TextInput style={styles.input} placeholder="e.g. 30" placeholderTextColor={C.textTertiary} value={formTotalPills} onChangeText={setFormTotalPills} keyboardType="number-pad" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.label, { fontSize: 12 }]}>Pills remaining</Text>
+                  <TextInput style={styles.input} placeholder="e.g. 7" placeholderTextColor={C.textTertiary} value={formPillsRemaining} onChangeText={setFormPillsRemaining} keyboardType="number-pad" />
+                </View>
+              </View>
 
               <View style={styles.stressDoseSection}>
                 <Text style={[styles.label, { fontSize: 13, fontWeight: "600" as const, marginBottom: 10 }]}>Sick Day / Stress Dose</Text>
