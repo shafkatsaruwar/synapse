@@ -448,6 +448,13 @@ export default function AppointmentsScreen() {
           <View style={isWide ? styles.calLayout : undefined}>
             <View style={isWide ? { flex: 1, marginRight: 16 } : undefined}>
               <CalendarView appointments={appointments} selectedDate={selectedDate} onSelectDate={setSelectedDate} calStyles={calStyles} colors={C} />
+              {appointments.length === 0 && (
+                <View style={styles.empty}>
+                  <Ionicons name="calendar-outline" size={40} color={C.textTertiary} />
+                  <Text style={styles.emptyTitle}>No appointments scheduled</Text>
+                  <Text style={styles.emptyDesc}>Tap + to add an appointment</Text>
+                </View>
+              )}
               {todayApts.length > 0 && (
                 <View style={{ marginTop: 16 }}>
                   <Text style={styles.sectionLabel}>Today</Text>

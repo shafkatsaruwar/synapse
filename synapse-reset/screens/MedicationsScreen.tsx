@@ -479,8 +479,8 @@ export default function MedicationsScreen() {
           {grouped.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="medical-outline" size={40} color={C.textTertiary} />
-              <Text style={styles.emptyTitle}>No medications</Text>
-              <Text style={styles.emptyDesc}>Tap + to add your medications</Text>
+              <Text style={styles.emptyTitle}>No medications yet</Text>
+              <Text style={styles.emptyDesc}>Add your first medication to get started.</Text>
             </View>
           ) : (
             grouped.map(({ tag, meds }) => (

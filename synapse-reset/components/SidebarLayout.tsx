@@ -11,6 +11,7 @@ import {
   Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
@@ -44,10 +45,10 @@ const NAV_ITEMS: NavItem[] = [
   { key: "comfort", label: "Mood lifters", icon: "happy-outline", iconActive: "happy" },
   { key: "goals", label: "Goals", icon: "flag-outline", iconActive: "flag" },
   { key: "appointments", label: "Appointments", icon: "calendar-outline", iconActive: "calendar" },
-  { key: "reports", label: "Reports", icon: "document-text-outline", iconActive: "document-text" },
+  { key: "reports", label: "Reports", icon: "bar-chart-outline", iconActive: "bar-chart" },
   { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
-  { key: "settings", label: "Account", icon: "person-outline", iconActive: "person" },
-  { key: "emergency", label: "Emergency Protocol", icon: "shield-half-outline", iconActive: "shield-half" },
+  { key: "settings", label: "Account", icon: "person-circle-outline", iconActive: "person-circle" },
+  { key: "emergency", label: "Emergency Protocol", icon: "shield-outline", iconActive: "shield" },
   { key: "emergencycard", label: "Emergency Card", icon: "card-outline", iconActive: "card" },
 ];
 
@@ -180,37 +181,67 @@ export default function SidebarLayout({
       {!isWide && primaryItemsFiltered.length > 0 && (
         <View
           style={[
-            styles.mobileNav,
+            styles.mobileNavWrap,
             {
-              bottom: Platform.OS === "web" ? 20 : insets.bottom + 12,
+              bottom: Platform.OS === "web" ? 20 : insets.bottom + 16,
               left: 20,
               right: 20,
             },
           ]}
         >
-          <View style={styles.mobileNavContent}>
-            {primaryItemsFiltered.map((item) => {
-              const active = activeScreen === item.key;
-              const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
-              return (
-                <Pressable
-                  key={item.key}
-                  style={[styles.mobileNavItem, dimmed && { opacity: 0.35 }]}
-                  onPress={() => onNavigate(item.key)}
-                  testID={`tab-${item.key}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={item.label}
-                  accessibilityState={{ selected: active }}
-                >
-                  <Ionicons
-                    name={active ? item.iconActive : item.icon}
-                    size={24}
-                    color={active ? (sickMode ? C.red : "#4A78C2") : "#8E8E93"}
-                  />
-                </Pressable>
-              );
-            })}
-          </View>
+          {Platform.OS === "web" ? (
+            <View style={[styles.mobileNav, styles.mobileNavFallback]}>
+              <View style={styles.mobileNavContent}>
+                {primaryItemsFiltered.map((item) => {
+                  const active = activeScreen === item.key;
+                  const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
+                  return (
+                    <Pressable
+                      key={item.key}
+                      style={[styles.mobileNavItem, dimmed && { opacity: 0.35 }]}
+                      onPress={() => onNavigate(item.key)}
+                      testID={`tab-${item.key}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={item.label}
+                      accessibilityState={{ selected: active }}
+                    >
+                      <Ionicons
+                        name={active ? item.iconActive : item.icon}
+                        size={24}
+                        color={active ? (sickMode ? C.red : "#4A78C2") : "#8E8E93"}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : (
+            <BlurView intensity={60} tint={themeId === "dark" ? "dark" : "light"} style={styles.mobileNav}>
+              <View style={styles.mobileNavContent}>
+                {primaryItemsFiltered.map((item) => {
+                  const active = activeScreen === item.key;
+                  const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
+                  return (
+                    <Pressable
+                      key={item.key}
+                      style={[styles.mobileNavItem, dimmed && { opacity: 0.35 }]}
+                      onPress={() => onNavigate(item.key)}
+                      testID={`tab-${item.key}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={item.label}
+                      accessibilityState={{ selected: active }}
+                    >
+                      <Ionicons
+                        name={active ? item.iconActive : item.icon}
+                        size={24}
+                        color={active ? (sickMode ? C.red : "#4A78C2") : "#8E8E93"}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </BlurView>
+          )}
         </View>
       )}
 
@@ -462,22 +493,29 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       minHeight: 1,
       paddingHorizontal: 8,
     },
-    mobileNav: {
+    mobileNavWrap: {
       position: "absolute",
+      left: 0,
+      right: 0,
+    },
+    mobileNav: {
       flexDirection: "row",
       justifyContent: "center",
       alignItems: "center",
-      backgroundColor: themeId === "light" ? "rgba(255,255,255,0.7)" : C.surface,
-      borderRadius: 28,
-      paddingVertical: 10,
+      borderRadius: 24,
+      paddingVertical: 12,
       paddingHorizontal: 8,
-      borderWidth: 1,
-      borderColor: C.border,
+      overflow: "hidden",
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.12,
-      shadowRadius: 12,
-      elevation: 8,
+      shadowOpacity: 0.15,
+      shadowRadius: 10,
+      elevation: 10,
+    },
+    mobileNavFallback: {
+      backgroundColor: themeId === "light" ? "rgba(255,255,255,0.85)" : "rgba(28,28,30,0.9)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
     },
     mobileNavContent: {
       flexDirection: "row",
@@ -512,6 +550,9 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       borderRightWidth: 1,
       borderRightColor: C.border,
       paddingHorizontal: 20,
+      paddingTop: 8,
+      borderTopRightRadius: 24,
+      borderBottomRightRadius: 24,
       shadowColor: "#000",
       shadowOffset: { width: 2, height: 0 },
       shadowOpacity: 0.12,

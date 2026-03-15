@@ -8,6 +8,8 @@ import {
   useWindowDimensions,
   Animated,
   ScrollView,
+  LayoutAnimation,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -15,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { featureFlags } from "@/constants/feature-flags";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import GlassView from "@/components/GlassView";
 import {
   healthLogStorage,
   medicationStorage,
@@ -354,6 +357,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     setAppointments(apts.filter((a) => a.date >= today).sort((a, b) => a.date.localeCompare(b.date)));
     setFastingLog(fl);
     setSettings(sett);
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setLoaded(true);
   }, [today]);
 
@@ -592,8 +596,18 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
   };
 
+  if (!loaded) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center", backgroundColor: C.background }]}>
+        <ActivityIndicator size="large" color={C.tint} />
+        <Text style={[styles.dateText, { marginTop: 12 }]}>Loading…</Text>
+      </View>
+    );
+  }
+
+  const cardStackPadding = isWide ? 0 : 16;
   const inner = (
-    <>
+    <View style={{ marginHorizontal: cardStackPadding, gap: 16 }}>
       <View style={styles.welcome} accessibilityRole="header">
         <Text style={styles.greetingText}>
           {greeting}
@@ -615,11 +629,10 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             onNavigate={onNavigate}
           />
 
-          <View
-            style={[
-              styles.moodCard,
-              themeId === "light" && styles.moodCardLight,
-            ]}
+          <GlassView
+            intensity={50}
+            tint={themeId === "dark" ? "dark" : "light"}
+            style={[styles.moodCardGlass, themeId === "light" && styles.moodCardLight]}
           >
             <View style={styles.ramadanWeekStrip}>
               {Array.from({ length: 7 }).map((_, idx) => {
@@ -662,22 +675,12 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               </View>
               <Ionicons name="chevron-forward" size={18} color={C.tint} />
             </Pressable>
-          </View>
+          </GlassView>
 
           {settings.ramadanMode && (
+            <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.feelingCardGlass, themeId === "light" && styles.feelingCardLight]}>
             <Pressable
-              style={[
-                styles.feelingCard,
-                themeId === "light" && {
-                  backgroundColor: "#FFFFFF",
-                  borderColor: "rgba(255,255,255,0.9)",
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.08,
-                  shadowRadius: 8,
-                  elevation: 4,
-                },
-              ]}
+              style={styles.feelingCardInner}
               onPress={() => onNavigate("ramadandailylog")}
               accessibilityRole="button"
               accessibilityLabel="Ramadan Daily Log"
@@ -689,26 +692,16 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               </View>
               <Ionicons name="chevron-forward" size={18} color={C.tint} />
             </Pressable>
+          </GlassView>
           )}
 
           {settings.ramadanMode && (
-            <View
-              style={[
-                styles.ramadanQuoteCard,
-                themeId === "light" && {
-                  backgroundColor: "#FFFFFF",
-                  borderColor: "rgba(255,255,255,0.9)",
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.08,
-                  shadowRadius: 8,
-                  elevation: 4,
-                },
-              ]}
-            >
-              <Ionicons name="sparkles" size={16} color={C.pink} />
-              <Text style={styles.ramadanQuoteText}>{ramadanQuote}</Text>
-            </View>
+            <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.ramadanQuoteCardGlass, themeId === "light" && styles.ramadanQuoteCardLight]}>
+              <View style={styles.ramadanQuoteRow}>
+                <Ionicons name="sparkles" size={16} color={C.pink} />
+                <Text style={styles.ramadanQuoteText}>{ramadanQuote}</Text>
+              </View>
+            </GlassView>
           )}
         </View>
       )}
@@ -747,7 +740,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         )}
       </View>
 
-    </>
+    </View>
   );
 
   const fabBottom = Platform.OS === "web"
@@ -770,7 +763,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   if (isWide) {
     const content = (
-      <View style={[styles.container, styles.content, contentPadding, { alignSelf: "stretch", backgroundColor: isLightTheme ? "transparent" : C.background }]}>
+      <View style={[styles.container, styles.content, contentPadding, { alignSelf: "stretch", backgroundColor: isLightTheme ? "transparent" : C.background, paddingHorizontal: 16 }]}>
         {inner}
         {fab}
       </View>
@@ -796,7 +789,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     <View style={[styles.container, { backgroundColor: isLightTheme ? "transparent" : C.background }]}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[contentPadding, styles.scrollViewContent]}
+        contentContainerStyle={[contentPadding, styles.scrollViewContent, { paddingHorizontal: 0 }]}
         showsVerticalScrollIndicator={true}
         bounces={true}
         alwaysBounceVertical={true}
@@ -826,19 +819,19 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 function makeHeroStyles(C: Theme) {
   return StyleSheet.create({
     dashboardHero: {
-      marginHorizontal: 16,
       marginTop: 12,
       marginBottom: 16,
-      borderRadius: 24,
+      borderRadius: 20,
       borderWidth: 1,
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.06,
-      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
       elevation: 6,
+      overflow: "hidden",
     },
     dashboardHeroGradient: {
-      borderRadius: 24,
+      borderRadius: 20,
       padding: 20,
     },
     dashboardHeroHeader: {
@@ -910,8 +903,8 @@ function makeStyles(C: Theme) {
     gradientContainer: { flex: 1, width: "100%", height: "100%" },
     container: { flex: 1, minHeight: 1, backgroundColor: C.background },
     scrollView: { flex: 1, minHeight: 1 },
-    scrollViewContent: { flexGrow: 1, paddingHorizontal: 16 },
-    content: { paddingHorizontal: 16 },
+    scrollViewContent: { flexGrow: 1 },
+    content: { paddingHorizontal: 0 },
     welcome: { marginBottom: 4 },
     greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
     dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
@@ -975,18 +968,29 @@ function makeStyles(C: Theme) {
     ramadanWeekDayActive: { backgroundColor: "#F6C94D" },
     ramadanWeekDayText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
     ramadanWeekDayTextActive: { fontWeight: "700", fontSize: 12, color: "#2D1340" },
-    ramadanQuoteCard: {
+    ramadanQuoteCard: {},
+    ramadanQuoteCardGlass: {
+      marginTop: 12,
+      borderRadius: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      elevation: 6,
+    },
+    ramadanQuoteCardLight: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      elevation: 6,
+    },
+    ramadanQuoteRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: 8,
-      backgroundColor: C.surfaceElevated,
-      borderRadius: 16,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      marginTop: 12,
-      marginHorizontal: 16,
-      borderWidth: 1,
-      borderColor: C.border,
     },
     ramadanQuoteText: { flex: 1, fontWeight: "400", fontSize: 13, color: C.textSecondary },
     ramadanNextMedPill: {
@@ -1021,24 +1025,24 @@ function makeStyles(C: Theme) {
     ramadanNextAptName: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
     ramadanNextAptMeta: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
     ramadanNextAptLocation: { fontWeight: "500", fontSize: 11, color: C.tint, marginTop: 2 },
-    moodCard: {
+    moodCard: {},
+    moodCardGlass: {
       marginTop: 12,
       marginBottom: 12,
-      marginHorizontal: 16,
-      borderRadius: 22,
-      backgroundColor: C.surface,
+      borderRadius: 20,
       paddingHorizontal: 16,
       paddingVertical: 14,
-      borderWidth: 1,
-      borderColor: C.border,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      elevation: 6,
     },
     moodCardLight: {
-      backgroundColor: "rgba(255,255,255,0.85)",
-      borderColor: "rgba(255,255,255,0.9)",
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 6 },
+      shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.08,
-      shadowRadius: 10,
+      shadowRadius: 6,
       elevation: 6,
     },
     moodDivider: {
@@ -1051,18 +1055,29 @@ function makeStyles(C: Theme) {
       alignItems: "center",
       justifyContent: "space-between",
     },
-    feelingCard: {
+    feelingCard: {},
+    feelingCardGlass: {
       marginTop: 0,
       marginBottom: 12,
+      borderRadius: 20,
       paddingHorizontal: 16,
       paddingVertical: 14,
-      borderRadius: 16,
-      backgroundColor: C.surface,
-      borderWidth: 1,
-      borderColor: C.border,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      elevation: 6,
+    },
+    feelingCardLight: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      elevation: 6,
+    },
+    feelingCardInner: {
       flexDirection: "row",
       alignItems: "center",
-      marginHorizontal: 16,
       justifyContent: "space-between",
     },
     feelingTitle: { fontWeight: "600", fontSize: 14, color: C.text },

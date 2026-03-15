@@ -1,6 +1,7 @@
 /**
- * Installs the pre-commit hook so the iOS build number auto-increments on every commit.
- * Run once: npm run install-hooks (or node scripts/install-hooks.js from synapse-reset).
+ * Installs the pre-commit hook from scripts/git-hooks/pre-commit.
+ * Build number is set manually in app.config.js — no auto-increment.
+ * Run: npm run install-hooks (or node scripts/install-hooks.js from synapse-reset).
  */
 const path = require("path");
 const fs = require("fs");
@@ -26,4 +27,3 @@ fs.mkdirSync(hooksDir, { recursive: true });
 fs.copyFileSync(sourcePath, hookPath);
 fs.chmodSync(hookPath, 0o755);
 console.log("install-hooks: pre-commit hook installed at", hookPath);
-console.log("Build number will increment by 1 on every commit.");

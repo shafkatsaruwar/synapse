@@ -66,7 +66,7 @@ function makeStyles(C: Theme) {
       gap: 6,
       paddingHorizontal: 12,
       paddingVertical: 8,
-      borderRadius: 20,
+      borderRadius: 16,
       backgroundColor: "rgba(74,120,194,0.08)",
       borderWidth: 1.5,
       borderColor: "#4A78C2",

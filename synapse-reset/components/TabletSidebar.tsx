@@ -33,11 +33,11 @@ const NAV_ITEMS: NavItem[] = [
   { key: "comfort", label: "Mood lifters", icon: "happy-outline", iconActive: "happy" },
   { key: "goals", label: "Goals", icon: "flag-outline", iconActive: "flag" },
   { key: "appointments", label: "Appointments", icon: "calendar-outline", iconActive: "calendar" },
-  { key: "reports", label: "Reports", icon: "document-text-outline", iconActive: "document-text" },
-  { key: "emergency", label: "Emergency Protocol", icon: "shield-half-outline", iconActive: "shield-half" },
+  { key: "reports", label: "Reports", icon: "bar-chart-outline", iconActive: "bar-chart" },
+  { key: "emergency", label: "Emergency Protocol", icon: "shield-outline", iconActive: "shield" },
   { key: "emergencycard", label: "Emergency Card", icon: "card-outline", iconActive: "card" },
   { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
-  { key: "settings", label: "Account", icon: "person-outline", iconActive: "person" },
+  { key: "settings", label: "Account", icon: "person-circle-outline", iconActive: "person-circle" },
 ];
 
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [

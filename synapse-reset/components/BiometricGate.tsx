@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   unlockBtn: {
     paddingHorizontal: 28,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 16,
   },
   unlockBtnText: {
     color: "#fff",
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   cancelBtn: {
     paddingHorizontal: 24,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
   },
   cancelBtnText: {
