@@ -32,9 +32,11 @@ import OnboardingScreen from "@/screens/OnboardingScreen";
 import AuthScreen from "@/screens/AuthScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
 import EmergencyProtocolScreen from "@/screens/EmergencyProtocolScreen";
+import EmergencyCardScreen from "@/screens/EmergencyCardScreen";
 import { settingsStorage } from "@/lib/storage";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import AppBackground from "@/components/AppBackground";
+import BiometricGate from "@/components/BiometricGate";
 
 export default function MainScreen() {
   const isTablet = useIsTablet();
@@ -158,6 +160,8 @@ export default function MainScreen() {
         return <AuthScreen onBack={() => handleNavigate("settings")} onSuccess={() => handleNavigate("settings")} />;
       case "emergency":
         return <EmergencyProtocolScreen onBack={() => handleNavigate("settings")} />;
+      case "emergencycard":
+        return <EmergencyCardScreen onBack={() => handleNavigate("settings")} />;
       case "editprofile":
         return (
           <EditProfileScreen
@@ -187,20 +191,24 @@ export default function MainScreen() {
   if (isTablet) {
     return (
       <AppBackground>
-        <View style={styles.container}>
-          <TabletSidebar
-            activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
-            onNavigate={handleNavigate}
-          />
-          <View style={styles.tabletContent}>{content}</View>
-        </View>
+        <BiometricGate>
+          <View style={styles.container}>
+            <TabletSidebar
+              activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
+              onNavigate={handleNavigate}
+            />
+            <View style={styles.tabletContent}>{content}</View>
+          </View>
+        </BiometricGate>
       </AppBackground>
     );
   }
 
   return (
     <AppBackground>
-      <View style={styles.container}>{content}</View>
+      <BiometricGate>
+        <View style={styles.container}>{content}</View>
+      </BiometricGate>
     </AppBackground>
   );
 }

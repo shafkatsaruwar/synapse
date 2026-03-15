@@ -46,8 +46,9 @@ const NAV_ITEMS: NavItem[] = [
   { key: "appointments", label: "Appointments", icon: "calendar-outline", iconActive: "calendar" },
   { key: "reports", label: "Reports", icon: "document-text-outline", iconActive: "document-text" },
   { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
-  { key: "settings", label: "Settings", icon: "person-outline", iconActive: "person" },
+  { key: "settings", label: "Account", icon: "person-outline", iconActive: "person" },
   { key: "emergency", label: "Emergency Protocol", icon: "shield-half-outline", iconActive: "shield-half" },
+  { key: "emergencycard", label: "Emergency Card", icon: "card-outline", iconActive: "card" },
 ];
 
 const PRIMARY_KEYS = ["dashboard", "healthdata", "settings"];
@@ -55,7 +56,7 @@ const PRIMARY_ITEMS = NAV_ITEMS.filter((n) => PRIMARY_KEYS.includes(n.key));
 const MORE_ITEMS = NAV_ITEMS.filter((n) => !PRIMARY_KEYS.includes(n.key));
 
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
-  { title: "Emergency", keys: ["emergency"] },
+  { title: "Emergency", keys: ["emergency", "emergencycard"] },
   { title: "Primary", keys: ["log", "medications", "healthdata", "appointments"] },
   { title: "Health & Insights", keys: ["reports", "monthlycheckin", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
   { title: "System", keys: ["privacy", "settings"] },
@@ -103,7 +104,7 @@ export default function SidebarLayout({
     loadSettings();
   }, [loadSettings, activeScreen]);
 
-  const alwaysNavKeys = ["dashboard", "medications", "settings", "privacy"];
+  const alwaysNavKeys = ["dashboard", "medications", "settings", "privacy", "emergency", "emergencycard"];
   const enabledKeysSet = new Set(
     enabledSections !== undefined
       ? [...alwaysNavKeys, ...enabledSections]
@@ -334,7 +335,7 @@ export default function SidebarLayout({
                               style={styles.drawerRowIcon}
                             />
                             <Text
-                              style={[styles.drawerRowLabel, { color: itemColor }, active && !isEmergency && { color: accentColor }]}
+                              style={[styles.drawerRowLabel, { color: itemColor }, active && !isEmergency && { color: accentColor, fontWeight: "600" }]}
                               numberOfLines={1}
                             >
                               {item.label}
@@ -592,10 +593,10 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       marginBottom: 1,
     },
     drawerRowActive: {
-      backgroundColor: (C.accent + "12") as string,
-      borderLeftWidth: 3,
-      borderLeftColor: C.accent,
-      paddingLeft: 11,
+      backgroundColor: C.tintLight,
+      borderLeftWidth: 4,
+      borderLeftColor: C.tint,
+      paddingLeft: 10,
     },
     drawerRowPressed: {
       backgroundColor: C.surface,

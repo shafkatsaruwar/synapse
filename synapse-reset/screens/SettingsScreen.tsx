@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useTheme, type ThemeId, type Theme } from "@/contexts/ThemeContext";
+import { useTheme, type ThemePreference, type Theme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   settingsStorage,
@@ -49,7 +49,8 @@ const SECTION_ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"
   goals: "flag-outline", appointments: "calendar-outline", reports: "document-text-outline", privacy: "shield-outline",
 };
 
-const THEME_OPTIONS: { id: ThemeId; label: string; description: string }[] = [
+const THEME_OPTIONS: { id: ThemePreference; label: string; description: string }[] = [
+  { id: "system", label: "System", description: "Follow device appearance" },
   { id: "calm", label: "Calm", description: "Warm beige, easy on the eyes" },
   { id: "light", label: "Light", description: "Clean white, modern" },
   { id: "dark", label: "Dark", description: "True black, OLED-friendly" },
@@ -60,7 +61,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const { user } = useAuth();
-  const { colors: C, themeId, setThemeId } = useTheme();
+  const { colors: C, preference, setThemeId } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
@@ -134,7 +135,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     setShowSectionsModal(false);
   };
 
-  const handleThemeChange = async (id: ThemeId) => {
+  const handleThemeChange = async (id: ThemePreference) => {
     Haptics.selectionAsync();
     await setThemeId(id);
   };
@@ -322,7 +323,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           <Text style={styles.sectionTitle}>Appearance</Text>
           <Text style={[styles.desc, { marginBottom: 12 }]}>Choose a theme for the app</Text>
           {THEME_OPTIONS.map((opt) => {
-            const isSelected = themeId === opt.id;
+            const isSelected = preference === opt.id;
             return (
               <Pressable
                 key={opt.id}

@@ -32,9 +32,11 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
-      buildNumber: "8",
+      buildNumber: "13",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        NSFaceIDUsageDescription: "Unlock Synapse with Face ID to keep your health data private.",
+        NSPhotoLibraryAddUsageDescription: "Save your emergency card image to the camera roll.",
         NSAppTransportSecurity: {
           NSAllowsArbitraryLoads: false,
           NSExceptionDomains: {

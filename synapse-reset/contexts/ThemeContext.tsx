@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
+import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export interface Theme {
@@ -38,13 +39,18 @@ export interface Theme {
 }
 
 export type ThemeId = "calm" | "light" | "dark";
+/** User preference: system = follow device appearance; otherwise use that theme. */
+export type ThemePreference = "system" | ThemeId;
 
 const THEME_STORAGE_KEY = "app_theme";
-const DEFAULT_THEME: ThemeId = "calm";
+const DEFAULT_PREFERENCE: ThemePreference = "system";
 
 interface ThemeContextValue {
+  /** Effective theme used for styling (calm | light | dark). */
   themeId: ThemeId;
-  setThemeId: (id: ThemeId) => Promise<void>;
+  /** User preference: "system" or a fixed theme. Used for Settings selection. */
+  preference: ThemePreference;
+  setThemeId: (id: ThemePreference) => Promise<void>;
   colors: Theme;
 }
 
@@ -62,29 +68,39 @@ function getThemeColors(id: ThemeId): Theme {
   }
 }
 
+function preferenceToThemeId(preference: ThemePreference, colorScheme: string | null): ThemeId {
+  if (preference === "system") {
+    return colorScheme === "dark" ? "dark" : "light";
+  }
+  return preference;
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [themeId, setThemeIdState] = useState<ThemeId>(DEFAULT_THEME);
-  const [colors, setColors] = useState<Theme>(() => getThemeColors(DEFAULT_THEME));
+  const colorScheme = useColorScheme();
+  const [preference, setPreference] = useState<ThemePreference>(DEFAULT_PREFERENCE);
+  const themeId = useMemo(
+    () => preferenceToThemeId(preference, colorScheme),
+    [preference, colorScheme]
+  );
+  const colors = useMemo(() => getThemeColors(themeId), [themeId]);
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_STORAGE_KEY).then((saved) => {
-      if (saved === "calm" || saved === "light" || saved === "dark") {
-        setThemeIdState(saved);
-        setColors(getThemeColors(saved));
+      if (saved === "system" || saved === "calm" || saved === "light" || saved === "dark") {
+        setPreference(saved as ThemePreference);
       }
     }).catch(() => {});
   }, []);
 
-  const setThemeId = useCallback(async (id: ThemeId) => {
-    setThemeIdState(id);
-    setColors(getThemeColors(id));
+  const setThemeId = useCallback(async (id: ThemePreference) => {
+    setPreference(id);
     try {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, id);
     } catch {}
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ themeId, setThemeId, colors }}>
+    <ThemeContext.Provider value={{ themeId, preference, setThemeId, colors }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -97,6 +113,7 @@ export function useTheme(): ThemeContextValue {
     const calm = require("@/themes/calm").default as Theme;
     return {
       themeId: "calm",
+      preference: "system",
       setThemeId: async () => {},
       colors: calm,
     };

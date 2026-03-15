@@ -34,13 +34,17 @@ const NAV_ITEMS: NavItem[] = [
   { key: "goals", label: "Goals", icon: "flag-outline", iconActive: "flag" },
   { key: "appointments", label: "Appointments", icon: "calendar-outline", iconActive: "calendar" },
   { key: "reports", label: "Reports", icon: "document-text-outline", iconActive: "document-text" },
+  { key: "emergency", label: "Emergency Protocol", icon: "shield-half-outline", iconActive: "shield-half" },
+  { key: "emergencycard", label: "Emergency Card", icon: "card-outline", iconActive: "card" },
   { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
-  { key: "settings", label: "Settings", icon: "person-outline", iconActive: "person" },
+  { key: "settings", label: "Account", icon: "person-outline", iconActive: "person" },
 ];
 
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
+  { title: "Main", keys: ["dashboard"] },
   { title: "Primary", keys: ["log", "medications", "healthdata", "appointments"] },
   { title: "Health & Insights", keys: ["reports", "monthlycheckin", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
+  { title: "Emergency", keys: ["emergency", "emergencycard"] },
   { title: "System", keys: ["privacy", "settings"] },
 ];
 
@@ -145,12 +149,16 @@ function makeStyles(C: Theme) {
       paddingVertical: 12,
       paddingHorizontal: 16,
       gap: 12,
+      borderRadius: 10,
+      marginHorizontal: 8,
     },
     navItemExpanded: {
       paddingHorizontal: 16,
     },
     navItemActive: {
-      backgroundColor: C.sidebarActive,
+      backgroundColor: C.tintLight,
+      borderRadius: 10,
+      marginHorizontal: 8,
     },
     navLabel: {
       fontWeight: "500",

@@ -12,6 +12,7 @@ import {
   Image,
   StatusBar,
   KeyboardAvoidingView,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,6 +20,7 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
 import { settingsStorage, healthProfileStorage, ALL_SECTION_KEYS } from "@/lib/storage";
+import { setBiometricLockEnabled } from "@/lib/biometric-storage";
 import SynapseLogo from "@/components/SynapseLogo";
 
 const founderImage = require("../assets/images/founder.png");
@@ -467,7 +469,23 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         {showOpenSynapse && (
           <Pressable
             style={styles.continueBtn}
-            onPress={() => handleFinish()}
+            onPress={() => {
+              if (Platform.OS === "ios" || Platform.OS === "android") {
+                Alert.alert(
+                  "Enable Face ID / Touch ID?",
+                  "Lock the app when opening so only you can access it. You can change this later in Settings → Privacy.",
+                  [
+                    { text: "Not now", style: "cancel", onPress: () => handleFinish() },
+                    { text: "Enable", onPress: async () => {
+                      await setBiometricLockEnabled(true);
+                      handleFinish();
+                    } },
+                  ]
+                );
+              } else {
+                handleFinish();
+              }
+            }}
             accessibilityRole="button"
             accessibilityLabel="Open Synapse"
           >

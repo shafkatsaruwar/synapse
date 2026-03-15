@@ -1,12 +1,13 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
-  StyleSheet, Text, View, ScrollView, Pressable, Platform, useWindowDimensions, Alert, Share,
+  StyleSheet, Text, View, ScrollView, Pressable, Platform, useWindowDimensions, Alert, Share, Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { exportAllData, clearAllData } from "@/lib/storage";
+import { getBiometricLockEnabled, setBiometricLockEnabled } from "@/lib/biometric-storage";
 
 export default function PrivacyScreen() {
   const { colors: C } = useTheme();
@@ -15,6 +16,18 @@ export default function PrivacyScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const [exporting, setExporting] = useState(false);
+  const [biometricLock, setBiometricLock] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS === "ios" || Platform.OS === "android") {
+      getBiometricLockEnabled().then(setBiometricLock);
+    }
+  }, []);
+
+  const handleBiometricToggle = useCallback(async (value: boolean) => {
+    setBiometricLock(value);
+    await setBiometricLockEnabled(value);
+  }, []);
 
   const handleExport = async () => {
     try {
@@ -59,6 +72,27 @@ export default function PrivacyScreen() {
     }]} showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>Privacy & Data</Text>
       <Text style={styles.subtitle}>Your health data stays on your device</Text>
+
+      {(Platform.OS === "ios" || Platform.OS === "android") && (
+        <View style={styles.card}>
+          <View style={styles.featureRow}>
+            <View style={[styles.featureIcon, { backgroundColor: C.tintLight }]}>
+              <Ionicons name="finger-print" size={20} color={C.tint} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.featureTitle}>App Lock (Face ID / Touch ID)</Text>
+              <Text style={styles.featureDesc}>Require biometric or device passcode when opening the app</Text>
+            </View>
+            <Switch
+              value={biometricLock}
+              onValueChange={handleBiometricToggle}
+              trackColor={{ false: C.border, true: C.tintLight }}
+              thumbColor={biometricLock ? C.tint : "#f4f3f4"}
+              accessibilityLabel="Toggle app lock with Face ID or Touch ID"
+            />
+          </View>
+        </View>
+      )}
 
       <View style={styles.card}>
         <View style={styles.featureRow}>
