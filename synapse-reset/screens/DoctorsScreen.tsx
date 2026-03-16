@@ -6,9 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { useAuth } from "@/contexts/AuthContext";
 import { doctorsStorage, emergencyDoctorStorage, type Doctor } from "@/lib/storage";
-import { fetchDoctorsFromSupabase, createDoctorInSupabase, deleteDoctorFromSupabase } from "@/lib/doctors-api";
 
 interface DoctorsScreenProps {
   onBack: () => void;
@@ -16,7 +14,6 @@ interface DoctorsScreenProps {
 
 export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -26,17 +23,10 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
   const [emergencyDocId, setEmergencyDocId] = useState<string | null>(null);
 
   const loadDoctors = useCallback(async () => {
-    let list = await doctorsStorage.getAll();
-    if (user?.id) {
-      const cloud = await fetchDoctorsFromSupabase(user.id);
-      if (cloud.length > 0) {
-        await doctorsStorage.mergeFromRemote(cloud);
-        list = await doctorsStorage.getAll();
-      }
-    }
+    const list = await doctorsStorage.getAll();
     setDoctors(list.sort((a, b) => a.name.localeCompare(b.name)));
     setEmergencyDocId(await emergencyDoctorStorage.getDocId());
-  }, [user?.id]);
+  }, []);
 
   useEffect(() => { loadDoctors(); }, [loadDoctors]);
 
@@ -50,16 +40,8 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
   const handleAdd = async () => {
     const name = addName.trim();
     if (!name) return;
-    if (user?.id) {
-      const { doctor, error } = await createDoctorInSupabase(user.id, name, addSpecialty.trim() || undefined);
-      if (doctor) {
-        await doctorsStorage.mergeFromRemote([doctor]);
-        setDoctors((prev) => [...prev.filter((d) => d.id !== doctor.id), doctor].sort((a, b) => a.name.localeCompare(b.name)));
-      }
-    } else {
-      const doc = await doctorsStorage.addOrGet({ name, specialty: addSpecialty.trim() || undefined });
-      setDoctors((prev) => [...prev.filter((d) => d.id !== doc.id), doc].sort((a, b) => a.name.localeCompare(b.name)));
-    }
+    const doc = await doctorsStorage.addOrGet({ name, specialty: addSpecialty.trim() || undefined });
+    setDoctors((prev) => [...prev.filter((d) => d.id !== doc.id), doc].sort((a, b) => a.name.localeCompare(b.name)));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setAddName("");
     setAddSpecialty("");
@@ -69,7 +51,6 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
   const handleDelete = (doc: Doctor) => {
     if (Platform.OS === "web") {
       doctorsStorage.delete(doc.id).then(() => loadDoctors());
-      if (user?.id) deleteDoctorFromSupabase(user.id, doc.id);
       return;
     }
     Alert.alert("Remove doctor", `Remove ${doc.name} from your list?`, [
@@ -79,7 +60,6 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
         style: "destructive",
         onPress: async () => {
           await doctorsStorage.delete(doc.id);
-          if (user?.id) await deleteDoctorFromSupabase(user.id, doc.id);
           loadDoctors();
         },
       },

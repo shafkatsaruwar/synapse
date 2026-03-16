@@ -144,20 +144,6 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   };
 
   const dateObj = new Date();
-  const fullName =
-    (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : null) ??
-    ([user?.user_metadata?.first_name, user?.user_metadata?.last_name]
-      .filter(Boolean)
-      .join(" ") ||
-      user?.email?.split("@")[0] ||
-      "—");
-  const initials = (() => {
-    const words = fullName.trim().split(/\s+/).filter(Boolean);
-    if (words.length >= 2)
-      return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-    if (words[0]?.length >= 2) return (words[0][0] + words[0][1]).toUpperCase();
-    return (words[0]?.[0] ?? "?").toUpperCase().repeat(2);
-  })();
   const getDoseCount = (med: Medication) => (Array.isArray(med.doses) && med.doses.length > 0 ? med.doses.length : (med as { doses?: number }).doses ?? 1);
   const totalDoses = medications.reduce((s, m) => s + getDoseCount(m), 0);
   const takenDoses = medications.reduce((s, m) => {
@@ -190,41 +176,25 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
       >
         <Text style={styles.title}>Account</Text>
 
-        {/* ——— Profile Header ——— */}
-        {!user ? (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Not signed in</Text>
-            <Text style={styles.desc}>Sign in to back up and restore your data.</Text>
-            <Pressable
-              style={({ pressed }) => [styles.primaryBtn, { opacity: pressed ? 0.9 : 1 }]}
-              onPress={() => onNavigate?.("auth")}
-              accessibilityRole="button"
-              accessibilityLabel="Sign in"
-            >
-              <Text style={styles.primaryBtnText}>Sign In</Text>
-            </Pressable>
-            <Text style={[styles.localHint, { marginTop: 14 }]}>Data stored locally. Sign in to enable backup.</Text>
-          </View>
-        ) : (
-          <View style={styles.card}>
-            <View style={styles.profileHeader}>
-              <View style={styles.profileAvatar}>
-                <Text style={styles.profileAvatarText}>{initials}</Text>
-              </View>
-              <View style={styles.profileInfo}>
-                <Text style={styles.profileGreeting}>Hello,</Text>
-                <Text style={styles.profileFullName}>{fullName}</Text>
-                <Pressable
-                  onPress={() => onNavigate?.("editprofile")}
-                  accessibilityRole="link"
-                  accessibilityLabel="Edit profile"
-                >
-                  <Text style={styles.editProfileLink}>Edit profile</Text>
-                </Pressable>
-              </View>
+        {/* ——— Local Profile Header ——— */}
+        <View style={styles.card}>
+          <View style={styles.profileHeader}>
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileAvatarText}>
+                {(settings.name?.trim()?.[0] ?? "Y").toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileGreeting}>Hello,</Text>
+              <Text style={styles.profileFullName}>
+                {settings.name?.trim() || "You"}
+              </Text>
             </View>
           </View>
-        )}
+          <Text style={styles.localHint}>
+            Data is stored locally on this device. There are no accounts or cloud backups.
+          </Text>
+        </View>
 
         {/* ——— Doctors & Pharmacies quick cards ——— */}
         <View style={styles.quickCardsRow}>

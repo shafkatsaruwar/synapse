@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { conditionStorage, healthProfileStorage } from "@/lib/storage";
+import { conditionStorage, healthProfileStorage, settingsStorage } from "@/lib/storage";
 
 interface HealthProfileScreenProps {
   onBack: () => void;
@@ -16,18 +16,33 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const [conditionsCount, setConditionsCount] = useState(0);
+  const [nameText, setNameText] = useState("");
+  const [nameSaved, setNameSaved] = useState(true);
   const [ageText, setAgeText] = useState("");
   const [ageSaved, setAgeSaved] = useState(true);
 
   const loadData = useCallback(async () => {
-    const [conds, profile] = await Promise.all([conditionStorage.getAll(), healthProfileStorage.get()]);
+    const [conds, profile, settings] = await Promise.all([
+      conditionStorage.getAll(),
+      healthProfileStorage.get(),
+      settingsStorage.get(),
+    ]);
     setConditionsCount(conds.length);
+    setNameText(settings.name ?? "");
     setAgeText(profile.age != null ? String(profile.age) : "");
   }, []);
 
   React.useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const handleSaveName = async () => {
+    const trimmed = nameText.trim();
+    const settings = await settingsStorage.get();
+    await settingsStorage.save({ ...settings, name: trimmed || settings.name || "You" });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setNameSaved(true);
+  };
 
   const handleSaveAge = async () => {
     const parsed = ageText.trim() === "" ? undefined : parseInt(ageText, 10);
@@ -50,8 +65,35 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
           <Text style={styles.backText}>Settings</Text>
         </Pressable>
 
-        <Text style={styles.title}>Health Profile</Text>
-        <Text style={styles.subtitle}>Conditions and allergy & emergency info</Text>
+        <Text style={styles.title}>My Profile</Text>
+        <Text style={styles.subtitle}>Name, age, conditions, allergies, and emergency info</Text>
+
+        <View style={styles.ageCard}>
+          <Text style={styles.ageLabel}>Name</Text>
+          <TextInput
+            style={styles.ageInput}
+            value={nameText}
+            onChangeText={(t) => {
+              setNameText(t);
+              setNameSaved(false);
+            }}
+            placeholder="What should we call you?"
+            placeholderTextColor={C.textTertiary}
+            accessibilityLabel="Name"
+            autoCapitalize="words"
+          />
+          <Pressable
+            style={({ pressed }) => [styles.ageSaveBtn, nameSaved && styles.ageSaveBtnSaved, { opacity: pressed ? 0.85 : 1 }]}
+            onPress={handleSaveName}
+            accessibilityRole="button"
+            accessibilityLabel={nameSaved ? "Name saved" : "Save name"}
+          >
+            <Ionicons name={nameSaved ? "checkmark-circle" : "save-outline"} size={16} color="#fff" />
+            <Text style={styles.ageSaveBtnText}>{nameSaved ? "Saved" : "Save"}</Text>
+          </Pressable>
+        </View>
+
+        <View style={{ height: 12 }} />
 
         <View style={styles.ageCard}>
           <Text style={styles.ageLabel}>Age</Text>

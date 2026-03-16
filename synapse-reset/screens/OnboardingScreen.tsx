@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { useAuth } from "@/contexts/AuthContext";
 import { settingsStorage, healthProfileStorage, ALL_SECTION_KEYS } from "@/lib/storage";
 import { setBiometricLockEnabled } from "@/lib/biometric-storage";
 import SynapseLogo from "@/components/SynapseLogo";
@@ -49,7 +48,7 @@ const SECTION_LABELS: Record<string, string> = {
   privacy: "Privacy",
 };
 
-const SLIDE_COUNT = 7;
+const SLIDE_COUNT = 6;
 
 export interface OnboardingCompleteOptions {
   openMedications?: boolean;
@@ -62,7 +61,7 @@ interface OnboardingScreenProps {
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { signIn, signUp, user } = useAuth();
+  // Auth has been removed – onboarding is now fully local.
 
   const [step, setStep] = useState(0);
   const slideX = useRef(new Animated.Value(0)).current;
@@ -71,17 +70,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     () => new Set(ALL_SECTION_KEYS as unknown as string[])
   );
 
-  // Auth (slide 4): initial choice vs form vs post-signup prompt
-  const [authChoice, setAuthChoice] = useState<"none" | "signin" | "signup">("none");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authFirstName, setAuthFirstName] = useState("");
-  const [authLastName, setAuthLastName] = useState("");
-  const [authError, setAuthError] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
-  const [showAgePrompt, setShowAgePrompt] = useState(false);
-  const [onboardingAge, setOnboardingAge] = useState("");
-  const [showAddMedsPrompt, setShowAddMedsPrompt] = useState(false);
+  const [onboardingName, setOnboardingName] = useState("");
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
@@ -114,11 +103,10 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const handleFinish = async (openMedications?: boolean) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const settings = await settingsStorage.get();
-    const displayName = user?.user_metadata?.first_name ?? user?.email?.split("@")[0] ?? "";
     const enabledSections = Array.from(selectedSections);
     await settingsStorage.save({
       ...settings,
-      name: displayName || "User",
+      name: onboardingName.trim() || settings.name || "You",
       onboardingCompleted: true,
       enabledSections: enabledSections.length > 0 ? enabledSections : (ALL_SECTION_KEYS as unknown as string[]),
     });
@@ -128,57 +116,6 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const handleSkipForNow = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setStep(SLIDE_COUNT - 1);
-  };
-
-  const handleAuthSubmit = async () => {
-    if (!authEmail.trim() || !authPassword) {
-      setAuthError("Enter email and password.");
-      return;
-    }
-    if (authChoice === "signup" && authPassword.length < 6) {
-      setAuthError("Password must be at least 6 characters.");
-      return;
-    }
-    setAuthError("");
-    setAuthLoading(true);
-    const metadata: { first_name?: string; last_name?: string } = {};
-    if (authFirstName.trim()) metadata.first_name = authFirstName.trim();
-    if (authLastName.trim()) metadata.last_name = authLastName.trim();
-    const { error } =
-      authChoice === "signup"
-        ? await signUp(authEmail.trim(), authPassword, Object.keys(metadata).length > 0 ? metadata : undefined)
-        : await signIn(authEmail.trim(), authPassword);
-    setAuthLoading(false);
-    if (error) {
-      setAuthError(error.message);
-      return;
-    }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (authChoice === "signup") {
-      setShowAgePrompt(true);
-    } else {
-      goNext();
-    }
-  };
-
-  const handleAgeAction = async (skip: boolean) => {
-    if (!skip && onboardingAge.trim()) {
-      const parsed = parseInt(onboardingAge, 10);
-      if (!isNaN(parsed)) {
-        await healthProfileStorage.save({ age: parsed });
-      }
-    }
-    setShowAgePrompt(false);
-    setShowAddMedsPrompt(true);
-  };
-
-  const handleAddMedsChoice = (add: boolean) => {
-    setShowAddMedsPrompt(false);
-    if (add) {
-      handleFinish(true);
-    } else {
-      goNext();
-    }
   };
 
   const slideWidth = width;
@@ -213,27 +150,39 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   );
 
   const renderSlide1 = () =>
-    renderFeatureSlide(
-      onboardingMedications,
-      "Never lose track of a medication",
-      "Your full medication list, refills, prescribers, and pharmacies — all in one place."
+    (
+      <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
+        <View style={styles.slideCenter}>
+          <Text style={styles.setupTitle}>Your data stays with you</Text>
+          <Text style={styles.setupSub}>
+            This app does not create accounts or collect personal information.{"\n"}
+            Everything you enter in Synapse stays stored locally on your device.{"\n"}
+            Your health information is never uploaded or shared.
+          </Text>
+        </View>
+      </View>
     );
 
-  const renderSlide2 = () =>
-    renderFeatureSlide(
-      onboardingDashboard,
-      "Your health, at a glance",
-      "See your meds, appointments, fasting times, and how you're feeling — every single day."
-    );
+  const renderSlide2 = () => (
+    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
+      <View style={styles.slideCenter}>
+        <Text style={styles.setupTitle}>What should we call you?</Text>
+        <Text style={styles.setupSub}>
+          This name is only used to personalize your experience inside the app.
+        </Text>
+        <TextInput
+          style={styles.nameInput}
+          placeholder="Your name"
+          placeholderTextColor={C.textTertiary}
+          value={onboardingName}
+          onChangeText={setOnboardingName}
+          autoCapitalize="words"
+        />
+      </View>
+    </View>
+  );
 
-  const renderSlide3 = () =>
-    renderFeatureSlide(
-      onboardingAppointments,
-      "Never miss an appointment",
-      "Track every doctor visit, get reminders, and log what happened after."
-    );
-
-  const renderSlide4 = () => (
+  const renderSlide3 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <Text style={styles.setupTitle}>Make Synapse yours.</Text>
       <Text style={styles.setupSub}>Choose what matters to you. You can always change this later.</Text>
@@ -267,149 +216,28 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const renderSlide5 = () => (
+  const renderSlide4 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <KeyboardAvoidingView
         style={styles.authSlide}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={60}
       >
-        {showAgePrompt ? (
-          <View style={styles.slideCenter}>
-            <Text style={styles.setupTitle}>One last thing.</Text>
-            <Text style={styles.setupSub}>How old are you? This helps in emergencies.</Text>
-            <TextInput
-              style={styles.ageOnboardInput}
-              value={onboardingAge}
-              onChangeText={(t) => setOnboardingAge(t.replace(/[^0-9]/g, ""))}
-              keyboardType="number-pad"
-              placeholder="Your age"
-              placeholderTextColor={C.textTertiary}
-              maxLength={3}
-              autoFocus
-            />
-            <Pressable style={[styles.primaryAuthBtn, { alignSelf: "stretch" }]} onPress={() => handleAgeAction(false)}>
-              <Text style={styles.primaryAuthBtnText}>Continue</Text>
-            </Pressable>
-            <Pressable style={styles.skipLink} onPress={() => handleAgeAction(true)}>
-              <Text style={styles.skipLinkText}>Skip for now</Text>
-            </Pressable>
-          </View>
-        ) : showAddMedsPrompt ? (
-          <View style={styles.slideCenter}>
-            <Text style={styles.setupTitle}>Add your medications?</Text>
-            <Text style={styles.setupSub}>You can add them now or later from the Medications screen.</Text>
-            <Pressable style={styles.primaryAuthBtn} onPress={() => handleAddMedsChoice(true)}>
-              <Text style={styles.primaryAuthBtnText}>Add Medications</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryAuthBtn} onPress={() => handleAddMedsChoice(false)}>
-              <Text style={styles.secondaryAuthBtnText}>Skip</Text>
-            </Pressable>
-          </View>
-        ) : authChoice === "none" ? (
-          <View style={styles.slideCenter}>
-            <Text style={styles.authHeading}>Sign in or create an account</Text>
-            <Text style={styles.setupSub}>Your data is backed up securely. You can skip and sign in later.</Text>
-            <Pressable
-              style={styles.primaryAuthBtn}
-              onPress={() => {
-                setAuthChoice("signin");
-                setAuthError("");
-              }}
-            >
-              <Text style={styles.primaryAuthBtnText}>Sign In</Text>
-            </Pressable>
-            <Pressable
-              style={styles.primaryAuthBtn}
-              onPress={() => {
-                setAuthChoice("signup");
-                setAuthError("");
-              }}
-            >
-              <Text style={styles.primaryAuthBtnText}>Create Account</Text>
-            </Pressable>
-            <Pressable style={styles.skipLink} onPress={handleSkipForNow}>
-              <Text style={styles.skipLinkText}>Skip for now</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <ScrollView
-            contentContainerStyle={styles.authFormScroll}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <Text style={styles.authHeading}>{authChoice === "signup" ? "Create account" : "Welcome back"}</Text>
-            {authError ? <Text style={styles.authError}>{authError}</Text> : null}
-            {authChoice === "signup" && (
-              <>
-                <TextInput
-                  style={styles.nameInput}
-                  placeholder="First name"
-                  placeholderTextColor={C.textTertiary}
-                  value={authFirstName}
-                  onChangeText={setAuthFirstName}
-                  autoCapitalize="words"
-                />
-                <TextInput
-                  style={styles.nameInput}
-                  placeholder="Last name"
-                  placeholderTextColor={C.textTertiary}
-                  value={authLastName}
-                  onChangeText={setAuthLastName}
-                  autoCapitalize="words"
-                />
-              </>
-            )}
-            <TextInput
-              style={styles.nameInput}
-              placeholder="Email"
-              placeholderTextColor={C.textTertiary}
-              value={authEmail}
-              onChangeText={(t) => {
-                setAuthEmail(t);
-                setAuthError("");
-              }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <TextInput
-              style={styles.nameInput}
-              placeholder={authChoice === "signup" ? "Password (min 6 characters)" : "Password"}
-              placeholderTextColor={C.textTertiary}
-              value={authPassword}
-              onChangeText={(t) => {
-                setAuthPassword(t);
-                setAuthError("");
-              }}
-              secureTextEntry
-            />
-            <Pressable
-              style={styles.secondaryAuthBtn}
-              onPress={() => {
-                setAuthChoice("none");
-                setAuthError("");
-              }}
-            >
-              <Text style={styles.secondaryAuthBtnText}>
-                {authChoice === "signup" ? "Back" : "Back"}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.primaryAuthBtn, (authLoading || !authEmail.trim() || !authPassword) && { opacity: 0.5 }]}
-              onPress={handleAuthSubmit}
-              disabled={authLoading || !authEmail.trim() || !authPassword}
-            >
-              <Text style={styles.primaryAuthBtnText}>
-                {authLoading ? "..." : authChoice === "signup" ? "Create Account" : "Sign In"}
-              </Text>
-            </Pressable>
-          </ScrollView>
-        )}
+        <View style={styles.slideCenter}>
+          <Text style={styles.setupTitle}>Add your medications?</Text>
+          <Text style={styles.setupSub}>You can add them now or later from the Medications screen.</Text>
+          <Pressable style={styles.primaryAuthBtn} onPress={() => handleFinish(true)}>
+            <Text style={styles.primaryAuthBtnText}>Add Medications</Text>
+          </Pressable>
+          <Pressable style={styles.secondaryAuthBtn} onPress={() => handleFinish(false)}>
+            <Text style={styles.secondaryAuthBtnText}>Skip</Text>
+          </Pressable>
+        </View>
       </KeyboardAvoidingView>
     </View>
   );
 
-  const renderSlide6 = () => (
+  const renderSlide5 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <View style={styles.slideCenter}>
         <View style={styles.completionCircle}>
@@ -421,9 +249,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const slides = [renderSlide0, renderSlide1, renderSlide2, renderSlide3, renderSlide4, renderSlide5, renderSlide6];
+  const slides = [renderSlide0, renderSlide1, renderSlide2, renderSlide3, renderSlide4, renderSlide5];
 
-  const showContinue = step < SLIDE_COUNT - 1 && step !== 5;
+  const showContinue = step < SLIDE_COUNT - 1 && step !== 4;
   const showOpenSynapse = step === SLIDE_COUNT - 1;
 
   return (

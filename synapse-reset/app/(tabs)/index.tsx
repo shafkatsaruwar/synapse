@@ -29,7 +29,6 @@ import DoctorsScreen from "@/screens/DoctorsScreen";
 import PharmaciesScreen from "@/screens/PharmaciesScreen";
 import RamadanDailyLogScreen from "@/screens/RamadanDailyLogScreen";
 import OnboardingScreen from "@/screens/OnboardingScreen";
-import AuthScreen from "@/screens/AuthScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
 import EmergencyProtocolScreen from "@/screens/EmergencyProtocolScreen";
 import EmergencyCardScreen from "@/screens/EmergencyCardScreen";
@@ -235,8 +234,6 @@ export default function MainScreen() {
         return <HealthProfileConditionsScreen onBack={() => handleNavigate("healthprofile")} />;
       case "allergy":
         return <AllergyScreen onBack={() => handleNavigate("healthprofile")} />;
-      case "auth":
-        return <AuthScreen onBack={() => handleNavigate("settings")} onSuccess={() => handleNavigate("settings")} />;
       case "emergency":
         return <EmergencyProtocolScreen onBack={() => handleNavigate("settings")} />;
       case "emergencycard":

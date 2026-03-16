@@ -208,10 +208,10 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
               style={styles.allergyPrompt}
               onPress={() => { Haptics.selectionAsync(); onNavigate("allergy"); }}
               accessibilityRole="button"
-              accessibilityLabel="Add allergy information in Health Profile"
+                accessibilityLabel="Add allergy information in My Profile"
             >
               <Ionicons name="information-circle-outline" size={18} color={C.tint} />
-              <Text style={styles.allergyPromptText}>Add allergy information in Health Profile to include it on your Emergency Card.</Text>
+              <Text style={styles.allergyPromptText}>Add allergy information in My Profile to include it on your Emergency Card.</Text>
               <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
             </Pressable>
           )}

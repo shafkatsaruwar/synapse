@@ -16,7 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
-import { getBackupStatus, restoreFromCloud } from "@/lib/backup";
+// Legacy auth screen – no longer used now that the app is fully local.
 import { getSupabase, initSupabaseFromStorage, setSupabaseConfig } from "@/lib/supabase";
 
 const C = Colors.dark;

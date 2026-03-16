@@ -124,15 +124,10 @@ export default function SidebarLayout({
   const primaryItemsFiltered = PRIMARY_ITEMS.filter((n) => enabledKeysSet.has(n.key));
   const moreItemsFiltered = MORE_ITEMS.filter((n) => enabledKeysSet.has(n.key));
 
-  const isSignedIn = Boolean(session ?? user);
-  const displayName = isSignedIn
-    ? (user?.user_metadata?.first_name ??
-       user?.user_metadata?.full_name?.split(" ")[0] ??
-       user?.email?.split("@")[0] ??
-       settingsName ??
-       "Guest")
-    : "Guest";
-  const email = user?.email ?? "";
+  // Auth has been removed – app is fully local. Treat everyone as a local profile.
+  const isSignedIn = false;
+  const displayName = settingsName?.trim() || "You";
+  const email = "";
 
   useEffect(() => {
     if (moreOpen) {
@@ -303,41 +298,14 @@ export default function SidebarLayout({
                   <Text style={styles.drawerProfileName} numberOfLines={1}>
                     {displayName}
                   </Text>
-                  {isSignedIn ? (
-                    <>
-                      {email ? (
-                        <Text style={styles.drawerProfileEmail} numberOfLines={1}>
-                          {email}
-                        </Text>
-                      ) : null}
-                      <Text style={styles.drawerProfileStatus}>Signed in</Text>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={styles.drawerProfileStatus}>Guest account</Text>
-                      <Pressable
-                        onPress={() => {
-                          closeDrawer();
-                          onNavigate("auth");
-                        }}
-                        style={styles.drawerSignInLink}
-                        accessibilityRole="button"
-                        accessibilityLabel="Sign in"
-                      >
-                        <Text style={styles.drawerSignInLinkText}>Sign in</Text>
-                      </Pressable>
-                    </>
-                  )}
+                  <Text style={styles.drawerProfileStatus}>Local profile</Text>
                 </View>
 
                 {DRAWER_GROUPS.map((group) => {
                   const navItems = group.keys
                     .map((key) => NAV_ITEMS.find((n) => n.key === key))
                     .filter((n): n is NavItem => n != null && moreItemsFiltered.some((m) => m.key === n.key));
-                  const items: NavItem[] =
-                    group.title === "System" && isSignedIn
-                      ? [...navItems, { key: "logout", label: "Logout", icon: "log-out-outline", iconActive: "log-out-outline" }]
-                      : navItems;
+                  const items: NavItem[] = navItems;
                   if (items.length === 0) return null;
                   const isFirstGroup = group.title === "Emergency";
                   return (

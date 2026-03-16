@@ -16,7 +16,7 @@ export default function AuthStub() {
       <Text style={styles.title}>Sign in</Text>
       <Text style={styles.subtitle}>Sign in to back up and sync your data</Text>
       <Text style={styles.body}>
-        Go to Settings to sign in or create an account.
+        Accounts have been removed. All data now stays locally on your device.
       </Text>
     </View>
   );

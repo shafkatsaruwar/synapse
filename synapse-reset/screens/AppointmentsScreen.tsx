@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { useAuth } from "@/contexts/AuthContext";
 import {
   appointmentStorage,
   doctorNoteStorage,
@@ -16,14 +15,6 @@ import {
   type DoctorNote,
   type RepeatUnit,
 } from "@/lib/storage";
-import { fetchDoctorsFromSupabase, createDoctorInSupabase } from "@/lib/doctors-api";
-import {
-  fetchAppointmentsFromSupabase,
-  replaceAppointmentsInSupabase,
-  insertAppointmentsToSupabase,
-  updateAppointmentInSupabase,
-  deleteAppointmentFromSupabase,
-} from "@/lib/appointments-api";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 
 const REPEAT_OPTIONS: { value: "none" | "week" | "2weeks" | "month" | "custom"; label: string; interval?: number; unit?: RepeatUnit }[] = [

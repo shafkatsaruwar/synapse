@@ -14,7 +14,6 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { getBackupStatus, backupNow, restoreFromCloud, type BackupStatus } from "@/lib/backup";
 import { conditionStorage } from "@/lib/storage";
 
 interface EditProfileScreenProps {
@@ -29,52 +28,11 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
-  const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
-  const [backupLoading, setBackupLoading] = useState(false);
-  const [restoreLoading, setRestoreLoading] = useState(false);
-  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [conditionsCount, setConditionsCount] = useState(0);
 
   useEffect(() => {
-    if (user?.id) {
-      getBackupStatus(user.id).then(setBackupStatus);
-    } else {
-      setBackupStatus(null);
-    }
     conditionStorage.getAll().then((conds) => setConditionsCount(conds.length));
   }, [user?.id]);
-
-  const handleBackupNow = async () => {
-    if (!user?.id) return;
-    setBackupLoading(true);
-    try {
-      const { error } = await backupNow(user.id);
-      if (error) {
-        Alert.alert("Backup failed", error?.message ?? String(error), [{ text: "OK" }]);
-        return;
-      }
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const status = await getBackupStatus(user.id);
-      setBackupStatus(status);
-      Alert.alert("Backup complete", "Your data has been backed up to the cloud.", [{ text: "OK" }]);
-    } finally {
-      setBackupLoading(false);
-    }
-  };
-
-  const handleRestore = async () => {
-    if (!user?.id) return;
-    setShowRestoreConfirm(false);
-    setRestoreLoading(true);
-    const { error } = await restoreFromCloud(user.id);
-    setRestoreLoading(false);
-    if (error) {
-      Alert.alert("Restore failed", error.message);
-      return;
-    }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert("Restore complete", "Your data has been restored from the cloud.", [{ text: "OK", onPress: () => onRestoreComplete?.() }]);
-  };
 
   const fullName =
     (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : null) ??
@@ -91,16 +49,6 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
     if (words[0]?.length >= 2) return (words[0][0] + words[0][1]).toUpperCase();
     return (words[0]?.[0] ?? "?").toUpperCase().repeat(2);
   })();
-
-  const lastSyncedLabel = backupStatus?.lastSyncedAt
-    ? `Last synced: ${new Date(backupStatus.lastSyncedAt).toLocaleString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      })}`
-    : "Never synced";
 
   return (
     <View style={styles.container}>
@@ -176,78 +124,10 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
           </Pressable>
         </View>
 
-        {/* Cloud Backup Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Cloud Backup</Text>
-          <Text style={styles.lastSynced}>{lastSyncedLabel}</Text>
-          <View style={styles.backupActions}>
-            <Pressable
-              style={[styles.secondaryBtn, backupLoading && { opacity: 0.6 }]}
-              onPress={handleBackupNow}
-              disabled={backupLoading}
-              accessibilityRole="button"
-              accessibilityLabel="Backup Now"
-            >
-              {backupLoading
-                ? <ActivityIndicator size="small" color={C.tint} />
-                : <Text style={styles.secondaryBtnText}>Backup Now</Text>}
-            </Pressable>
-            <Pressable
-              style={[styles.outlineBtn, restoreLoading && { opacity: 0.6 }]}
-              onPress={() => setShowRestoreConfirm(true)}
-              disabled={restoreLoading}
-              accessibilityRole="button"
-              accessibilityLabel="Restore from Cloud"
-            >
-              {restoreLoading
-                ? <ActivityIndicator size="small" color={C.text} />
-                : <Text style={styles.outlineBtnText}>Restore from Cloud</Text>}
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Manage Account */}
-        <Pressable
-          style={({ pressed }) => [styles.fullWidthBtn, styles.secondaryBtnFull, { opacity: pressed ? 0.85 : 1 }]}
-          onPress={() => onNavigate?.("auth")}
-          accessibilityRole="button"
-          accessibilityLabel="Manage Account"
-        >
-          <Text style={styles.secondaryBtnText}>Manage Account</Text>
-        </Pressable>
-
-        {/* Sign Out */}
-        <Pressable
-          style={({ pressed }) => [styles.fullWidthBtn, styles.outlineBtnFull, { opacity: pressed ? 0.85 : 1 }]}
-          onPress={async () => {
-            await signOut();
-            Haptics.selectionAsync();
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Sign Out"
-        >
-          <Text style={styles.outlineBtnText}>Sign Out</Text>
-        </Pressable>
+        {/* Cloud backup and account system have been removed – app is fully local now. */}
       </ScrollView>
 
-      {/* Restore confirmation modal */}
-      <Modal visible={showRestoreConfirm} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setShowRestoreConfirm(false)}>
-          <Pressable style={styles.modal} onPress={() => {}}>
-            <Text style={styles.modalEmoji}>☁️</Text>
-            <Text style={styles.modalTitle}>Restore from cloud?</Text>
-            <Text style={styles.modalDesc}>This will overwrite local data. Continue?</Text>
-            <View style={styles.modalActions}>
-              <Pressable style={styles.cancelBtn} onPress={() => setShowRestoreConfirm(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={[styles.confirmBtn, { backgroundColor: C.tint }]} onPress={handleRestore}>
-                <Text style={styles.confirmText}>Restore</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {/* Cloud restore modal removed (no cloud backup). */}
     </View>
   );
 }
