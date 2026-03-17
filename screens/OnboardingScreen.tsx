@@ -10,6 +10,8 @@ import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
 import { settingsStorage, medicationStorage, ALL_SECTION_KEYS } from "@/lib/storage";
 import { getBackupStatus, restoreFromCloud } from "@/lib/backup";
+import { useIsTablet } from "@/lib/device";
+import QrScannerScreen from "@/screens/QrScannerScreen";
 
 const brainLogo = require("../assets/images/brain-logo.jpeg");
 
@@ -127,9 +129,12 @@ const founderImage = require("../assets/images/founder.png");
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const isTablet = useIsTablet();
   const { signIn, signUp, user } = useAuth();
   const [step, setStep] = useState(0);
   const [animKey, setAnimKey] = useState(0);
+  const [showTabletRestorePrompt, setShowTabletRestorePrompt] = useState(true);
+  const [showQrScanner, setShowQrScanner] = useState(false);
 
   const [authMode, setAuthMode] = useState<"signup" | "signin">("signup");
   const [authEmail, setAuthEmail] = useState("");
@@ -641,6 +646,50 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
   const buttonDelay = step === 0 ? 1200 : step === 1 ? 1800 : step >= 2 && step <= 7 ? 1800 : step === 11 ? 1600 : 1000;
 
+  // Tablet-only: Restore from iPhone step
+  if (isTablet && showTabletRestorePrompt) {
+    return (
+      <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F4E6D4" translucent={false} />
+        <View style={styles.tabletRestoreWrap}>
+          <Text style={styles.tabletRestoreTitle}>Do you have Synapse on another device?</Text>
+          <Text style={styles.tabletRestoreSub}>If you use Synapse on your iPhone, you can scan a QR code to copy all your data to this iPad.</Text>
+          <Pressable
+            style={({ pressed }) => [styles.tabletRestoreBtn, { opacity: pressed ? 0.9 : 1 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowTabletRestorePrompt(false);
+              setShowQrScanner(true);
+            }}
+          >
+            <Text style={styles.tabletRestoreBtnText}>Yes, restore my data</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.tabletRestoreSecondaryBtn, { opacity: pressed ? 0.9 : 1 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowTabletRestorePrompt(false);
+            }}
+          >
+            <Text style={styles.tabletRestoreSecondaryText}>No, start fresh</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  if (isTablet && showQrScanner) {
+    return (
+      <QrScannerScreen
+        onSuccess={() => onComplete()}
+        onCancel={() => {
+          setShowQrScanner(false);
+          setShowTabletRestorePrompt(true);
+        }}
+      />
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
       <StatusBar
@@ -678,6 +727,20 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background, paddingHorizontal: 28 },
   body: { flex: 1, justifyContent: "center" },
   footer: { gap: 16, paddingBottom: 8 },
+
+  tabletRestoreWrap: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
+  tabletRestoreTitle: {
+    fontWeight: "700", fontSize: 24, textAlign: "center", marginBottom: 12, color: C.text,
+  },
+  tabletRestoreSub: {
+    fontWeight: "400", fontSize: 16, textAlign: "center", lineHeight: 24, color: C.textSecondary, marginBottom: 32,
+  },
+  tabletRestoreBtn: {
+    backgroundColor: MAROON, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, marginBottom: 12, minWidth: 260,
+  },
+  tabletRestoreBtnText: { fontWeight: "600", fontSize: 16, color: "#fff" },
+  tabletRestoreSecondaryBtn: { paddingVertical: 12, paddingHorizontal: 24 },
+  tabletRestoreSecondaryText: { fontWeight: "500", fontSize: 16, color: C.textSecondary },
 
   dotsRow: { flexDirection: "row", justifyContent: "center", gap: 10 },
   dotContainer: { width: 14, height: 14, alignItems: "center", justifyContent: "center" },
