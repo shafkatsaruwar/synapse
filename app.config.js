@@ -25,6 +25,7 @@ module.exports = {
       buildNumber: "5",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        NSLocalNetworkUsageDescription: "Synapse needs local network access to transfer your health data to your iPad over Wi-Fi.",
       },
     },
     android: {
@@ -46,6 +47,7 @@ module.exports = {
       ["expo-router", { origin: "https://replit.com/" }],
       "expo-font",
       "expo-web-browser",
+      ["expo-camera", { cameraPermission: "Allow Synapse to access your camera to scan QR codes for data transfer.", barcodeScannerEnabled: true }],
     ],
     experiments: {
       typedRoutes: true,

@@ -24,6 +24,9 @@ import {
   type UserSettings,
 } from "@/lib/storage";
 import { getBackupStatus, backupNow, restoreFromCloud, type BackupStatus } from "@/lib/backup";
+import { useIsTablet } from "@/lib/device";
+import { isTransferServerSupported } from "@/lib/qr-sync";
+import QrTransferScreen from "@/screens/QrTransferScreen";
 
 const C = Colors.dark;
 const MAROON = "#800020";
@@ -50,7 +53,9 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const isTablet = useIsTablet();
   const { user, signOut } = useAuth();
+  const [showQrTransfer, setShowQrTransfer] = useState(false);
 
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
   const [saved, setSaved] = useState(true);
@@ -251,6 +256,30 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
             </>
           )}
         </View>
+
+        {/* ——— Send data to iPad (phone only) ——— */}
+        {!isTablet && isTransferServerSupported() && (
+          <View style={styles.card}>
+            <Pressable
+              style={styles.profileRow}
+              onPress={() => {
+                Haptics.selectionAsync();
+                setShowQrTransfer(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Send data to iPad"
+            >
+              <View style={[styles.profileIcon, { backgroundColor: C.cyanLight }]}>
+                <Ionicons name="qr-code-outline" size={16} color={C.cyan} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.profileRowTitle}>Send data to iPad</Text>
+                <Text style={styles.profileRowDesc}>Show QR code for iPad to scan and restore your data</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+            </Pressable>
+          </View>
+        )}
 
         {/* ——— Health Profile ——— */}
         <View style={styles.card}>
@@ -453,6 +482,8 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           </Pressable>
         </Pressable>
       </Modal>
+
+      <QrTransferScreen visible={showQrTransfer} onClose={() => setShowQrTransfer(false)} />
     </View>
   );
 }
