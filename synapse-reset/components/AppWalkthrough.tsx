@@ -11,19 +11,22 @@ const WALKTHROUGH_STEPS: { id: string; title: string; body: string }[] = [
   { id: "menu", title: "Emergency Protocol", body: "Quick access instructions for emergencies. Open the menu to find Emergency Protocol." },
 ];
 
-const TOOLTIP_GAP = 12;
+const TOOLTIP_GAP = 14;
 const ARROW_SIZE = 10;
-const HIGHLIGHT_PADDING = 8;
-const HIGHLIGHT_BORDER = 3;
+const SPOTLIGHT_PADDING = 10;
+const SPOTLIGHT_RADIUS = 14;
+const DIM_COLOR = "rgba(0,0,0,0.62)";
 
 interface AppWalkthroughProps {
   visible: boolean;
   onComplete: () => void;
 }
 
+type Rect = { x: number; y: number; width: number; height: number };
+
 export default function AppWalkthrough({ visible, onComplete }: AppWalkthroughProps) {
   const [step, setStep] = useState(0);
-  const [targetRect, setTargetRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [targetRect, setTargetRect] = useState<Rect | null>(null);
   const insets = useSafeAreaInsets();
   const { width: winWidth, height: winHeight } = useWindowDimensions();
   const { colors: C } = useTheme();
@@ -42,65 +45,65 @@ export default function AppWalkthrough({ visible, onComplete }: AppWalkthroughPr
       return;
     }
     let cancelled = false;
-    measureTarget().then((rect) => {
-      if (!cancelled && rect) setTargetRect(rect);
-      else if (!cancelled) setTargetRect(null);
-    });
-    return () => { cancelled = true; };
+    // Small delay so refs are laid out before measuring
+    const timer = setTimeout(() => {
+      measureTarget().then((rect) => {
+        if (!cancelled) setTargetRect(rect ?? null);
+      });
+    }, 120);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [visible, step, stepId, measureTarget]);
 
   const current = WALKTHROUGH_STEPS[step];
   const isLast = step === WALKTHROUGH_STEPS.length - 1;
 
   const handleNext = useCallback(() => {
-    if (isLast) {
-      onComplete();
-      return;
-    }
+    if (isLast) { onComplete(); return; }
     setStep((s) => s + 1);
   }, [isLast, onComplete]);
 
-  const handleSkip = useCallback(() => {
-    onComplete();
-  }, [onComplete]);
+  const handleSkip = useCallback(() => { onComplete(); }, [onComplete]);
 
-  const tooltipWidth = Math.min(winWidth - 32, 360);
-  const tooltipHeight = 180;
+  const tooltipWidth = Math.min(winWidth - 32, 340);
+  const tooltipHeight = 175;
 
+  // Spotlight rect (padded around the target)
+  const spot = targetRect
+    ? {
+        x: targetRect.x - SPOTLIGHT_PADDING,
+        y: targetRect.y - SPOTLIGHT_PADDING,
+        w: targetRect.width + SPOTLIGHT_PADDING * 2,
+        h: targetRect.height + SPOTLIGHT_PADDING * 2,
+      }
+    : null;
+
+  // Tooltip placement: prefer below, then above, then centered
   const placement = useMemo(() => {
-    if (!targetRect) {
+    if (!spot) {
       return {
         tooltipX: (winWidth - tooltipWidth) / 2,
         tooltipY: winHeight / 2 - tooltipHeight / 2,
         arrow: "none" as const,
       };
     }
-    const spaceAbove = targetRect.y - insets.top;
-    const spaceBelow = winHeight - (targetRect.y + targetRect.height) - insets.bottom;
-    const preferAbove = spaceAbove >= tooltipHeight + TOOLTIP_GAP + ARROW_SIZE;
-    const preferBelow = spaceBelow >= tooltipHeight + TOOLTIP_GAP + ARROW_SIZE;
-    const centerX = targetRect.x + targetRect.width / 2;
+    const spaceAbove = spot.y - insets.top;
+    const spaceBelow = winHeight - (spot.y + spot.h) - insets.bottom;
+    const centerX = spot.x + spot.w / 2;
     const tooltipX = Math.max(16, Math.min(winWidth - 16 - tooltipWidth, centerX - tooltipWidth / 2));
-    if (preferAbove) {
-      const tooltipY = targetRect.y - TOOLTIP_GAP - tooltipHeight;
-      return { tooltipX, tooltipY, arrow: "down" as const, arrowX: centerX - tooltipX };
-    }
-    if (preferBelow) {
-      const tooltipY = targetRect.y + targetRect.height + TOOLTIP_GAP;
-      return { tooltipX, tooltipY, arrow: "up" as const, arrowX: centerX - tooltipX };
-    }
-    const tooltipY = Math.max(insets.top + 8, Math.min(winHeight - insets.bottom - tooltipHeight - 8, targetRect.y + targetRect.height / 2 - tooltipHeight / 2));
-    return { tooltipX, tooltipY, arrow: spaceAbove >= spaceBelow ? "down" : "up", arrowX: centerX - tooltipX };
-  }, [targetRect, winWidth, winHeight, insets.top, insets.bottom, tooltipWidth, tooltipHeight]);
+    const arrowX = centerX - tooltipX;
 
-  const highlightRect = targetRect
-    ? {
-        left: targetRect.x - HIGHLIGHT_PADDING,
-        top: targetRect.y - HIGHLIGHT_PADDING,
-        width: targetRect.width + HIGHLIGHT_PADDING * 2,
-        height: targetRect.height + HIGHLIGHT_PADDING * 2,
-      }
-    : null;
+    if (spaceBelow >= tooltipHeight + TOOLTIP_GAP + ARROW_SIZE) {
+      return { tooltipX, tooltipY: spot.y + spot.h + TOOLTIP_GAP, arrow: "up" as const, arrowX };
+    }
+    if (spaceAbove >= tooltipHeight + TOOLTIP_GAP + ARROW_SIZE) {
+      return { tooltipX, tooltipY: spot.y - TOOLTIP_GAP - tooltipHeight, arrow: "down" as const, arrowX };
+    }
+    // Fallback: place below but allow overlap, no arrow
+    return { tooltipX, tooltipY: spot.y + spot.h + TOOLTIP_GAP, arrow: "none" as const };
+  }, [spot, winWidth, winHeight, insets.top, insets.bottom, tooltipWidth, tooltipHeight]);
 
   const styles = useMemo(() => makeStyles(C), [C]);
 
@@ -108,23 +111,42 @@ export default function AppWalkthrough({ visible, onComplete }: AppWalkthroughPr
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
-      <View style={[styles.dim, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        {highlightRect && (
-          <View
-            style={[
-              styles.highlight,
-              {
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+
+        {/* Dim overlay: 4 rectangles around the spotlight, or full-screen if no target */}
+        {spot ? (
+          <>
+            {/* Top */}
+            <View style={[styles.dimRect, { left: 0, top: 0, right: 0, height: spot.y }]} />
+            {/* Bottom */}
+            <View style={[styles.dimRect, { left: 0, top: spot.y + spot.h, right: 0, bottom: 0 }]} />
+            {/* Left */}
+            <View style={[styles.dimRect, { left: 0, top: spot.y, width: spot.x, height: spot.h }]} />
+            {/* Right */}
+            <View style={[styles.dimRect, { left: spot.x + spot.w, top: spot.y, right: 0, height: spot.h }]} />
+            {/* Spotlight border ring */}
+            <View
+              style={{
                 position: "absolute",
-                left: highlightRect.left,
-                top: highlightRect.top,
-                width: highlightRect.width,
-                height: highlightRect.height,
-                borderRadius: 16,
-              },
-            ]}
-          />
+                left: spot.x,
+                top: spot.y,
+                width: spot.w,
+                height: spot.h,
+                borderRadius: SPOTLIGHT_RADIUS,
+                borderWidth: 2.5,
+                borderColor: "rgba(255,255,255,0.85)",
+                shadowColor: "#fff",
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.5,
+                shadowRadius: 10,
+              }}
+            />
+          </>
+        ) : (
+          <View style={[styles.dimRect, StyleSheet.absoluteFillObject]} />
         )}
 
+        {/* Tooltip card */}
         <View
           style={[
             styles.tooltipCard,
@@ -169,6 +191,7 @@ export default function AppWalkthrough({ visible, onComplete }: AppWalkthroughPr
             </Pressable>
           </View>
         </View>
+
       </View>
     </Modal>
   );
@@ -176,20 +199,9 @@ export default function AppWalkthrough({ visible, onComplete }: AppWalkthroughPr
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
-    dim: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.5)",
-      paddingHorizontal: 0,
-    },
-    highlight: {
-      borderWidth: HIGHLIGHT_BORDER,
-      borderColor: "rgba(255,255,255,0.9)",
-      backgroundColor: "transparent",
-      shadowColor: "#fff",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.35,
-      shadowRadius: 12,
-      elevation: 8,
+    dimRect: {
+      position: "absolute",
+      backgroundColor: DIM_COLOR,
     },
     tooltipCard: {
       backgroundColor: C.surface,
