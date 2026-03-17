@@ -109,7 +109,6 @@ function makeCalStyles(C: Theme) {
 export default function AppointmentsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { user } = useAuth();
   const { colors: C } = useTheme();
   const calStyles = useMemo(() => makeCalStyles(C), [C]);
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -146,49 +145,21 @@ export default function AppointmentsScreen() {
   const [rescheduleTime, setRescheduleTime] = useState("");
 
   const loadData = useCallback(async () => {
-    let apts: Appointment[];
-    if (user?.id) {
-      const cloud = await fetchAppointmentsFromSupabase(user.id);
-      if (cloud.length > 0) {
-        await appointmentStorage.setAll(cloud);
-        apts = cloud;
-      } else {
-        apts = await appointmentStorage.getAll();
-        if (apts.length > 0) await replaceAppointmentsInSupabase(user.id, apts);
-      }
-    } else {
-      apts = await appointmentStorage.getAll();
-    }
+    const apts = await appointmentStorage.getAll();
     const [docs, n] = await Promise.all([doctorsStorage.getAll(), doctorNoteStorage.getAll()]);
     setAppointments(apts.sort((a, b) => a.date.localeCompare(b.date)));
     setDoctors(docs);
     setNotes(n.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-  }, [user?.id]);
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    fetchDoctorsFromSupabase(user.id).then((remote) => {
-      if (remote.length === 0) return;
-      doctorsStorage.mergeFromRemote(remote).then(() => loadData());
-    });
-  }, [user?.id, loadData]);
 
   const selectedDoctor = selectedDoctorId ? doctors.find((d) => d.id === selectedDoctorId) : null;
 
   const handleAddDoctorFromForm = async () => {
     const name = addDoctorName.trim();
     if (!name) return;
-    let doc: Doctor;
-    if (user?.id) {
-      const result = await createDoctorInSupabase(user.id, name, addDoctorSpecialty.trim() || undefined);
-      if (!result.doctor) return;
-      doc = result.doctor;
-      await doctorsStorage.mergeFromRemote([doc]);
-    } else {
-      doc = await doctorsStorage.addOrGet({ name, specialty: addDoctorSpecialty.trim() || undefined });
-    }
+    const doc = await doctorsStorage.addOrGet({ name, specialty: addDoctorSpecialty.trim() || undefined });
     setDoctors((prev) => [...prev.filter((d) => d.id !== doc.id), doc].sort((a, b) => a.name.localeCompare(b.name)));
     setSelectedDoctorId(doc.id);
     setAptSpecialty(doc.specialty ?? (addDoctorSpecialty ?? "").trim());
@@ -236,10 +207,6 @@ export default function AppointmentsScreen() {
     }
 
     await appointmentStorage.save(base);
-    if (user?.id) {
-      const all = await appointmentStorage.getAll();
-      await replaceAppointmentsInSupabase(user.id, all);
-    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     resetAptForm();
     setShowAptModal(false);
@@ -294,18 +261,12 @@ export default function AppointmentsScreen() {
     };
     if (editMode === "one") {
       await appointmentStorage.update(editingApt.id, updates);
-      if (user?.id) await updateAppointmentInSupabase(user.id, editingApt.id, updates);
     } else {
       const parentId = editingApt.parent_recurring_id ?? editingApt.id;
       const toUpdate = appointments.filter((a) => a.id === editingApt.id || (a.parent_recurring_id === parentId && a.date >= editingApt.date));
       for (const a of toUpdate) {
         await appointmentStorage.update(a.id, { ...updates, date: a.date });
-        if (user?.id) await updateAppointmentInSupabase(user.id, a.id, { ...updates, date: a.date });
       }
-    }
-    if (user?.id) {
-      const all = await appointmentStorage.getAll();
-      await replaceAppointmentsInSupabase(user.id, all);
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     resetAptForm();
@@ -316,9 +277,6 @@ export default function AppointmentsScreen() {
   const handleDeleteApt = async (apt: Appointment) => {
     const doDelete = async () => {
       await appointmentStorage.delete(apt.id);
-      if (user?.id) {
-        await deleteAppointmentFromSupabase(user.id, apt.id);
-      }
       loadData();
     };
     if (Platform.OS === "web") { await doDelete(); return; }
@@ -353,13 +311,8 @@ export default function AppointmentsScreen() {
 
   const markAppointmentStatus = useCallback(async (apt: Appointment, status: "completed" | "rescheduled" | "cancelled") => {
     await appointmentStorage.update(apt.id, { status });
-    if (user?.id) await updateAppointmentInSupabase(user.id, apt.id, { status });
-    if (user?.id) {
-      const all = await appointmentStorage.getAll();
-      await replaceAppointmentsInSupabase(user.id, all);
-    }
     loadData();
-  }, [user?.id, loadData]);
+  }, [loadData]);
 
   const handleCompleteToday = useCallback(async (apt: Appointment) => {
     await markAppointmentStatus(apt, "completed");
@@ -388,17 +341,13 @@ export default function AppointmentsScreen() {
     };
     await appointmentStorage.save(base);
     await markAppointmentStatus(rescheduleApt, "rescheduled");
-    if (user?.id) {
-      const all = await appointmentStorage.getAll();
-      await replaceAppointmentsInSupabase(user.id, all);
-    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowRescheduleModal(false);
     setRescheduleApt(null);
     setRescheduleDate("");
     setRescheduleTime("");
     loadData();
-  }, [rescheduleApt, rescheduleDate, rescheduleTime, markAppointmentStatus, user?.id, loadData]);
+  }, [rescheduleApt, rescheduleDate, rescheduleTime, markAppointmentStatus, loadData]);
 
   const overdueApts = appointments.filter((a) => a.date < today && a.status === undefined);
   useEffect(() => {
