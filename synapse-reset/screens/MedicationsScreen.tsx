@@ -965,12 +965,21 @@ export default function MedicationsScreen() {
               </View>
 
               <Text style={styles.label}>Name</Text>
-              <Pressable style={styles.input} onPress={() => medListItems.length > 0 && setShowCurrentMedNamePicker((v) => !v)}>
-                <Text style={[styles.pickerPlaceholder, formName && { color: C.text }]}>
-                  {formName || (medListItems.length === 0 ? "e.g. Hydrocortisone" : "Select or type medication name")}
-                </Text>
-                {medListItems.length > 0 && <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />}
-              </Pressable>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
+                <TextInput
+                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                  placeholder="e.g. Hydrocortisone"
+                  placeholderTextColor={C.textTertiary}
+                  value={formName}
+                  onChangeText={(t) => { setFormName(t); setShowCurrentMedNamePicker(false); }}
+                  autoCorrect={false}
+                />
+                {medListItems.length > 0 && (
+                  <Pressable onPress={() => setShowCurrentMedNamePicker((v) => !v)} hitSlop={8} style={{ paddingLeft: 8 }}>
+                    <Ionicons name="chevron-down" size={20} color={C.textTertiary} />
+                  </Pressable>
+                )}
+              </View>
               {showCurrentMedNamePicker && medListItems.length > 0 && (
                 <View style={styles.dropdown}>
                   {(editingMed && !medListItems.some((m) => m.name === editingMed.name) ? [editingMed.name, ...medListItems.map((m) => m.name)] : medListItems.map((m) => m.name))
