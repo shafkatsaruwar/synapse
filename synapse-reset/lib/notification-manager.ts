@@ -358,6 +358,7 @@ export async function syncAllFromSettings(): Promise<void> {
       medicationStorage.getAll(),
       appointmentStorage.getAll(),
     ]);
+    const today = getToday();
     const notifMed = settings.notificationsMedications !== false;
     const notifApt = settings.notificationsAppointments !== false;
     const notifDaily = settings.notificationsDailyCheckIn !== false;

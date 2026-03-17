@@ -243,14 +243,14 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
   const latestTemp = sickData?.temperatures?.slice(-1)[0];
   const isRecovery = sickData?.recoveryMode === true;
 
+  const styles = useMemo(() => makeStyles(C, S), [C, S]);
+
   if (!sickData) return null;
 
   const accentColor = isRecovery ? C.green : S.accent;
   const accentLight = isRecovery ? "rgba(45,125,70,0.12)" : S.accentLight;
   const accentBorder = isRecovery ? "rgba(45,125,70,0.3)" : S.accentBorder;
   const bgColor = isRecovery ? (themeId === "dark" ? "#0F2A1F" : "#E0F2E9") : S.background;
-
-  const styles = useMemo(() => makeStyles(C, S), [C, S]);
   return (
     <View style={[styles.container, { backgroundColor: bgColor }]}>
       <ScrollView
