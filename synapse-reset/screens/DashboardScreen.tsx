@@ -161,7 +161,7 @@ function DashboardHero({
   const heroBorderColor = themeId === "dark" ? "#2A2A2A" : "#D6BFA6";
 
   const miniCardBackground =
-    themeId === "dark" ? "rgba(128, 0, 32, 0.12)" : themeId === "light" ? "#FFFFFF" : "#F3E6D8";
+    themeId === "dark" ? "rgba(210, 0, 0, 0.22)" : themeId === "light" ? "#FFFFFF" : "#F3E6D8";
   const miniCardBorderColor = themeId === "dark" ? "#2A2A2A" : "#E2CFC0";
 
   const renderHeroInner = () => (
