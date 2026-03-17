@@ -163,6 +163,7 @@ function DashboardHero({
   const miniCardBackground =
     themeId === "dark" ? "rgba(220, 20, 20, 0.45)" : themeId === "light" ? "#FFFFFF" : "#F3E6D8";
   const miniCardBorderColor = themeId === "dark" ? "#2A2A2A" : "#E2CFC0";
+  const miniCardSubtitleColor = themeId === "dark" ? "#FFFFFF" : C.textSecondary;
 
   const renderHeroInner = () => (
     <View style={styles.dashboardHeroGradient}>
@@ -218,7 +219,7 @@ function DashboardHero({
               {nextMedication?.name || "Hydrocortisone"}
             </Text>
             {(nextMedication?.lines?.length ? nextMedication.lines : ["Morning dose"]).map((line, i) => (
-              <Text key={i} style={styles.dashboardHeroMiniSubtitle}>
+              <Text key={i} style={[styles.dashboardHeroMiniSubtitle, { color: miniCardSubtitleColor }]}>
                 {line}
               </Text>
             ))}
@@ -236,10 +237,10 @@ function DashboardHero({
             accessibilityLabel="Open Appointments"
           >
           <Text style={styles.dashboardHeroMiniTitle}>Next appointment</Text>
-          <Text style={styles.dashboardHeroMiniSubtitle}>
+          <Text style={[styles.dashboardHeroMiniSubtitle, { color: miniCardSubtitleColor }]}>
             {nextApt?.doctorName || "Dr. Jordon LICSW"}
           </Text>
-          <Text style={styles.dashboardHeroMiniSubtitle}>
+          <Text style={[styles.dashboardHeroMiniSubtitle, { color: miniCardSubtitleColor }]}>
             {nextApt
               ? `${formatDate(nextApt.date)} · ${formatTime12h(nextApt.time)}`
               : "Tue Mar 17 · 10:00 AM"}
