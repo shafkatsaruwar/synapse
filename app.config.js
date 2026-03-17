@@ -22,7 +22,7 @@ module.exports = {
     ios: {
       supportsTablet: false,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
-      buildNumber: "5",
+      buildNumber: "8",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSLocalNetworkUsageDescription: "Synapse needs local network access to transfer your health data to your iPad over Wi-Fi.",
