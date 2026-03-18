@@ -39,6 +39,8 @@ import {
   requestPermission,
   getPermissionStatus,
   syncAllFromSettings,
+  setNotificationNavigateCallback,
+  handleLastNotificationResponse,
 } from "@/lib/notification-manager";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import AppBackground from "@/components/AppBackground";
@@ -145,6 +147,18 @@ export default function MainScreen() {
     setRefreshKey((k) => k + 1);
     settingsStorage.get().then(s => setSickMode(s.sickMode));
   };
+
+  // Register navigate callback for notification tap routing
+  useEffect(() => {
+    setNotificationNavigateCallback(handleNavigate);
+  }, []);
+
+  // Handle notification that launched the app from a killed state
+  useEffect(() => {
+    if (showOnboarding === false) {
+      handleLastNotificationResponse();
+    }
+  }, [showOnboarding]);
 
   const handleActivateSickMode = () => {
     setSickMode(true);

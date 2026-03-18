@@ -261,6 +261,9 @@ export interface HealthCondition {
 }
 
 /** Section keys that can be enabled/disabled by user (v1.3). If undefined, all sections are shown. */
+/** Sections the user cannot turn off — always shown. */
+export const REQUIRED_SECTION_KEYS: readonly string[] = ["medications", "appointments", "healthdata"];
+
 export const ALL_SECTION_KEYS = [
   "log", "healthdata", "medications", "symptoms", "monthlycheckin",
   "eating", "mentalhealth", "comfort", "goals", "appointments", "reports", "privacy",
