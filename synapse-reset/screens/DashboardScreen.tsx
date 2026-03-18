@@ -418,7 +418,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     user?.user_metadata?.first_name ??
     (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : undefined) ??
     (user?.email ? user.email.split("@")[0] : undefined);
-  const settingsFirstName = settings.name?.trim() ? settings.name.trim().split(/\s+/)[0] : "";
+  const settingsFirstName = settings.firstName?.trim() || (settings.name?.trim() ? settings.name.trim().split(/\s+/)[0] : "");
   const displayFirstName = (typeof authNameRaw === "string" ? authNameRaw.trim().split(/\s+/)[0] : "") || settingsFirstName || "";
   const hour = dateObj.getHours();
   let greeting: string;

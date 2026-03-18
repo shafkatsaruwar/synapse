@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { settingsStorage, healthProfileStorage, ALL_SECTION_KEYS } from "@/lib/storage";
+import { useTheme, type ThemePreference } from "@/contexts/ThemeContext";
 import { setBiometricLockEnabled } from "@/lib/biometric-storage";
 import SynapseLogo from "@/components/SynapseLogo";
 
@@ -48,7 +49,14 @@ const SECTION_LABELS: Record<string, string> = {
   privacy: "Privacy",
 };
 
-const SLIDE_COUNT = 6;
+const SLIDE_COUNT = 7;
+
+const APPEARANCE_OPTIONS: { id: ThemePreference; label: string; description: string }[] = [
+  { id: "system", label: "System", description: "Follows your device setting" },
+  { id: "calm", label: "Calm", description: "Warm cream tones" },
+  { id: "light", label: "Light", description: "Clean blue-white" },
+  { id: "dark", label: "Dark", description: "Easy on the eyes at night" },
+];
 
 export interface OnboardingCompleteOptions {
   openMedications?: boolean;
@@ -61,7 +69,7 @@ interface OnboardingScreenProps {
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  // Auth has been removed – onboarding is now fully local.
+  const { setThemeId } = useTheme();
 
   const [step, setStep] = useState(0);
   const slideX = useRef(new Animated.Value(0)).current;
@@ -70,7 +78,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     () => new Set(ALL_SECTION_KEYS as unknown as string[])
   );
 
-  const [onboardingName, setOnboardingName] = useState("");
+  const [onboardingFirstName, setOnboardingFirstName] = useState("");
+  const [onboardingLastName, setOnboardingLastName] = useState("");
+  const [selectedAppearance, setSelectedAppearance] = useState<ThemePreference>("system");
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
@@ -104,12 +114,17 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const settings = await settingsStorage.get();
     const enabledSections = Array.from(selectedSections);
+    const firstName = onboardingFirstName.trim();
+    const lastName = onboardingLastName.trim();
     await settingsStorage.save({
       ...settings,
-      name: onboardingName.trim() || settings.name || "You",
+      firstName: firstName || settings.firstName,
+      lastName: lastName || settings.lastName,
+      name: [firstName, lastName].filter(Boolean).join(" ") || settings.name || "You",
       onboardingCompleted: true,
       enabledSections: enabledSections.length > 0 ? enabledSections : (ALL_SECTION_KEYS as unknown as string[]),
     });
+    await setThemeId(selectedAppearance);
     onComplete(openMedications ? { openMedications: true } : undefined);
   };
 
@@ -168,21 +183,65 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       <View style={styles.slideCenter}>
         <Text style={styles.setupTitle}>What should we call you?</Text>
         <Text style={styles.setupSub}>
-          This name is only used to personalize your experience inside the app.
+          Only used to personalize your experience inside the app.
         </Text>
         <TextInput
           style={styles.nameInput}
-          placeholder="Your name"
+          placeholder="First name"
           placeholderTextColor={C.textTertiary}
-          value={onboardingName}
-          onChangeText={setOnboardingName}
+          value={onboardingFirstName}
+          onChangeText={setOnboardingFirstName}
           autoCapitalize="words"
+          returnKeyType="next"
+        />
+        <TextInput
+          style={[styles.nameInput, { marginTop: 16 }]}
+          placeholder="Last name"
+          placeholderTextColor={C.textTertiary}
+          value={onboardingLastName}
+          onChangeText={setOnboardingLastName}
+          autoCapitalize="words"
+          returnKeyType="done"
         />
       </View>
     </View>
   );
 
   const renderSlide3 = () => (
+    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
+      <View style={styles.slideCenter}>
+        <Text style={styles.setupTitle}>Choose your appearance</Text>
+        <Text style={styles.setupSub}>You can change this anytime in Settings.</Text>
+        <View style={styles.appearanceList}>
+          {APPEARANCE_OPTIONS.map((opt) => {
+            const isSelected = selectedAppearance === opt.id;
+            return (
+              <Pressable
+                key={opt.id}
+                style={[styles.appearanceRow, isSelected && styles.appearanceRowActive]}
+                onPress={() => {
+                  setSelectedAppearance(opt.id);
+                  Haptics.selectionAsync();
+                }}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isSelected }}
+              >
+                <View style={styles.appearanceTextGroup}>
+                  <Text style={[styles.appearanceLabel, isSelected && styles.appearanceLabelActive]}>{opt.label}</Text>
+                  <Text style={styles.appearanceDesc}>{opt.description}</Text>
+                </View>
+                <View style={[styles.appearanceRadio, isSelected && styles.appearanceRadioActive]}>
+                  {isSelected && <View style={styles.appearanceRadioDot} />}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderSlide4 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <Text style={styles.setupTitle}>Make Synapse yours.</Text>
       <Text style={styles.setupSub}>Choose what matters to you. You can always change this later.</Text>
@@ -216,7 +275,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const renderSlide4 = () => (
+  const renderSlide5 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <KeyboardAvoidingView
         style={styles.authSlide}
@@ -237,7 +296,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const renderSlide5 = () => (
+  const renderSlide6 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <View style={styles.slideCenter}>
         <View style={styles.completionCircle}>
@@ -249,9 +308,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const slides = [renderSlide0, renderSlide1, renderSlide2, renderSlide3, renderSlide4, renderSlide5];
+  const slides = [renderSlide0, renderSlide1, renderSlide2, renderSlide3, renderSlide4, renderSlide5, renderSlide6];
 
-  const showContinue = step < SLIDE_COUNT - 1 && step !== 4;
+  const showContinue = step < SLIDE_COUNT - 1 && step !== 5;
   const showOpenSynapse = step === SLIDE_COUNT - 1;
 
   return (
@@ -431,6 +490,30 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: C.text,
   },
+
+  appearanceList: { gap: 12, width: "100%", marginTop: 8 },
+  appearanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    borderWidth: 1.5,
+    borderColor: C.border,
+  },
+  appearanceRowActive: { borderColor: MAROON, backgroundColor: MAROON_LIGHT },
+  appearanceTextGroup: { flex: 1 },
+  appearanceLabel: { fontWeight: "600", fontSize: 16, color: C.text },
+  appearanceLabelActive: { color: MAROON },
+  appearanceDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 2 },
+  appearanceRadio: {
+    width: 22, height: 22, borderRadius: 11, borderWidth: 2,
+    borderColor: C.border, alignItems: "center", justifyContent: "center",
+  },
+  appearanceRadioActive: { borderColor: MAROON },
+  appearanceRadioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: MAROON },
 
   sectionsScroll: { flex: 1 },
   sectionsScrollContent: { paddingTop: 20, paddingBottom: 40 },

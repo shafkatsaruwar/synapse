@@ -269,6 +269,8 @@ export type SectionKey = (typeof ALL_SECTION_KEYS)[number];
 
 export interface UserSettings {
   name: string;
+  firstName?: string;
+  lastName?: string;
   conditions: string[];
   ramadanMode: boolean;
   sickMode: boolean;
