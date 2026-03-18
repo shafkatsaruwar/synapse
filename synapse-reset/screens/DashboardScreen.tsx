@@ -205,7 +205,7 @@ function DashboardHero({
       </View>
 
       <View style={styles.dashboardHeroMiniRow}>
-        <View ref={medicationCardRef} collapsable={false}>
+        <View ref={medicationCardRef} collapsable={false} style={{ flex: 1 }}>
           <Pressable
             style={[
               styles.dashboardHeroMiniCard,
@@ -226,7 +226,7 @@ function DashboardHero({
           </Pressable>
         </View>
 
-        <View ref={appointmentCardRef} collapsable={false}>
+        <View ref={appointmentCardRef} collapsable={false} style={{ flex: 1 }}>
           <Pressable
             style={[
               styles.dashboardHeroMiniCard,

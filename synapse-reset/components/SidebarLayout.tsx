@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   Modal,
   Animated,
+  PanResponder,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
@@ -88,6 +89,19 @@ export default function SidebarLayout({
   const isWide = width >= 768;
   const [moreOpen, setMoreOpen] = useState(false);
   const drawerSlide = useRef(new Animated.Value(1)).current;
+
+  const isWideRef = useRef(isWide);
+  useEffect(() => { isWideRef.current = isWide; }, [isWide]);
+
+  const swipePanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) =>
+        !isWideRef.current && gs.dx > 20 && Math.abs(gs.dy) < 40,
+      onPanResponderRelease: (_, gs) => {
+        if (!isWideRef.current && gs.dx > 60) setMoreOpen(true);
+      },
+    })
+  ).current;
   const { user, session, signOut } = useAuth();
   const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
@@ -152,7 +166,7 @@ export default function SidebarLayout({
   }, [drawerSlide]);
 
   return (
-    <View style={styles.mobileContainer}>
+    <View style={styles.mobileContainer} {...swipePanResponder.panHandlers}>
       <View style={[styles.mobileHeaderRow, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 4 }]}>
         {isWide ? <View style={styles.headerSpacerLeft} /> : (
           <View ref={menuButtonRef} collapsable={false}>
@@ -216,7 +230,7 @@ export default function SidebarLayout({
                       <Ionicons
                         name={active ? item.iconActive : item.icon}
                         size={24}
-                        color={active ? (sickMode ? C.red : "#4A78C2") : "#8E8E93"}
+                        color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
                       />
                     </Pressable>
                   );
@@ -242,7 +256,7 @@ export default function SidebarLayout({
                       <Ionicons
                         name={active ? item.iconActive : item.icon}
                         size={24}
-                        color={active ? (sickMode ? C.red : "#4A78C2") : "#8E8E93"}
+                        color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
                       />
                     </Pressable>
                   );
@@ -278,12 +292,16 @@ export default function SidebarLayout({
                 },
               ]}
             >
-              <LinearGradient
-                colors={["#D1E0F7", "#BDD4F2"]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
+              {themeId === "light" ? (
+                <LinearGradient
+                  colors={["#D1E0F7", "#BDD4F2"]}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              ) : (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: C.background }]} />
+              )}
               <ScrollView
                 style={[styles.drawerScroll, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 32 }]}
                 contentContainerStyle={styles.drawerScrollContent}
