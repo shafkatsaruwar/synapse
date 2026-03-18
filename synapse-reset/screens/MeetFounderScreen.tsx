@@ -161,7 +161,7 @@ function BulletList({ items }: { items: string[] }) {
 }
 
 function makeStyles(C: Theme) { return StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 20 },
 
   photoContainer: {
