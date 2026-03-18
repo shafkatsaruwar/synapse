@@ -52,6 +52,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "settings", label: "Account", icon: "person-circle-outline", iconActive: "person-circle" },
   { key: "emergency", label: "Emergency Protocol", icon: "shield-outline", iconActive: "shield" },
   { key: "emergencycard", label: "Emergency Card", icon: "card-outline", iconActive: "card" },
+  { key: "meetfounder", label: "Meet the Founder", icon: "person-circle-outline", iconActive: "person-circle" },
 ];
 
 const PRIMARY_KEYS = ["dashboard", "healthdata", "settings"];
@@ -62,7 +63,7 @@ const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
   { title: "Emergency", keys: ["emergency", "emergencycard"] },
   { title: "Primary", keys: ["log", "medications", "healthdata", "appointments"] },
   { title: "Health & Insights", keys: ["reports", "monthlycheckin", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
-  { title: "System", keys: ["privacy", "settings"] },
+  { title: "System", keys: ["privacy", "settings", "meetfounder"] },
 ];
 
 const ESSENTIAL_SICK_KEYS = ["dashboard", "sickmode", "medications", "symptoms", "settings"];

@@ -32,6 +32,7 @@ import OnboardingScreen from "@/screens/OnboardingScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
 import EmergencyProtocolScreen from "@/screens/EmergencyProtocolScreen";
 import EmergencyCardScreen from "@/screens/EmergencyCardScreen";
+import MeetFounderScreen from "@/screens/MeetFounderScreen";
 import { settingsStorage } from "@/lib/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -246,6 +247,8 @@ export default function MainScreen() {
             onRestoreComplete={() => setRefreshKey((k) => k + 1)}
           />
         );
+      case "meetfounder":
+        return <MeetFounderScreen />;
       case "settings":
         return (
           <SettingsScreen
