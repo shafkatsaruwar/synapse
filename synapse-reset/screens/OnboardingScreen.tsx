@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { settingsStorage, healthProfileStorage, ALL_SECTION_KEYS } from "@/lib/storage";
+import { settingsStorage, healthProfileStorage, ALL_SECTION_KEYS, REQUIRED_SECTION_KEYS } from "@/lib/storage";
 import { useTheme, type ThemePreference } from "@/contexts/ThemeContext";
 import { setBiometricLockEnabled } from "@/lib/biometric-storage";
 import SynapseLogo from "@/components/SynapseLogo";
@@ -101,6 +101,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   };
 
   const toggleSection = (key: string) => {
+    if (REQUIRED_SECTION_KEYS.includes(key)) return;
     setSelectedSections((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
@@ -253,20 +254,25 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         <View style={styles.sectionsList}>
           {(ALL_SECTION_KEYS as unknown as string[]).map((key) => {
             const label = SECTION_LABELS[key] ?? key;
-            const isSelected = selectedSections.has(key);
+            const isRequired = REQUIRED_SECTION_KEYS.includes(key);
+            const isSelected = isRequired || selectedSections.has(key);
             return (
               <Pressable
                 key={key}
-                style={[styles.sectionRow, isSelected && styles.sectionRowActive]}
+                style={[styles.sectionRow, isSelected && styles.sectionRowActive, isRequired && styles.sectionRowRequired]}
                 onPress={() => toggleSection(key)}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: isSelected }}
-                accessibilityLabel={`${label}, ${isSelected ? "on" : "off"}`}
+                accessibilityLabel={`${label}, ${isRequired ? "required" : isSelected ? "on" : "off"}`}
               >
                 <Text style={[styles.sectionRowLabel, isSelected && styles.sectionRowLabelActive]}>{label}</Text>
-                <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
-                  {isSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
-                </View>
+                {isRequired ? (
+                  <Ionicons name="lock-closed" size={14} color={MAROON} />
+                ) : (
+                  <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
+                    {isSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+                  </View>
+                )}
               </Pressable>
             );
           })}
@@ -548,6 +554,9 @@ const styles = StyleSheet.create({
   sectionRowActive: {
     borderColor: MAROON,
     backgroundColor: MAROON_LIGHT,
+  },
+  sectionRowRequired: {
+    opacity: 0.75,
   },
   sectionRowLabel: {
     fontWeight: "500",

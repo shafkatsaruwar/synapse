@@ -311,6 +311,35 @@ export async function cancelAppointmentReminders(appointmentId: string): Promise
   await Notifications.cancelScheduledNotificationAsync(`${NOTIFICATION_IDS.prefixApt1hr}-${appointmentId}`);
 }
 
+/** Map a notification identifier to an app screen key. */
+function getScreenForNotificationId(id: string): string | null {
+  if (id.startsWith("med-") || id.startsWith("refill-")) return "medications";
+  if (id.startsWith("apt-")) return "appointments";
+  if (id === NOTIFICATION_IDS.dailyCheckIn) return "log";
+  if (id === NOTIFICATION_IDS.monthlyCheckIn) return "monthlycheckin";
+  return null;
+}
+
+/** Module-level navigation callback — set via setNotificationNavigateCallback(). */
+let _navigateCallback: ((screen: string) => void) | null = null;
+
+/** Register the app's navigate function so notification taps can route to the right screen. */
+export function setNotificationNavigateCallback(fn: (screen: string) => void): void {
+  _navigateCallback = fn;
+}
+
+/** Call on app mount to handle any notification that launched the app from a killed state. */
+export async function handleLastNotificationResponse(): Promise<void> {
+  if (!isNative()) return;
+  try {
+    const response = await Notifications.getLastNotificationResponseAsync();
+    if (!response) return;
+    const id = response.notification.request.identifier;
+    const screen = getScreenForNotificationId(id);
+    if (screen && _navigateCallback) _navigateCallback(screen);
+  } catch {}
+}
+
 /** Subscribe to notification responses (Mark as Taken, Snooze). Call once at app root. */
 export function addNotificationResponseListener(
   onMarkTaken: (medicationId: string, doseIndex: number) => void,
@@ -334,6 +363,11 @@ export function addNotificationResponseListener(
       }).then(() => {
         onSnooze(data.medicationId!, data.doseIndex ?? 0, data.medicationName ?? "Medication", data.dosage ?? "");
       });
+    } else if (actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+      // User tapped the notification banner — route to the relevant screen
+      const id = response.notification.request.identifier;
+      const screen = getScreenForNotificationId(id);
+      if (screen && _navigateCallback) _navigateCallback(screen);
     }
   });
   return () => sub.remove();

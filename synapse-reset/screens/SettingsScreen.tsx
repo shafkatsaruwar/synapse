@@ -20,6 +20,7 @@ import {
   conditionStorage,
   clearAllData,
   ALL_SECTION_KEYS,
+  REQUIRED_SECTION_KEYS,
   medicationStorage,
   medicationLogStorage,
   appointmentStorage,
@@ -121,6 +122,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   };
 
   const toggleSection = (key: string) => {
+    if (REQUIRED_SECTION_KEYS.includes(key)) return;
     setSectionSelections((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
@@ -447,24 +449,29 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
             <ScrollView style={{ maxHeight: 320, width: "100%" }} showsVerticalScrollIndicator>
               {(ALL_SECTION_KEYS as unknown as string[]).map((key) => {
                 const label = SECTION_LABELS[key] ?? key;
-                const isSelected = sectionSelections.has(key);
+                const isRequired = REQUIRED_SECTION_KEYS.includes(key);
+                const isSelected = isRequired || sectionSelections.has(key);
                 const iconName = SECTION_ICONS[key] ?? "ellipse-outline";
                 return (
                   <Pressable
                     key={key}
-                    style={[styles.profileRow, { marginBottom: 8, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: isSelected ? C.tint : C.border, backgroundColor: isSelected ? C.tintLight : C.surface }]}
+                    style={[styles.profileRow, { marginBottom: 8, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: isSelected ? C.tint : C.border, backgroundColor: isSelected ? C.tintLight : C.surface, opacity: isRequired ? 0.75 : 1 }]}
                     onPress={() => toggleSection(key)}
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: isSelected }}
-                    accessibilityLabel={`${label}, ${isSelected ? "on" : "off"}`}
+                    accessibilityLabel={`${label}, ${isRequired ? "required" : isSelected ? "on" : "off"}`}
                   >
                     <View style={[styles.profileIcon, { backgroundColor: isSelected ? C.tint : C.surfaceElevated }]}>
                       <Ionicons name={iconName} size={18} color={isSelected ? "#fff" : C.textSecondary} />
                     </View>
                     <Text style={[styles.profileRowTitle, { flex: 1, marginBottom: 0 }]} numberOfLines={1}>{label}</Text>
-                    <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
-                      {isSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
-                    </View>
+                    {isRequired ? (
+                      <Ionicons name="lock-closed" size={14} color={C.tint} />
+                    ) : (
+                      <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
+                        {isSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+                      </View>
+                    )}
                   </Pressable>
                 );
               })}
