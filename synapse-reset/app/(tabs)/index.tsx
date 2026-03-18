@@ -173,12 +173,14 @@ export default function MainScreen() {
   };
 
   const handleOnboardingComplete = (options?: { openMedications?: boolean }) => {
+    setHasSeenWalkthrough(false); // always show tour after fresh onboarding
     setShowOnboarding(false);
     if (options?.openMedications) setActiveScreen("medications");
     setRefreshKey((k) => k + 1);
   };
 
   const handleResetApp = () => {
+    setHasSeenWalkthrough(false); // reset tour on app reset too
     setShowOnboarding(true);
     setActiveScreen("dashboard");
     setSickMode(false);
