@@ -122,7 +122,7 @@ export default function SidebarLayout({
 
   const loadSettings = useCallback(async () => {
     const s = await settingsStorage.get();
-    setSettingsName(s?.name);
+    setSettingsName(s?.firstName?.trim() || s?.name);
     setEnabledSections(s?.enabledSections);
   }, []);
 
