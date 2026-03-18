@@ -9,11 +9,11 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Colors from "@/constants/colors";
-
-const C = Colors.dark;
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 
 export default function MeetFounderScreen() {
+  const { colors: C } = useTheme();
+  const styles = makeStyles(C);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -132,6 +132,8 @@ function Section({
   title: string;
   children: React.ReactNode;
 }) {
+  const { colors: C } = useTheme();
+  const styles = makeStyles(C);
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
@@ -144,6 +146,8 @@ function Section({
 }
 
 function BulletList({ items }: { items: string[] }) {
+  const { colors: C } = useTheme();
+  const styles = makeStyles(C);
   return (
     <View style={styles.bulletList}>
       {items.map((item, i) => (
@@ -156,7 +160,7 @@ function BulletList({ items }: { items: string[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: Theme) { return StyleSheet.create({
   container: { flex: 1, backgroundColor: C.background },
   content: { paddingHorizontal: 20 },
 
@@ -314,4 +318,4 @@ const styles = StyleSheet.create({
     marginTop: 14,
     fontWeight: "600",
   },
-});
+}); }
