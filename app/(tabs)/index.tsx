@@ -26,6 +26,7 @@ import AllergyScreen from "@/screens/AllergyScreen";
 import DoctorsScreen from "@/screens/DoctorsScreen";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import AuthScreen from "@/screens/AuthScreen";
+import MeetFounderScreen from "@/screens/MeetFounderScreen";
 import { settingsStorage } from "@/lib/storage";
 import Colors from "@/constants/colors";
 
@@ -138,6 +139,8 @@ export default function MainScreen() {
         return <AllergyScreen onBack={() => handleNavigate("healthprofile")} />;
       case "auth":
         return <AuthScreen onBack={() => handleNavigate("settings")} onSuccess={() => handleNavigate("settings")} />;
+      case "meetfounder":
+        return <MeetFounderScreen />;
       case "settings":
         return <SettingsScreen onResetApp={handleResetApp} onNavigate={handleNavigate} onRestoreComplete={() => setRefreshKey((k) => k + 1)} />;
       default:
