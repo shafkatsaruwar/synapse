@@ -116,7 +116,7 @@ export default function SidebarLayout({
     loadSettings();
   }, [loadSettings, activeScreen]);
 
-  const alwaysNavKeys = ["dashboard", "medications", "settings", "privacy", "emergency", "emergencycard"];
+  const alwaysNavKeys = ["dashboard", "medications", "settings", "privacy", "emergency", "emergencycard", "meetfounder"];
   const enabledKeysSet = new Set(
     enabledSections !== undefined
       ? [...alwaysNavKeys, ...enabledSections]
