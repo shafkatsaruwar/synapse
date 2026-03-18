@@ -392,7 +392,7 @@ function makeStyles(C: Theme) {
     title: {
       fontSize: 19,
       fontWeight: "700",
-      color: C.textPrimary,
+      color: C.text,
       marginBottom: 7,
     },
     body: {
