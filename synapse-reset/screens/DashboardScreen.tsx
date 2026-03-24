@@ -121,7 +121,7 @@ interface DashboardScreenProps {
 }
 
 interface DashboardHeroProps {
-  ramadanDayLabel: string;
+  ramadanDayLabel?: string;
   subtitle: string;
   leftTimeLabel: string;
   rightTimeLabel: string;
@@ -168,14 +168,16 @@ function DashboardHero({
   const renderHeroInner = () => (
     <View style={styles.dashboardHeroGradient}>
       <View style={styles.dashboardHeroHeader}>
-        <Text
-          style={[
-            styles.dashboardHeroRamadan,
-            themeId === "light" && { color: "#1F2937" },
-          ]}
-        >
-          {ramadanDayLabel}
-        </Text>
+        {ramadanDayLabel ? (
+          <Text
+            style={[
+              styles.dashboardHeroRamadan,
+              themeId === "light" && { color: "#1F2937" },
+            ]}
+          >
+            {ramadanDayLabel}
+          </Text>
+        ) : null}
         <Text style={styles.dashboardHeroSubtitle}>{subtitle}</Text>
       </View>
 
@@ -655,7 +657,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       {ramadanDay && (
         <View style={styles.ramadanSection}>
           <DashboardHero
-            ramadanDayLabel={`Ramadan ${ramadanDay.hijriDay}${ordinalSuffix(ramadanDay.hijriDay)}, 1447 AH`}
+            ramadanDayLabel={isRamadanMode ? `Ramadan ${ramadanDay.hijriDay}${ordinalSuffix(ramadanDay.hijriDay)}, 1447 AH` : undefined}
             subtitle={goodDayMessage}
             leftTimeLabel={leftLabel}
             rightTimeLabel={rightLabel}
