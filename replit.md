@@ -1,5 +1,11 @@
 # Synapse Health
 
+## Repo Status
+
+- Active mobile app: [`synapse-reset/`](/Users/mohammed/Developer/Synapse/synapse-reset)
+- Older app variant still exists at the repo root
+- When working on the current mobile product, prefer files under `synapse-reset/`
+
 ## Overview
 
 Synapse is a personal health tracking mobile application built with Expo (React Native) and an Express backend. It allows users to log daily health metrics (energy, mood, sleep), track medications, record symptoms, manage appointments with doctor notes, and generate health reports. The app has a warm beige/maroon themed UI with sidebar navigation and supports both mobile and wider screen layouts. It includes a Ramadan/fasting mode for users who observe religious fasting.
