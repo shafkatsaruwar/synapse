@@ -121,12 +121,13 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
 
   const handleSaveToPhone = useCallback(async () => {
     if (Platform.OS === "web") {
-      Alert.alert("Not available", "Saving to camera roll is not supported on web.");
+      Alert.alert("Not available", "Saving to your photo library is not supported on web.");
       return;
     }
+    // Ask for add-only photo permission when the user explicitly chooses to save the card.
     const { status } = await MediaLibrary.requestPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission needed", "Allow photo library access to save the emergency card.");
+      Alert.alert("Permission needed", "Allow photo library access so Synapse can save your emergency card to your library.");
       return;
     }
     setSaving(true);
@@ -140,9 +141,9 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
       const fileUri = uri.startsWith("file://") ? uri : `file://${uri}`;
       await MediaLibrary.saveToLibraryAsync(fileUri);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Saved", "Emergency card saved to your camera roll.");
+      Alert.alert("Saved", "Emergency card saved to your photo library.");
     } catch (e) {
-      Alert.alert("Save failed", "Could not save to camera roll.");
+      Alert.alert("Save failed", "Could not save to your photo library.");
     }
   }, [captureCard]);
 
