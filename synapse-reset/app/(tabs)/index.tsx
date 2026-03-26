@@ -56,6 +56,8 @@ export default function MainScreen() {
   const [sickMode, setSickMode] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [walkthroughStepId, setWalkthroughStepId] = useState<string | null>(null);
+  const [walkthroughMenuOpen, setWalkthroughMenuOpen] = useState<boolean | null>(null);
 
   const checkInitialState = useCallback(async () => {
     try {
@@ -186,6 +188,30 @@ export default function MainScreen() {
     setSickMode(false);
   };
 
+  const handleWalkthroughStepEnter = useCallback(async (stepId: string | null) => {
+    switch (stepId) {
+      case "medication":
+      case "dailylog":
+      case "appointments":
+        setWalkthroughMenuOpen(false);
+        setActiveScreen("dashboard");
+        return;
+      case "menu":
+        setActiveScreen("dashboard");
+        setWalkthroughMenuOpen(true);
+        return;
+      case "emergencycard":
+        setActiveScreen("dashboard");
+        setWalkthroughMenuOpen(true);
+        return;
+      case "final":
+        setWalkthroughMenuOpen(false);
+        return;
+      default:
+        setWalkthroughMenuOpen(null);
+    }
+  }, []);
+
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
@@ -285,6 +311,8 @@ export default function MainScreen() {
       onNavigate={handleNavigate}
       sickMode={sickMode}
       headerRight={activeScreen === "dashboard" ? <SickModeHeaderButton onActivate={handleActivateSickMode} onNavigate={handleNavigate} refreshKey={refreshKey} /> : undefined}
+      walkthroughStepId={walkthroughStepId}
+      walkthroughMenuOpen={walkthroughMenuOpen}
     >
       {renderScreen()}
     </SidebarLayout>
@@ -304,8 +332,12 @@ export default function MainScreen() {
           </View>
           <AppWalkthrough
             visible={showWalkthrough}
+            onStepChange={setWalkthroughStepId}
+            onStepEnter={handleWalkthroughStepEnter}
             onComplete={async () => {
               await setHasSeenWalkthrough(true);
+              setWalkthroughStepId(null);
+              setWalkthroughMenuOpen(null);
               setShowWalkthrough(false);
             }}
           />
@@ -322,8 +354,12 @@ export default function MainScreen() {
         <View style={styles.container}>{content}</View>
         <AppWalkthrough
           visible={showWalkthrough}
+          onStepChange={setWalkthroughStepId}
+          onStepEnter={handleWalkthroughStepEnter}
           onComplete={async () => {
             await setHasSeenWalkthrough(true);
+            setWalkthroughStepId(null);
+            setWalkthroughMenuOpen(null);
             setShowWalkthrough(false);
           }}
         />

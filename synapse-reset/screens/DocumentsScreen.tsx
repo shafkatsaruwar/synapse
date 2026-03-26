@@ -5,11 +5,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as ImagePicker from "expo-image-picker";
 import Colors from "@/constants/colors";
 import { documentStorage, medicationStorage, medComparisonStorage, type DocumentExtraction } from "@/lib/storage";
 import { analyzeDocument, compareMedications } from "@/lib/api";
 import { formatDate, getToday } from "@/lib/date-utils";
+import { featureFlags } from "@/constants/feature-flags";
 
 const C = Colors.dark;
 
@@ -33,12 +33,17 @@ export default function DocumentsScreen() {
   React.useEffect(() => { loadData(); }, [loadData]);
 
   const pickAndAnalyze = async () => {
+    if (!featureFlags.documentScannerEnabled) {
+      Alert.alert("Unavailable", "Document upload is disabled in this version of Synapse.");
+      return;
+    }
+
+    Alert.alert("Unavailable", "Photo library document upload is disabled in this version of Synapse.");
+    return;
+
+    /*
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        base64: true,
-        quality: 0.8,
-      });
+      // Intentionally disabled for this release to keep photo access add-only.
 
       if (result.canceled || !result.assets?.[0]?.base64) return;
 
@@ -101,6 +106,7 @@ export default function DocumentsScreen() {
       setLoading(false);
       setLoadingMsg("");
     }
+    */
   };
 
   const handleDelete = (id: string) => {

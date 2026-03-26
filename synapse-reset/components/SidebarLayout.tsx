@@ -75,6 +75,8 @@ interface SidebarLayoutProps {
   children: React.ReactNode;
   sickMode?: boolean;
   headerRight?: React.ReactNode;
+  walkthroughStepId?: string | null;
+  walkthroughMenuOpen?: boolean | null;
 }
 
 export default function SidebarLayout({
@@ -83,6 +85,8 @@ export default function SidebarLayout({
   children,
   sickMode,
   headerRight,
+  walkthroughStepId,
+  walkthroughMenuOpen,
 }: SidebarLayoutProps) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -108,13 +112,22 @@ export default function SidebarLayout({
   const [settingsName, setSettingsName] = useState<string | undefined>(undefined);
   const [enabledSections, setEnabledSections] = useState<string[] | undefined>(undefined);
   const menuButtonRef = useRef<View>(null);
+  const emergencyCardRef = useRef<View>(null);
   const walkthrough = useWalkthroughTargets();
+  const registerTarget = walkthrough?.registerTarget;
+  const unregisterTarget = walkthrough?.unregisterTarget;
 
   useEffect(() => {
-    if (!walkthrough) return;
-    walkthrough.registerTarget("menu", () => measureInWindow(menuButtonRef));
-    return () => walkthrough.unregisterTarget("menu");
-  }, [walkthrough]);
+    if (!registerTarget || !unregisterTarget) return;
+    registerTarget("menu", () => measureInWindow(menuButtonRef));
+    return () => unregisterTarget("menu");
+  }, [registerTarget, unregisterTarget]);
+
+  useEffect(() => {
+    if (!registerTarget || !unregisterTarget || !moreOpen) return;
+    registerTarget("emergencycard", () => measureInWindow(emergencyCardRef));
+    return () => unregisterTarget("emergencycard");
+  }, [registerTarget, unregisterTarget, moreOpen]);
 
   const moreIsActive = MORE_ITEMS.some((n) => n.key === activeScreen);
   const isWideScreen = width >= 768;
@@ -156,6 +169,27 @@ export default function SidebarLayout({
       drawerSlide.setValue(1);
     }
   }, [moreOpen, drawerSlide]);
+
+  useEffect(() => {
+    if (isWide) return;
+    if (walkthroughMenuOpen != null) {
+      if (walkthroughMenuOpen) {
+        setMoreOpen(true);
+        return;
+      }
+      setMoreOpen(false);
+      drawerSlide.setValue(1);
+      return;
+    }
+    if (walkthroughStepId === "emergencycard") {
+      setMoreOpen(true);
+      return;
+    }
+    if (walkthroughStepId === "menu" || walkthroughStepId === "final" || walkthroughStepId == null) {
+      setMoreOpen(false);
+      drawerSlide.setValue(1);
+    }
+  }, [walkthroughMenuOpen, walkthroughStepId, isWide, drawerSlide]);
 
   const closeDrawer = useCallback(() => {
     Animated.timing(drawerSlide, {
@@ -336,48 +370,50 @@ export default function SidebarLayout({
                       {items.map((item) => {
                         const isLogout = item.key === "logout";
                         const isEmergency = item.key === "emergency";
+                        const isEmergencyCard = item.key === "emergencycard";
                         const active = !isLogout && activeScreen === item.key;
                         const dimmed = !isLogout && sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
                         const accentColor = sickMode ? C.red : C.accent;
                         const itemColor = isEmergency ? C.tint : (active ? accentColor : C.textSecondary);
                         return (
-                          <Pressable
-                            key={item.key}
-                            style={({ pressed }) => [
-                              styles.drawerRow,
-                              isEmergency && styles.drawerRowEmergency,
-                              active && [styles.drawerRowActive, { borderLeftColor: accentColor }],
-                              dimmed && { opacity: 0.35 },
-                              pressed && styles.drawerRowPressed,
-                            ]}
-                            onPress={() => {
-                              if (isLogout) {
-                                signOut();
-                                closeDrawer();
-                              } else {
-                                onNavigate(item.key);
-                                closeDrawer();
-                              }
-                            }}
-                            testID={isLogout ? "more-logout" : `more-${item.key}`}
-                            accessibilityRole="button"
-                            accessibilityLabel={item.label}
-                            accessibilityState={{ selected: active }}
-                          >
-                            <Ionicons
-                              name={item.icon}
-                              size={20}
-                              color={itemColor}
-                              style={styles.drawerRowIcon}
-                            />
-                            <Text
-                              style={[styles.drawerRowLabel, { color: itemColor }, active && !isEmergency && { color: accentColor, fontWeight: "600" }]}
-                              numberOfLines={1}
+                          <View key={item.key} ref={isEmergencyCard ? emergencyCardRef : undefined} collapsable={false}>
+                            <Pressable
+                              style={({ pressed }) => [
+                                styles.drawerRow,
+                                isEmergency && styles.drawerRowEmergency,
+                                active && [styles.drawerRowActive, { borderLeftColor: accentColor }],
+                                dimmed && { opacity: 0.35 },
+                                pressed && styles.drawerRowPressed,
+                              ]}
+                              onPress={() => {
+                                if (isLogout) {
+                                  signOut();
+                                  closeDrawer();
+                                } else {
+                                  onNavigate(item.key);
+                                  closeDrawer();
+                                }
+                              }}
+                              testID={isLogout ? "more-logout" : `more-${item.key}`}
+                              accessibilityRole="button"
+                              accessibilityLabel={item.label}
+                              accessibilityState={{ selected: active }}
                             >
-                              {item.label}
-                            </Text>
-                            <Ionicons name="chevron-forward" size={16} color={isEmergency ? C.tint : C.textSecondary} />
-                          </Pressable>
+                              <Ionicons
+                                name={item.icon}
+                                size={20}
+                                color={itemColor}
+                                style={styles.drawerRowIcon}
+                              />
+                              <Text
+                                style={[styles.drawerRowLabel, { color: itemColor }, active && !isEmergency && { color: accentColor, fontWeight: "600" }]}
+                                numberOfLines={1}
+                              >
+                                {item.label}
+                              </Text>
+                              <Ionicons name="chevron-forward" size={16} color={isEmergency ? C.tint : C.textSecondary} />
+                            </Pressable>
+                          </View>
                         );
                       })}
                     </View>

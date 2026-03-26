@@ -1,13 +1,14 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { View, StyleSheet, Text, Pressable, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useIsTablet } from "@/lib/device";
+import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
+import { featureFlags } from "@/constants/feature-flags";
 
 const SIDEBAR_GRADIENT = ["#D1E0F7", "#BDD4F2"];
-import { featureFlags } from "@/constants/feature-flags";
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -63,6 +64,16 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
   const insets = useSafeAreaInsets();
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
+  const emergencyCardRef = useRef<View>(null);
+  const walkthrough = useWalkthroughTargets();
+  const registerTarget = walkthrough?.registerTarget;
+  const unregisterTarget = walkthrough?.unregisterTarget;
+
+  useEffect(() => {
+    if (!registerTarget || !unregisterTarget || !isTablet) return;
+    registerTarget("emergencycard", () => measureInWindow(emergencyCardRef));
+    return () => unregisterTarget("emergencycard");
+  }, [registerTarget, unregisterTarget, isTablet]);
 
   if (!isTablet) return null;
 
@@ -89,24 +100,26 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
               <Text style={styles.groupTitle}>{group.title}</Text>
               {items.map((item) => {
                 const active = activeScreen === item.key;
+                const isEmergencyCard = item.key === "emergencycard";
                 return (
-                  <Pressable
-                    key={item.key}
-                    style={[styles.navItem, styles.navItemExpanded, active && styles.navItemActive]}
-                    onPress={() => onNavigate(item.key)}
-                    accessibilityRole="button"
-                    accessibilityLabel={item.label}
-                    accessibilityState={{ selected: active }}
-                  >
-                    <Ionicons
-                      name={active ? item.iconActive : item.icon}
-                      size={24}
-                      color={active ? "#2563eb" : "rgba(0,0,0,0.55)"}
-                    />
-                    <Text style={[styles.navLabel, active && styles.navLabelActive]} numberOfLines={1}>
-                      {item.label}
-                    </Text>
-                  </Pressable>
+                  <View key={item.key} ref={isEmergencyCard ? emergencyCardRef : undefined} collapsable={false}>
+                    <Pressable
+                      style={[styles.navItem, styles.navItemExpanded, active && styles.navItemActive]}
+                      onPress={() => onNavigate(item.key)}
+                      accessibilityRole="button"
+                      accessibilityLabel={item.label}
+                      accessibilityState={{ selected: active }}
+                    >
+                      <Ionicons
+                        name={active ? item.iconActive : item.icon}
+                        size={24}
+                        color={active ? "#2563eb" : "rgba(0,0,0,0.55)"}
+                      />
+                      <Text style={[styles.navLabel, active && styles.navLabelActive]} numberOfLines={1}>
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  </View>
                 );
               })}
             </View>

@@ -350,21 +350,23 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const isWide = width >= 768;
   const today = getToday();
   const walkthrough = useWalkthroughTargets();
+  const registerTarget = walkthrough?.registerTarget;
+  const unregisterTarget = walkthrough?.unregisterTarget;
   const refMed = useRef<View>(null);
   const refApt = useRef<View>(null);
   const refDailyLog = useRef<View>(null);
 
   useEffect(() => {
-    if (!walkthrough) return;
-    walkthrough.registerTarget("medication", () => measureInWindow(refMed));
-    walkthrough.registerTarget("appointments", () => measureInWindow(refApt));
-    walkthrough.registerTarget("dailylog", () => measureInWindow(refDailyLog));
+    if (!registerTarget || !unregisterTarget) return;
+    registerTarget("medication", () => measureInWindow(refMed));
+    registerTarget("appointments", () => measureInWindow(refApt));
+    registerTarget("dailylog", () => measureInWindow(refDailyLog));
     return () => {
-      walkthrough.unregisterTarget("medication");
-      walkthrough.unregisterTarget("appointments");
-      walkthrough.unregisterTarget("dailylog");
+      unregisterTarget("medication");
+      unregisterTarget("appointments");
+      unregisterTarget("dailylog");
     };
-  }, [walkthrough]);
+  }, [registerTarget, unregisterTarget]);
 
   const [todayLog, setTodayLog] = useState<HealthLog | undefined>();
   const [medications, setMedications] = useState<Medication[]>([]);

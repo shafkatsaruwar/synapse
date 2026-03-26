@@ -100,6 +100,13 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     }
   };
 
+  const goBack = () => {
+    if (step > 0) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setStep((s) => s - 1);
+    }
+  };
+
   const toggleSection = (key: string) => {
     if (REQUIRED_SECTION_KEYS.includes(key)) return;
     setSelectedSections((prev) => {
@@ -316,6 +323,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
   const slides = [renderSlide0, renderSlide1, renderSlide2, renderSlide3, renderSlide4, renderSlide5, renderSlide6];
 
+  const showBack = step > 0;
   const showContinue = step < SLIDE_COUNT - 1 && step !== 5;
   const showOpenSynapse = step === SLIDE_COUNT - 1;
 
@@ -353,6 +361,12 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
             />
           ))}
         </View>
+        {showBack && (
+          <Pressable style={styles.backBtnFooter} onPress={goBack} accessibilityRole="button" accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={18} color={MAROON} />
+            <Text style={styles.backBtnFooterText}>Back</Text>
+          </Pressable>
+        )}
         {showContinue && (
           <Pressable style={styles.continueBtn} onPress={goNext} accessibilityRole="button" accessibilityLabel="Continue">
             <Text style={styles.continueBtnText}>Continue</Text>
@@ -435,6 +449,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   footer: { gap: 16, paddingBottom: 8 },
+  backBtnFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    alignSelf: "center",
+    minHeight: 44,
+    paddingHorizontal: 12,
+  },
+  backBtnFooterText: {
+    fontWeight: "600",
+    fontSize: 16,
+    color: MAROON,
+  },
 
   dotsRow: { flexDirection: "row", justifyContent: "center", gap: 10 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(128,0,32,0.2)" },

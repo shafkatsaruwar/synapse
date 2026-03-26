@@ -20,11 +20,43 @@ import { useWalkthroughTargets } from "@/contexts/WalkthroughContext";
 
 // ─── Step definitions ────────────────────────────────────────────────────────
 
-const WALKTHROUGH_STEPS: { id: string; title: string; body: string }[] = [
-  { id: "medication",   title: "Medications",        body: "Track the medicines you take every day." },
-  { id: "dailylog",     title: "Daily Log",          body: "Log your mood, energy, and how you're feeling." },
-  { id: "appointments", title: "Appointments",       body: "Keep track of your doctor visits." },
-  { id: "menu",         title: "Emergency Protocol", body: "Quick access to emergency instructions. Open the menu to find Emergency Protocol." },
+const WALKTHROUGH_STEPS: WalkthroughStep[] = [
+  {
+    id: "medication",
+    title: "Medications",
+    body: "Stay on track with your daily medications.",
+    targetIds: ["medication", "menu"],
+    enterDelayMs: 220,
+  },
+  {
+    id: "dailylog",
+    title: "Daily Log",
+    body: "Log your mood, energy, and how you feel each day.",
+    targetIds: ["dailylog"],
+    enterDelayMs: 220,
+  },
+  {
+    id: "appointments",
+    title: "Appointments",
+    body: "Keep track of upcoming doctor visits.",
+    targetIds: ["appointments"],
+    enterDelayMs: 220,
+  },
+  {
+    id: "menu",
+    title: "Navigation",
+    body: "Everything else lives here. Explore your health in one place.",
+    targetIds: ["menu"],
+    enterDelayMs: 180,
+  },
+  {
+    id: "emergencycard",
+    title: "Emergency Card",
+    body: "Your emergency info, ready when it matters most.",
+    targetIds: ["emergencycard"],
+    enterDelayMs: 260,
+  },
+  { id: "final", title: "Simple. Private. Built for you.", body: "", enterDelayMs: 120 },
 ];
 
 // ─── Layout constants ────────────────────────────────────────────────────────
@@ -54,14 +86,24 @@ interface Placement {
   arrowX?: number;
 }
 
+interface WalkthroughStep {
+  id: string;
+  title: string;
+  body: string;
+  targetIds?: string[];
+  enterDelayMs?: number;
+}
+
 interface AppWalkthroughProps {
   visible: boolean;
   onComplete: () => void;
+  onStepChange?: (stepId: string | null) => void;
+  onStepEnter?: (stepId: string | null) => void | Promise<void>;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function AppWalkthrough({ visible, onComplete }: AppWalkthroughProps) {
+export default function AppWalkthrough({ visible, onComplete, onStepChange, onStepEnter }: AppWalkthroughProps) {
   const [step,        setStep]       = useState(0);
   const [targetRect,  setTargetRect] = useState<Rect | null>(null);
   const [transitioning, setTransitioning] = useState(false);
@@ -70,6 +112,8 @@ export default function AppWalkthrough({ visible, onComplete }: AppWalkthroughPr
   const { width: winWidth, height: winHeight } = useWindowDimensions();
   const { colors: C } = useTheme();
   const targets = useWalkthroughTargets();
+  const getTarget = targets?.getTarget;
+  const walkthroughVersion = targets?.version;
 
   // Animated values
   const dimOpacity     = useRef(new Animated.Value(0)).current;
@@ -93,49 +137,130 @@ export default function AppWalkthrough({ visible, onComplete }: AppWalkthroughPr
     } else {
       dimOpacity.setValue(0);
     }
-  }, [visible]);
+  }, [visible, dimOpacity, tooltipOpacity, tooltipSlide]);
 
   // ── Measure target on step change ─────────────────────────────────────────
-  const stepId = WALKTHROUGH_STEPS[step]?.id;
-  const measureTarget = targets?.getTarget(stepId);
+  const current = WALKTHROUGH_STEPS[step];
+  const stepId = current?.id;
+  const resolveMeasureTarget = useCallback((stepConfig?: WalkthroughStep) => {
+    if (!stepConfig?.targetIds?.length || !getTarget) return undefined;
+    for (const targetId of stepConfig.targetIds) {
+      const measure = getTarget(targetId);
+      if (measure) return measure;
+    }
+    return undefined;
+  }, [getTarget]);
+
+  const animateTooltipIn = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(tooltipOpacity, {
+        toValue: 1,
+        duration: ANIM_IN_MS,
+        useNativeDriver: true,
+      }),
+      Animated.timing(tooltipSlide, {
+        toValue: 0,
+        duration: ANIM_IN_MS,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [tooltipOpacity, tooltipSlide]);
+
+  const goToNextStep = useCallback(() => {
+    setStep((currentStep) => {
+      const nextStep = currentStep + 1;
+      if (nextStep >= WALKTHROUGH_STEPS.length) {
+        onComplete();
+        return currentStep;
+      }
+      return nextStep;
+    });
+  }, [onComplete]);
 
   useEffect(() => {
-    if (!visible || !measureTarget) {
+    if (!visible) {
       setTargetRect(null);
+      onStepChange?.(null);
       return;
     }
+
     let cancelled = false;
     tooltipOpacity.setValue(0);
     tooltipSlide.setValue(SLIDE_DIST);
+    onStepChange?.(stepId ?? null);
 
-    const timer = setTimeout(() => {
-      measureTarget().then((rect) => {
-        if (cancelled) return;
-        setTargetRect(rect ?? null);
-        // Slide+fade tooltip in
-        Animated.parallel([
-          Animated.timing(tooltipOpacity, {
-            toValue: 1,
-            duration: ANIM_IN_MS,
-            useNativeDriver: true,
-          }),
-          Animated.timing(tooltipSlide, {
-            toValue: 0,
-            duration: ANIM_IN_MS,
-            useNativeDriver: true,
-          }),
-        ]).start();
+    const wait = (ms: number) =>
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        if (cancelled) {
+          clearTimeout(timer);
+          resolve();
+        }
       });
-    }, 140);
+
+    const runStep = async () => {
+      await onStepEnter?.(stepId ?? null);
+      if (cancelled) return;
+
+      const enterDelay = current?.enterDelayMs ?? 160;
+      if (enterDelay > 0) {
+        await wait(enterDelay);
+      }
+      if (cancelled) return;
+
+      if (!current?.targetIds?.length) {
+        setTargetRect(null);
+        animateTooltipIn();
+        return;
+      }
+
+      const retryDeadline = Date.now() + 500;
+      let rect: Rect | null = null;
+
+      while (!cancelled && Date.now() <= retryDeadline) {
+        const measureTarget = resolveMeasureTarget(current);
+        if (measureTarget) {
+          const measured = await measureTarget();
+          if (measured && measured.width > 0 && measured.height > 0) {
+            rect = measured;
+            break;
+          }
+        }
+        await wait(100);
+      }
+
+      if (cancelled) return;
+      if (!rect) {
+        setTargetRect(null);
+        goToNextStep();
+        return;
+      }
+
+      setTargetRect(rect);
+      animateTooltipIn();
+    };
+
+    runStep();
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
     };
-  }, [visible, step, stepId, measureTarget]);
+  }, [
+    visible,
+    current,
+    step,
+    stepId,
+    tooltipOpacity,
+    tooltipSlide,
+    walkthroughVersion,
+    onStepChange,
+    onStepEnter,
+    resolveMeasureTarget,
+    animateTooltipIn,
+    goToNextStep,
+  ]);
 
   // ── Navigation ────────────────────────────────────────────────────────────
-  const current = WALKTHROUGH_STEPS[step];
   const isLast  = step === WALKTHROUGH_STEPS.length - 1;
 
   const animateOut = useCallback((cb: () => void) => {
@@ -175,14 +300,18 @@ export default function AppWalkthrough({ visible, onComplete }: AppWalkthroughPr
   const tooltipWidth  = Math.min(winWidth - 32, 340);
   const tooltipHeight = 180;
 
-  const spot = targetRect
-    ? {
-        x: targetRect.x - SPOTLIGHT_PADDING,
-        y: targetRect.y - SPOTLIGHT_PADDING,
-        w: targetRect.width  + SPOTLIGHT_PADDING * 2,
-        h: targetRect.height + SPOTLIGHT_PADDING * 2,
-      }
-    : null;
+  const spot = useMemo(
+    () =>
+      targetRect
+        ? {
+            x: targetRect.x - SPOTLIGHT_PADDING,
+            y: targetRect.y - SPOTLIGHT_PADDING,
+            w: targetRect.width  + SPOTLIGHT_PADDING * 2,
+            h: targetRect.height + SPOTLIGHT_PADDING * 2,
+          }
+        : null,
+    [targetRect]
+  );
 
   const placement = useMemo<Placement>(() => {
     if (!spot) {
@@ -294,7 +423,7 @@ export default function AppWalkthrough({ visible, onComplete }: AppWalkthroughPr
           </View>
 
           <Text style={styles.title}>{current.title}</Text>
-          <Text style={styles.body}>{current.body}</Text>
+          {current.body ? <Text style={styles.body}>{current.body}</Text> : null}
 
           <View style={styles.actions}>
             <Pressable
@@ -310,9 +439,9 @@ export default function AppWalkthrough({ visible, onComplete }: AppWalkthroughPr
               onPress={handleNext}
               style={({ pressed }) => [styles.nextBtn, { opacity: pressed ? 0.85 : 1 }]}
               accessibilityRole="button"
-              accessibilityLabel={isLast ? "Finish tour" : "Next step"}
+              accessibilityLabel={isLast ? "Get started" : "Next step"}
             >
-              <Text style={styles.nextText}>{isLast ? "Done" : "Next"}</Text>
+              <Text style={styles.nextText}>{isLast ? "Get Started" : "Next"}</Text>
             </Pressable>
           </View>
         </Animated.View>
