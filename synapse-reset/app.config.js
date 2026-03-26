@@ -32,11 +32,11 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
-      buildNumber: "10",
+      buildNumber: "11",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSFaceIDUsageDescription: "Unlock Synapse with Face ID to keep your health data private.",
-        NSPhotoLibraryAddUsageDescription: "Synapse saves your emergency card and health summaries to your photo library so you can access them outside the app.",
+        NSPhotoLibraryAddUsageDescription: "Synapse saves an image of your Emergency Card or Health Summary Report to your photo library when you tap 'Save to Phone', so you can share it with family members, caregivers, or doctors in an emergency.",
         NSAppTransportSecurity: {
           NSAllowsArbitraryLoads: false,
           NSExceptionDomains: {
