@@ -1,0 +1,39 @@
+{
+  "" : {
+    "diagnostics" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/Synapse-primary.dia",
+    "emit-module-dependencies" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/Synapse-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/Synapse-primary-emit-module.dia",
+    "pch" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/Synapse-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/Synapse-primary.swiftdeps"
+  },
+  "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/GeneratedAssetSymbols.dia",
+    "index-unit-output-path" : "/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftdeps",
+    "swiftmodule" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/GeneratedAssetSymbols~partial.swiftmodule"
+  },
+  "/Users/mohammed/Developer/Synapse/ios/Synapse/AppDelegate.swift" : {
+    "const-values" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/AppDelegate.swiftconstvalues",
+    "dependencies" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/AppDelegate.d",
+    "diagnostics" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/AppDelegate.dia",
+    "index-unit-output-path" : "/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/AppDelegate.o",
+    "llvm-bc" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/AppDelegate.bc",
+    "object" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/AppDelegate.o",
+    "swift-dependencies" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/AppDelegate.swiftdeps",
+    "swiftmodule" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/AppDelegate~partial.swiftmodule"
+  },
+  "/Users/mohammed/Developer/Synapse/ios/Synapse/ScreenTimeFocusModule.swift" : {
+    "const-values" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/ScreenTimeFocusModule-b756f74ad272695fef0752e9c0ab30de.swiftconstvalues",
+    "dependencies" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/ScreenTimeFocusModule-b756f74ad272695fef0752e9c0ab30de.d",
+    "diagnostics" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/ScreenTimeFocusModule-b756f74ad272695fef0752e9c0ab30de.dia",
+    "index-unit-output-path" : "/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/ScreenTimeFocusModule-b756f74ad272695fef0752e9c0ab30de.o",
+    "llvm-bc" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/ScreenTimeFocusModule-b756f74ad272695fef0752e9c0ab30de.bc",
+    "object" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/ScreenTimeFocusModule-b756f74ad272695fef0752e9c0ab30de.o",
+    "swift-dependencies" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/ScreenTimeFocusModule-b756f74ad272695fef0752e9c0ab30de.swiftdeps",
+    "swiftmodule" : "/Users/mohammed/Developer/Synapse/.deriveddata/Build/Intermediates.noindex/Synapse.build/Debug-iphonesimulator/Synapse.build/Objects-normal/arm64/ScreenTimeFocusModule-b756f74ad272695fef0752e9c0ab30de~partial.swiftmodule"
+  }
+}
