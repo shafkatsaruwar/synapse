@@ -23,7 +23,14 @@ import {
   saveEmergencyCard,
   type EmergencyCardData,
 } from "@/lib/emergency-card-storage";
-import { allergyStorage, type AllergyInfo } from "@/lib/storage";
+import {
+  allergyStorage,
+  doctorsStorage,
+  primaryDoctorStorage,
+  type AllergyInfo,
+  type Doctor,
+} from "@/lib/storage";
+import { getMedList, type MedListItem } from "@/lib/med-list-storage";
 
 const CARD_BG = "#FFFFFF";
 const CARD_HEADER = "#800020";
@@ -55,15 +62,27 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
     optionalNotes: "",
   });
   const [allergyInfo, setAllergyInfo] = useState<AllergyInfo | null>(null);
+  const [medListItems, setMedListItems] = useState<MedListItem[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [primaryDoctorId, setPrimaryDoctorId] = useState<string | null>(null);
   const [saved, setSaved] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
 
   const load = useCallback(async () => {
-    const [stored, allergy] = await Promise.all([getEmergencyCard(), allergyStorage.get()]);
+    const [stored, allergy, medList, doctorList, doctorId] = await Promise.all([
+      getEmergencyCard(),
+      allergyStorage.get(),
+      getMedList(),
+      doctorsStorage.getAll(),
+      primaryDoctorStorage.getDocId(),
+    ]);
     setData(stored);
     setAllergyInfo(allergy);
+    setMedListItems(medList);
+    setDoctors(doctorList);
+    setPrimaryDoctorId(doctorId);
   }, []);
 
   useEffect(() => {
@@ -73,6 +92,14 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
   const allergiesDisplay = allergyInfo?.hasAllergies && allergyInfo?.allergyName?.trim()
     ? allergyInfo.allergyName.trim()
     : "None";
+  const currentMedicationsDisplay = medListItems.length > 0
+    ? medListItems.map((item) => item.name).join(", ")
+    : "—";
+  const primaryDoctor = doctors.find((doc) => doc.id === primaryDoctorId) ?? doctors[0] ?? null;
+  const primaryDoctorDisplay = primaryDoctor?.name ?? "—";
+  const primaryDoctorPhoneDisplay = primaryDoctor?.phone?.trim() || "—";
+  const primaryDoctorHospitalDisplay = primaryDoctor?.hospital?.trim() || "—";
+  const primaryDoctorAddressDisplay = primaryDoctor?.address?.trim() || "—";
   const epipenDisplay = allergyInfo?.hasEpiPen ? "Yes" : "No";
   const noTreatmentDisplay = allergyInfo?.noTreatmentConsequence?.trim() || null;
   const hasAllergyInfoFromProfile = Boolean(allergyInfo?.allergyName?.trim());
@@ -83,10 +110,17 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
   }, []);
 
   const handleSave = useCallback(async () => {
-    await saveEmergencyCard(data);
+    const syncedData = {
+      ...data,
+      currentMedications: medListItems.map((item) => item.name).join(", "),
+      primaryDoctorName: primaryDoctor?.name ?? "",
+      doctorPhone: primaryDoctor?.phone ?? "",
+    };
+    setData(syncedData);
+    await saveEmergencyCard(syncedData);
     setSaved(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [data]);
+  }, [data, medListItems, primaryDoctor]);
 
   const captureCard = useCallback(async (): Promise<string | null> => {
     try {
@@ -163,15 +197,17 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
           <Row label="Name" value={data.fullName || "—"} />
           <Row label="Date of Birth" value={data.dateOfBirth || "—"} />
           <Row label="Allergies" value={allergiesDisplay} />
-          <Row label="Current Medications" value={data.currentMedications || "—"} />
+          <Row label="Current Medications" value={currentMedicationsDisplay} />
           <Row label="EpiPen" value={epipenDisplay} />
           {noTreatmentDisplay ? (
             <Row label="If untreated" value={noTreatmentDisplay} />
           ) : null}
           <Row label="Emergency Contact" value={data.emergencyContactName || "—"} />
           <Row label="Contact Phone" value={data.emergencyContactPhone || "—"} />
-          <Row label="Primary Doctor" value={data.primaryDoctorName || "—"} />
-          <Row label="Doctor Phone" value={data.doctorPhone || "—"} />
+          <Row label="Primary Doctor" value={primaryDoctorDisplay} />
+          <Row label="Doctor Phone" value={primaryDoctorPhoneDisplay} />
+          <Row label="Doctor Hospital" value={primaryDoctorHospitalDisplay} />
+          <Row label="Doctor Address" value={primaryDoctorAddressDisplay} />
           {data.optionalNotes ? (
             <Row label="Notes" value={data.optionalNotes} />
           ) : null}
@@ -203,7 +239,15 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
           <Text style={styles.sectionTitle}>Your details</Text>
           <Field label="Full Name" value={data.fullName} onChange={(v) => update({ fullName: v })} placeholder="Full name" />
           <Field label="Date of Birth" value={data.dateOfBirth} onChange={(v) => update({ dateOfBirth: v })} placeholder="e.g. Jan 15, 1990" />
-          <Field label="Current Medications" value={data.currentMedications} onChange={(v) => update({ currentMedications: v })} placeholder="List medications" multiline />
+          <Field
+            label="Current Medications"
+            value={medListItems.map((item) => item.name).join(", ")}
+            onChange={() => {}}
+            placeholder="Add medications in the Medications list"
+            multiline
+            editable={false}
+          />
+          <Text style={styles.syncHint}>Pulled automatically from your Medications list.</Text>
           {!hasAllergyInfoFromProfile && onNavigate && (
             <Pressable
               style={styles.allergyPrompt}
@@ -226,8 +270,37 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Primary doctor</Text>
-          <Field label="Name" value={data.primaryDoctorName} onChange={(v) => update({ primaryDoctorName: v })} placeholder="Doctor name" />
-          <Field label="Phone" value={data.doctorPhone} onChange={(v) => update({ doctorPhone: v })} placeholder="Doctor phone" keyboardType="phone-pad" />
+          <Field
+            label="Name"
+            value={primaryDoctor?.name ?? ""}
+            onChange={() => {}}
+            placeholder="Add a doctor in Account"
+            editable={false}
+          />
+          <Text style={styles.syncHint}>Pulled automatically from your Doctors list. The person icon marks your primary doctor.</Text>
+          <Field
+            label="Phone"
+            value={primaryDoctor?.phone ?? ""}
+            onChange={() => {}}
+            placeholder="Add a phone number in Doctors"
+            keyboardType="phone-pad"
+            editable={false}
+          />
+          <Field
+            label="Hospital"
+            value={primaryDoctor?.hospital ?? ""}
+            onChange={() => {}}
+            placeholder="Add a hospital in Doctors"
+            editable={false}
+          />
+          <Field
+            label="Address"
+            value={primaryDoctor?.address ?? ""}
+            onChange={() => {}}
+            placeholder="Add an address in Doctors"
+            multiline
+            editable={false}
+          />
         </View>
 
         <View style={styles.section}>
@@ -289,13 +362,15 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
               <Row label="Name" value={data.fullName || "—"} large />
               <Row label="Date of Birth" value={data.dateOfBirth || "—"} large />
               <Row label="Allergies" value={allergiesDisplay} large />
-              <Row label="Current Medications" value={data.currentMedications || "—"} large />
+              <Row label="Current Medications" value={currentMedicationsDisplay} large />
               <Row label="EpiPen" value={epipenDisplay} large />
               {noTreatmentDisplay ? <Row label="If untreated" value={noTreatmentDisplay} large /> : null}
               <Row label="Emergency Contact" value={data.emergencyContactName || "—"} large />
               <Row label="Contact Phone" value={data.emergencyContactPhone || "—"} large />
-              <Row label="Primary Doctor" value={data.primaryDoctorName || "—"} large />
-              <Row label="Doctor Phone" value={data.doctorPhone || "—"} large />
+              <Row label="Primary Doctor" value={primaryDoctorDisplay} large />
+              <Row label="Doctor Phone" value={primaryDoctorPhoneDisplay} large />
+              <Row label="Doctor Hospital" value={primaryDoctorHospitalDisplay} large />
+              <Row label="Doctor Address" value={primaryDoctorAddressDisplay} large />
               {data.optionalNotes ? <Row label="Notes" value={data.optionalNotes} large /> : null}
             </View>
             <Text style={styles.tapToClose}>Tap outside to close</Text>
@@ -335,6 +410,7 @@ function Field({
   placeholder,
   multiline,
   keyboardType,
+  editable = true,
 }: {
   label: string;
   value: string;
@@ -342,6 +418,7 @@ function Field({
   placeholder?: string;
   multiline?: boolean;
   keyboardType?: "phone-pad" | "default";
+  editable?: boolean;
 }) {
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -357,6 +434,7 @@ function Field({
         multiline={multiline}
         numberOfLines={multiline ? 3 : 1}
         keyboardType={keyboardType}
+        editable={editable}
       />
     </View>
   );
@@ -374,6 +452,7 @@ function makeStyles(C: Theme) {
     sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 12 },
     field: { marginBottom: 14 },
     label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
+    syncHint: { fontSize: 12, color: C.textTertiary, marginTop: -8, marginBottom: 10 },
     input: {
       backgroundColor: C.surface,
       borderRadius: 12,

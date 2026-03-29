@@ -369,18 +369,16 @@ export default function SidebarLayout({
                       <Text style={styles.drawerGroupTitle}>{group.title}</Text>
                       {items.map((item) => {
                         const isLogout = item.key === "logout";
-                        const isEmergency = item.key === "emergency";
                         const isEmergencyCard = item.key === "emergencycard";
                         const active = !isLogout && activeScreen === item.key;
                         const dimmed = !isLogout && sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
                         const accentColor = sickMode ? C.red : C.accent;
-                        const itemColor = isEmergency ? C.tint : (active ? accentColor : C.textSecondary);
+                        const itemColor = active ? accentColor : C.textSecondary;
                         return (
                           <View key={item.key} ref={isEmergencyCard ? emergencyCardRef : undefined} collapsable={false}>
                             <Pressable
                               style={({ pressed }) => [
                                 styles.drawerRow,
-                                isEmergency && styles.drawerRowEmergency,
                                 active && [styles.drawerRowActive, { borderLeftColor: accentColor }],
                                 dimmed && { opacity: 0.35 },
                                 pressed && styles.drawerRowPressed,
@@ -406,12 +404,12 @@ export default function SidebarLayout({
                                 style={styles.drawerRowIcon}
                               />
                               <Text
-                                style={[styles.drawerRowLabel, { color: itemColor }, active && !isEmergency && { color: accentColor, fontWeight: "600" }]}
+                                style={[styles.drawerRowLabel, { color: itemColor }, active && { color: accentColor, fontWeight: "600" }]}
                                 numberOfLines={1}
                               >
                                 {item.label}
                               </Text>
-                              <Ionicons name="chevron-forward" size={16} color={isEmergency ? C.tint : C.textSecondary} />
+                              <Ionicons name="chevron-forward" size={16} color={itemColor} />
                             </Pressable>
                           </View>
                         );
@@ -681,12 +679,6 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     },
     drawerRowPressed: {
       backgroundColor: C.surface,
-    },
-    drawerRowEmergency: {
-      backgroundColor: C.tintLight,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: C.tint + "40",
     },
     drawerRowIcon: {
       marginRight: 10,

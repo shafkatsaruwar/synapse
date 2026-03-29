@@ -19,9 +19,11 @@ export interface MedListItem {
   dosage?: string;
   doses: MedListDose[];
   prescribingDoctor: string;
+  pharmacyId?: string;
   pharmacyName: string;
   pharmacyPhone: string;
   pharmacyAddress: string;
+  pharmacyHospital?: string;
   refillsRemaining: number;
   duration?: number;
   durationUnit?: DurationUnit;
@@ -51,12 +53,14 @@ function normalizeItem(x: unknown): MedListItem | null {
   if (!id || !name) return null;
   const prescribingDoctor = typeof o.prescribingDoctor === "string" ? o.prescribingDoctor : (typeof o.prescriberName === "string" ? o.prescriberName : "");
   const doses = parseDoses(o);
+  const pharmacyId = typeof o.pharmacyId === "string" ? o.pharmacyId : undefined;
   const pharmacyName = typeof o.pharmacyName === "string" ? o.pharmacyName : (typeof o.pharmacy === "string" ? o.pharmacy : "");
   const pharmacyPhone = typeof o.pharmacyPhone === "string" ? o.pharmacyPhone : "";
   const pharmacyAddress = typeof o.pharmacyAddress === "string" ? o.pharmacyAddress : "";
+  const pharmacyHospital = typeof o.pharmacyHospital === "string" ? o.pharmacyHospital : "";
   const duration = typeof o.duration === "number" ? o.duration : undefined;
   const durationUnit = o.durationUnit === "Days" || o.durationUnit === "Weeks" || o.durationUnit === "Months" ? o.durationUnit : undefined;
-  return { id, name, doses, prescribingDoctor, pharmacyName, pharmacyPhone, pharmacyAddress, refillsRemaining, duration, durationUnit };
+  return { id, name, doses, prescribingDoctor, pharmacyId, pharmacyName, pharmacyPhone, pharmacyAddress, pharmacyHospital, refillsRemaining, duration, durationUnit };
 }
 
 export async function getMedList(): Promise<MedListItem[]> {

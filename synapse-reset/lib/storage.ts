@@ -123,6 +123,18 @@ export interface Doctor {
   id: string;
   name: string;
   specialty?: string;
+  phone?: string;
+  address?: string;
+  hospital?: string;
+  created_at?: string;
+}
+
+export interface Pharmacy {
+  id: string;
+  name: string;
+  phone?: string;
+  address?: string;
+  hospital?: string;
   created_at?: string;
 }
 
@@ -313,6 +325,7 @@ const KEYS = {
   COMFORT_ITEMS: "fir_comfort_items",
   GOALS: "fir_goals",
   DOCTORS: "fir_doctors",
+  PHARMACIES: "fir_pharmacies",
 };
 
 async function getItem<T>(key: string): Promise<T[]> {
@@ -420,21 +433,53 @@ export const doctorsStorage = {
   getAll: () => getItem<Doctor>(KEYS.DOCTORS),
   save: async (doc: Omit<Doctor, "id" | "created_at">) => {
     const all = await getItem<Doctor>(KEYS.DOCTORS);
-    const newDoc: Doctor = { ...doc, id: Crypto.randomUUID(), created_at: new Date().toISOString() };
+    const newDoc: Doctor = {
+      ...doc,
+      name: (doc.name ?? "").trim(),
+      specialty: doc.specialty?.trim() || undefined,
+      phone: doc.phone?.trim() || undefined,
+      address: doc.address?.trim() || undefined,
+      hospital: doc.hospital?.trim() || undefined,
+      id: Crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+    };
     all.push(newDoc);
     await setItem(KEYS.DOCTORS, all);
     return newDoc;
   },
-  addOrGet: async (doc: { name: string; specialty?: string }) => {
+  addOrGet: async (doc: { name: string; specialty?: string; phone?: string; address?: string; hospital?: string }) => {
     const all = await getItem<Doctor>(KEYS.DOCTORS);
     const name = (doc.name ?? "").trim();
     const normalized = name.toLowerCase();
     const existing = all.find((d) => (d.name ?? "").trim().toLowerCase() === normalized);
     if (existing) return existing;
-    const newDoc: Doctor = { id: Crypto.randomUUID(), name, specialty: doc.specialty?.trim() ?? undefined, created_at: new Date().toISOString() };
+    const newDoc: Doctor = {
+      id: Crypto.randomUUID(),
+      name,
+      specialty: doc.specialty?.trim() || undefined,
+      phone: doc.phone?.trim() || undefined,
+      address: doc.address?.trim() || undefined,
+      hospital: doc.hospital?.trim() || undefined,
+      created_at: new Date().toISOString(),
+    };
     all.push(newDoc);
     await setItem(KEYS.DOCTORS, all);
     return newDoc;
+  },
+  update: async (id: string, updates: Partial<Omit<Doctor, "id" | "created_at">>) => {
+    const all = await getItem<Doctor>(KEYS.DOCTORS);
+    const idx = all.findIndex((d) => d.id === id);
+    if (idx === -1) return;
+    all[idx] = {
+      ...all[idx],
+      ...updates,
+      name: (updates.name ?? all[idx].name ?? "").trim(),
+      specialty: updates.specialty !== undefined ? (updates.specialty?.trim() || undefined) : all[idx].specialty,
+      phone: updates.phone !== undefined ? (updates.phone?.trim() || undefined) : all[idx].phone,
+      address: updates.address !== undefined ? (updates.address?.trim() || undefined) : all[idx].address,
+      hospital: updates.hospital !== undefined ? (updates.hospital?.trim() || undefined) : all[idx].hospital,
+    };
+    await setItem(KEYS.DOCTORS, all);
   },
   mergeFromRemote: async (remote: Doctor[]) => {
     const local = await getItem<Doctor>(KEYS.DOCTORS);
@@ -445,6 +490,61 @@ export const doctorsStorage = {
   delete: async (id: string) => {
     const all = await getItem<Doctor>(KEYS.DOCTORS);
     await setItem(KEYS.DOCTORS, all.filter((d) => d.id !== id));
+  },
+};
+
+export const pharmacyStorage = {
+  getAll: () => getItem<Pharmacy>(KEYS.PHARMACIES),
+  save: async (pharmacy: Omit<Pharmacy, "id" | "created_at">) => {
+    const all = await getItem<Pharmacy>(KEYS.PHARMACIES);
+    const newPharmacy: Pharmacy = {
+      ...pharmacy,
+      name: (pharmacy.name ?? "").trim(),
+      phone: pharmacy.phone?.trim() || undefined,
+      address: pharmacy.address?.trim() || undefined,
+      hospital: pharmacy.hospital?.trim() || undefined,
+      id: Crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+    };
+    all.push(newPharmacy);
+    await setItem(KEYS.PHARMACIES, all);
+    return newPharmacy;
+  },
+  addOrGet: async (pharmacy: { name: string; phone?: string; address?: string; hospital?: string }) => {
+    const all = await getItem<Pharmacy>(KEYS.PHARMACIES);
+    const name = (pharmacy.name ?? "").trim();
+    const normalized = name.toLowerCase();
+    const existing = all.find((p) => (p.name ?? "").trim().toLowerCase() === normalized);
+    if (existing) return existing;
+    const newPharmacy: Pharmacy = {
+      id: Crypto.randomUUID(),
+      name,
+      phone: pharmacy.phone?.trim() || undefined,
+      address: pharmacy.address?.trim() || undefined,
+      hospital: pharmacy.hospital?.trim() || undefined,
+      created_at: new Date().toISOString(),
+    };
+    all.push(newPharmacy);
+    await setItem(KEYS.PHARMACIES, all);
+    return newPharmacy;
+  },
+  update: async (id: string, updates: Partial<Omit<Pharmacy, "id" | "created_at">>) => {
+    const all = await getItem<Pharmacy>(KEYS.PHARMACIES);
+    const idx = all.findIndex((p) => p.id === id);
+    if (idx === -1) return;
+    all[idx] = {
+      ...all[idx],
+      ...updates,
+      name: (updates.name ?? all[idx].name ?? "").trim(),
+      phone: updates.phone !== undefined ? (updates.phone?.trim() || undefined) : all[idx].phone,
+      address: updates.address !== undefined ? (updates.address?.trim() || undefined) : all[idx].address,
+      hospital: updates.hospital !== undefined ? (updates.hospital?.trim() || undefined) : all[idx].hospital,
+    };
+    await setItem(KEYS.PHARMACIES, all);
+  },
+  delete: async (id: string) => {
+    const all = await getItem<Pharmacy>(KEYS.PHARMACIES);
+    await setItem(KEYS.PHARMACIES, all.filter((p) => p.id !== id));
   },
 };
 
@@ -717,6 +817,27 @@ export const emergencyDoctorStorage = {
   },
 };
 
+export const primaryDoctorStorage = {
+  getDocId: async (): Promise<string | null> => {
+    try {
+      return await AsyncStorage.getItem("primary_doctor");
+    } catch {
+      return null;
+    }
+  },
+  setDocId: async (id: string | null): Promise<void> => {
+    try {
+      if (id === null) {
+        await AsyncStorage.removeItem("primary_doctor");
+      } else {
+        await AsyncStorage.setItem("primary_doctor", id);
+      }
+    } catch (e) {
+      console.warn("AsyncStorage primaryDoctor setDocId failed", e);
+    }
+  },
+};
+
 export const healthProfileStorage = {
   get: async (): Promise<HealthProfileInfo> => {
     try {
@@ -874,6 +995,7 @@ export type ExportPayload = {
   medications: Medication[];
   medicationLogs: MedicationLog[];
   doctors: Doctor[];
+  pharmacies?: Pharmacy[];
   appointments: Appointment[];
   doctorNotes: DoctorNote[];
   fastingLogs: FastingLog[];
@@ -898,6 +1020,7 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     medications,
     medLogs,
     doctors,
+    pharmacies,
     appointments,
     doctorNotes,
     fastingLogs,
@@ -914,6 +1037,7 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     medicationStorage.getAll(),
     medicationLogStorage.getAll(),
     doctorsStorage.getAll(),
+    pharmacyStorage.getAll(),
     appointmentStorage.getAll(),
     doctorNoteStorage.getAll(),
     fastingLogStorage.getAll(),
@@ -942,6 +1066,7 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     medications,
     medicationLogs: medLogs,
     doctors,
+    pharmacies,
     appointments,
     doctorNotes,
     fastingLogs,
@@ -970,6 +1095,7 @@ export const importAllData = async (payload: ExportPayload): Promise<void> => {
   await setItem(KEYS.MEDICATIONS, payload.medications ?? []);
   await setItem(KEYS.MEDICATION_LOGS, payload.medicationLogs ?? []);
   await setItem(KEYS.DOCTORS, payload.doctors ?? []);
+  await setItem(KEYS.PHARMACIES, payload.pharmacies ?? []);
   await setItem(KEYS.APPOINTMENTS, payload.appointments ?? []);
   await setItem(KEYS.DOCTOR_NOTES, payload.doctorNotes ?? []);
   await setItem(KEYS.FASTING_LOGS, payload.fastingLogs ?? []);
