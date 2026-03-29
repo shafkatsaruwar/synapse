@@ -36,7 +36,8 @@ module.exports = {
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSFaceIDUsageDescription: "Unlock Synapse with Face ID to keep your health data private.",
-        NSPhotoLibraryAddUsageDescription: "Synapse saves an image of your Emergency Card or Health Summary Report to your photo library when you tap 'Save to Phone', so you can share it with family members, caregivers, or doctors in an emergency.",
+        NSPhotoLibraryUsageDescription: "Synapse allows users to select photos from their library to personalize their profile and attach images to health records. Photos are only accessed when the user explicitly chooses to add one.",
+        NSPhotoLibraryAddUsageDescription: "Synapse saves images only when the user chooses to export or save content.",
         NSAppTransportSecurity: {
           NSAllowsArbitraryLoads: false,
           NSExceptionDomains: {
