@@ -3,12 +3,12 @@ import { View, StyleSheet, Text, Pressable, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import { useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
 import { useIsTablet } from "@/lib/device";
 import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
 import { featureFlags } from "@/constants/feature-flags";
 
-const SIDEBAR_GRADIENT = ["#D1E0F7", "#BDD4F2"];
+const LIGHT_SIDEBAR_GRADIENT = ["#D1E0F7", "#BDD4F2"] as const;
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -57,13 +57,13 @@ interface TabletSidebarProps {
   onNavigate: (screen: string) => void;
 }
 
-const SIDEBAR_WIDTH = 260;
+const SIDEBAR_WIDTH = 280;
 
 export default function TabletSidebar({ activeScreen, onNavigate }: TabletSidebarProps) {
   const isTablet = useIsTablet();
   const insets = useSafeAreaInsets();
-  const { colors: C } = useTheme();
-  const styles = useMemo(() => makeStyles(C), [C]);
+  const { colors: C, themeId } = useTheme();
+  const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
   const emergencyCardRef = useRef<View>(null);
   const walkthrough = useWalkthroughTargets();
   const registerTarget = walkthrough?.registerTarget;
@@ -79,12 +79,16 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
 
   return (
     <View style={[styles.sidebarWrap, { width: SIDEBAR_WIDTH }]}>
-      <LinearGradient
-        colors={SIDEBAR_GRADIENT}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
+      {themeId === "light" || themeId === "calm" ? (
+        <LinearGradient
+          colors={LIGHT_SIDEBAR_GRADIENT}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: C.background }]} />
+      )}
       <View style={[styles.sidebar, { paddingTop: insets.top + 32 }]}>
       <Text style={styles.logo} numberOfLines={1}>
         Synapse
@@ -113,7 +117,7 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
                       <Ionicons
                         name={active ? item.iconActive : item.icon}
                         size={24}
-                        color={active ? "#2563eb" : "rgba(0,0,0,0.55)"}
+                        color={active ? C.accent : C.textTertiary}
                       />
                       <Text style={[styles.navLabel, active && styles.navLabelActive]} numberOfLines={1}>
                         {item.label}
@@ -131,17 +135,18 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
   );
 }
 
-function makeStyles(C: Theme) {
+function makeStyles(C: Theme, themeId: ThemeId) {
   return StyleSheet.create({
     sidebarWrap: {
-      flex: 1,
+      flexShrink: 0,
       borderRightWidth: 1,
-      borderRightColor: "rgba(0,0,0,0.06)",
+      borderRightColor: C.border,
       shadowColor: "#000",
       shadowOffset: { width: 2, height: 0 },
-      shadowOpacity: 0.06,
+      shadowOpacity: themeId === "dark" ? 0.18 : 0.06,
       shadowRadius: 4,
       elevation: 4,
+      overflow: "hidden",
     },
     sidebar: {
       flex: 1,
@@ -149,7 +154,7 @@ function makeStyles(C: Theme) {
     logo: {
       fontWeight: "700",
       fontSize: 20,
-      color: "#1a1a1a",
+      color: C.text,
       marginHorizontal: 16,
       marginBottom: 24,
     },
@@ -169,7 +174,7 @@ function makeStyles(C: Theme) {
     groupTitle: {
       fontSize: 11,
       fontWeight: "600",
-      color: "rgba(0,0,0,0.5)",
+      color: C.textTertiary,
       letterSpacing: 0.5,
       textTransform: "uppercase",
       marginBottom: 4,
@@ -188,18 +193,18 @@ function makeStyles(C: Theme) {
       paddingHorizontal: 16,
     },
     navItemActive: {
-      backgroundColor: "rgba(255,255,255,0.25)",
+      backgroundColor: C.sidebarActive,
       borderRadius: 10,
       marginHorizontal: 8,
     },
     navLabel: {
       fontWeight: "500",
       fontSize: 15,
-      color: "#1a1a1a",
+      color: C.textSecondary,
       flex: 1,
     },
     navLabelActive: {
-      color: "#1a1a1a",
+      color: C.text,
       fontWeight: "600",
     },
   });
