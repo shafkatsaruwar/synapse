@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   ScrollView,
   Alert,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -69,6 +70,8 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
 
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
   const [saved, setSaved] = useState(true);
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [draftName, setDraftName] = useState("");
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [conditionsCount, setConditionsCount] = useState(0);
 
@@ -145,6 +148,21 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     await setThemeId(id);
   };
 
+  const openNameModal = () => {
+    setDraftName(settings.name?.trim() || "");
+    setShowNameModal(true);
+  };
+
+  const handleSaveName = async () => {
+    const trimmedName = draftName.trim();
+    const nextSettings = { ...settings, name: trimmedName };
+    setSettings(nextSettings);
+    await settingsStorage.save(nextSettings);
+    setSaved(true);
+    setShowNameModal(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
   const dateObj = new Date();
   const getDoseCount = (med: Medication) => (Array.isArray(med.doses) && med.doses.length > 0 ? med.doses.length : (med as { doses?: number }).doses ?? 1);
   const totalDoses = medications.reduce((s, m) => s + getDoseCount(m), 0);
@@ -179,7 +197,12 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
         <Text style={styles.title}>Account</Text>
 
         {/* ——— Local Profile Header ——— */}
-        <View style={styles.card}>
+        <Pressable
+          style={({ pressed }) => [styles.card, { opacity: pressed ? 0.97 : 1 }]}
+          onPress={openNameModal}
+          accessibilityRole="button"
+          accessibilityLabel="Edit your name"
+        >
           <View style={styles.profileHeader}>
             <View style={styles.profileAvatar}>
               <Text style={styles.profileAvatarText}>
@@ -188,15 +211,19 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
             </View>
             <View style={styles.profileInfo}>
               <Text style={styles.profileGreeting}>Hello,</Text>
-              <Text style={styles.profileFullName}>
-                {settings.name?.trim() || "You"}
-              </Text>
+              <View style={styles.profileNameRow}>
+                <Text style={styles.profileFullName}>
+                  {settings.name?.trim() || "You"}
+                </Text>
+                <Ionicons name="pencil-outline" size={16} color={C.textTertiary} />
+              </View>
+              <Text style={styles.editHint}>Tap to edit</Text>
             </View>
           </View>
           <Text style={styles.localHint}>
             Data is stored locally on this device. There are no accounts or cloud backups.
           </Text>
-        </View>
+        </Pressable>
 
         {/* ——— Doctors & Pharmacies quick cards ——— */}
         <View style={styles.quickCardsRow}>
@@ -441,6 +468,34 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
         </Pressable>
       </Modal>
 
+      <Modal visible={showNameModal} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => setShowNameModal(false)}>
+          <Pressable style={styles.resetModal} onPress={() => {}}>
+            <Text style={[styles.resetTitle, { marginBottom: 8 }]}>Edit name</Text>
+            <Text style={[styles.resetDesc, { marginBottom: 16 }]}>This is the name Synapse shows across the app.</Text>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={[styles.input, { marginBottom: 16 }]}
+              placeholder="Your name"
+              placeholderTextColor={C.textTertiary}
+              value={draftName}
+              onChangeText={setDraftName}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleSaveName}
+            />
+            <View style={styles.modalActions}>
+              <Pressable style={styles.cancelBtn} onPress={() => setShowNameModal(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={[styles.resetConfirmBtn, { backgroundColor: C.tint }, !draftName.trim() && { opacity: 0.5 }]} onPress={handleSaveName} disabled={!draftName.trim()}>
+                <Text style={styles.resetConfirmText}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <Modal visible={showSectionsModal} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowSectionsModal(false)}>
           <Pressable style={[styles.resetModal, { maxWidth: 400 }]} onPress={() => {}}>
@@ -525,7 +580,9 @@ function makeStyles(C: Theme) {
     profileAvatarText: { fontWeight: "600", fontSize: 22, color: "#fff" },
     profileInfo: { flex: 1, minWidth: 0 },
     profileGreeting: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 2 },
+    profileNameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
     profileFullName: { fontWeight: "700", fontSize: 18, color: C.text },
+    editHint: { fontWeight: "500", fontSize: 12, color: C.textTertiary, marginTop: 4 },
     profileEmail: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
     statCardsRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
     statCard: {

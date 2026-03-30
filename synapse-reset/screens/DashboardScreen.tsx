@@ -794,7 +794,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   const fabBottom = Platform.OS === "web"
     ? 100
-    : isWide ? insets.bottom + 32 : insets.bottom + 96;
+    : isWide ? insets.bottom + 8 : insets.bottom + 8;
 
   const fab = (
     <Pressable

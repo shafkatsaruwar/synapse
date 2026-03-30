@@ -7,11 +7,12 @@ import { useTheme, type Theme } from "@/contexts/ThemeContext";
 
 interface ReadAloudButtonProps {
   getText: () => string;
+  bottomOffset?: number;
 }
 
-export default function ReadAloudButton({ getText }: ReadAloudButtonProps) {
+export default function ReadAloudButton({ getText, bottomOffset = 140 }: ReadAloudButtonProps) {
   const { colors: C } = useTheme();
-  const styles = useMemo(() => makeStyles(C), [C]);
+  const styles = useMemo(() => makeStyles(C, bottomOffset), [C, bottomOffset]);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   const handlePress = useCallback(async () => {
@@ -54,11 +55,11 @@ export default function ReadAloudButton({ getText }: ReadAloudButtonProps) {
   );
 }
 
-function makeStyles(C: Theme) {
+function makeStyles(C: Theme, bottomOffset: number) {
   return StyleSheet.create({
     wrapper: {
       position: "absolute",
-      bottom: 140,
+      bottom: bottomOffset,
       right: 20,
       zIndex: 100,
     },

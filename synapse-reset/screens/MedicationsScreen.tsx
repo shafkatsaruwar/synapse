@@ -1285,7 +1285,7 @@ export default function MedicationsScreen() {
         </View>
       </Modal>
 
-      <ReadAloudButton getText={getReadAloudText} />
+      <ReadAloudButton getText={getReadAloudText} bottomOffset={190} />
     </View>
   );
 }
