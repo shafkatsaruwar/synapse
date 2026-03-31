@@ -26,9 +26,11 @@ import {
 import {
   allergyStorage,
   doctorsStorage,
+  medicationStorage,
   primaryDoctorStorage,
   type AllergyInfo,
   type Doctor,
+  type Medication,
 } from "@/lib/storage";
 import { getMedList, type MedListItem } from "@/lib/med-list-storage";
 
@@ -63,6 +65,7 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
   });
   const [allergyInfo, setAllergyInfo] = useState<AllergyInfo | null>(null);
   const [medListItems, setMedListItems] = useState<MedListItem[]>([]);
+  const [currentMedications, setCurrentMedications] = useState<Medication[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [primaryDoctorId, setPrimaryDoctorId] = useState<string | null>(null);
   const [saved, setSaved] = useState(true);
@@ -71,16 +74,18 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
   const [fullscreen, setFullscreen] = useState(false);
 
   const load = useCallback(async () => {
-    const [stored, allergy, medList, doctorList, doctorId] = await Promise.all([
+    const [stored, allergy, medList, medicationList, doctorList, doctorId] = await Promise.all([
       getEmergencyCard(),
       allergyStorage.get(),
       getMedList(),
+      medicationStorage.getAll(),
       doctorsStorage.getAll(),
       primaryDoctorStorage.getDocId(),
     ]);
     setData(stored);
     setAllergyInfo(allergy);
     setMedListItems(medList);
+    setCurrentMedications(medicationList);
     setDoctors(doctorList);
     setPrimaryDoctorId(doctorId);
   }, []);
@@ -89,18 +94,26 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
     load();
   }, [load]);
 
+  const noAllergyInfoYet = !allergyInfo?.allergyName?.trim() && !allergyInfo?.hasEpiPen;
   const allergiesDisplay = allergyInfo?.hasAllergies && allergyInfo?.allergyName?.trim()
     ? allergyInfo.allergyName.trim()
-    : "None";
-  const currentMedicationsDisplay = medListItems.length > 0
-    ? medListItems.map((item) => item.name).join(", ")
-    : "—";
+    : "No allergies found yet";
+  const medicationNames = Array.from(
+    new Map(
+      [...medListItems.map((item) => item.name), ...currentMedications.filter((med) => med.active).map((med) => med.name)]
+        .map((name) => [name.trim().toLowerCase(), name.trim()])
+        .filter(([, name]) => Boolean(name))
+    ).values()
+  );
+  const currentMedicationsDisplay = medicationNames.length > 0
+    ? medicationNames.join(", ")
+    : "No medications found yet";
   const primaryDoctor = doctors.find((doc) => doc.id === primaryDoctorId) ?? doctors[0] ?? null;
   const primaryDoctorDisplay = primaryDoctor?.name ?? "—";
   const primaryDoctorPhoneDisplay = primaryDoctor?.phone?.trim() || "—";
   const primaryDoctorHospitalDisplay = primaryDoctor?.hospital?.trim() || "—";
   const primaryDoctorAddressDisplay = primaryDoctor?.address?.trim() || "—";
-  const epipenDisplay = allergyInfo?.hasEpiPen ? "Yes" : "No";
+  const epipenDisplay = noAllergyInfoYet ? "No allergies found yet" : allergyInfo?.hasEpiPen ? "Yes" : "No";
   const noTreatmentDisplay = allergyInfo?.noTreatmentConsequence?.trim() || null;
   const hasAllergyInfoFromProfile = Boolean(allergyInfo?.allergyName?.trim());
 
@@ -112,7 +125,7 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
   const handleSave = useCallback(async () => {
     const syncedData = {
       ...data,
-      currentMedications: medListItems.map((item) => item.name).join(", "),
+      currentMedications: medicationNames.join(", "),
       primaryDoctorName: primaryDoctor?.name ?? "",
       doctorPhone: primaryDoctor?.phone ?? "",
     };
@@ -120,7 +133,7 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
     await saveEmergencyCard(syncedData);
     setSaved(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [data, medListItems, primaryDoctor]);
+  }, [data, medicationNames, primaryDoctor]);
 
   const captureCard = useCallback(async (): Promise<string | null> => {
     try {
@@ -148,7 +161,7 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
         title: "Emergency Card",
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e) {
+    } catch {
       // User cancelled
     }
   }, [captureCard]);
@@ -176,7 +189,7 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
       await MediaLibrary.saveToLibraryAsync(fileUri);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Saved", "Emergency card saved to your photo library.");
-    } catch (e) {
+    } catch {
       Alert.alert("Save failed", "Could not save to your photo library.");
     }
   }, [captureCard]);

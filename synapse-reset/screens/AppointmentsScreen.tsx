@@ -5,6 +5,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import {
   appointmentStorage,
@@ -40,21 +41,100 @@ function getRecurrenceLabel(apt: Appointment, allAppointments: Appointment[]): s
   return `Repeats every ${i} ${u}s`;
 }
 
-function CalendarView({ appointments, selectedDate, onSelectDate, calStyles, colors: C }: { appointments: Appointment[]; selectedDate: string; onSelectDate: (d: string) => void; calStyles: ReturnType<typeof makeCalStyles>; colors: Theme }) {
+function dateStringFromParts(year: number, month: number, day: number) {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function reminderTimeToDate(value: string) {
+  const [hours, minutes] = (value || "09:00").split(":").map((part) => parseInt(part, 10));
+  const date = new Date();
+  date.setHours(Number.isFinite(hours) ? hours : 9, Number.isFinite(minutes) ? minutes : 0, 0, 0);
+  return date;
+}
+
+function dateToReminderTime(date: Date) {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+type CalendarCell = {
+  key: string;
+  date: string;
+  day: number;
+  isCurrentMonth: boolean;
+};
+
+function CalendarView({
+  appointments,
+  selectedDate,
+  onSelectDate,
+  onJumpToToday,
+  calStyles,
+  colors: C,
+}: {
+  appointments: Appointment[];
+  selectedDate: string;
+  onSelectDate: (date: string) => void;
+  onJumpToToday: () => void;
+  calStyles: ReturnType<typeof makeCalStyles>;
+  colors: Theme;
+}) {
   const [viewMonth, setViewMonth] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
   });
 
+  useEffect(() => {
+    const selected = new Date(`${selectedDate}T00:00:00`);
+    if (!Number.isNaN(selected.getTime())) {
+      setViewMonth((prev) => {
+        if (prev.year === selected.getFullYear() && prev.month === selected.getMonth()) return prev;
+        return { year: selected.getFullYear(), month: selected.getMonth() };
+      });
+    }
+  }, [selectedDate]);
+
   const daysInMonth = new Date(viewMonth.year, viewMonth.month + 1, 0).getDate();
   const firstDayOfWeek = new Date(viewMonth.year, viewMonth.month, 1).getDay();
   const monthName = new Date(viewMonth.year, viewMonth.month).toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const today = getToday();
+  const isViewingTodayMonth = today.startsWith(`${viewMonth.year}-${String(viewMonth.month + 1).padStart(2, "0")}`);
 
   const aptDates = new Set(appointments.map((a) => a.date));
-  const days: (number | null)[] = [];
-  for (let i = 0; i < firstDayOfWeek; i++) days.push(null);
-  for (let i = 1; i <= daysInMonth; i++) days.push(i);
+  const prevMonthDate = viewMonth.month === 0
+    ? { year: viewMonth.year - 1, month: 11 }
+    : { year: viewMonth.year, month: viewMonth.month - 1 };
+  const nextMonthDate = viewMonth.month === 11
+    ? { year: viewMonth.year + 1, month: 0 }
+    : { year: viewMonth.year, month: viewMonth.month + 1 };
+  const prevMonthDays = new Date(prevMonthDate.year, prevMonthDate.month + 1, 0).getDate();
+  const cells: CalendarCell[] = [];
+
+  for (let i = firstDayOfWeek - 1; i >= 0; i -= 1) {
+    const day = prevMonthDays - i;
+    cells.push({
+      key: `prev-${day}`,
+      day,
+      date: dateStringFromParts(prevMonthDate.year, prevMonthDate.month, day),
+      isCurrentMonth: false,
+    });
+  }
+  for (let i = 1; i <= daysInMonth; i += 1) {
+    cells.push({
+      key: `current-${i}`,
+      day: i,
+      date: dateStringFromParts(viewMonth.year, viewMonth.month, i),
+      isCurrentMonth: true,
+    });
+  }
+  const trailingCells = Math.ceil(cells.length / 7) * 7 - cells.length;
+  for (let i = 1; i <= trailingCells; i += 1) {
+    cells.push({
+      key: `next-${i}`,
+      day: i,
+      date: dateStringFromParts(nextMonthDate.year, nextMonthDate.month, i),
+      isCurrentMonth: false,
+    });
+  }
 
   const prevMonth = () => setViewMonth((v) => v.month === 0 ? { year: v.year - 1, month: 11 } : { ...v, month: v.month - 1 });
   const nextMonth = () => setViewMonth((v) => v.month === 11 ? { year: v.year + 1, month: 0 } : { ...v, month: v.month + 1 });
@@ -64,7 +144,20 @@ function CalendarView({ appointments, selectedDate, onSelectDate, calStyles, col
       <View style={calStyles.calHeader}>
         <Pressable onPress={prevMonth} hitSlop={12} accessibilityRole="button" accessibilityLabel="Previous month"><Ionicons name="chevron-back" size={18} color={C.textSecondary} /></Pressable>
         <Text style={calStyles.calMonth} accessibilityRole="header">{monthName}</Text>
-        <Pressable onPress={nextMonth} hitSlop={12} accessibilityRole="button" accessibilityLabel="Next month"><Ionicons name="chevron-forward" size={18} color={C.textSecondary} /></Pressable>
+        <View style={calStyles.calHeaderActions}>
+          {!isViewingTodayMonth && (
+            <Pressable
+              onPress={onJumpToToday}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Jump back to today"
+              style={calStyles.todayBtn}
+            >
+              <Text style={calStyles.todayBtnText}>Today</Text>
+            </Pressable>
+          )}
+          <Pressable onPress={nextMonth} hitSlop={12} accessibilityRole="button" accessibilityLabel="Next month"><Ionicons name="chevron-forward" size={18} color={C.textSecondary} /></Pressable>
+        </View>
       </View>
       <View style={calStyles.calWeekRow}>
         {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
@@ -72,15 +165,35 @@ function CalendarView({ appointments, selectedDate, onSelectDate, calStyles, col
         ))}
       </View>
       <View style={calStyles.calGrid}>
-        {days.map((day, i) => {
-          if (day === null) return <View key={`e${i}`} style={calStyles.calCell} />;
-          const dateStr = `${viewMonth.year}-${String(viewMonth.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        {cells.map((cell) => {
+          const dateStr = cell.date;
           const isToday = dateStr === today;
           const hasApt = aptDates.has(dateStr);
           const isSelected = dateStr === selectedDate;
           return (
-            <Pressable key={i} style={[calStyles.calCell, isSelected && calStyles.calCellSelected, isToday && !isSelected && calStyles.calCellToday]} onPress={() => onSelectDate(dateStr)} accessibilityRole="button" accessibilityLabel={`${new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" })}${hasApt ? ", has appointment" : ""}${isToday ? ", today" : ""}`} accessibilityState={{ selected: isSelected }}>
-              <Text style={[calStyles.calDay, isSelected && { color: "#fff" }, isToday && !isSelected && { color: C.tint }]}>{day}</Text>
+            <Pressable
+              key={cell.key}
+              style={[
+                calStyles.calCell,
+                !cell.isCurrentMonth && calStyles.calCellOutsideMonth,
+                isSelected && calStyles.calCellSelected,
+                isToday && !isSelected && calStyles.calCellToday,
+              ]}
+              onPress={() => onSelectDate(dateStr)}
+              accessibilityRole="button"
+              accessibilityLabel={`${new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" })}${!cell.isCurrentMonth ? ", other month" : ""}${hasApt ? ", has appointment" : ""}${isToday ? ", today" : ""}`}
+              accessibilityState={{ selected: isSelected }}
+            >
+              <Text
+                style={[
+                  calStyles.calDay,
+                  !cell.isCurrentMonth && calStyles.calDayOutsideMonth,
+                  isSelected && { color: "#fff" },
+                  isToday && !isSelected && { color: C.tint },
+                ]}
+              >
+                {cell.day}
+              </Text>
               {hasApt && <View style={[calStyles.calDot, isSelected && { backgroundColor: "#fff" }]} />}
             </Pressable>
           );
@@ -94,14 +207,19 @@ function makeCalStyles(C: Theme) {
   return StyleSheet.create({
     cal: { backgroundColor: C.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.border, marginBottom: 16 },
     calHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
+    calHeaderActions: { flexDirection: "row", alignItems: "center", gap: 10 },
     calMonth: { fontWeight: "600", fontSize: 15, color: C.text },
+    todayBtn: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.border },
+    todayBtnText: { fontWeight: "600", fontSize: 11, color: C.tint, textTransform: "uppercase", letterSpacing: 0.4 },
     calWeekRow: { flexDirection: "row", marginBottom: 6 },
     calWeekDay: { flex: 1, textAlign: "center", fontWeight: "500", fontSize: 11, color: C.textTertiary },
     calGrid: { flexDirection: "row", flexWrap: "wrap" },
     calCell: { width: "14.28%", alignItems: "center", paddingVertical: 6 },
+    calCellOutsideMonth: { opacity: 0.5 },
     calCellSelected: { backgroundColor: C.tint, borderRadius: 8 },
     calCellToday: { backgroundColor: C.tintLight, borderRadius: 8 },
     calDay: { fontWeight: "500", fontSize: 13, color: C.text },
+    calDayOutsideMonth: { color: C.textSecondary },
     calDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.purple, marginTop: 2 },
   });
 }
@@ -126,10 +244,9 @@ export default function AppointmentsScreen() {
   const [tab, setTab] = useState<"calendar" | "notes">("calendar");
 
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
-  const [showDoctorPicker, setShowDoctorPicker] = useState(false);
+  const [showDoctorPickerModal, setShowDoctorPickerModal] = useState(false);
   const [aptDate, setAptDate] = useState("");
   const [aptTime, setAptTime] = useState("");
-  const [aptLocation, setAptLocation] = useState("");
   const [aptNotes, setAptNotes] = useState("");
   const [repeatOption, setRepeatOption] = useState<typeof REPEAT_OPTIONS[0]["value"]>("none");
   const [customInterval, setCustomInterval] = useState("1");
@@ -139,6 +256,7 @@ export default function AppointmentsScreen() {
   const [rescheduleApt, setRescheduleApt] = useState<Appointment | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   const loadData = useCallback(async () => {
     const apts = await appointmentStorage.getAll();
@@ -198,16 +316,31 @@ export default function AppointmentsScreen() {
 
   const resetAptForm = () => {
     setSelectedDoctorId(null);
-    setShowDoctorPicker(false);
+    setShowDoctorPickerModal(false);
     setAptDate("");
-    setAptTime("");
-    setAptLocation("");
+    setAptTime("09:00");
     setAptNotes("");
     setRepeatOption("none");
     setCustomInterval("1");
     setCustomUnit("week");
     setEditingApt(null);
+    setShowTimePicker(false);
   };
+
+  const openAppointmentModalForDate = useCallback((date: string) => {
+    setSelectedDate(date);
+    setEditingApt(null);
+    setSelectedDoctorId(null);
+    setShowDoctorPickerModal(false);
+    setAptDate(date);
+    setAptTime("09:00");
+    setAptNotes("");
+    setRepeatOption("none");
+    setCustomInterval("1");
+    setCustomUnit("week");
+    setShowTimePicker(false);
+    setShowAptModal(true);
+  }, []);
 
   const handleEditApt = async (apt: Appointment) => {
     setEditingApt(apt);
@@ -219,10 +352,10 @@ export default function AppointmentsScreen() {
     }
     setSelectedDoctorId(doctorId);
     setAptDate(apt.date);
-    setAptTime(apt.time);
-    setAptLocation(apt.location ?? "");
+    setAptTime(apt.time || "09:00");
     setAptNotes(apt.notes ?? "");
     setRepeatOption("none");
+    setShowTimePicker(false);
     setShowAptModal(true);
   };
 
@@ -329,10 +462,14 @@ export default function AppointmentsScreen() {
     loadData();
   }, [rescheduleApt, rescheduleDate, rescheduleTime, markAppointmentStatus, loadData]);
 
-  const overdueApts = appointments.filter((a) => a.date < today && a.status === undefined);
+  const overdueApts = useMemo(
+    () => appointments.filter((a) => a.date < today && a.status === undefined),
+    [appointments, today]
+  );
+  const firstOverdueApt = overdueApts[0] ?? null;
   useEffect(() => {
-    if (overdueApts.length === 0 || showRescheduleModal) return;
-    const apt = overdueApts[0];
+    if (!firstOverdueApt || showRescheduleModal) return;
+    const apt = firstOverdueApt;
     const title = "Past appointment";
     const message = `${apt.doctorName}${apt.specialty ? ` (${apt.specialty})` : ""} on ${formatDate(apt.date)} was not marked.`;
     Alert.alert(title, message, [
@@ -340,7 +477,7 @@ export default function AppointmentsScreen() {
       { text: "Rescheduled", onPress: () => { openRescheduleFor(apt); } },
       { text: "Cancelled", onPress: () => { markAppointmentStatus(apt, "cancelled"); } },
     ]);
-  }, [overdueApts.length, overdueApts[0]?.id, today, showRescheduleModal, markAppointmentStatus, openRescheduleFor]);
+  }, [firstOverdueApt, showRescheduleModal, markAppointmentStatus, openRescheduleFor]);
 
   return (
     <View style={styles.container}>
@@ -350,7 +487,21 @@ export default function AppointmentsScreen() {
       }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Appointments</Text>
-          <Pressable style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => { resetAptForm(); tab === "calendar" ? setShowAptModal(true) : setShowNoteModal(true); }} accessibilityRole="button" accessibilityLabel={tab === "calendar" ? "Add appointment" : "Add doctor note"} hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}>
+          <Pressable
+            style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]}
+            onPress={() => {
+              resetAptForm();
+              if (tab === "calendar") {
+                setAptTime("09:00");
+                setShowAptModal(true);
+              } else {
+                setShowNoteModal(true);
+              }
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={tab === "calendar" ? "Add appointment" : "Add doctor note"}
+            hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+          >
             <Ionicons name="add" size={20} color="#fff" />
           </Pressable>
         </View>
@@ -367,7 +518,14 @@ export default function AppointmentsScreen() {
         {tab === "calendar" ? (
           <View style={isWide ? styles.calLayout : undefined}>
             <View style={isWide ? { flex: 1, marginRight: 16 } : undefined}>
-              <CalendarView appointments={appointments} selectedDate={selectedDate} onSelectDate={setSelectedDate} calStyles={calStyles} colors={C} />
+              <CalendarView
+                appointments={appointments}
+                selectedDate={selectedDate}
+                onSelectDate={openAppointmentModalForDate}
+                onJumpToToday={() => setSelectedDate(today)}
+                calStyles={calStyles}
+                colors={C}
+              />
               {appointments.length === 0 && (
                 <View style={styles.empty}>
                   <Ionicons name="calendar-outline" size={40} color={C.textTertiary} />
@@ -494,7 +652,9 @@ export default function AppointmentsScreen() {
               <Text style={styles.label}>Doctor *</Text>
               <Pressable
                 style={styles.doctorSelect}
-                onPress={() => setShowDoctorPicker((v) => !v)}
+                onPress={() => {
+                  setShowDoctorPickerModal(true);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={selectedDoctor ? `${selectedDoctor.name}${selectedDoctor.specialty ? `, ${selectedDoctor.specialty}` : ""}` : "Select doctor"}
               >
@@ -503,20 +663,6 @@ export default function AppointmentsScreen() {
                 </Text>
                 <Ionicons name="chevron-down" size={18} color={C.textSecondary} />
               </Pressable>
-              {showDoctorPicker && (
-                <View style={styles.dropdown}>
-                  {doctors.map((d) => (
-                    <Pressable
-                      key={d.id}
-                      style={[styles.dropdownRow, selectedDoctorId === d.id && styles.dropdownRowSelected]}
-                      onPress={() => { setSelectedDoctorId(d.id); setShowDoctorPicker(false); Haptics.selectionAsync(); }}
-                    >
-                      <Text style={styles.dropdownText}>{d.name}</Text>
-                      {d.specialty ? <Text style={styles.dropdownSub}>{d.specialty}</Text> : null}
-                    </Pressable>
-                  ))}
-                </View>
-              )}
               <View style={styles.psaCard}>
                 <Ionicons name="information-circle-outline" size={16} color={C.tint} />
                 <Text style={styles.psaText}>
@@ -530,8 +676,41 @@ export default function AppointmentsScreen() {
                 </Text>
               </View>
               <View style={styles.fieldRow}>
-                <View style={{ flex: 1 }}><Text style={styles.label}>Date * (YYYY-MM-DD)</Text><TextInput style={styles.input} placeholder="2026-03-15" placeholderTextColor={C.textTertiary} value={aptDate} onChangeText={setAptDate} /></View>
-                <View style={{ flex: 1 }}><Text style={styles.label}>Time (HH:MM)</Text><TextInput style={styles.input} placeholder="09:00" placeholderTextColor={C.textTertiary} value={aptTime} onChangeText={setAptTime} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>Date * (YYYY-MM-DD)</Text>
+                  <TextInput style={styles.input} placeholder="2026-03-15" placeholderTextColor={C.textTertiary} value={aptDate} onChangeText={setAptDate} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>Time</Text>
+                  <Pressable
+                    style={styles.inputButton}
+                    onPress={() => setShowTimePicker(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Appointment time ${formatTime12h(aptTime || "09:00")}`}
+                  >
+                    <Text style={styles.inputButtonText}>{formatTime12h(aptTime || "09:00")}</Text>
+                    <Ionicons name="time-outline" size={18} color={C.textSecondary} />
+                  </Pressable>
+                  {Platform.OS === "ios" && showTimePicker && (
+                    <View style={styles.inlineTimePicker}>
+                      <DateTimePicker
+                        value={reminderTimeToDate(aptTime || "09:00")}
+                        mode="time"
+                        display="spinner"
+                        minuteInterval={1}
+                        onChange={(_, date) => {
+                          if (date) {
+                            setAptTime(dateToReminderTime(date));
+                          }
+                        }}
+                        style={styles.timePicker}
+                      />
+                      <Pressable style={[styles.confirmBtn, { marginTop: 8 }]} onPress={() => setShowTimePicker(false)}>
+                        <Text style={styles.confirmText}>Done</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
               </View>
               <Text style={styles.label}>Location</Text>
               <View style={styles.readonlyField}>
@@ -622,6 +801,63 @@ export default function AppointmentsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal visible={showDoctorPickerModal} transparent animationType="fade" onRequestClose={() => setShowDoctorPickerModal(false)}>
+        <Pressable style={styles.overlay} onPress={() => setShowDoctorPickerModal(false)} accessibilityLabel="Close doctor picker">
+          <Pressable style={[styles.modal, styles.pickerModal]} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Select Doctor</Text>
+            {doctors.length === 0 ? (
+              <Text style={styles.emptyPickerText}>No doctors yet. Add one from Account first.</Text>
+            ) : (
+              <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
+                {doctors.map((d) => (
+                  <Pressable
+                    key={d.id}
+                    style={[styles.dropdownRow, selectedDoctorId === d.id && styles.dropdownRowSelected]}
+                    onPress={() => {
+                      setSelectedDoctorId(d.id);
+                      setShowDoctorPickerModal(false);
+                      Haptics.selectionAsync();
+                    }}
+                  >
+                    <Text style={styles.dropdownText}>{d.name}</Text>
+                    {d.specialty ? <Text style={styles.dropdownSub}>{d.specialty}</Text> : null}
+                    {d.hospital ? <Text style={styles.dropdownSub}>{d.hospital}</Text> : null}
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+            <View style={styles.modalActions}>
+              <Pressable style={styles.cancelBtn} onPress={() => setShowDoctorPickerModal(false)}>
+                <Text style={styles.cancelText}>Done</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {Platform.OS !== "ios" && (
+      <Modal visible={showTimePicker} transparent animationType="fade" onRequestClose={() => setShowTimePicker(false)}>
+        <Pressable style={styles.overlay} onPress={() => setShowTimePicker(false)} accessibilityLabel="Close time picker">
+          <Pressable style={[styles.modal, styles.pickerModal]} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Appointment Time</Text>
+            <DateTimePicker
+              value={reminderTimeToDate(aptTime || "09:00")}
+              mode="time"
+              display="default"
+              minuteInterval={1}
+              onChange={(_, date) => {
+                if (date) {
+                  setAptTime(dateToReminderTime(date));
+                }
+                setShowTimePicker(false);
+              }}
+              style={styles.timePicker}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+      )}
     </View>
   );
 }
@@ -673,11 +909,18 @@ function makeStyles(C: Theme) {
   fieldRow: { flexDirection: "row", gap: 10 },
   doctorSelect: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14, minHeight: 48 },
   doctorSelectText: { fontWeight: "500", fontSize: 14, color: C.text },
+  inputButton: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14, minHeight: 48 },
+  inputButtonText: { fontWeight: "400", fontSize: 14, color: C.text },
   dropdown: { marginBottom: 14, maxHeight: 200, borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: "hidden", backgroundColor: C.surfaceElevated },
   dropdownRow: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.border },
   dropdownRowSelected: { backgroundColor: C.tintLight },
   dropdownText: { fontWeight: "500", fontSize: 14, color: C.text },
   dropdownSub: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
+  pickerModal: { maxWidth: 420 },
+  pickerScroll: { maxHeight: 280, marginBottom: 14 },
+  emptyPickerText: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginBottom: 16, lineHeight: 20 },
+  inlineTimePicker: { backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 8, borderWidth: 1, borderColor: C.border, marginTop: -2, marginBottom: 14 },
+  timePicker: { alignSelf: "center", marginBottom: 12 },
   psaCard: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: C.tintLight, borderRadius: 10, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: C.border },
   psaText: { flex: 1, fontWeight: "400", fontSize: 12, color: C.textSecondary, lineHeight: 18 },
   repeatRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
