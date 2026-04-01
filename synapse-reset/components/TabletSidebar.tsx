@@ -46,9 +46,9 @@ const NAV_ITEMS: NavItem[] = [
 
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
   { title: "Main", keys: ["dashboard"] },
+  { title: "Emergency", keys: ["emergency", "emergencycard"] },
   { title: "Primary", keys: ["log", "medications", "healthdata", "appointments"] },
   { title: "Health & Insights", keys: ["reports", "monthlycheckin", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
-  { title: "Emergency", keys: ["emergency", "emergencycard"] },
   { title: "System", keys: ["privacy", "settings"] },
 ];
 

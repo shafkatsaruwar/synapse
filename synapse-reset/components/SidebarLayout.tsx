@@ -61,6 +61,7 @@ const PRIMARY_ITEMS = NAV_ITEMS.filter((n) => PRIMARY_KEYS.includes(n.key));
 const MORE_ITEMS = NAV_ITEMS.filter((n) => !PRIMARY_KEYS.includes(n.key));
 
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
+  { title: "Main", keys: ["dashboard"] },
   { title: "Emergency", keys: ["emergency", "emergencycard"] },
   { title: "Primary", keys: ["log", "medications", "healthdata", "appointments"] },
   { title: "Health & Insights", keys: ["reports", "monthlycheckin", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
@@ -354,13 +355,13 @@ export default function SidebarLayout({
                   <Text style={styles.drawerProfileStatus}>Local profile</Text>
                 </View>
 
-                {DRAWER_GROUPS.map((group) => {
+                {DRAWER_GROUPS.map((group, groupIndex) => {
                   const navItems = group.keys
                     .map((key) => NAV_ITEMS.find((n) => n.key === key))
                     .filter((n): n is NavItem => n != null && moreItemsFiltered.some((m) => m.key === n.key));
                   const items: NavItem[] = navItems;
                   if (items.length === 0) return null;
-                  const isFirstGroup = group.title === "Emergency";
+                  const isFirstGroup = groupIndex === 0;
                   return (
                     <View
                       key={group.title}

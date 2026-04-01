@@ -665,7 +665,7 @@ export const vitalStorage = {
 
 export const settingsStorage = {
   get: async (): Promise<UserSettings> => {
-    const defaults: UserSettings = { name: "", conditions: [], ramadanMode: true, sickMode: false };
+    const defaults: UserSettings = { name: "", conditions: [], ramadanMode: false, sickMode: false };
     try {
       const raw = await AsyncStorage.getItem(KEYS.SETTINGS);
       return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
