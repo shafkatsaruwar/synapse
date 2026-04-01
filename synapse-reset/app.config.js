@@ -19,7 +19,7 @@ module.exports = {
   expo: {
     name: "Synapse",
     slug: "synapse",
-    version: "1.9.9",
+    version: "1.9.10",
     orientation: "default",
     icon: "./assets/icon.png",
     scheme: "myapp",
@@ -32,7 +32,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
-      buildNumber: "1.3",
+      buildNumber: "1.4",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSFaceIDUsageDescription: "Unlock Synapse with Face ID to keep your health data private.",

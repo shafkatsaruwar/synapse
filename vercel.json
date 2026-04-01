@@ -1,0 +1,5 @@
+{
+  "installCommand": "cd synapse-reset && npm install",
+  "buildCommand": "cd synapse-reset && npm run export:web",
+  "outputDirectory": "synapse-reset/dist"
+}

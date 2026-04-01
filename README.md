@@ -1,6 +1,6 @@
 # Synapse Repo Guide
 
-This repository currently contains two Expo apps.
+This repository now has one active Expo app and one archived legacy app.
 
 ## Active Mobile App
 
@@ -32,16 +32,13 @@ cd synapse-reset
 npm start
 ```
 
-## Legacy Root App
+## Archived Legacy App
 
-The repo root also contains an older Expo app:
+The old root Expo app has been retired and archived here:
 
-- [`app/`](/Users/mohammed/Developer/Synapse/app)
-- [`screens/`](/Users/mohammed/Developer/Synapse/screens)
-- [`components/`](/Users/mohammed/Developer/Synapse/components)
-- [`lib/`](/Users/mohammed/Developer/Synapse/lib)
+- [`legacy/root-expo-app/`](/Users/mohammed/Developer/Synapse/legacy/root-expo-app)
 
-That root app appears to be an older/original app variant and should not be assumed to be the active mobile app unless you intentionally mean to work on it.
+It should not be used for current mobile or web work.
 
 ## Important Note
 
@@ -52,4 +49,4 @@ That root app appears to be an older/original app variant and should not be assu
 - root docs
 - root `.env` fallback used by [`synapse-reset/app.config.js`](/Users/mohammed/Developer/Synapse/synapse-reset/app.config.js)
 
-Because of that, do not delete or move either app folder casually. Prefer clarifying documentation first, then doing a planned consolidation later.
+Because of that, `synapse-reset` remains the only active app entrypoint, while the old root app stays archived for reference only.
