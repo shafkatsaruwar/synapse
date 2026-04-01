@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { StyleSheet, Text, View, ScrollView, Pressable, Platform, TextInput } from "react-native";
+import { StyleSheet, Text, View, ScrollView, Pressable, Platform } from "react-native";
+import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";

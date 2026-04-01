@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useMemo } from "react";
 import {
-  StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, Alert, useWindowDimensions,
+  StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, Alert, useWindowDimensions,
 } from "react-native";
+import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -20,6 +21,33 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 
 const TIME_TAGS: string[] = ["Morning", "Afternoon", "Night", "Before Fajr", "After Iftar"];
 const MED_LIST_DOSE_TIMES: MedListDoseTime[] = ["Morning", "Afternoon", "Evening", "Night", "As Needed"];
+const REFILL_UNITS = ["Pills", "Tablets", "Capsules", "Pre-filled pens", "Bottles", "Vials", "Syringes", "Inhalers", "Patches", "Boxes"] as const;
+
+function normalizeRefillUnit(value?: string): string {
+  if (!value) return "Pills";
+  const match = REFILL_UNITS.find((unit) => unit.toLowerCase() === value.toLowerCase());
+  return match ?? "Pills";
+}
+
+function displayRefillUnit(unit?: string, count?: number): string {
+  const normalized = normalizeRefillUnit(unit);
+  if (count === 1) {
+    switch (normalized) {
+      case "Pills": return "pill";
+      case "Tablets": return "tablet";
+      case "Capsules": return "capsule";
+      case "Pre-filled pens": return "pre-filled pen";
+      case "Bottles": return "bottle";
+      case "Vials": return "vial";
+      case "Syringes": return "syringe";
+      case "Inhalers": return "inhaler";
+      case "Patches": return "patch";
+      case "Boxes": return "box";
+      default: return normalized.toLowerCase();
+    }
+  }
+  return normalized.toLowerCase();
+}
 
 /** Default reminder time string (HH:mm) for a time-of-day label. */
 function defaultReminderTimeFor(timeOfDay: string): string {
@@ -112,6 +140,8 @@ export default function MedicationsScreen() {
   const [formStressDoseInstructions, setFormStressDoseInstructions] = useState("");
   const [formTotalPills, setFormTotalPills] = useState("");
   const [formPillsRemaining, setFormPillsRemaining] = useState("");
+  const [formRefillUnit, setFormRefillUnit] = useState<string>("Pills");
+  const [showRefillUnitPicker, setShowRefillUnitPicker] = useState(false);
   const [tempInput, setTempInput] = useState("");
   const [showTempModal, setShowTempModal] = useState(false);
 
@@ -130,6 +160,7 @@ export default function MedicationsScreen() {
   const [formMedListPharmacyId, setFormMedListPharmacyId] = useState<string | null>(null);
   const [formMedListLegacyPharmacyName, setFormMedListLegacyPharmacyName] = useState("");
   const [formMedListRefills, setFormMedListRefills] = useState("");
+  const [formMedListRefillUnit, setFormMedListRefillUnit] = useState<string>("Pills");
   const [formMedListDuration, setFormMedListDuration] = useState("");
   const [formMedListDurationUnit, setFormMedListDurationUnit] = useState<"" | "Days" | "Weeks" | "Months">("");
 
@@ -155,6 +186,7 @@ export default function MedicationsScreen() {
     setFormMedListPharmacyId(null);
     setFormMedListLegacyPharmacyName("");
     setFormMedListRefills("");
+    setFormMedListRefillUnit("Pills");
     setFormMedListDuration("");
     setFormMedListDurationUnit("");
   };
@@ -176,6 +208,7 @@ export default function MedicationsScreen() {
     setFormMedListPharmacyId(matchedPharmacyId);
     setFormMedListLegacyPharmacyName(item.pharmacyName ?? "");
     setFormMedListRefills(item.refillsRemaining > 0 ? String(item.refillsRemaining) : "");
+    setFormMedListRefillUnit(normalizeRefillUnit(item.refillUnit));
     setFormMedListDuration(item.duration != null ? String(item.duration) : "");
     setFormMedListDurationUnit(item.durationUnit ?? "");
     setShowMedListDoctorPicker(false);
@@ -197,9 +230,11 @@ export default function MedicationsScreen() {
     setFormStressDoseInstructions("");
     setFormTotalPills("");
     setFormPillsRemaining("");
+    setFormRefillUnit("Pills");
     setShowCurrentMedNamePicker(false);
     setShowDoseTimePickerIndex(null);
     setShowReminderTimePickerIndex(null);
+    setShowRefillUnitPicker(false);
     setShowModal(true);
   };
 
@@ -220,8 +255,10 @@ export default function MedicationsScreen() {
     setFormStressDoseInstructions(med.stressDoseInstructions || "");
     setFormTotalPills(med.totalPills != null ? String(med.totalPills) : "");
     setFormPillsRemaining(med.pillsRemaining != null ? String(med.pillsRemaining) : "");
+    setFormRefillUnit(normalizeRefillUnit(med.refillUnit));
     setShowDoseTimePickerIndex(null);
     setShowReminderTimePickerIndex(null);
+    setShowRefillUnitPicker(false);
     setShowModal(true);
   };
 
@@ -255,6 +292,7 @@ export default function MedicationsScreen() {
       active: true,
       totalPills: totalPills != null && !isNaN(totalPills) ? totalPills : undefined,
       pillsRemaining: pillsRemaining != null && !isNaN(pillsRemaining) ? pillsRemaining : undefined,
+      refillUnit: formRefillUnit,
       hasStressDose: formHasStressDose,
       stressDoseAmount: formHasStressDose ? formStressDoseAmount.trim() : undefined,
       stressDoseFrequency: formHasStressDose ? formStressDoseFrequency.trim() : undefined,
@@ -313,6 +351,7 @@ export default function MedicationsScreen() {
       pharmacyAddress: selectedPharmacy?.address ?? "",
       pharmacyHospital: selectedPharmacy?.hospital ?? "",
       refillsRemaining: isNaN(refills) || refills < 0 ? 0 : refills,
+      refillUnit: formMedListRefillUnit,
       duration: durationNum != null && !isNaN(durationNum) && durationNum > 0 ? durationNum : undefined,
       durationUnit: formMedListDurationUnit || undefined,
     };
@@ -620,7 +659,7 @@ export default function MedicationsScreen() {
                     <View style={styles.refillRow}>
                       <Ionicons name="alert-circle-outline" size={14} color={C.textTertiary} />
                       <Text style={[styles.refillText, (med.pillsRemaining ?? 0) <= 5 && styles.refillTextWarning]}>
-                        Refill reminder · {(med.pillsRemaining ?? 0)} pills remaining
+                        Refill reminder · {(med.pillsRemaining ?? 0)} {displayRefillUnit(med.refillUnit, med.pillsRemaining)} remaining
                       </Text>
                     </View>
                   )}
@@ -694,7 +733,7 @@ export default function MedicationsScreen() {
           <View style={styles.safetyNote}>
             <Ionicons name="information-circle-outline" size={14} color={C.textTertiary} />
             <Text style={styles.safetyNoteText}>
-              This information should match your doctor's instructions. This app does not prescribe medications.
+              This information should match your doctor&apos;s instructions. This app does not prescribe medications.
             </Text>
           </View>
         )}
@@ -965,6 +1004,14 @@ export default function MedicationsScreen() {
               )}
               <Text style={styles.label}>Refills remaining</Text>
               <TextInput style={styles.input} placeholder="e.g. 3" placeholderTextColor={C.textTertiary} value={formMedListRefills} onChangeText={setFormMedListRefills} keyboardType="number-pad" />
+              <Text style={styles.label}>Refill unit</Text>
+              <View style={styles.durationUnitRow}>
+                {REFILL_UNITS.map((unit) => (
+                  <Pressable key={unit} style={[styles.durationUnitBtn, formMedListRefillUnit === unit && styles.durationUnitBtnActive]} onPress={() => { setFormMedListRefillUnit(unit); Haptics.selectionAsync(); }}>
+                    <Text style={[styles.durationUnitText, formMedListRefillUnit === unit && { color: "#fff" }]}>{unit}</Text>
+                  </Pressable>
+                ))}
+              </View>
               <Text style={styles.label}>Duration (optional)</Text>
               <View style={styles.durationRow}>
                 <TextInput style={[styles.input, styles.durationInput]} placeholder="e.g. 7" placeholderTextColor={C.textTertiary} value={formMedListDuration} onChangeText={setFormMedListDuration} keyboardType="number-pad" />
@@ -1002,6 +1049,7 @@ export default function MedicationsScreen() {
               setShowCurrentMedNamePicker(false);
               setShowDoseTimePickerIndex(null);
               setShowReminderTimePickerIndex(null);
+              setShowRefillUnitPicker(false);
             }}
             accessibilityLabel="Close add medication"
           />
@@ -1183,14 +1231,38 @@ export default function MedicationsScreen() {
               ))}
 
               <Text style={[styles.label, { marginTop: 12 }]}>Refill reminder (optional)</Text>
-              <Text style={[styles.label, { fontSize: 11, color: C.textTertiary, marginBottom: 6 }]}>When pills remaining is 5 or less, you'll get a refill reminder.</Text>
+              <Text style={[styles.label, { fontSize: 11, color: C.textTertiary, marginBottom: 6 }]}>When remaining supply is 5 or less, you&apos;ll get a refill reminder.</Text>
+              <Text style={[styles.label, { fontSize: 12 }]}>Refill unit</Text>
+              <Pressable style={styles.input} onPress={() => setShowRefillUnitPicker((v) => !v)}>
+                <Text style={[styles.pickerPlaceholder, { color: C.text }]}>{formRefillUnit}</Text>
+                <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />
+              </Pressable>
+              {showRefillUnitPicker && (
+                <View style={styles.dropdown}>
+                  <ScrollView style={styles.dropdownScroll} nestedScrollEnabled showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
+                    {REFILL_UNITS.map((unit) => (
+                      <Pressable
+                        key={unit}
+                        style={[styles.dropdownRow, formRefillUnit === unit && styles.dropdownRowSelected]}
+                        onPress={() => {
+                          setFormRefillUnit(unit);
+                          setShowRefillUnitPicker(false);
+                          Haptics.selectionAsync();
+                        }}
+                      >
+                        <Text style={styles.dropdownText}>{unit}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
               <View style={{ flexDirection: "row", gap: 12 }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.label, { fontSize: 12 }]}>Total pills</Text>
+                  <Text style={[styles.label, { fontSize: 12 }]}>Total {displayRefillUnit(formRefillUnit, 2)}</Text>
                   <TextInput style={styles.input} placeholder="e.g. 30" placeholderTextColor={C.textTertiary} value={formTotalPills} onChangeText={setFormTotalPills} keyboardType="number-pad" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.label, { fontSize: 12 }]}>Pills remaining</Text>
+                  <Text style={[styles.label, { fontSize: 12 }]}>{displayRefillUnit(formRefillUnit, 2).replace(/^\w/, (c) => c.toUpperCase())} remaining</Text>
                   <TextInput style={styles.input} placeholder="e.g. 7" placeholderTextColor={C.textTertiary} value={formPillsRemaining} onChangeText={setFormPillsRemaining} keyboardType="number-pad" />
                 </View>
               </View>
@@ -1229,7 +1301,7 @@ export default function MedicationsScreen() {
               </View>
 
               <View style={styles.modalActions}>
-                <Pressable style={styles.cancelBtn} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); setShowReminderTimePickerIndex(null); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+                <Pressable style={styles.cancelBtn} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); setShowReminderTimePickerIndex(null); setShowRefillUnitPicker(false); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
                 <Pressable
                   style={[styles.confirmBtn, !canSaveMedication && { opacity: 0.5 }]}
                   onPress={handleSave}
@@ -1279,7 +1351,7 @@ export default function MedicationsScreen() {
               <Text style={styles.nudgeBtnText}>alright, alright, took it</Text>
             </Pressable>
             <Pressable style={styles.nudgeDismiss} onPress={() => setNudgeMedId(null)}>
-              <Text style={styles.nudgeDismissText}>I really haven't yet</Text>
+              <Text style={styles.nudgeDismissText}>I really haven&apos;t yet</Text>
             </Pressable>
           </View>
         </View>

@@ -4,7 +4,6 @@ import {
   Text,
   View,
   ScrollView,
-  TextInput,
   Pressable,
   Platform,
   useWindowDimensions,
@@ -12,6 +11,7 @@ import {
   Share,
   Modal,
 } from "react-native";
+import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import ViewShot from "react-native-view-shot";

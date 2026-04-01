@@ -46,9 +46,10 @@ export interface Medication {
   /** @deprecated Use doses[].timeOfDay. Kept for migration. */
   timeTag?: string | string[];
   active: boolean;
-  /** Optional: for refill reminder when pillsRemaining <= threshold. */
+  /** Optional: for refill reminder when remaining supply <= threshold. */
   totalPills?: number;
   pillsRemaining?: number;
+  refillUnit?: string;
   hasStressDose?: boolean;
   stressDoseAmount?: string;
   stressDoseFrequency?: string;

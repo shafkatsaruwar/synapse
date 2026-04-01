@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
-  StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, useWindowDimensions,
+  StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, useWindowDimensions,
 } from "react-native";
+import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";

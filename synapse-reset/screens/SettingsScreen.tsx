@@ -9,8 +9,8 @@ import {
   useWindowDimensions,
   ScrollView,
   Alert,
-  TextInput,
-} from "react-native";
+  } from "react-native";
+import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";

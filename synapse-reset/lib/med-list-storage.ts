@@ -25,6 +25,7 @@ export interface MedListItem {
   pharmacyAddress: string;
   pharmacyHospital?: string;
   refillsRemaining: number;
+  refillUnit?: string;
   duration?: number;
   durationUnit?: DurationUnit;
 }
@@ -58,9 +59,10 @@ function normalizeItem(x: unknown): MedListItem | null {
   const pharmacyPhone = typeof o.pharmacyPhone === "string" ? o.pharmacyPhone : "";
   const pharmacyAddress = typeof o.pharmacyAddress === "string" ? o.pharmacyAddress : "";
   const pharmacyHospital = typeof o.pharmacyHospital === "string" ? o.pharmacyHospital : "";
+  const refillUnit = typeof o.refillUnit === "string" ? o.refillUnit : undefined;
   const duration = typeof o.duration === "number" ? o.duration : undefined;
   const durationUnit = o.durationUnit === "Days" || o.durationUnit === "Weeks" || o.durationUnit === "Months" ? o.durationUnit : undefined;
-  return { id, name, doses, prescribingDoctor, pharmacyId, pharmacyName, pharmacyPhone, pharmacyAddress, pharmacyHospital, refillsRemaining, duration, durationUnit };
+  return { id, name, doses, prescribingDoctor, pharmacyId, pharmacyName, pharmacyPhone, pharmacyAddress, pharmacyHospital, refillsRemaining, refillUnit, duration, durationUnit };
 }
 
 export async function getMedList(): Promise<MedListItem[]> {
