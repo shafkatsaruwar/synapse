@@ -8,6 +8,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClientProvider } from "@tanstack/react-query";
 import * as SplashScreen from "expo-splash-screen";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import KeyboardDoneBar from "@/components/KeyboardDoneBar";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { queryClient } from "@/lib/query-client";
@@ -53,6 +54,7 @@ export default function RootLayout() {
             <ThemeProvider>
               <AuthProvider>
                 <Stack screenOptions={{ headerShown: false }} />
+                <KeyboardDoneBar />
               </AuthProvider>
             </ThemeProvider>
           </QueryClientProvider>
