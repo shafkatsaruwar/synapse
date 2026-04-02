@@ -154,7 +154,7 @@ export async function scheduleMedicationSnooze(params: {
 }
 
 /** Schedule refill reminder (one-time). Send only once until supply updated. */
-export async function scheduleMedicationRefillReminder(medicationId: string, medicationName: string): Promise<string | null> {
+export async function scheduleMedicationRefillReminder(medicationId: string, medicationName: string, body?: string): Promise<string | null> {
   if (!isNative()) return null;
   const identifier = `${NOTIFICATION_IDS.prefixRefill}-${medicationId}`;
   try {
@@ -163,7 +163,7 @@ export async function scheduleMedicationRefillReminder(medicationId: string, med
       identifier,
       content: {
         title: "Medication Refill Reminder",
-        body: `Your ${medicationName} supply is running low.`,
+        body: body ?? `Your ${medicationName} supply is running low.`,
         data: { medicationId },
       },
       trigger: {
@@ -177,6 +177,39 @@ export async function scheduleMedicationRefillReminder(medicationId: string, med
     console.warn("scheduleMedicationRefillReminder failed", e);
     return null;
   }
+}
+
+function normalizeInventoryUnit(value?: string): string {
+  if (!value) return "pills";
+  return value.toLowerCase();
+}
+
+function displayInventoryUnit(value?: string, count?: number): string {
+  const unit = normalizeInventoryUnit(value);
+  if (count === 1) {
+    switch (unit) {
+      case "pills": return "pill";
+      case "tablets": return "tablet";
+      case "capsules": return "capsule";
+      case "pre-filled pens": return "pre-filled pen";
+      case "bottles": return "bottle";
+      case "vials": return "vial";
+      case "syringes": return "syringe";
+      case "inhalers": return "inhaler";
+      case "patches": return "patch";
+      case "boxes": return "box";
+      case "ml": return "mL";
+      default: return unit;
+    }
+  }
+  return unit === "ml" ? "mL" : unit;
+}
+
+function formatSupplyAmount(value?: number): string {
+  if (value == null || Number.isNaN(value)) return "0";
+  if (Math.abs(value - Math.round(value)) < 0.001) return String(Math.round(value));
+  if (value < 1) return value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  return value.toFixed(1).replace(/\.0$/, "");
 }
 
 /** Schedule appointment reminder (1 day before or 1 hour before). */
@@ -444,9 +477,19 @@ export async function syncAllFromSettings(): Promise<void> {
             });
           }
         }
-        const remaining = (med as { pillsRemaining?: number }).pillsRemaining;
-        if (remaining != null && remaining <= REFILL_THRESHOLD) {
-          await scheduleMedicationRefillReminder(med.id, med.name ?? "Medication");
+        const remaining = (med as { currentSupplyAmount?: number; pillsRemaining?: number }).currentSupplyAmount ?? (med as { pillsRemaining?: number }).pillsRemaining;
+        const threshold = (med as { lowSupplyThreshold?: number }).lowSupplyThreshold ?? REFILL_THRESHOLD;
+        if (remaining != null && remaining <= threshold) {
+          const refillsRemaining = (med as { refillsRemaining?: number }).refillsRemaining;
+          const inventoryUnit = (med as { inventoryUnit?: string; refillUnit?: string }).inventoryUnit ?? (med as { refillUnit?: string }).refillUnit;
+          const lowSupplyText = `${med.name ?? "Medication"} is running low. Only ${formatSupplyAmount(remaining)} ${displayInventoryUnit(inventoryUnit, remaining)} remaining.`;
+          const refillText =
+            refillsRemaining === 1
+              ? " Only 1 refill remaining. Please contact your pharmacy for refills."
+              : refillsRemaining === 0
+              ? " No refills remaining. Please contact your pharmacy."
+              : "";
+          await scheduleMedicationRefillReminder(med.id, med.name ?? "Medication", `${lowSupplyText}${refillText}`);
         }
       }
     }

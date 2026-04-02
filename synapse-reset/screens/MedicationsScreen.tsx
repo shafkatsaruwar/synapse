@@ -21,7 +21,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 
 const TIME_TAGS: string[] = ["Morning", "Afternoon", "Night", "Before Fajr", "After Iftar"];
 const MED_LIST_DOSE_TIMES: MedListDoseTime[] = ["Morning", "Afternoon", "Evening", "Night", "As Needed"];
-const REFILL_UNITS = ["Pills", "Tablets", "Capsules", "Pre-filled pens", "Bottles", "Vials", "Syringes", "Inhalers", "Patches", "Boxes"] as const;
+const REFILL_UNITS = ["Pills", "Tablets", "Capsules", "Pre-filled pens", "Bottles", "Vials", "Syringes", "Inhalers", "Patches", "Boxes", "mL"] as const;
 
 function normalizeRefillUnit(value?: string): string {
   if (!value) return "Pills";
@@ -43,10 +43,37 @@ function displayRefillUnit(unit?: string, count?: number): string {
       case "Inhalers": return "inhaler";
       case "Patches": return "patch";
       case "Boxes": return "box";
+      case "mL": return "mL";
       default: return normalized.toLowerCase();
     }
   }
   return normalized.toLowerCase();
+}
+
+function formatSupplyAmount(value?: number): string {
+  if (value == null || Number.isNaN(value)) return "0";
+  if (Math.abs(value - Math.round(value)) < 0.001) return String(Math.round(value));
+  if (value < 1) return value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  return value.toFixed(1).replace(/\.0$/, "");
+}
+
+function doseUnitMatchesInventoryUnit(doseUnit: string, inventoryUnit?: string): boolean {
+  const normalizedDose = doseUnit.trim().toLowerCase();
+  const normalizedInventory = normalizeRefillUnit(inventoryUnit).toLowerCase();
+  const aliases: Record<string, string[]> = {
+    pills: ["pill", "pills"],
+    tablets: ["tablet", "tablets", "tab", "tabs"],
+    capsules: ["capsule", "capsules", "cap", "caps"],
+    "pre-filled pens": ["pen", "pens", "pre-filled pen", "pre-filled pens"],
+    bottles: ["bottle", "bottles"],
+    vials: ["vial", "vials"],
+    syringes: ["syringe", "syringes"],
+    inhalers: ["inhaler", "inhalers"],
+    patches: ["patch", "patches"],
+    boxes: ["box", "boxes"],
+    ml: ["ml", "milliliter", "milliliters", "millilitre", "millilitres"],
+  };
+  return (aliases[normalizedInventory] ?? [normalizedInventory]).includes(normalizedDose);
 }
 
 /** Default reminder time string (HH:mm) for a time-of-day label. */
@@ -138,8 +165,12 @@ export default function MedicationsScreen() {
   const [formStressDoseFrequency, setFormStressDoseFrequency] = useState("");
   const [formStressDoseDurationDays, setFormStressDoseDurationDays] = useState("");
   const [formStressDoseInstructions, setFormStressDoseInstructions] = useState("");
-  const [formTotalPills, setFormTotalPills] = useState("");
-  const [formPillsRemaining, setFormPillsRemaining] = useState("");
+  const [formCurrentSupplyAmount, setFormCurrentSupplyAmount] = useState("");
+  const [formRefillsRemaining, setFormRefillsRemaining] = useState("");
+  const [formAmountPerRefill, setFormAmountPerRefill] = useState("");
+  const [formSupplyPerDose, setFormSupplyPerDose] = useState("");
+  const [formLowSupplyThreshold, setFormLowSupplyThreshold] = useState("5");
+  const [formConcentrationMgPerMl, setFormConcentrationMgPerMl] = useState("");
   const [formRefillUnit, setFormRefillUnit] = useState<string>("Pills");
   const [showRefillUnitPicker, setShowRefillUnitPicker] = useState(false);
   const [tempInput, setTempInput] = useState("");
@@ -228,8 +259,12 @@ export default function MedicationsScreen() {
     setFormStressDoseFrequency("");
     setFormStressDoseDurationDays("");
     setFormStressDoseInstructions("");
-    setFormTotalPills("");
-    setFormPillsRemaining("");
+    setFormCurrentSupplyAmount("");
+    setFormRefillsRemaining("");
+    setFormAmountPerRefill("");
+    setFormSupplyPerDose("");
+    setFormLowSupplyThreshold("5");
+    setFormConcentrationMgPerMl("");
     setFormRefillUnit("Pills");
     setShowCurrentMedNamePicker(false);
     setShowDoseTimePickerIndex(null);
@@ -253,9 +288,13 @@ export default function MedicationsScreen() {
     setFormStressDoseFrequency(med.stressDoseFrequency || "");
     setFormStressDoseDurationDays(med.stressDoseDurationDays ? String(med.stressDoseDurationDays) : "");
     setFormStressDoseInstructions(med.stressDoseInstructions || "");
-    setFormTotalPills(med.totalPills != null ? String(med.totalPills) : "");
-    setFormPillsRemaining(med.pillsRemaining != null ? String(med.pillsRemaining) : "");
-    setFormRefillUnit(normalizeRefillUnit(med.refillUnit));
+    setFormCurrentSupplyAmount(med.currentSupplyAmount != null ? String(med.currentSupplyAmount) : (med.pillsRemaining != null ? String(med.pillsRemaining) : ""));
+    setFormRefillsRemaining(med.refillsRemaining != null ? String(med.refillsRemaining) : "");
+    setFormAmountPerRefill(med.amountPerRefill != null ? String(med.amountPerRefill) : (med.totalPills != null ? String(med.totalPills) : ""));
+    setFormSupplyPerDose(med.supplyPerDose != null ? String(med.supplyPerDose) : "");
+    setFormLowSupplyThreshold(med.lowSupplyThreshold != null ? String(med.lowSupplyThreshold) : "5");
+    setFormConcentrationMgPerMl(med.concentrationMgPerMl != null ? String(med.concentrationMgPerMl) : "");
+    setFormRefillUnit(normalizeRefillUnit(med.inventoryUnit ?? med.refillUnit));
     setShowDoseTimePickerIndex(null);
     setShowReminderTimePickerIndex(null);
     setShowRefillUnitPicker(false);
@@ -281,8 +320,12 @@ export default function MedicationsScreen() {
       .map((d) => ({ id: d.id || Crypto.randomUUID(), amount: d.amount.trim(), unit: d.unit.trim() || "mg", timeOfDay: d.timeOfDay, reminderTime: (d.reminderTime?.trim() || defaultReminderTimeFor(d.timeOfDay)), optionalNotes: d.optionalNotes?.trim() || undefined }))
       .filter((d) => d.amount.length > 0);
     const parsedDuration = parseInt(formStressDoseDurationDays, 10);
-    const totalPills = formTotalPills.trim() ? parseInt(formTotalPills, 10) : undefined;
-    const pillsRemaining = formPillsRemaining.trim() ? parseInt(formPillsRemaining, 10) : undefined;
+    const currentSupplyAmount = formCurrentSupplyAmount.trim() ? parseFloat(formCurrentSupplyAmount) : undefined;
+    const refillsRemaining = formRefillsRemaining.trim() ? parseInt(formRefillsRemaining, 10) : undefined;
+    const amountPerRefill = formAmountPerRefill.trim() ? parseFloat(formAmountPerRefill) : undefined;
+    const supplyPerDose = formSupplyPerDose.trim() ? parseFloat(formSupplyPerDose) : undefined;
+    const lowSupplyThreshold = formLowSupplyThreshold.trim() ? parseFloat(formLowSupplyThreshold) : undefined;
+    const concentrationMgPerMl = formConcentrationMgPerMl.trim() ? parseFloat(formConcentrationMgPerMl) : undefined;
     const data: Omit<Medication, "id"> = {
       name: formName.trim(),
       frequency: formFreq.trim(),
@@ -290,9 +333,16 @@ export default function MedicationsScreen() {
       emoji: formEmoji || "",
       doses,
       active: true,
-      totalPills: totalPills != null && !isNaN(totalPills) ? totalPills : undefined,
-      pillsRemaining: pillsRemaining != null && !isNaN(pillsRemaining) ? pillsRemaining : undefined,
+      totalPills: amountPerRefill != null && !isNaN(amountPerRefill) ? amountPerRefill : undefined,
+      pillsRemaining: currentSupplyAmount != null && !isNaN(currentSupplyAmount) ? currentSupplyAmount : undefined,
       refillUnit: formRefillUnit,
+      inventoryUnit: formRefillUnit,
+      currentSupplyAmount: currentSupplyAmount != null && !isNaN(currentSupplyAmount) ? currentSupplyAmount : undefined,
+      refillsRemaining: refillsRemaining != null && !isNaN(refillsRemaining) ? refillsRemaining : undefined,
+      amountPerRefill: amountPerRefill != null && !isNaN(amountPerRefill) ? amountPerRefill : undefined,
+      supplyPerDose: supplyPerDose != null && !isNaN(supplyPerDose) ? supplyPerDose : undefined,
+      lowSupplyThreshold: lowSupplyThreshold != null && !isNaN(lowSupplyThreshold) ? lowSupplyThreshold : 5,
+      concentrationMgPerMl: concentrationMgPerMl != null && !isNaN(concentrationMgPerMl) ? concentrationMgPerMl : undefined,
       hasStressDose: formHasStressDose,
       stressDoseAmount: formHasStressDose ? formStressDoseAmount.trim() : undefined,
       stressDoseFrequency: formHasStressDose ? formStressDoseFrequency.trim() : undefined,
@@ -399,14 +449,18 @@ export default function MedicationsScreen() {
   };
 
   const handleDoseToggle = async (medId: string, doseIdx: number) => {
+    const med = medications.find((m) => m.id === medId);
     const log = medLogs.find((l) => l.medicationId === medId && (l.doseIndex ?? 0) === doseIdx);
     if (log?.taken) {
       await medicationLogStorage.toggle(medId, today, doseIdx);
+      if (med) await updateMedicationSupply(med, doseIdx, "undo");
       Haptics.selectionAsync();
     } else {
       await medicationLogStorage.toggle(medId, today, doseIdx);
+      if (med) await updateMedicationSupply(med, doseIdx, "take");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
+    await syncAllFromSettings();
     loadData();
   };
 
@@ -417,16 +471,18 @@ export default function MedicationsScreen() {
 
   const handleAlrightTookIt = async () => {
     if (nudgeMedId) {
-      const med = medications.find((m) => m.id === nudgeMedId);
+      let med = medications.find((m) => m.id === nudgeMedId);
       const doseCount = getDoseCount(med);
       for (let i = 0; i < doseCount; i++) {
         const log = medLogs.find((l) => l.medicationId === nudgeMedId && (l.doseIndex ?? 0) === i);
         if (!log?.taken) {
           await medicationLogStorage.toggle(nudgeMedId, today, i);
+          if (med) med = await updateMedicationSupply(med, i, "take");
         }
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setNudgeMedId(null);
+      await syncAllFromSettings();
       loadData();
     }
   };
@@ -440,6 +496,72 @@ export default function MedicationsScreen() {
     if (!med) return 1;
     if (Array.isArray(med.doses) && med.doses.length > 0) return med.doses.length;
     return (med as { doses?: number }).doses ?? 1;
+  };
+
+  const getCurrentSupplyAmount = (med: Medication): number | undefined => med.currentSupplyAmount ?? med.pillsRemaining;
+  const getAmountPerRefill = (med: Medication): number | undefined => med.amountPerRefill ?? med.totalPills;
+  const getInventoryUnit = (med: Medication): string => normalizeRefillUnit(med.inventoryUnit ?? med.refillUnit);
+  const getLowSupplyThreshold = (med: Medication): number => med.lowSupplyThreshold ?? 5;
+
+  const getSupplyUsedPerDose = (med: Medication, doseIdx: number): number | undefined => {
+    const dose = Array.isArray(med.doses) && med.doses.length > 0 ? med.doses[doseIdx] : undefined;
+    const inventoryUnit = getInventoryUnit(med);
+    if (inventoryUnit === "mL") {
+      const amount = dose?.amount ? parseFloat(dose.amount) : NaN;
+      if (med.concentrationMgPerMl && dose?.unit?.trim().toLowerCase() === "mg" && !Number.isNaN(amount)) {
+        return amount / med.concentrationMgPerMl;
+      }
+    }
+    if (med.supplyPerDose != null && !Number.isNaN(med.supplyPerDose)) {
+      return med.supplyPerDose;
+    }
+    const amount = dose?.amount ? parseFloat(dose.amount) : NaN;
+    if (dose?.unit && !Number.isNaN(amount) && doseUnitMatchesInventoryUnit(dose.unit, inventoryUnit)) {
+      return amount;
+    }
+    return undefined;
+  };
+
+  const updateMedicationSupply = async (med: Medication, doseIdx: number, direction: "take" | "undo"): Promise<Medication> => {
+    const currentSupplyAmount = getCurrentSupplyAmount(med);
+    const amountPerRefill = getAmountPerRefill(med);
+    const supplyUsedPerDose = getSupplyUsedPerDose(med, doseIdx);
+    if (currentSupplyAmount == null || supplyUsedPerDose == null || Number.isNaN(supplyUsedPerDose) || supplyUsedPerDose <= 0) {
+      return med;
+    }
+
+    let nextSupply = currentSupplyAmount + (direction === "take" ? -supplyUsedPerDose : supplyUsedPerDose);
+    let nextRefills = med.refillsRemaining ?? 0;
+    const safeAmountPerRefill = amountPerRefill != null && amountPerRefill > 0 ? amountPerRefill : undefined;
+
+    if (direction === "take" && safeAmountPerRefill) {
+      while (nextSupply <= 0 && nextRefills > 0) {
+        nextSupply += safeAmountPerRefill;
+        nextRefills -= 1;
+      }
+    }
+
+    if (direction === "undo" && safeAmountPerRefill) {
+      while (nextSupply > safeAmountPerRefill) {
+        nextSupply -= safeAmountPerRefill;
+        nextRefills += 1;
+      }
+    }
+
+    nextSupply = Math.max(0, nextSupply);
+
+    const updates: Partial<Medication> = {
+      currentSupplyAmount: nextSupply,
+      pillsRemaining: nextSupply,
+      refillsRemaining: nextRefills,
+      amountPerRefill: safeAmountPerRefill,
+      totalPills: safeAmountPerRefill,
+      inventoryUnit: getInventoryUnit(med),
+      refillUnit: getInventoryUnit(med),
+    };
+
+    await medicationStorage.update(med.id, updates);
+    return { ...med, ...updates };
   };
 
   const getMedTags = (med: Medication): string[] => {
@@ -609,7 +731,9 @@ export default function MedicationsScreen() {
               const emoji = getAutoEmoji(med);
               const totalDosesMed = getDoseCount(med);
               const takenTotalMed = Array.from({ length: totalDosesMed }, (_, i) => isDoseTaken(med.id, i)).filter(Boolean).length;
-              const showRefill = med.pillsRemaining != null;
+              const currentSupply = getCurrentSupplyAmount(med);
+              const remainingRefills = med.refillsRemaining;
+              const showRefill = currentSupply != null || remainingRefills != null;
 
               return (
                 <Pressable
@@ -658,8 +782,9 @@ export default function MedicationsScreen() {
                   {showRefill && (
                     <View style={styles.refillRow}>
                       <Ionicons name="alert-circle-outline" size={14} color={C.textTertiary} />
-                      <Text style={[styles.refillText, (med.pillsRemaining ?? 0) <= 5 && styles.refillTextWarning]}>
-                        Refill reminder · {(med.pillsRemaining ?? 0)} {displayRefillUnit(med.refillUnit, med.pillsRemaining)} remaining
+                      <Text style={[styles.refillText, currentSupply != null && currentSupply <= getLowSupplyThreshold(med) && styles.refillTextWarning]}>
+                        Supply · {currentSupply != null ? `${formatSupplyAmount(currentSupply)} ${displayRefillUnit(getInventoryUnit(med), currentSupply)} left` : "Not set"}
+                        {remainingRefills != null ? ` · ${remainingRefills} refill${remainingRefills === 1 ? "" : "s"} left` : ""}
                       </Text>
                     </View>
                   )}
@@ -1231,8 +1356,8 @@ export default function MedicationsScreen() {
               ))}
 
               <Text style={[styles.label, { marginTop: 12 }]}>Refill reminder (optional)</Text>
-              <Text style={[styles.label, { fontSize: 11, color: C.textTertiary, marginBottom: 6 }]}>When remaining supply is 5 or less, you&apos;ll get a refill reminder.</Text>
-              <Text style={[styles.label, { fontSize: 12 }]}>Refill unit</Text>
+              <Text style={[styles.label, { fontSize: 11, color: C.textTertiary, marginBottom: 6 }]}>Tell Synapse what you have right now, how much comes in each refill, and how much you use each time.</Text>
+              <Text style={[styles.label, { fontSize: 12 }]}>What are you tracking?</Text>
               <Pressable style={styles.input} onPress={() => setShowRefillUnitPicker((v) => !v)}>
                 <Text style={[styles.pickerPlaceholder, { color: C.text }]}>{formRefillUnit}</Text>
                 <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />
@@ -1258,14 +1383,33 @@ export default function MedicationsScreen() {
               )}
               <View style={{ flexDirection: "row", gap: 12 }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.label, { fontSize: 12 }]}>Total {displayRefillUnit(formRefillUnit, 2)}</Text>
-                  <TextInput style={styles.input} placeholder="e.g. 30" placeholderTextColor={C.textTertiary} value={formTotalPills} onChangeText={setFormTotalPills} keyboardType="number-pad" />
+                  <Text style={[styles.label, { fontSize: 12 }]}>How many do you have right now?</Text>
+                  <TextInput style={styles.input} placeholder={formRefillUnit === "mL" ? "e.g. 1.5" : "e.g. 30"} placeholderTextColor={C.textTertiary} value={formCurrentSupplyAmount} onChangeText={setFormCurrentSupplyAmount} keyboardType="decimal-pad" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.label, { fontSize: 12 }]}>{displayRefillUnit(formRefillUnit, 2).replace(/^\w/, (c) => c.toUpperCase())} remaining</Text>
-                  <TextInput style={styles.input} placeholder="e.g. 7" placeholderTextColor={C.textTertiary} value={formPillsRemaining} onChangeText={setFormPillsRemaining} keyboardType="number-pad" />
+                  <Text style={[styles.label, { fontSize: 12 }]}>How many refills are left?</Text>
+                  <TextInput style={styles.input} placeholder="e.g. 4" placeholderTextColor={C.textTertiary} value={formRefillsRemaining} onChangeText={setFormRefillsRemaining} keyboardType="number-pad" />
                 </View>
               </View>
+              <View style={{ flexDirection: "row", gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.label, { fontSize: 12 }]}>How much comes in each refill?</Text>
+                  <TextInput style={styles.input} placeholder={formRefillUnit === "mL" ? "e.g. 1.5" : "e.g. 30"} placeholderTextColor={C.textTertiary} value={formAmountPerRefill} onChangeText={setFormAmountPerRefill} keyboardType="decimal-pad" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.label, { fontSize: 12 }]}>How much do you use each time?</Text>
+                  <TextInput style={styles.input} placeholder={formRefillUnit === "mL" ? "e.g. 0.22" : "e.g. 2"} placeholderTextColor={C.textTertiary} value={formSupplyPerDose} onChangeText={setFormSupplyPerDose} keyboardType="decimal-pad" />
+                </View>
+              </View>
+              {formRefillUnit === "mL" && (
+                <View>
+                  <Text style={[styles.label, { fontSize: 12 }]}>Concentration in mg/mL (optional)</Text>
+                  <TextInput style={styles.input} placeholder="e.g. 6.7" placeholderTextColor={C.textTertiary} value={formConcentrationMgPerMl} onChangeText={setFormConcentrationMgPerMl} keyboardType="decimal-pad" />
+                  <Text style={[styles.label, { fontSize: 11, color: C.textTertiary, marginTop: -6, marginBottom: 8 }]}>If your dose is entered in mg, Synapse can convert it to mL automatically.</Text>
+                </View>
+              )}
+              <Text style={[styles.label, { fontSize: 12 }]}>Warn me when only this much is left</Text>
+              <TextInput style={styles.input} placeholder={formRefillUnit === "mL" ? "e.g. 0.5" : "e.g. 5"} placeholderTextColor={C.textTertiary} value={formLowSupplyThreshold} onChangeText={setFormLowSupplyThreshold} keyboardType="decimal-pad" />
 
               <View style={styles.stressDoseSection}>
                 <Text style={[styles.label, { fontSize: 13, fontWeight: "600" as const, marginBottom: 10 }]}>Sick Day / Stress Dose</Text>

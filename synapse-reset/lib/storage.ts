@@ -46,10 +46,19 @@ export interface Medication {
   /** @deprecated Use doses[].timeOfDay. Kept for migration. */
   timeTag?: string | string[];
   active: boolean;
-  /** Optional: for refill reminder when remaining supply <= threshold. */
+  /** @deprecated Kept for migration. Use amountPerRefill/currentSupplyAmount. */
   totalPills?: number;
+  /** @deprecated Kept for migration. Use currentSupplyAmount. */
   pillsRemaining?: number;
+  /** @deprecated Kept for migration. Use inventoryUnit. */
   refillUnit?: string;
+  inventoryUnit?: string;
+  currentSupplyAmount?: number;
+  amountPerRefill?: number;
+  refillsRemaining?: number;
+  supplyPerDose?: number;
+  lowSupplyThreshold?: number;
+  concentrationMgPerMl?: number;
   hasStressDose?: boolean;
   stressDoseAmount?: string;
   stressDoseFrequency?: string;

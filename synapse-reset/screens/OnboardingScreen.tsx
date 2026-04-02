@@ -273,13 +273,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
                 accessibilityLabel={`${label}, ${isRequired ? "required" : isSelected ? "on" : "off"}`}
               >
                 <Text style={[styles.sectionRowLabel, isSelected && styles.sectionRowLabelActive]}>{label}</Text>
-                {isRequired ? (
-                  <Ionicons name="lock-closed" size={14} color={MAROON} />
-                ) : (
-                  <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
-                    {isSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
-                  </View>
-                )}
+                <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
+                  {isSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+                </View>
               </Pressable>
             );
           })}
