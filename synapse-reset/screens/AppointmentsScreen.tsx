@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
-  StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, Alert, useWindowDimensions,
+  StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, Alert, useWindowDimensions, KeyboardAvoidingView,
 } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -245,7 +245,13 @@ export default function AppointmentsScreen() {
   const [tab, setTab] = useState<"calendar" | "notes">("calendar");
 
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
-  const [showDoctorPickerModal, setShowDoctorPickerModal] = useState(false);
+  const [showDoctorPicker, setShowDoctorPicker] = useState(false);
+  const [showInlineDoctorForm, setShowInlineDoctorForm] = useState(false);
+  const [newDoctorName, setNewDoctorName] = useState("");
+  const [newDoctorSpecialty, setNewDoctorSpecialty] = useState("");
+  const [newDoctorHospital, setNewDoctorHospital] = useState("");
+  const [newDoctorPhone, setNewDoctorPhone] = useState("");
+  const [newDoctorAddress, setNewDoctorAddress] = useState("");
   const [aptDate, setAptDate] = useState("");
   const [aptTime, setAptTime] = useState("");
   const [aptNotes, setAptNotes] = useState("");
@@ -270,6 +276,15 @@ export default function AppointmentsScreen() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const selectedDoctor = selectedDoctorId ? doctors.find((d) => d.id === selectedDoctorId) : null;
+
+  const resetInlineDoctorForm = () => {
+    setNewDoctorName("");
+    setNewDoctorSpecialty("");
+    setNewDoctorHospital("");
+    setNewDoctorPhone("");
+    setNewDoctorAddress("");
+    setShowInlineDoctorForm(false);
+  };
 
   const handleAddApt = async () => {
     if (!selectedDoctorId || !aptDate.trim()) return;
@@ -317,7 +332,8 @@ export default function AppointmentsScreen() {
 
   const resetAptForm = () => {
     setSelectedDoctorId(null);
-    setShowDoctorPickerModal(false);
+    setShowDoctorPicker(false);
+    resetInlineDoctorForm();
     setAptDate("");
     setAptTime("09:00");
     setAptNotes("");
@@ -332,7 +348,8 @@ export default function AppointmentsScreen() {
     setSelectedDate(date);
     setEditingApt(null);
     setSelectedDoctorId(null);
-    setShowDoctorPickerModal(false);
+    setShowDoctorPicker(false);
+    resetInlineDoctorForm();
     setAptDate(date);
     setAptTime("09:00");
     setAptNotes("");
@@ -343,6 +360,23 @@ export default function AppointmentsScreen() {
     setShowAptModal(true);
   }, []);
 
+  const handleAddDoctorInline = async () => {
+    if (!newDoctorName.trim()) return;
+    const doctor = await doctorsStorage.save({
+      name: newDoctorName.trim(),
+      specialty: newDoctorSpecialty.trim() || undefined,
+      hospital: newDoctorHospital.trim() || undefined,
+      phone: newDoctorPhone.trim() || undefined,
+      address: newDoctorAddress.trim() || undefined,
+    });
+    const refreshed = [...doctors.filter((d) => d.id !== doctor.id), doctor].sort((a, b) => a.name.localeCompare(b.name));
+    setDoctors(refreshed);
+    setSelectedDoctorId(doctor.id);
+    setShowDoctorPicker(false);
+    resetInlineDoctorForm();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
   const handleEditApt = async (apt: Appointment) => {
     setEditingApt(apt);
     let doctorId: string | null = apt.doctor_id ?? null;
@@ -352,6 +386,8 @@ export default function AppointmentsScreen() {
       setDoctors((prev) => [...prev.filter((d) => d.id !== doc.id), doc].sort((a, b) => a.name.localeCompare(b.name)));
     }
     setSelectedDoctorId(doctorId);
+    setShowDoctorPicker(false);
+    resetInlineDoctorForm();
     setAptDate(apt.date);
     setAptTime(apt.time || "09:00");
     setAptNotes(apt.notes ?? "");
@@ -642,19 +678,22 @@ export default function AppointmentsScreen() {
       </ScrollView>
 
       <Modal visible={showAptModal} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => { setShowAptModal(false); resetAptForm(); }} accessibilityLabel="Close">
-          <Pressable style={styles.modal} onPress={() => {}}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.modalScrollContent}
-            >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}>
+          <Pressable style={styles.overlay} onPress={() => { setShowAptModal(false); resetAptForm(); }} accessibilityLabel="Close">
+            <Pressable style={styles.modal} onPress={() => {}}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+                contentContainerStyle={styles.modalScrollContent}
+              >
               <Text style={styles.modalTitle}>{editingApt ? "Edit Appointment" : "New Appointment"}</Text>
               <Text style={styles.label}>Doctor *</Text>
               <Pressable
                 style={styles.doctorSelect}
                 onPress={() => {
-                  setShowDoctorPickerModal(true);
+                  setShowDoctorPicker((prev) => !prev);
+                  setShowInlineDoctorForm(false);
                 }}
                 accessibilityRole="button"
                 accessibilityLabel={selectedDoctor ? `${selectedDoctor.name}${selectedDoctor.specialty ? `, ${selectedDoctor.specialty}` : ""}` : "Select doctor"}
@@ -664,16 +703,71 @@ export default function AppointmentsScreen() {
                 </Text>
                 <Ionicons name="chevron-down" size={18} color={C.textSecondary} />
               </Pressable>
-              <View style={styles.psaCard}>
-                <Ionicons name="information-circle-outline" size={16} color={C.tint} />
-                <Text style={styles.psaText}>
-                  To add a doctor, head to the bottom Account tab and add them there first.
-                </Text>
-              </View>
+              {showDoctorPicker && (
+                <View style={styles.dropdown}>
+                  {doctors.length > 0 ? (
+                    <ScrollView style={styles.pickerScroll} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                      {doctors.map((d) => (
+                        <Pressable
+                          key={d.id}
+                          style={[styles.dropdownRow, selectedDoctorId === d.id && styles.dropdownRowSelected]}
+                          onPress={() => {
+                            setSelectedDoctorId(d.id);
+                            setShowDoctorPicker(false);
+                            Haptics.selectionAsync();
+                          }}
+                        >
+                          <Text style={styles.dropdownText}>{d.name}</Text>
+                          {d.specialty ? <Text style={styles.dropdownSub}>{d.specialty}</Text> : null}
+                          {d.hospital ? <Text style={styles.dropdownSub}>{d.hospital}</Text> : null}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  ) : (
+                    <Text style={styles.emptyPickerText}>No doctors yet. Add one below.</Text>
+                  )}
+                  <Pressable
+                    style={styles.inlineAddDoctorBtn}
+                    onPress={() => setShowInlineDoctorForm((prev) => !prev)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add doctor here"
+                  >
+                    <Ionicons name={showInlineDoctorForm ? "remove" : "add"} size={16} color={C.purple} />
+                    <Text style={styles.inlineAddDoctorText}>{showInlineDoctorForm ? "Hide add doctor" : "Add doctor here"}</Text>
+                  </Pressable>
+                  {showInlineDoctorForm && (
+                    <ScrollView
+                      style={styles.inlineDoctorForm}
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      <Text style={styles.label}>Doctor name *</Text>
+                      <TextInput style={styles.input} placeholder="e.g. Dr. Smith" placeholderTextColor={C.textTertiary} value={newDoctorName} onChangeText={setNewDoctorName} />
+                      <Text style={styles.label}>Specialty</Text>
+                      <TextInput style={styles.input} placeholder="e.g. Endocrinologist" placeholderTextColor={C.textTertiary} value={newDoctorSpecialty} onChangeText={setNewDoctorSpecialty} />
+                      <Text style={styles.label}>Hospital</Text>
+                      <TextInput style={styles.input} placeholder="e.g. Boston Medical Center" placeholderTextColor={C.textTertiary} value={newDoctorHospital} onChangeText={setNewDoctorHospital} />
+                      <Text style={styles.label}>Phone</Text>
+                      <TextInput style={styles.input} placeholder="e.g. (555) 123-4567" placeholderTextColor={C.textTertiary} value={newDoctorPhone} onChangeText={setNewDoctorPhone} keyboardType="phone-pad" />
+                      <Text style={styles.label}>Address</Text>
+                      <TextInput style={[styles.input, { minHeight: 60 }]} placeholder="Office address" placeholderTextColor={C.textTertiary} value={newDoctorAddress} onChangeText={setNewDoctorAddress} multiline />
+                      <View style={styles.modalActions}>
+                        <Pressable style={styles.cancelBtn} onPress={resetInlineDoctorForm}>
+                          <Text style={styles.cancelText}>Cancel</Text>
+                        </Pressable>
+                        <Pressable style={[styles.confirmBtn, !newDoctorName.trim() && { opacity: 0.5 }]} onPress={handleAddDoctorInline} disabled={!newDoctorName.trim()}>
+                          <Text style={styles.confirmText}>Save Doctor</Text>
+                        </Pressable>
+                      </View>
+                    </ScrollView>
+                  )}
+                </View>
+              )}
               <Text style={styles.label}>Specialty</Text>
               <View style={styles.readonlyField}>
                 <Text style={[styles.readonlyFieldText, !selectedDoctor?.specialty && { color: C.textTertiary }]}>
-                  {selectedDoctor?.specialty || "Pulled from the doctor's profile in Account"}
+                  {selectedDoctor?.specialty || "Will fill in after you pick a doctor"}
                 </Text>
               </View>
               <View style={styles.fieldRow}>
@@ -716,7 +810,7 @@ export default function AppointmentsScreen() {
               <Text style={styles.label}>Location</Text>
               <View style={styles.readonlyField}>
                 <Text style={[styles.readonlyFieldText, !selectedDoctor?.hospital && { color: C.textTertiary }]}>
-                  {selectedDoctor?.hospital || "Pulled from the doctor's profile in Account"}
+                  {selectedDoctor?.hospital || "Will fill in after you pick a doctor"}
                 </Text>
               </View>
               <Text style={styles.label}>Notes</Text>
@@ -765,9 +859,10 @@ export default function AppointmentsScreen() {
                   <Pressable style={[styles.confirmBtn, (!selectedDoctorId || !aptDate.trim()) && { opacity: 0.5 }]} onPress={handleAddApt} disabled={!selectedDoctorId || !aptDate.trim()}><Text style={styles.confirmText}>Add</Text></Pressable>
                 )}
               </View>
-            </ScrollView>
+              </ScrollView>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={showRescheduleModal} transparent animationType="fade">
@@ -798,40 +893,6 @@ export default function AppointmentsScreen() {
             <View style={styles.modalActions}>
               <Pressable style={styles.cancelBtn} onPress={() => setShowNoteModal(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
               <Pressable style={[styles.confirmBtn, !noteText.trim() && { opacity: 0.5 }]} onPress={handleAddNote} disabled={!noteText.trim()}><Text style={styles.confirmText}>Add</Text></Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      <Modal visible={showDoctorPickerModal} transparent animationType="fade" onRequestClose={() => setShowDoctorPickerModal(false)}>
-        <Pressable style={styles.overlay} onPress={() => setShowDoctorPickerModal(false)} accessibilityLabel="Close doctor picker">
-          <Pressable style={[styles.modal, styles.pickerModal]} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Select Doctor</Text>
-            {doctors.length === 0 ? (
-              <Text style={styles.emptyPickerText}>No doctors yet. Add one from Account first.</Text>
-            ) : (
-              <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
-                {doctors.map((d) => (
-                  <Pressable
-                    key={d.id}
-                    style={[styles.dropdownRow, selectedDoctorId === d.id && styles.dropdownRowSelected]}
-                    onPress={() => {
-                      setSelectedDoctorId(d.id);
-                      setShowDoctorPickerModal(false);
-                      Haptics.selectionAsync();
-                    }}
-                  >
-                    <Text style={styles.dropdownText}>{d.name}</Text>
-                    {d.specialty ? <Text style={styles.dropdownSub}>{d.specialty}</Text> : null}
-                    {d.hospital ? <Text style={styles.dropdownSub}>{d.hospital}</Text> : null}
-                  </Pressable>
-                ))}
-              </ScrollView>
-            )}
-            <View style={styles.modalActions}>
-              <Pressable style={styles.cancelBtn} onPress={() => setShowDoctorPickerModal(false)}>
-                <Text style={styles.cancelText}>Done</Text>
-              </Pressable>
             </View>
           </Pressable>
         </Pressable>
@@ -900,8 +961,8 @@ function makeStyles(C: Theme) {
   noteBulletNum: { fontWeight: "600", fontSize: 12, color: C.text },
   noteText: { fontWeight: "400", fontSize: 13, color: C.text, flex: 1, lineHeight: 19 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
-  modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, borderWidth: 1, borderColor: C.border },
-  modalScrollContent: { paddingBottom: 4 },
+  modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, maxHeight: "88%", borderWidth: 1, borderColor: C.border },
+  modalScrollContent: { paddingBottom: 28 },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
   label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
   input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
@@ -917,13 +978,13 @@ function makeStyles(C: Theme) {
   dropdownRowSelected: { backgroundColor: C.tintLight },
   dropdownText: { fontWeight: "500", fontSize: 14, color: C.text },
   dropdownSub: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
-  pickerModal: { maxWidth: 420 },
   pickerScroll: { maxHeight: 280, marginBottom: 14 },
   emptyPickerText: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginBottom: 16, lineHeight: 20 },
   inlineTimePicker: { backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 8, borderWidth: 1, borderColor: C.border, marginTop: -2, marginBottom: 14 },
   timePicker: { alignSelf: "center", marginBottom: 12 },
-  psaCard: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: C.tintLight, borderRadius: 10, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: C.border },
-  psaText: { flex: 1, fontWeight: "400", fontSize: 12, color: C.textSecondary, lineHeight: 18 },
+  inlineAddDoctorBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderTopWidth: 1, borderTopColor: C.border },
+  inlineAddDoctorText: { fontWeight: "600", fontSize: 13, color: C.purple },
+  inlineDoctorForm: { paddingTop: 8, maxHeight: 280 },
   repeatRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
   repeatChip: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
   repeatChipActive: { backgroundColor: C.purpleLight, borderColor: C.purple },
