@@ -786,27 +786,27 @@ export default function AppointmentsScreen() {
                     <Text style={styles.inputButtonText}>{formatTime12h(aptTime || "09:00")}</Text>
                     <Ionicons name="time-outline" size={18} color={C.textSecondary} />
                   </Pressable>
-                  {Platform.OS === "ios" && showTimePicker && (
-                    <View style={styles.inlineTimePicker}>
-                      <DateTimePicker
-                        value={reminderTimeToDate(aptTime || "09:00")}
-                        mode="time"
-                        display="spinner"
-                        minuteInterval={1}
-                        onChange={(_, date) => {
-                          if (date) {
-                            setAptTime(dateToReminderTime(date));
-                          }
-                        }}
-                        style={styles.timePicker}
-                      />
-                      <Pressable style={[styles.confirmBtn, { marginTop: 8 }]} onPress={() => setShowTimePicker(false)}>
-                        <Text style={styles.confirmText}>Done</Text>
-                      </Pressable>
-                    </View>
-                  )}
                 </View>
               </View>
+              {Platform.OS === "ios" && showTimePicker && (
+                <View style={styles.inlineTimePicker}>
+                  <DateTimePicker
+                    value={reminderTimeToDate(aptTime || "09:00")}
+                    mode="time"
+                    display="spinner"
+                    minuteInterval={1}
+                    onChange={(_, date) => {
+                      if (date) {
+                        setAptTime(dateToReminderTime(date));
+                      }
+                    }}
+                    style={styles.timePicker}
+                  />
+                  <Pressable style={[styles.confirmBtn, { marginTop: 8 }]} onPress={() => setShowTimePicker(false)}>
+                    <Text style={styles.confirmText}>Done</Text>
+                  </Pressable>
+                </View>
+              )}
               <Text style={styles.label}>Location</Text>
               <View style={styles.readonlyField}>
                 <Text style={[styles.readonlyFieldText, !selectedDoctor?.hospital && { color: C.textTertiary }]}>
