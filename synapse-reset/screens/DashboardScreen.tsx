@@ -25,12 +25,15 @@ import {
   appointmentStorage,
   fastingLogStorage,
   settingsStorage,
+  healthProfileStorage,
   type HealthLog,
   type Medication,
   type MedicationLog,
   type Appointment,
   type FastingLog,
   type UserSettings,
+  type HealthProfileInfo,
+  type RecordOwner,
 } from "@/lib/storage";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
@@ -128,8 +131,9 @@ interface DashboardHeroProps {
   leftTime: string;
   rightTime: string;
   /** Next medication: name + dose lines (e.g. ["15 mg — Morning", "5 mg — Afternoon"]) */
-  nextMedication: { name: string; lines: string[] } | null;
+  nextMedication: { name: string; lines: string[]; owner?: RecordOwner } | null;
   nextApt: Appointment | null;
+  getOwnerMeta: (owner?: RecordOwner) => { label: string; icon: React.ComponentProps<typeof Ionicons>["name"] };
   onNavigate: (screen: string) => void;
   medicationCardRef?: React.RefObject<View>;
   appointmentCardRef?: React.RefObject<View>;
@@ -144,6 +148,7 @@ function DashboardHero({
   rightTime,
   nextMedication,
   nextApt,
+  getOwnerMeta,
   onNavigate,
   medicationCardRef,
   appointmentCardRef,
@@ -217,6 +222,12 @@ function DashboardHero({
             accessibilityRole="button"
             accessibilityLabel="Open Medications"
           >
+            {nextMedication ? (
+              <View style={styles.dashboardHeroOwnerChip}>
+                <Ionicons name={getOwnerMeta(nextMedication.owner).icon} size={11} color={themeId === "dark" ? "#D8D8D8" : C.textSecondary} />
+                <Text style={[styles.dashboardHeroOwnerText, { color: miniCardSubtitleColor }]}>{getOwnerMeta(nextMedication.owner).label}</Text>
+              </View>
+            ) : null}
             <Text style={styles.dashboardHeroMiniTitle}>
               {nextMedication?.name || "Hydrocortisone"}
             </Text>
@@ -238,6 +249,12 @@ function DashboardHero({
             accessibilityRole="button"
             accessibilityLabel="Open Appointments"
           >
+          {nextApt ? (
+            <View style={styles.dashboardHeroOwnerChip}>
+              <Ionicons name={getOwnerMeta(nextApt.entryOwner).icon} size={11} color={themeId === "dark" ? "#D8D8D8" : C.textSecondary} />
+              <Text style={[styles.dashboardHeroOwnerText, { color: miniCardSubtitleColor }]}>{getOwnerMeta(nextApt.entryOwner).label}</Text>
+            </View>
+          ) : null}
           <Text style={styles.dashboardHeroMiniTitle}>Next appointment</Text>
           <Text style={[styles.dashboardHeroMiniSubtitle, { color: miniCardSubtitleColor }]}>
             {nextApt?.doctorName || "Dr. Jordon LICSW"}
@@ -374,16 +391,18 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [fastingLog, setFastingLog] = useState<FastingLog | undefined>();
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
+  const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", backupCriticalMedications: [] });
   const [loaded, setLoaded] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [log, meds, ml, apts, fl, sett] = await Promise.all([
+    const [log, meds, ml, apts, fl, sett, profileInfo] = await Promise.all([
       healthLogStorage.getByDate(today),
       medicationStorage.getAll(),
       medicationLogStorage.getByDate(today),
       appointmentStorage.getAll(),
       fastingLogStorage.getByDate(today),
       settingsStorage.get(),
+      healthProfileStorage.get(),
     ]);
     setTodayLog(log);
     setMedications(meds.filter((m) => m.active));
@@ -391,6 +410,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     setAppointments(apts.filter((a) => a.date >= today).sort((a, b) => a.date.localeCompare(b.date)));
     setFastingLog(fl);
     setSettings(sett);
+    setProfile(profileInfo);
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setLoaded(true);
   }, [today]);
@@ -492,7 +512,14 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       ? RAMADAN_WELLNESS_MESSAGES[dateObj.getDate() % RAMADAN_WELLNESS_MESSAGES.length]
       : GOOD_DAY_MESSAGES[dateObj.getDate() % GOOD_DAY_MESSAGES.length];
 
-  const getNextMedicationInfo = (): { name: string; lines: string[] } | null => {
+  const getOwnerMeta = useCallback((owner?: RecordOwner) => {
+    if (owner === "care_recipient" && profile.userRole === "caregiver" && profile.caredForName?.trim()) {
+      return { label: profile.caredForName.trim(), icon: "people-outline" as const };
+    }
+    return { label: "You", icon: "person-outline" as const };
+  }, [profile.caredForName, profile.userRole]);
+
+  const getNextMedicationInfo = (): { name: string; lines: string[]; owner?: RecordOwner } | null => {
     if (!medications.length) return null;
     for (const med of medications) {
       const doseCount = getDoseCount(med);
@@ -518,7 +545,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         lines.push(dosage ? `${dosage} — ${timeLabel}` : timeLabel);
       }
       if (lines.length === 0) lines.push("Morning dose");
-      return { name, lines };
+      return { name, lines, owner: med.entryOwner };
     }
     return null;
   };
@@ -624,7 +651,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       ) : (
         <View>
           <Text style={styles.priEmpty}>Not logged yet</Text>
-          <Text style={[styles.priMeta, { marginTop: 6 }]}>Tap to log how you're feeling</Text>
+          <Text style={[styles.priMeta, { marginTop: 6 }]}>Tap to log how you&apos;re feeling</Text>
         </View>
       )}
     </PriorityCard>
@@ -665,8 +692,9 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             rightTimeLabel={rightLabel}
             leftTime={leftTime}
             rightTime={rightTime}
-            nextMedication={nextMedication ? { name: nextMedication.name, lines: nextMedication.lines } : null}
+            nextMedication={nextMedication ? { name: nextMedication.name, lines: nextMedication.lines, owner: nextMedication.owner } : null}
             nextApt={nextApt ?? null}
+            getOwnerMeta={getOwnerMeta}
             onNavigate={onNavigate}
             medicationCardRef={refMed}
             appointmentCardRef={refApt}
@@ -715,7 +743,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             >
               <View>
                 <Text style={styles.feelingTitle}>How are you feeling today?</Text>
-                <Text style={styles.feelingSubtitle}>Tap to log today's energy, mood, and sleep.</Text>
+                <Text style={styles.feelingSubtitle}>Tap to log today&apos;s energy, mood, and sleep.</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={C.tint} />
             </Pressable>
@@ -932,6 +960,23 @@ function makeHeroStyles(C: Theme) {
       shadowOpacity: 0.04,
       shadowRadius: 6,
       elevation: 2,
+    },
+    dashboardHeroOwnerChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      alignSelf: "flex-start",
+      gap: 4,
+      marginBottom: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+      backgroundColor: "rgba(127,127,127,0.12)",
+    },
+    dashboardHeroOwnerText: {
+      fontWeight: "700",
+      fontSize: 10,
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
     },
     dashboardHeroMiniTitle: {
       fontWeight: "600",

@@ -32,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
       ]
     : []),
   { key: "monthlycheckin", label: "Monthly check-in", icon: "fitness-outline", iconActive: "fitness" },
+  { key: "cycletracking", label: "Cycle tracking", icon: "water-outline", iconActive: "water" },
   { key: "eating", label: "Eating", icon: "restaurant-outline", iconActive: "restaurant" },
   { key: "mentalhealth", label: "Mental health day", icon: "heart-outline", iconActive: "heart" },
   { key: "comfort", label: "Mood lifters", icon: "happy-outline", iconActive: "happy" },
@@ -48,7 +49,7 @@ const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
   { title: "Main", keys: ["dashboard"] },
   { title: "Emergency", keys: ["emergency", "emergencycard"] },
   { title: "Primary", keys: ["log", "medications", "healthdata", "appointments"] },
-  { title: "Health & Insights", keys: ["reports", "monthlycheckin", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
+  { title: "Health & Insights", keys: ["reports", "monthlycheckin", "cycletracking", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
   { title: "System", keys: ["privacy", "settings"] },
 ];
 

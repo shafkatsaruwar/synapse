@@ -9,6 +9,7 @@ import {
   medicationStorage,
   appointmentStorage,
   settingsStorage,
+  healthProfileStorage,
   normalizeMedication,
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
@@ -34,6 +35,7 @@ export const NOTIFICATION_IDS = {
   prefixApt1hr: "apt-1h",
   dailyCheckIn: "daily-checkin",
   monthlyCheckIn: "monthly-checkin",
+  screening: "screening-reminder",
 } as const;
 
 function isNative(): boolean {
@@ -296,7 +298,7 @@ export async function scheduleMonthlyCheckIn(dayOfMonth: number, hour: number, m
       identifier,
       content: {
         title: "Monthly Health Review",
-        body: "Take a moment to review your health and progress this month.",
+        body: "It’s a new month. Please take a moment to update your health details.",
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.MONTHLY,
@@ -308,6 +310,74 @@ export async function scheduleMonthlyCheckIn(dayOfMonth: number, hour: number, m
     return id;
   } catch (e) {
     console.warn("scheduleMonthlyCheckIn failed", e);
+    return null;
+  }
+}
+
+const SCREENING_MILESTONES: { age: number; screening: string }[] = [
+  { age: 21, screening: "routine preventive screening" },
+  { age: 45, screening: "colon cancer screening" },
+  { age: 50, screening: "routine preventive screening" },
+  { age: 65, screening: "bone health screening" },
+];
+
+function parseDateOnly(value?: string): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day, 10, 0, 0, 0);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getUpcomingScreeningMilestone(dateOfBirth?: string): { age: number; screening: string; triggerDate: Date } | null {
+  const dob = parseDateOnly(dateOfBirth);
+  if (!dob) return null;
+  const now = new Date();
+  for (const milestone of SCREENING_MILESTONES) {
+    const triggerDate = new Date(dob);
+    triggerDate.setFullYear(dob.getFullYear() + milestone.age);
+    triggerDate.setHours(10, 0, 0, 0);
+    if (triggerDate.getTime() > now.getTime()) {
+      return { ...milestone, triggerDate };
+    }
+  }
+  return null;
+}
+
+async function cancelScreeningNotifications(): Promise<void> {
+  if (!isNative()) return;
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const toCancel = scheduled
+      .filter((item) => item.identifier.startsWith(`${NOTIFICATION_IDS.screening}-`))
+      .map((item) => item.identifier);
+    for (const id of toCancel) {
+      await Notifications.cancelScheduledNotificationAsync(id);
+    }
+  } catch {}
+}
+
+export async function scheduleAgeBasedScreeningReminder(dateOfBirth?: string): Promise<string | null> {
+  if (!isNative()) return null;
+  const nextMilestone = getUpcomingScreeningMilestone(dateOfBirth);
+  await cancelScreeningNotifications();
+  if (!nextMilestone) return null;
+  const identifier = `${NOTIFICATION_IDS.screening}-${nextMilestone.age}`;
+  try {
+    const id = await Notifications.scheduleNotificationAsync({
+      identifier,
+      content: {
+        title: "Preventive Care Reminder",
+        body: `You are now ${nextMilestone.age} years old. Consider asking your doctor about ${nextMilestone.screening}.`,
+        data: { age: nextMilestone.age, screening: nextMilestone.screening },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: nextMilestone.triggerDate,
+      },
+    });
+    return id;
+  } catch (e) {
+    console.warn("scheduleAgeBasedScreeningReminder failed", e);
     return null;
   }
 }
@@ -350,6 +420,7 @@ function getScreenForNotificationId(id: string): string | null {
   if (id.startsWith("apt-")) return "appointments";
   if (id === NOTIFICATION_IDS.dailyCheckIn) return "log";
   if (id === NOTIFICATION_IDS.monthlyCheckIn) return "monthlycheckin";
+  if (id.startsWith(`${NOTIFICATION_IDS.screening}-`)) return "healthprofile";
   return null;
 }
 
@@ -420,10 +491,11 @@ function parseTimeHHMM(s: string | undefined): { hour: number; minute: number } 
 export async function syncAllFromSettings(): Promise<void> {
   if (!isNative()) return;
   try {
-    const [settings, meds, apts] = await Promise.all([
+    const [settings, meds, apts, profile] = await Promise.all([
       settingsStorage.get(),
       medicationStorage.getAll(),
       appointmentStorage.getAll(),
+      healthProfileStorage.get(),
     ]);
     const today = getToday();
     const notifMed = settings.notificationsMedications !== false;
@@ -521,6 +593,8 @@ export async function syncAllFromSettings(): Promise<void> {
     } else {
       await scheduleMonthlyCheckIn(1, 9, 0);
     }
+
+    await scheduleAgeBasedScreeningReminder(profile.dateOfBirth);
   } catch (e) {
     console.warn("syncAllFromSettings failed", e);
   }

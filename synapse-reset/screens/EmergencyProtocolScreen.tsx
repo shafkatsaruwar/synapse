@@ -130,6 +130,23 @@ export default function EmergencyProtocolScreen({ onBack }: EmergencyProtocolScr
         <Section title="Basic Info">
           <InfoRow label="Name" value={settings?.name || "—"} />
           <Divider />
+          <InfoRow
+            label="Role"
+            value={
+              profile.userRole === "caregiver"
+                ? "Caregiver"
+                : profile.userRole === "backup"
+                ? "Backup Person"
+                : "Self"
+            }
+          />
+          {(profile.userRole === "caregiver" && profile.caredForName) ? (
+            <>
+              <Divider />
+              <InfoRow label="Managing care for" value={profile.caredForName} />
+            </>
+          ) : null}
+          <Divider />
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Age</Text>
             {profile.age != null ? (
@@ -144,6 +161,25 @@ export default function EmergencyProtocolScreen({ onBack }: EmergencyProtocolScr
             )}
           </View>
         </Section>
+
+        {profile.userRole === "backup" ? (
+          <Section title="Backup Support Details">
+            <Text style={styles.contactDetail}>
+              {profile.backupEmergencyProtocols?.trim() || "No emergency protocol notes saved yet"}
+            </Text>
+            <Divider />
+            {profile.backupCriticalMedications?.length ? (
+              profile.backupCriticalMedications.map((item, index) => (
+                <React.Fragment key={item.id}>
+                  {index > 0 && <Divider />}
+                  <Text style={styles.contactName}>{item.name}</Text>
+                </React.Fragment>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No critical medications saved yet</Text>
+            )}
+          </Section>
+        ) : null}
 
         {/* ── Medical Conditions ── */}
         <Section title="Medical Conditions">

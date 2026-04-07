@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { healthLogStorage, settingsStorage, type HealthLog, type UserSettings } from "@/lib/storage";
+import { healthLogStorage, settingsStorage, healthProfileStorage, type UserSettings, type HealthProfileInfo, type RecordOwner } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import RAMADAN_2026 from "@/constants/ramadan-timetable";
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -55,8 +55,10 @@ export default function DailyLogScreen() {
 
   const [loggedDates, setLoggedDates] = useState<Set<string>>(new Set());
   const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", backupCriticalMedications: [] });
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [logEntryOwner, setLogEntryOwner] = useState<RecordOwner>("self");
   const [energy, setEnergy] = useState(3);
   const [mood, setMood] = useState(3);
   const [sleep, setSleep] = useState(3);
@@ -64,12 +66,14 @@ export default function DailyLogScreen() {
   const [saved, setSaved] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [allLogs, userSettings] = await Promise.all([
+    const [allLogs, userSettings, profileInfo] = await Promise.all([
       healthLogStorage.getAll(),
       settingsStorage.get(),
+      healthProfileStorage.get(),
     ]);
-    setLoggedDates(new Set(allLogs.map((l) => l.date)));
+    setLoggedDates(new Set(allLogs.map((l) => `${l.date}:${l.entryOwner ?? "self"}`)));
     setSettings(userSettings);
+    setProfile(profileInfo);
   }, []);
 
   React.useEffect(() => {
@@ -117,29 +121,41 @@ export default function DailyLogScreen() {
     const dateStr = formatYYYYMMDD(viewYear, viewMonth, day);
     setSelectedDate(dateStr);
     Haptics.selectionAsync();
-
-    const existing = await healthLogStorage.getByDate(dateStr);
-    if (existing) {
-      setEnergy(existing.energy);
-      setMood(existing.mood);
-      setSleep(existing.sleep);
-      setNotes(existing.notes);
-      setSaved(true);
-    } else {
-      setEnergy(3);
-      setMood(3);
-      setSleep(3);
-      setNotes("");
-      setSaved(false);
-    }
+    setLogEntryOwner("self");
   };
+
+  React.useEffect(() => {
+    if (!selectedDate) return;
+    let active = true;
+    const loadSelectedLog = async () => {
+      const existing = await healthLogStorage.getByDate(selectedDate, logEntryOwner);
+      if (!active) return;
+      if (existing) {
+        setEnergy(existing.energy);
+        setMood(existing.mood);
+        setSleep(existing.sleep);
+        setNotes(existing.notes);
+        setSaved(true);
+      } else {
+        setEnergy(3);
+        setMood(3);
+        setSleep(3);
+        setNotes("");
+        setSaved(false);
+      }
+    };
+    loadSelectedLog();
+    return () => {
+      active = false;
+    };
+  }, [selectedDate, logEntryOwner]);
 
   const handleSave = async () => {
     if (!selectedDate) return;
-    await healthLogStorage.save({ date: selectedDate, energy, mood, sleep, fasting: false, notes });
+    await healthLogStorage.save({ date: selectedDate, energy, mood, sleep, fasting: false, notes, entryOwner: logEntryOwner });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaved(true);
-    setLoggedDates((prev) => new Set([...prev, selectedDate]));
+    setLoggedDates((prev) => new Set([...prev, `${selectedDate}:${logEntryOwner}`]));
   };
 
   const closeModal = () => {
@@ -147,6 +163,11 @@ export default function DailyLogScreen() {
   };
 
   const ramadanMode = settings?.ramadanMode ?? false;
+  const isCaregiver = profile.userRole === "caregiver" && !!profile.caredForName?.trim();
+  const ownerOptions: { value: RecordOwner; label: string }[] = [
+    { value: "self", label: "You" },
+    ...(isCaregiver ? [{ value: "care_recipient" as const, label: profile.caredForName!.trim() }] : []),
+  ];
 
   const energyLabels = ["Low", "Fair", "Good", "Great", "Excellent"];
   const moodLabels = ["Down", "Low", "Okay", "Good", "Great"];
@@ -226,7 +247,7 @@ export default function DailyLogScreen() {
               }
               const dateStr = formatYYYYMMDD(viewYear, viewMonth, day);
               const isToday = dateStr === todayStr;
-              const hasLog = loggedDates.has(dateStr);
+              const hasLog = loggedDates.has(`${dateStr}:self`) || loggedDates.has(`${dateStr}:care_recipient`);
               const hijriDay = ramadanMode ? getHijriDay(dateStr) : undefined;
               const isFuture = dateStr > todayStr;
               const isPast = dateStr < todayStr;
@@ -304,7 +325,7 @@ export default function DailyLogScreen() {
               <View style={styles.futureMessage}>
                 <Text style={styles.futureEmoji}>🌱</Text>
                 <Text style={styles.futureTitle}>Come back tomorrow to log your day</Text>
-                <Text style={styles.futureSubtitle}>You can't live it before it happens.</Text>
+                <Text style={styles.futureSubtitle}>You can&apos;t live it before it happens.</Text>
               </View>
             ) : (
               <ScrollView
@@ -313,6 +334,27 @@ export default function DailyLogScreen() {
                 style={styles.modalScroll}
               >
                 <View style={styles.formCard}>
+                  {isCaregiver && (
+                    <>
+                      <Text style={styles.sectionTitle}>Who is this log for?</Text>
+                      <View style={styles.ownerRow}>
+                        {ownerOptions.map((option) => (
+                          <Pressable
+                            key={option.value}
+                            style={[styles.ownerChip, logEntryOwner === option.value && styles.ownerChipActive]}
+                            onPress={() => {
+                              setLogEntryOwner(option.value);
+                              Haptics.selectionAsync();
+                            }}
+                          >
+                            <Text style={[styles.ownerChipText, logEntryOwner === option.value && styles.ownerChipTextActive]}>
+                              {option.label}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </>
+                  )}
                   {renderSlider("Energy", energy, setEnergy, energyLabels, C.tint)}
                   {renderSlider("Mood", mood, setMood, moodLabels, C.purple)}
                   {renderSlider("Sleep", sleep, setSleep, sleepLabels, C.cyan)}
@@ -556,6 +598,32 @@ function makeStyles(C: Theme) {
     fontSize: 14,
     color: C.text,
     marginBottom: 14,
+  },
+  ownerRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 18,
+  },
+  ownerChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: C.surfaceElevated,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  ownerChipActive: {
+    backgroundColor: C.tintLight,
+    borderColor: C.tint,
+  },
+  ownerChipText: {
+    fontWeight: "600",
+    fontSize: 13,
+    color: C.textSecondary,
+  },
+  ownerChipTextActive: {
+    color: C.tint,
   },
   sliderSection: { marginBottom: 20 },
   sliderHeader: {

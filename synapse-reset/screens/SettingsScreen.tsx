@@ -9,8 +9,10 @@ import {
   useWindowDimensions,
   ScrollView,
   Alert,
-  } from "react-native";
+  Image,
+} from "react-native";
 import TextInput from "@/components/DoneTextInput";
+import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -18,6 +20,7 @@ import { useTheme, type ThemePreference, type Theme } from "@/contexts/ThemeCont
 import { useAuth } from "@/contexts/AuthContext";
 import {
   settingsStorage,
+  healthProfileStorage,
   conditionStorage,
   clearAllData,
   ALL_SECTION_KEYS,
@@ -29,6 +32,8 @@ import {
   type Medication,
   type MedicationLog,
   type Appointment,
+  type HealthProfileInfo,
+  type UserRole,
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { isCurrentMonthRamadan } from "@/lib/hijri";
@@ -37,7 +42,7 @@ import { syncAllFromSettings } from "@/lib/notification-manager";
 const SECTION_LABELS: Record<string, string> = {
   log: "Daily Log", healthdata: "Health Data", medications: "Medications", symptoms: "Symptoms",
   monthlycheckin: "Monthly check-in", eating: "Eating", mentalhealth: "Mental health day",
-  comfort: "Mood lifters", goals: "Goals", appointments: "Appointments", reports: "Reports", privacy: "Privacy",
+  comfort: "Mood lifters", goals: "Goals", appointments: "Appointments", reports: "Reports", privacy: "Privacy", cycletracking: "Cycle tracking",
 };
 
 interface SettingsScreenProps {
@@ -50,7 +55,7 @@ interface SettingsScreenProps {
 const SECTION_ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
   log: "heart-outline", healthdata: "analytics-outline", medications: "medical-outline", symptoms: "pulse-outline",
   monthlycheckin: "fitness-outline", eating: "restaurant-outline", mentalhealth: "heart-outline", comfort: "happy-outline",
-  goals: "flag-outline", appointments: "calendar-outline", reports: "document-text-outline", privacy: "shield-outline",
+  goals: "flag-outline", appointments: "calendar-outline", reports: "document-text-outline", privacy: "shield-outline", cycletracking: "water-outline",
 };
 
 const THEME_OPTIONS: { id: ThemePreference; label: string; description: string }[] = [
@@ -69,6 +74,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   const styles = useMemo(() => makeStyles(C), [C]);
 
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
+  const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", backupCriticalMedications: [] });
   const [saved, setSaved] = useState(true);
   const [showNameModal, setShowNameModal] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -91,14 +97,16 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
 
   const loadData = useCallback(async () => {
     const today = getToday();
-    const [s, conds, meds, logs, apts] = await Promise.all([
+    const [s, profileInfo, conds, meds, logs, apts] = await Promise.all([
       settingsStorage.get(),
+      healthProfileStorage.get(),
       conditionStorage.getAll(),
       medicationStorage.getAll(),
       medicationLogStorage.getByDate(today),
       appointmentStorage.getAll(),
     ]);
     setSettings(s);
+    setProfile(profileInfo);
     setConditionsCount(conds.length);
     setSectionSelections(
       new Set((s.enabledSections?.length ? s.enabledSections : ALL_SECTION_KEYS) as unknown as string[])
@@ -122,6 +130,31 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaved(true);
     syncAllFromSettings().catch(() => {});
+  };
+
+  const handleSaveProfile = async (nextProfile: HealthProfileInfo) => {
+    setProfile(nextProfile);
+    await healthProfileStorage.save(nextProfile);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    syncAllFromSettings().catch(() => {});
+  };
+
+  const handlePickProfileImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Photo access needed", "Please allow photo library access to choose a profile picture.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+      aspect: [1, 1],
+    });
+
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    await handleSaveProfile({ ...profile, profileImageUri: result.assets[0].uri });
   };
 
   const toggleSection = (key: string) => {
@@ -161,6 +194,14 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     setSaved(true);
     setShowNameModal(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const updateRole = async (role: UserRole) => {
+    await handleSaveProfile({ ...profile, userRole: role });
+  };
+
+  const saveBackupRoleDetails = async (updates: Partial<HealthProfileInfo>) => {
+    await handleSaveProfile({ ...profile, ...updates });
   };
 
   const dateObj = new Date();
@@ -204,11 +245,23 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           accessibilityLabel="Edit your name"
         >
           <View style={styles.profileHeader}>
-            <View style={styles.profileAvatar}>
-              <Text style={styles.profileAvatarText}>
-                {(settings.name?.trim()?.[0] ?? "Y").toUpperCase()}
-              </Text>
-            </View>
+            <Pressable
+              style={styles.profileAvatar}
+              onPress={(event) => {
+                event.stopPropagation();
+                handlePickProfileImage();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Choose profile picture"
+            >
+              {profile.profileImageUri ? (
+                <Image source={{ uri: profile.profileImageUri }} style={styles.profileAvatarImage} />
+              ) : (
+                <Text style={styles.profileAvatarText}>
+                  {(settings.name?.trim()?.[0] ?? "Y").toUpperCase()}
+                </Text>
+              )}
+            </Pressable>
             <View style={styles.profileInfo}>
               <Text style={styles.profileGreeting}>Hello,</Text>
               <View style={styles.profileNameRow}>
@@ -223,6 +276,20 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           <Text style={styles.localHint}>
             Data is stored locally on this device. There are no accounts or cloud backups.
           </Text>
+          <Pressable
+            style={styles.photoLink}
+            onPress={(event) => {
+              event.stopPropagation();
+              handlePickProfileImage();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={profile.profileImageUri ? "Change profile picture" : "Add profile picture"}
+          >
+            <Ionicons name="image-outline" size={15} color={C.tint} />
+            <Text style={styles.photoLinkText}>
+              {profile.profileImageUri ? "Change profile picture" : "Add profile picture"}
+            </Text>
+          </Pressable>
         </Pressable>
 
         {/* ——— Doctors & Pharmacies quick cards ——— */}
@@ -247,6 +314,90 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           </Pressable>
         </View>
 
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Role</Text>
+          <Text style={[styles.desc, { marginBottom: 12 }]}>Tell Synapse who this setup is for so the app can stay context-aware.</Text>
+          <View style={styles.roleRow}>
+            {(["self", "caregiver", "backup"] as UserRole[]).map((role) => {
+              const active = (profile.userRole ?? "self") === role;
+              const label = role === "self" ? "Self" : role === "caregiver" ? "Caregiver" : "Backup Person";
+              return (
+                <Pressable
+                  key={role}
+                  style={[styles.roleChip, active && styles.roleChipActive]}
+                  onPress={() => updateRole(role)}
+                >
+                  <Text style={[styles.roleChipText, active && styles.roleChipTextActive]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {(profile.userRole ?? "self") === "caregiver" ? (
+            <View style={{ marginTop: 14 }}>
+              <Text style={styles.label}>Who are you caring for?</Text>
+              <TextInput
+                style={styles.input}
+                value={profile.caredForName ?? ""}
+                onChangeText={(text) => setProfile((prev) => ({ ...prev, caredForName: text }))}
+                placeholder="Their name"
+                placeholderTextColor={C.textTertiary}
+              />
+            </View>
+          ) : null}
+
+          {(profile.userRole ?? "self") === "backup" ? (
+            <View style={{ marginTop: 14, gap: 12 }}>
+              <View>
+                <Text style={styles.label}>Emergency protocols</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={profile.backupEmergencyProtocols ?? ""}
+                  onChangeText={(text) => setProfile((prev) => ({ ...prev, backupEmergencyProtocols: text }))}
+                  placeholder="What should a backup person know in an emergency?"
+                  placeholderTextColor={C.textTertiary}
+                  multiline
+                />
+              </View>
+              <View>
+                <Text style={styles.label}>Critical medications</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={(profile.backupCriticalMedications ?? []).map((item) => item.name).join("\n")}
+                  onChangeText={(text) =>
+                    setProfile((prev) => ({
+                      ...prev,
+                      backupCriticalMedications: text
+                        .split("\n")
+                        .map((line) => line.trim())
+                        .filter(Boolean)
+                        .map((name, index) => ({ id: `critical-${index}-${name}`, name })),
+                    }))
+                  }
+                  placeholder="One per line, like emergency injection or rescue inhaler"
+                  placeholderTextColor={C.textTertiary}
+                  multiline
+                />
+              </View>
+            </View>
+          ) : null}
+
+          {(profile.userRole ?? "self") !== "self" ? (
+            <Pressable
+              style={[styles.primaryBtn, { marginTop: 14 }]}
+              onPress={() =>
+                saveBackupRoleDetails({
+                  caredForName: profile.caredForName?.trim() || undefined,
+                  backupEmergencyProtocols: profile.backupEmergencyProtocols?.trim() || undefined,
+                  backupCriticalMedications: (profile.backupCriticalMedications ?? []).filter((item) => item.name.trim()),
+                })
+              }
+            >
+              <Text style={styles.primaryBtnText}>Save role details</Text>
+            </Pressable>
+          ) : null}
+        </View>
+
         <Pressable
           style={[styles.card, styles.emergencyCard]}
           onPress={() => onNavigate?.("emergency")}
@@ -264,6 +415,42 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
             <Ionicons name="chevron-forward" size={18} color={C.tint} />
           </View>
         </Pressable>
+
+        <View style={styles.card}>
+          <Pressable
+            style={styles.profileRow}
+            onPress={() => onNavigate?.("healthprofile")}
+            accessibilityRole="button"
+            accessibilityLabel="Health profile"
+          >
+            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
+              <Ionicons name="person-outline" size={16} color={C.tint} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.profileRowTitle}>Health Profile</Text>
+              <Text style={styles.profileRowDesc}>Name, age, birth date, conditions, and allergies</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+          </Pressable>
+
+          <View style={styles.divider} />
+
+          <Pressable
+            style={styles.profileRow}
+            onPress={() => onNavigate?.("cycletracking")}
+            accessibilityRole="button"
+            accessibilityLabel="Cycle tracking"
+          >
+            <View style={[styles.profileIcon, { backgroundColor: C.orangeLight }]}>
+              <Ionicons name="water-outline" size={16} color={C.orange} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.profileRowTitle}>Cycle Tracking</Text>
+              <Text style={styles.profileRowDesc}>Log flow, symptoms, and notes in one place</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+          </Pressable>
+        </View>
 
         <Pressable
           style={styles.card}
@@ -571,18 +758,23 @@ function makeStyles(C: Theme) {
     desc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 14 },
     label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
     input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border },
+    textArea: { minHeight: 84, textAlignVertical: "top" },
     profileRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, minHeight: 50 },
     profileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
     profileRowTitle: { fontWeight: "600", fontSize: 14, color: C.text },
     profileRowDesc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
+    divider: { height: 1, backgroundColor: C.border, marginHorizontal: 16 },
     profileHeader: { flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 20 },
     profileAvatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+    profileAvatarImage: { width: 64, height: 64, borderRadius: 32 },
     profileAvatarText: { fontWeight: "600", fontSize: 22, color: "#fff" },
     profileInfo: { flex: 1, minWidth: 0 },
     profileGreeting: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 2 },
     profileNameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
     profileFullName: { fontWeight: "700", fontSize: 18, color: C.text },
     editHint: { fontWeight: "500", fontSize: 12, color: C.textTertiary, marginTop: 4 },
+    photoLink: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" },
+    photoLinkText: { fontWeight: "600", fontSize: 13, color: C.tint },
     profileEmail: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
     statCardsRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
     statCard: {
@@ -609,6 +801,18 @@ function makeStyles(C: Theme) {
     outlineBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "center" },
     outlineBtnText: { fontWeight: "600", fontSize: 14, color: C.text },
     backupActions: { flexDirection: "row", gap: 10, marginTop: 8 },
+    roleRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+    roleChip: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: C.border,
+      backgroundColor: C.surfaceElevated,
+    },
+    roleChipActive: { borderColor: C.tint, backgroundColor: C.tintLight },
+    roleChipText: { color: C.textSecondary, fontWeight: "600", fontSize: 13 },
+    roleChipTextActive: { color: C.tint },
     localHint: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 12 },
     toggleHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     toggle: { width: 48, height: 28, borderRadius: 14, backgroundColor: C.surfaceElevated, justifyContent: "center", paddingHorizontal: 3 },

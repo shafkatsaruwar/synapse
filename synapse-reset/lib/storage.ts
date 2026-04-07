@@ -9,6 +9,7 @@ export interface HealthLog {
   sleep: number;
   notes: string;
   fasting: boolean;
+  entryOwner?: RecordOwner;
 }
 
 export interface Symptom {
@@ -64,6 +65,7 @@ export interface Medication {
   stressDoseFrequency?: string;
   stressDoseDurationDays?: number;
   stressDoseInstructions?: string;
+  entryOwner?: RecordOwner;
 }
 
 /** Normalize legacy medication (dosage + timeTag + doses count) to doses array. */
@@ -123,8 +125,23 @@ export interface AllergyInfo {
   noTreatmentConsequence: string;
 }
 
+export type UserRole = "self" | "caregiver" | "backup";
+export type RecordOwner = "self" | "care_recipient";
+
+export interface BackupCriticalMedication {
+  id: string;
+  name: string;
+  instructions?: string;
+}
+
 export interface HealthProfileInfo {
   age?: number;
+  dateOfBirth?: string;
+  profileImageUri?: string;
+  userRole?: UserRole;
+  caredForName?: string;
+  backupEmergencyProtocols?: string;
+  backupCriticalMedications?: BackupCriticalMedication[];
 }
 
 export type RepeatUnit = "day" | "week" | "month";
@@ -165,6 +182,7 @@ export interface Appointment {
   repeat_end_date?: string | null;
   parent_recurring_id?: string | null;
   status?: AppointmentStatus;
+  entryOwner?: RecordOwner;
 }
 
 export interface DoctorNote {
@@ -203,6 +221,16 @@ export interface MonthlyCheckIn {
   heartRate?: string;
   ecgNotes?: string;
   mentalHealthNotes?: string;
+}
+
+export type CycleFlow = "light" | "medium" | "heavy";
+
+export interface CycleEntry {
+  id: string;
+  date: string;
+  flow?: CycleFlow;
+  symptoms?: string;
+  notes?: string;
 }
 
 export type EatingAmount = "small" | "medium" | "large";
@@ -336,6 +364,7 @@ const KEYS = {
   GOALS: "fir_goals",
   DOCTORS: "fir_doctors",
   PHARMACIES: "fir_pharmacies",
+  CYCLE_ENTRIES: "fir_cycle_entries",
 };
 
 async function getItem<T>(key: string): Promise<T[]> {
@@ -357,18 +386,22 @@ async function setItem<T>(key: string, data: T[]): Promise<void> {
 }
 
 export const healthLogStorage = {
-  getAll: () => getItem<HealthLog>(KEYS.HEALTH_LOGS),
-  getByDate: async (date: string) => {
+  getAll: async () => {
     const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
-    return logs.find((l) => l.date === date);
+    return logs.map((log) => ({ ...log, entryOwner: log.entryOwner ?? "self" }));
+  },
+  getByDate: async (date: string, entryOwner: RecordOwner = "self") => {
+    const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
+    return logs.find((l) => l.date === date && (l.entryOwner ?? "self") === entryOwner);
   },
   save: async (log: Omit<HealthLog, "id">) => {
     const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
-    const existing = logs.findIndex((l) => l.date === log.date);
+    const owner = log.entryOwner ?? "self";
+    const existing = logs.findIndex((l) => l.date === log.date && (l.entryOwner ?? "self") === owner);
     if (existing >= 0) {
-      logs[existing] = { ...logs[existing], ...log };
+      logs[existing] = { ...logs[existing], ...log, entryOwner: owner };
     } else {
-      logs.push({ ...log, id: Crypto.randomUUID() });
+      logs.push({ ...log, id: Crypto.randomUUID(), entryOwner: owner });
     }
     await setItem(KEYS.HEALTH_LOGS, logs);
   },
@@ -398,11 +431,11 @@ export const symptomStorage = {
 export const medicationStorage = {
   getAll: async () => {
     const raw = await getItem<Medication>(KEYS.MEDICATIONS);
-    return raw.map(normalizeMedication);
+    return raw.map((med) => ({ ...normalizeMedication(med), entryOwner: med.entryOwner ?? "self" }));
   },
   save: async (med: Omit<Medication, "id">) => {
     const meds = await getItem<Medication>(KEYS.MEDICATIONS);
-    meds.push({ ...med, id: Crypto.randomUUID() });
+    meds.push({ ...med, id: Crypto.randomUUID(), entryOwner: med.entryOwner ?? "self" });
     await setItem(KEYS.MEDICATIONS, meds);
   },
   update: async (id: string, updates: Partial<Medication>) => {
@@ -567,14 +600,17 @@ function addIntervalToDate(dateStr: string, interval: number, unit: RepeatUnit):
 }
 
 export const appointmentStorage = {
-  getAll: () => getItem<Appointment>(KEYS.APPOINTMENTS),
+  getAll: async () => {
+    const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
+    return apts.map((apt) => ({ ...apt, entryOwner: apt.entryOwner ?? "self" }));
+  },
   setAll: async (apts: Appointment[]) => {
     await setItem(KEYS.APPOINTMENTS, apts);
   },
   save: async (apt: Omit<Appointment, "id">) => {
     const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
     const id = Crypto.randomUUID();
-    const first: Appointment = { ...apt, id };
+    const first: Appointment = { ...apt, id, entryOwner: apt.entryOwner ?? "self" };
     apts.push(first);
     const isRecurring = apt.is_recurring && apt.repeat_interval != null && apt.repeat_unit;
     if (isRecurring && apt.repeat_interval != null && apt.repeat_unit) {
@@ -596,6 +632,7 @@ export const appointmentStorage = {
           repeat_interval: undefined,
           repeat_unit: undefined,
           repeat_end_date: undefined,
+          entryOwner: apt.entryOwner ?? "self",
         });
         nextDate = addIntervalToDate(nextDate, interval, unit);
       }
@@ -852,18 +889,46 @@ export const healthProfileStorage = {
   get: async (): Promise<HealthProfileInfo> => {
     try {
       const raw = await AsyncStorage.getItem(KEYS.HEALTH_PROFILE_INFO);
-      return raw ? JSON.parse(raw) : {};
+      return raw
+        ? { userRole: "self", backupCriticalMedications: [], ...JSON.parse(raw) }
+        : { userRole: "self", backupCriticalMedications: [] };
     } catch (e) {
       console.warn("AsyncStorage healthProfile get failed", e);
-      return {};
+      return { userRole: "self", backupCriticalMedications: [] };
     }
   },
   save: async (data: HealthProfileInfo) => {
     try {
-      await AsyncStorage.setItem(KEYS.HEALTH_PROFILE_INFO, JSON.stringify(data));
+      await AsyncStorage.setItem(
+        KEYS.HEALTH_PROFILE_INFO,
+        JSON.stringify({
+          userRole: "self",
+          backupCriticalMedications: [],
+          ...data,
+        })
+      );
     } catch (e) {
       console.warn("AsyncStorage healthProfile save failed", e);
     }
+  },
+};
+
+export const cycleTrackingStorage = {
+  getAll: () => getItem<CycleEntry>(KEYS.CYCLE_ENTRIES),
+  getLatest: async () => {
+    const all = await getItem<CycleEntry>(KEYS.CYCLE_ENTRIES);
+    return all.sort((a, b) => b.date.localeCompare(a.date))[0];
+  },
+  save: async (data: Omit<CycleEntry, "id">) => {
+    const all = await getItem<CycleEntry>(KEYS.CYCLE_ENTRIES);
+    const newItem = { ...data, id: Crypto.randomUUID() };
+    all.push(newItem);
+    await setItem(KEYS.CYCLE_ENTRIES, all);
+    return newItem;
+  },
+  delete: async (id: string) => {
+    const all = await getItem<CycleEntry>(KEYS.CYCLE_ENTRIES);
+    await setItem(KEYS.CYCLE_ENTRIES, all.filter((entry) => entry.id !== id));
   },
 };
 
@@ -1000,6 +1065,7 @@ export type ExportPayload = {
   exportDate: string;
   appVersion: string;
   profile: UserSettings;
+  healthProfile?: HealthProfileInfo;
   healthLogs: HealthLog[];
   symptoms: Symptom[];
   medications: Medication[];
@@ -1021,6 +1087,7 @@ export type ExportPayload = {
   mentalHealthMode?: MentalHealthModeData;
   comfortItems?: ComfortItem[];
   goals?: Goal[];
+  cycleEntries?: CycleEntry[];
 };
 
 export const exportAllData = async (): Promise<ExportPayload> => {
@@ -1041,6 +1108,7 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     allergy,
     conditions,
     sickMode,
+    healthProfile,
   ] = await Promise.all([
     healthLogStorage.getAll(),
     symptomStorage.getAll(),
@@ -1058,19 +1126,22 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     allergyStorage.get(),
     conditionStorage.getAll(),
     sickModeStorage.get(),
+    healthProfileStorage.get(),
   ]);
-  const [medComparisons, monthlyCheckIns, eatingLogs, mentalHealthMode, comfortItems, goals] = await Promise.all([
+  const [medComparisons, monthlyCheckIns, eatingLogs, mentalHealthMode, comfortItems, goals, cycleEntries] = await Promise.all([
     medComparisonStorage.getAll(),
     monthlyCheckInStorage.getAll(),
     eatingStorage.getAll(),
     mentalHealthModeStorage.get(),
     comfortStorage.getAll(),
     goalStorage.getAll(),
+    cycleTrackingStorage.getAll(),
   ]);
   return {
     exportDate: new Date().toISOString(),
     appVersion: "1.0",
     profile: settings,
+    healthProfile,
     healthLogs,
     symptoms,
     medications,
@@ -1092,12 +1163,14 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     mentalHealthMode,
     comfortItems,
     goals,
+    cycleEntries,
   };
 };
 
 export const importAllData = async (payload: ExportPayload): Promise<void> => {
   await clearAllData();
   await settingsStorage.save(payload.profile);
+  await healthProfileStorage.save(payload.healthProfile ?? { userRole: "self", backupCriticalMedications: [] });
   await allergyStorage.save(payload.allergy ?? { ...DEFAULT_ALLERGY_INFO });
   await sickModeStorage.save(payload.sickMode ?? { ...DEFAULT_SICK_MODE });
   await setItem(KEYS.HEALTH_LOGS, payload.healthLogs ?? []);
@@ -1119,6 +1192,7 @@ export const importAllData = async (payload: ExportPayload): Promise<void> => {
   await mentalHealthModeStorage.save(payload.mentalHealthMode ?? { ...DEFAULT_MENTAL_HEALTH_MODE });
   await setItem(KEYS.COMFORT_ITEMS, payload.comfortItems ?? []);
   await setItem(KEYS.GOALS, payload.goals ?? []);
+  await setItem(KEYS.CYCLE_ENTRIES, payload.cycleEntries ?? []);
 };
 
 export const clearAllData = async () => {

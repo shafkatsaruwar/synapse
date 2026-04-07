@@ -12,10 +12,13 @@ import {
   appointmentStorage,
   doctorNoteStorage,
   doctorsStorage,
+  healthProfileStorage,
   type Appointment,
   type Doctor,
   type DoctorNote,
   type RepeatUnit,
+  type HealthProfileInfo,
+  type RecordOwner,
 } from "@/lib/storage";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 
@@ -236,6 +239,7 @@ export default function AppointmentsScreen() {
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", backupCriticalMedications: [] });
   const [notes, setNotes] = useState<DoctorNote[]>([]);
   const [showAptModal, setShowAptModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -255,6 +259,7 @@ export default function AppointmentsScreen() {
   const [aptDate, setAptDate] = useState("");
   const [aptTime, setAptTime] = useState("");
   const [aptNotes, setAptNotes] = useState("");
+  const [aptEntryOwner, setAptEntryOwner] = useState<RecordOwner>("self");
   const [repeatOption, setRepeatOption] = useState<typeof REPEAT_OPTIONS[0]["value"]>("none");
   const [customInterval, setCustomInterval] = useState("1");
   const [customUnit, setCustomUnit] = useState<RepeatUnit>("week");
@@ -267,9 +272,10 @@ export default function AppointmentsScreen() {
 
   const loadData = useCallback(async () => {
     const apts = await appointmentStorage.getAll();
-    const [docs, n] = await Promise.all([doctorsStorage.getAll(), doctorNoteStorage.getAll()]);
+    const [docs, n, profileInfo] = await Promise.all([doctorsStorage.getAll(), doctorNoteStorage.getAll(), healthProfileStorage.get()]);
     setAppointments(apts.sort((a, b) => a.date.localeCompare(b.date)));
     setDoctors(docs);
+    setProfile(profileInfo);
     setNotes(n.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
   }, []);
 
@@ -301,6 +307,7 @@ export default function AppointmentsScreen() {
       time: aptTime.trim() || "09:00",
       location,
       notes: aptNotes.trim(),
+      entryOwner: aptEntryOwner,
     };
 
     const opt = REPEAT_OPTIONS.find((o) => o.value === repeatOption);
@@ -337,6 +344,7 @@ export default function AppointmentsScreen() {
     setAptDate("");
     setAptTime("09:00");
     setAptNotes("");
+    setAptEntryOwner("self");
     setRepeatOption("none");
     setCustomInterval("1");
     setCustomUnit("week");
@@ -353,6 +361,7 @@ export default function AppointmentsScreen() {
     setAptDate(date);
     setAptTime("09:00");
     setAptNotes("");
+    setAptEntryOwner("self");
     setRepeatOption("none");
     setCustomInterval("1");
     setCustomUnit("week");
@@ -391,6 +400,7 @@ export default function AppointmentsScreen() {
     setAptDate(apt.date);
     setAptTime(apt.time || "09:00");
     setAptNotes(apt.notes ?? "");
+    setAptEntryOwner(apt.entryOwner ?? "self");
     setRepeatOption("none");
     setShowTimePicker(false);
     setShowAptModal(true);
@@ -408,6 +418,7 @@ export default function AppointmentsScreen() {
       time: aptTime.trim() || "09:00",
       location: doc.hospital ?? "",
       notes: aptNotes.trim(),
+      entryOwner: aptEntryOwner,
     };
     if (editMode === "one") {
       await appointmentStorage.update(editingApt.id, updates);
@@ -488,6 +499,7 @@ export default function AppointmentsScreen() {
       time: newTime,
       location: rescheduleApt.location ?? "",
       notes: rescheduleApt.notes ?? "",
+      entryOwner: rescheduleApt.entryOwner ?? "self",
     };
     await appointmentStorage.save(base);
     await markAppointmentStatus(rescheduleApt, "rescheduled");
@@ -503,6 +515,12 @@ export default function AppointmentsScreen() {
     () => appointments.filter((a) => a.date < today && a.status === undefined),
     [appointments, today]
   );
+  const isCaregiver = profile.userRole === "caregiver" && !!profile.caredForName?.trim();
+  const ownerOptions: { value: RecordOwner; label: string }[] = [
+    { value: "self", label: "You" },
+    ...(isCaregiver ? [{ value: "care_recipient" as const, label: profile.caredForName!.trim() }] : []),
+  ];
+  const getOwnerLabel = (owner?: RecordOwner) => owner === "care_recipient" && isCaregiver ? profile.caredForName!.trim() : "You";
   const firstOverdueApt = overdueApts[0] ?? null;
   useEffect(() => {
     if (!firstOverdueApt || showRescheduleModal) return;
@@ -583,6 +601,7 @@ export default function AppointmentsScreen() {
                       </View>
                       <View style={styles.aptCardContent}>
                         <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{apt.doctorName}</Text>
+                        {isCaregiver && <Text style={styles.ownerMeta}>{getOwnerLabel(apt.entryOwner)}</Text>}
                         {!!apt.specialty && <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{apt.specialty}</Text>}
                         <View style={styles.aptMeta}>
                           <Ionicons name="time-outline" size={12} color={C.textSecondary} />
@@ -613,6 +632,7 @@ export default function AppointmentsScreen() {
                       </View>
                       <View style={styles.aptCardContent}>
                         <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{apt.doctorName}</Text>
+                        {isCaregiver && <Text style={styles.ownerMeta}>{getOwnerLabel(apt.entryOwner)}</Text>}
                         {!!apt.specialty && <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{apt.specialty}</Text>}
                         {getRecurrenceLabel(apt, appointments) && <Text style={styles.aptRecurrence}>{getRecurrenceLabel(apt, appointments)}</Text>}
                         <View style={styles.aptMeta}>
@@ -648,6 +668,7 @@ export default function AppointmentsScreen() {
                       </View>
                       <View style={styles.aptCardContent}>
                         <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{apt.doctorName}</Text>
+                        {isCaregiver && <Text style={styles.ownerMeta}>{getOwnerLabel(apt.entryOwner)}</Text>}
                         {!!apt.specialty && <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{apt.specialty}</Text>}
                         {getRecurrenceLabel(apt, appointments) && <Text style={styles.aptRecurrence}>{getRecurrenceLabel(apt, appointments)}</Text>}
                       </View>
@@ -688,6 +709,27 @@ export default function AppointmentsScreen() {
                 contentContainerStyle={styles.modalScrollContent}
               >
               <Text style={styles.modalTitle}>{editingApt ? "Edit Appointment" : "New Appointment"}</Text>
+              {isCaregiver && (
+                <>
+                  <Text style={styles.label}>Who is this appointment for?</Text>
+                  <View style={styles.ownerRow}>
+                    {ownerOptions.map((option) => (
+                      <Pressable
+                        key={option.value}
+                        style={[styles.ownerChip, aptEntryOwner === option.value && styles.ownerChipActive]}
+                        onPress={() => {
+                          setAptEntryOwner(option.value);
+                          Haptics.selectionAsync();
+                        }}
+                      >
+                        <Text style={[styles.ownerChipText, aptEntryOwner === option.value && styles.ownerChipTextActive]}>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              )}
               <Text style={styles.label}>Doctor *</Text>
               <Pressable
                 style={styles.doctorSelect}
@@ -790,18 +832,20 @@ export default function AppointmentsScreen() {
               </View>
               {Platform.OS === "ios" && showTimePicker && (
                 <View style={styles.inlineTimePicker}>
-                  <DateTimePicker
-                    value={reminderTimeToDate(aptTime || "09:00")}
-                    mode="time"
-                    display="spinner"
-                    minuteInterval={1}
-                    onChange={(_, date) => {
-                      if (date) {
-                        setAptTime(dateToReminderTime(date));
-                      }
-                    }}
-                    style={styles.timePicker}
-                  />
+                  <View style={styles.timePickerBleed}>
+                    <DateTimePicker
+                      value={reminderTimeToDate(aptTime || "09:00")}
+                      mode="time"
+                      display="spinner"
+                      minuteInterval={1}
+                      onChange={(_, date) => {
+                        if (date) {
+                          setAptTime(dateToReminderTime(date));
+                        }
+                      }}
+                      style={styles.timePicker}
+                    />
+                  </View>
                   <Pressable style={[styles.confirmBtn, { marginTop: 8 }]} onPress={() => setShowTimePicker(false)}>
                     <Text style={styles.confirmText}>Done</Text>
                   </Pressable>
@@ -946,6 +990,7 @@ function makeStyles(C: Theme) {
   aptDateDay: { fontWeight: "700", fontSize: 16, color: C.purple, lineHeight: 20 },
   aptDateMonth: { fontWeight: "500", fontSize: 9, color: C.purple, textTransform: "uppercase" },
   aptDoctor: { fontWeight: "600", fontSize: 14, color: C.text },
+  ownerMeta: { fontWeight: "700", fontSize: 10, color: C.purple, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 3 },
   aptSpec: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 1 },
   aptRecurrence: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2, fontStyle: "italic" },
   aptMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, flex: 1, minWidth: 0 },
@@ -965,6 +1010,11 @@ function makeStyles(C: Theme) {
   modalScrollContent: { paddingBottom: 28 },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
   label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
+  ownerRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
+  ownerChip: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 999, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  ownerChipActive: { backgroundColor: C.purpleLight, borderColor: C.purple },
+  ownerChipText: { fontWeight: "600", fontSize: 13, color: C.textSecondary },
+  ownerChipTextActive: { color: C.purple },
   input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
   readonlyField: { backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14, minHeight: 48, justifyContent: "center" },
   readonlyFieldText: { fontWeight: "400", fontSize: 14, color: C.text },
@@ -980,8 +1030,9 @@ function makeStyles(C: Theme) {
   dropdownSub: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
   pickerScroll: { maxHeight: 280, marginBottom: 14 },
   emptyPickerText: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginBottom: 16, lineHeight: 20 },
-  inlineTimePicker: { backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 8, borderWidth: 1, borderColor: C.border, marginTop: -2, marginBottom: 14 },
-  timePicker: { alignSelf: "center", marginBottom: 12 },
+  inlineTimePicker: { backgroundColor: C.surfaceElevated, borderRadius: 12, paddingTop: 8, paddingBottom: 8, paddingHorizontal: 0, borderWidth: 1, borderColor: C.border, marginTop: -2, marginBottom: 14, overflow: "hidden" },
+  timePickerBleed: { marginHorizontal: -24, alignItems: "center" },
+  timePicker: { alignSelf: "center", marginBottom: 12, width: Platform.OS === "ios" ? 320 : undefined },
   inlineAddDoctorBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderTopWidth: 1, borderTopColor: C.border },
   inlineAddDoctorText: { fontWeight: "600", fontSize: 13, color: C.purple },
   inlineDoctorForm: { paddingTop: 8, maxHeight: 280 },

@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { conditionStorage, healthProfileStorage, settingsStorage } from "@/lib/storage";
+import { syncAllFromSettings } from "@/lib/notification-manager";
 
 interface HealthProfileScreenProps {
   onBack: () => void;
@@ -21,6 +22,8 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
   const [nameSaved, setNameSaved] = useState(true);
   const [ageText, setAgeText] = useState("");
   const [ageSaved, setAgeSaved] = useState(true);
+  const [dobText, setDobText] = useState("");
+  const [dobSaved, setDobSaved] = useState(true);
 
   const loadData = useCallback(async () => {
     const [conds, profile, settings] = await Promise.all([
@@ -31,6 +34,7 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
     setConditionsCount(conds.length);
     setNameText(settings.name ?? "");
     setAgeText(profile.age != null ? String(profile.age) : "");
+    setDobText(profile.dateOfBirth ?? "");
   }, []);
 
   React.useEffect(() => {
@@ -47,9 +51,20 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
 
   const handleSaveAge = async () => {
     const parsed = ageText.trim() === "" ? undefined : parseInt(ageText, 10);
-    await healthProfileStorage.save({ age: isNaN(parsed as number) ? undefined : parsed });
+    const current = await healthProfileStorage.get();
+    await healthProfileStorage.save({ ...current, age: isNaN(parsed as number) ? undefined : parsed });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setAgeSaved(true);
+    syncAllFromSettings().catch(() => {});
+  };
+
+  const handleSaveDob = async () => {
+    const trimmed = dobText.trim();
+    const current = await healthProfileStorage.get();
+    await healthProfileStorage.save({ ...current, dateOfBirth: trimmed || undefined });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setDobSaved(true);
+    syncAllFromSettings().catch(() => {});
   };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
@@ -124,6 +139,34 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
 
         <View style={{ height: 12 }} />
 
+        <View style={styles.ageCard}>
+          <Text style={styles.ageLabel}>Date of Birth</Text>
+          <TextInput
+            style={styles.ageInput}
+            value={dobText}
+            onChangeText={(t) => {
+              setDobText(t);
+              setDobSaved(false);
+            }}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={C.textTertiary}
+            autoCapitalize="none"
+            accessibilityLabel="Date of birth"
+          />
+          <Text style={styles.helperText}>Used for subtle age-based screening reminders.</Text>
+          <Pressable
+            style={({ pressed }) => [styles.ageSaveBtn, dobSaved && styles.ageSaveBtnSaved, { opacity: pressed ? 0.85 : 1 }]}
+            onPress={handleSaveDob}
+            accessibilityRole="button"
+            accessibilityLabel={dobSaved ? "Date of birth saved" : "Save date of birth"}
+          >
+            <Ionicons name={dobSaved ? "checkmark-circle" : "save-outline"} size={16} color="#fff" />
+            <Text style={styles.ageSaveBtnText}>{dobSaved ? "Saved" : "Save"}</Text>
+          </Pressable>
+        </View>
+
+        <View style={{ height: 12 }} />
+
         <View style={styles.card}>
           <Pressable
             style={styles.profileRow}
@@ -189,6 +232,7 @@ function makeStyles(C: Theme) {
   ageCard: { backgroundColor: C.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: C.border },
   ageLabel: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 8 },
   ageInput: { fontWeight: "400", fontSize: 16, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: C.border, marginBottom: 12 },
+  helperText: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 12 },
   ageSaveBtn: { backgroundColor: C.tint, borderRadius: 10, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   ageSaveBtnSaved: { backgroundColor: C.green },
   ageSaveBtnText: { fontWeight: "600", fontSize: 14, color: "#fff" },

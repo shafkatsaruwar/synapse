@@ -11,8 +11,8 @@ import { getSickModePalette, type SickModePalette } from "@/constants/sick-mode-
 import ReadAloudButton from "@/components/ReadAloudButton";
 import * as Crypto from "expo-crypto";
 import {
-  medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage, doctorsStorage, pharmacyStorage,
-  type Medication, type MedicationDose, type MedicationLog, type UserSettings, type SickModeData, type Doctor, type Pharmacy,
+  medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage, doctorsStorage, pharmacyStorage, healthProfileStorage,
+  type Medication, type MedicationDose, type MedicationLog, type UserSettings, type SickModeData, type Doctor, type Pharmacy, type HealthProfileInfo, type RecordOwner,
 } from "@/lib/storage";
 import { getMedList, addMedListItem, removeMedListItem, updateMedListItem, type MedListItem, type MedListDose, type MedListDoseTime } from "@/lib/med-list-storage";
 import { getToday } from "@/lib/date-utils";
@@ -146,6 +146,7 @@ export default function MedicationsScreen() {
   const [medications, setMedications] = useState<Medication[]>([]);
   const [medLogs, setMedLogs] = useState<MedicationLog[]>([]);
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
+  const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", backupCriticalMedications: [] });
   const [sickData, setSickData] = useState<SickModeData | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
@@ -172,6 +173,7 @@ export default function MedicationsScreen() {
   const [formLowSupplyThreshold, setFormLowSupplyThreshold] = useState("5");
   const [formConcentrationMgPerMl, setFormConcentrationMgPerMl] = useState("");
   const [formRefillUnit, setFormRefillUnit] = useState<string>("Pills");
+  const [formEntryOwner, setFormEntryOwner] = useState<RecordOwner>("self");
   const [showRefillUnitPicker, setShowRefillUnitPicker] = useState(false);
   const [tempInput, setTempInput] = useState("");
   const [showTempModal, setShowTempModal] = useState(false);
@@ -196,12 +198,13 @@ export default function MedicationsScreen() {
   const [formMedListDurationUnit, setFormMedListDurationUnit] = useState<"" | "Days" | "Weeks" | "Months">("");
 
   const loadData = useCallback(async () => {
-    const [meds, logs, s, sd, medList, docs, pharmacyList] = await Promise.all([
-      medicationStorage.getAll(), medicationLogStorage.getByDate(today), settingsStorage.get(), sickModeStorage.get(), getMedList(), doctorsStorage.getAll(), pharmacyStorage.getAll(),
+    const [meds, logs, s, sd, medList, docs, pharmacyList, profileInfo] = await Promise.all([
+      medicationStorage.getAll(), medicationLogStorage.getByDate(today), settingsStorage.get(), sickModeStorage.get(), getMedList(), doctorsStorage.getAll(), pharmacyStorage.getAll(), healthProfileStorage.get(),
     ]);
     setMedications(meds);
     setMedLogs(logs);
     setSettings(s);
+    setProfile(profileInfo);
     setSickData(sd);
     setMedListItems(medList);
     setDoctors(docs);
@@ -266,6 +269,7 @@ export default function MedicationsScreen() {
     setFormLowSupplyThreshold("5");
     setFormConcentrationMgPerMl("");
     setFormRefillUnit("Pills");
+    setFormEntryOwner("self");
     setShowCurrentMedNamePicker(false);
     setShowDoseTimePickerIndex(null);
     setShowReminderTimePickerIndex(null);
@@ -295,6 +299,7 @@ export default function MedicationsScreen() {
     setFormLowSupplyThreshold(med.lowSupplyThreshold != null ? String(med.lowSupplyThreshold) : "5");
     setFormConcentrationMgPerMl(med.concentrationMgPerMl != null ? String(med.concentrationMgPerMl) : "");
     setFormRefillUnit(normalizeRefillUnit(med.inventoryUnit ?? med.refillUnit));
+    setFormEntryOwner(med.entryOwner ?? "self");
     setShowDoseTimePickerIndex(null);
     setShowReminderTimePickerIndex(null);
     setShowRefillUnitPicker(false);
@@ -343,6 +348,7 @@ export default function MedicationsScreen() {
       supplyPerDose: supplyPerDose != null && !isNaN(supplyPerDose) ? supplyPerDose : undefined,
       lowSupplyThreshold: lowSupplyThreshold != null && !isNaN(lowSupplyThreshold) ? lowSupplyThreshold : 5,
       concentrationMgPerMl: concentrationMgPerMl != null && !isNaN(concentrationMgPerMl) ? concentrationMgPerMl : undefined,
+      entryOwner: formEntryOwner,
       hasStressDose: formHasStressDose,
       stressDoseAmount: formHasStressDose ? formStressDoseAmount.trim() : undefined,
       stressDoseFrequency: formHasStressDose ? formStressDoseFrequency.trim() : undefined,
@@ -660,6 +666,12 @@ export default function MedicationsScreen() {
   };
 
   const topPad = isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16);
+  const isCaregiver = profile.userRole === "caregiver" && !!profile.caredForName?.trim();
+  const ownerOptions: { value: RecordOwner; label: string }[] = [
+    { value: "self", label: "You" },
+    ...(isCaregiver ? [{ value: "care_recipient" as const, label: profile.caredForName!.trim() }] : []),
+  ];
+  const getOwnerLabel = (owner?: RecordOwner) => owner === "care_recipient" && isCaregiver ? profile.caredForName!.trim() : "You";
 
   return (
     <View style={[styles.container, isSickMode && { backgroundColor: sickPalette.background }]}>
@@ -749,6 +761,11 @@ export default function MedicationsScreen() {
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                         <Text style={{ fontSize: 18 }}>{emoji}</Text>
                         <Text style={[styles.medName, allTaken && styles.medNameTaken]}>{med.name}</Text>
+                        {isCaregiver && (
+                          <View style={styles.ownerBadge}>
+                            <Text style={styles.ownerBadgeText}>{getOwnerLabel(med.entryOwner)}</Text>
+                          </View>
+                        )}
                       </View>
                       {Array.isArray(med.doses) && med.doses.length > 0 ? (
                         med.doses
@@ -1181,6 +1198,27 @@ export default function MedicationsScreen() {
           <View style={styles.modal}>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
               <Text style={styles.modalTitle}>{editingMed ? "Edit Medication" : "Add Medication"}</Text>
+              {isCaregiver && (
+                <>
+                  <Text style={styles.label}>Who is this medication for?</Text>
+                  <View style={styles.ownerRow}>
+                    {ownerOptions.map((option) => (
+                      <Pressable
+                        key={option.value}
+                        style={[styles.ownerChip, formEntryOwner === option.value && styles.ownerChipActive]}
+                        onPress={() => {
+                          setFormEntryOwner(option.value);
+                          Haptics.selectionAsync();
+                        }}
+                      >
+                        <Text style={[styles.ownerChipText, formEntryOwner === option.value && styles.ownerChipTextActive]}>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              )}
 
               <Text style={styles.label}>Emoji</Text>
               <View style={styles.emojiGrid}>
@@ -1583,6 +1621,13 @@ function makeStyles(C: Theme, S: SickModePalette) {
   medInfo: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 12 },
   medName: { fontWeight: "600", fontSize: 15, color: C.text },
   medNameTaken: { color: C.textSecondary },
+  ownerBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.border },
+  ownerBadgeText: { fontWeight: "700", fontSize: 10, color: C.tint, textTransform: "uppercase", letterSpacing: 0.5 },
+  ownerRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
+  ownerChip: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 999, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  ownerChipActive: { backgroundColor: C.tintLight, borderColor: C.tint },
+  ownerChipText: { fontWeight: "600", fontSize: 13, color: C.textSecondary },
+  ownerChipTextActive: { color: C.tint },
   medDose: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 4, marginLeft: 26 },
   medFreq: { fontWeight: "500", fontSize: 11, color: C.tint, marginTop: 3, marginLeft: 26 },
   actionRow: { flexDirection: "row", gap: 8 },
