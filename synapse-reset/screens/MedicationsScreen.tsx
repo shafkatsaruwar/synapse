@@ -18,6 +18,7 @@ import { getMedList, addMedListItem, removeMedListItem, updateMedListItem, type 
 import { getToday } from "@/lib/date-utils";
 import { DEFAULT_REMINDER_TIMES, syncAllFromSettings } from "@/lib/notification-manager";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { syncWidgetSnapshot } from "@/lib/widget-sync";
 
 const TIME_TAGS: string[] = ["Morning", "Afternoon", "Night", "Before Fajr", "After Iftar"];
 const MED_LIST_DOSE_TIMES: MedListDoseTime[] = ["Morning", "Afternoon", "Evening", "Night", "As Needed"];
@@ -211,7 +212,10 @@ export default function MedicationsScreen() {
     setPharmacies(pharmacyList);
   }, [today]);
 
-  React.useEffect(() => { loadData(); }, [loadData]);
+  React.useEffect(() => {
+    loadData();
+    syncWidgetSnapshot().catch(() => {});
+  }, [loadData]);
 
   const resetMedListForm = () => {
     setFormMedListName("");
@@ -361,6 +365,7 @@ export default function MedicationsScreen() {
       await medicationStorage.save(data);
     }
     await syncAllFromSettings();
+    await syncWidgetSnapshot().catch(() => {});
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowModal(false);
     loadData();
@@ -370,6 +375,7 @@ export default function MedicationsScreen() {
     if (Platform.OS === "web") {
       await medicationStorage.delete(med.id);
       await syncAllFromSettings();
+      await syncWidgetSnapshot().catch(() => {});
       loadData();
       return;
     }
@@ -381,6 +387,7 @@ export default function MedicationsScreen() {
         onPress: async () => {
           await medicationStorage.delete(med.id);
           await syncAllFromSettings();
+          await syncWidgetSnapshot().catch(() => {});
           loadData();
         },
       },
@@ -420,6 +427,7 @@ export default function MedicationsScreen() {
     setShowMedListModal(false);
     setEditingMedListItem(null);
     resetMedListForm();
+    await syncWidgetSnapshot().catch(() => {});
     loadData();
   };
 
@@ -439,6 +447,7 @@ export default function MedicationsScreen() {
             setShowMedListModal(false);
             setEditingMedListItem(null);
             resetMedListForm();
+            await syncWidgetSnapshot().catch(() => {});
             loadData();
           },
         },
@@ -447,10 +456,10 @@ export default function MedicationsScreen() {
   };
 
   const handleRemoveMedListItem = async (item: MedListItem) => {
-    if (Platform.OS === "web") { await removeMedListItem(item.id); loadData(); return; }
+    if (Platform.OS === "web") { await removeMedListItem(item.id); await syncWidgetSnapshot().catch(() => {}); loadData(); return; }
     Alert.alert("Remove", `Remove ${item.name} from Med List?`, [
       { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: async () => { await removeMedListItem(item.id); loadData(); } },
+      { text: "Remove", style: "destructive", onPress: async () => { await removeMedListItem(item.id); await syncWidgetSnapshot().catch(() => {}); loadData(); } },
     ]);
   };
 
@@ -467,6 +476,7 @@ export default function MedicationsScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     await syncAllFromSettings();
+    await syncWidgetSnapshot().catch(() => {});
     loadData();
   };
 
@@ -489,6 +499,7 @@ export default function MedicationsScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setNudgeMedId(null);
       await syncAllFromSettings();
+      await syncWidgetSnapshot().catch(() => {});
       loadData();
     }
   };

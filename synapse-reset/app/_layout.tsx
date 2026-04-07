@@ -17,6 +17,7 @@ import {
   setupMedicationCategory,
   addNotificationResponseListener,
 } from "@/lib/notification-manager";
+import { syncWidgetSnapshot } from "@/lib/widget-sync";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -35,6 +36,7 @@ export default function RootLayout() {
     setNotificationHandler();
     setupMedicationCategory();
     const remove = addNotificationResponseListener(() => {}, () => {});
+    syncWidgetSnapshot().catch(() => {});
     return remove;
   }, []);
 

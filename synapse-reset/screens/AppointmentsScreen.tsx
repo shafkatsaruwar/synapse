@@ -21,6 +21,7 @@ import {
   type RecordOwner,
 } from "@/lib/storage";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
+import { syncWidgetSnapshot } from "@/lib/widget-sync";
 
 const REPEAT_OPTIONS: { value: "none" | "week" | "2weeks" | "month" | "custom"; label: string; interval?: number; unit?: RepeatUnit }[] = [
   { value: "none", label: "Does not repeat" },
@@ -279,7 +280,10 @@ export default function AppointmentsScreen() {
     setNotes(n.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    loadData();
+    syncWidgetSnapshot().catch(() => {});
+  }, [loadData]);
 
   const selectedDoctor = selectedDoctorId ? doctors.find((d) => d.id === selectedDoctorId) : null;
 
@@ -331,6 +335,7 @@ export default function AppointmentsScreen() {
     }
 
     await appointmentStorage.save(base);
+    await syncWidgetSnapshot().catch(() => {});
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     resetAptForm();
     setShowAptModal(false);
@@ -432,12 +437,14 @@ export default function AppointmentsScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     resetAptForm();
     setShowAptModal(false);
+    await syncWidgetSnapshot().catch(() => {});
     loadData();
   };
 
   const handleDeleteApt = async (apt: Appointment) => {
     const doDelete = async () => {
       await appointmentStorage.delete(apt.id);
+      await syncWidgetSnapshot().catch(() => {});
       loadData();
     };
     if (Platform.OS === "web") { await doDelete(); return; }
@@ -472,6 +479,7 @@ export default function AppointmentsScreen() {
 
   const markAppointmentStatus = useCallback(async (apt: Appointment, status: "completed" | "rescheduled" | "cancelled") => {
     await appointmentStorage.update(apt.id, { status });
+    await syncWidgetSnapshot().catch(() => {});
     loadData();
   }, [loadData]);
 
@@ -508,6 +516,7 @@ export default function AppointmentsScreen() {
     setRescheduleApt(null);
     setRescheduleDate("");
     setRescheduleTime("");
+    await syncWidgetSnapshot().catch(() => {});
     loadData();
   }, [rescheduleApt, rescheduleDate, rescheduleTime, markAppointmentStatus, loadData]);
 
@@ -830,27 +839,6 @@ export default function AppointmentsScreen() {
                   </Pressable>
                 </View>
               </View>
-              {Platform.OS === "ios" && showTimePicker && (
-                <View style={styles.inlineTimePicker}>
-                  <View style={styles.timePickerBleed}>
-                    <DateTimePicker
-                      value={reminderTimeToDate(aptTime || "09:00")}
-                      mode="time"
-                      display="spinner"
-                      minuteInterval={1}
-                      onChange={(_, date) => {
-                        if (date) {
-                          setAptTime(dateToReminderTime(date));
-                        }
-                      }}
-                      style={styles.timePicker}
-                    />
-                  </View>
-                  <Pressable style={[styles.confirmBtn, { marginTop: 8 }]} onPress={() => setShowTimePicker(false)}>
-                    <Text style={styles.confirmText}>Done</Text>
-                  </Pressable>
-                </View>
-              )}
               <Text style={styles.label}>Location</Text>
               <View style={styles.readonlyField}>
                 <Text style={[styles.readonlyFieldText, !selectedDoctor?.hospital && { color: C.textTertiary }]}>
@@ -942,6 +930,31 @@ export default function AppointmentsScreen() {
         </Pressable>
       </Modal>
 
+      {Platform.OS === "ios" && (
+      <Modal visible={showTimePicker} transparent animationType="fade" onRequestClose={() => setShowTimePicker(false)}>
+        <Pressable style={styles.overlay} onPress={() => setShowTimePicker(false)} accessibilityLabel="Close time picker">
+          <Pressable style={styles.iosTimeSheet} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Appointment Time</Text>
+            <DateTimePicker
+              value={reminderTimeToDate(aptTime || "09:00")}
+              mode="time"
+              display="spinner"
+              minuteInterval={1}
+              onChange={(_, date) => {
+                if (date) {
+                  setAptTime(dateToReminderTime(date));
+                }
+              }}
+              style={styles.timePicker}
+            />
+            <Pressable style={styles.confirmBtn} onPress={() => setShowTimePicker(false)}>
+              <Text style={styles.confirmText}>Done</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+      )}
+
       {Platform.OS !== "ios" && (
       <Modal visible={showTimePicker} transparent animationType="fade" onRequestClose={() => setShowTimePicker(false)}>
         <Pressable style={styles.overlay} onPress={() => setShowTimePicker(false)} accessibilityLabel="Close time picker">
@@ -1007,6 +1020,7 @@ function makeStyles(C: Theme) {
   noteText: { fontWeight: "400", fontSize: 13, color: C.text, flex: 1, lineHeight: 19 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
   modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, maxHeight: "88%", borderWidth: 1, borderColor: C.border },
+  iosTimeSheet: { backgroundColor: C.surface, borderRadius: 18, paddingTop: 20, paddingBottom: 16, paddingHorizontal: 20, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: C.border, alignItems: "stretch" },
   modalScrollContent: { paddingBottom: 28 },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
   label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
@@ -1030,8 +1044,6 @@ function makeStyles(C: Theme) {
   dropdownSub: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
   pickerScroll: { maxHeight: 280, marginBottom: 14 },
   emptyPickerText: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginBottom: 16, lineHeight: 20 },
-  inlineTimePicker: { backgroundColor: C.surfaceElevated, borderRadius: 12, paddingTop: 8, paddingBottom: 8, paddingHorizontal: 0, borderWidth: 1, borderColor: C.border, marginTop: -2, marginBottom: 14, overflow: "hidden" },
-  timePickerBleed: { marginHorizontal: -24, alignItems: "center" },
   timePicker: { alignSelf: "center", marginBottom: 12, width: Platform.OS === "ios" ? 320 : undefined },
   inlineAddDoctorBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderTopWidth: 1, borderTopColor: C.border },
   inlineAddDoctorText: { fontWeight: "600", fontSize: 13, color: C.purple },
