@@ -13,10 +13,10 @@
 		592B1AB3F8240CD3DD203787 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 899F68671DF26BB98C21EF96 /* ExpoModulesProvider.swift */; };
 		7F02BD12959CC42BC5FB3805 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 35431796CFF3DC9E0F0AB340 /* PrivacyInfo.xcprivacy */; };
 		A10000000000000000000001 /* SynapseWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* SynapseWidgetBridge.swift */; };
-		A10000000000000000000034 /* SynapseWidgetBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000035 /* SynapseWidgetBridge.m */; };
 		A10000000000000000000002 /* SynapseWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* SynapseWidgetsBundle.swift */; };
 		A10000000000000000000003 /* SynapseWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* SynapseWidgets.swift */; };
 		A10000000000000000000004 /* SynapseWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* SynapseWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A10000000000000000000034 /* SynapseWidgetBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000035 /* SynapseWidgetBridge.m */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
@@ -54,12 +54,12 @@
 		6D6966030DA41711EA48E2DB /* Pods-Synapse.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Synapse.release.xcconfig"; path = "Target Support Files/Pods-Synapse/Pods-Synapse.release.xcconfig"; sourceTree = "<group>"; };
 		899F68671DF26BB98C21EF96 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Synapse/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		A10000000000000000000011 /* SynapseWidgetBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseWidgetBridge.swift; path = Synapse/SynapseWidgetBridge.swift; sourceTree = "<group>"; };
-		A10000000000000000000035 /* SynapseWidgetBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseWidgetBridge.m; path = Synapse/SynapseWidgetBridge.m; sourceTree = "<group>"; };
 		A10000000000000000000013 /* SynapseWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SynapseWidgetsBundle.swift; sourceTree = "<group>"; };
 		A10000000000000000000014 /* SynapseWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SynapseWidgets.swift; sourceTree = "<group>"; };
 		A10000000000000000000015 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10000000000000000000016 /* SynapseWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SynapseWidgets.entitlements; sourceTree = "<group>"; };
 		A10000000000000000000017 /* SynapseWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SynapseWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000035 /* SynapseWidgetBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseWidgetBridge.m; path = Synapse/SynapseWidgetBridge.m; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Synapse/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
@@ -452,7 +452,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Synapse/Synapse.entitlements;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 1.0;
 				DEVELOPMENT_TEAM = 9NND6657B2;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -465,7 +465,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.10;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -490,7 +490,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Synapse/Synapse.entitlements;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 1.0;
 				DEVELOPMENT_TEAM = 9NND6657B2;
 				INFOPLIST_FILE = Synapse/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
@@ -498,7 +498,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.10;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -638,7 +638,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = SynapseWidgets/SynapseWidgets.entitlements;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1.0;
 				DEVELOPMENT_TEAM = 9NND6657B2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SynapseWidgets/Info.plist;
@@ -649,6 +649,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.10;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mohammedsaruwar.synapse.widgets;
 				PRODUCT_NAME = SynapseWidgets;
 				SKIP_INSTALL = YES;
@@ -662,7 +663,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = SynapseWidgets/SynapseWidgets.entitlements;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1.0;
 				DEVELOPMENT_TEAM = 9NND6657B2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SynapseWidgets/Info.plist;
@@ -673,6 +674,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.10;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mohammedsaruwar.synapse.widgets;
 				PRODUCT_NAME = SynapseWidgets;
 				SKIP_INSTALL = YES;

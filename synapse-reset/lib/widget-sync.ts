@@ -1,14 +1,17 @@
 import { NativeModules, Platform } from "react-native";
 import {
   appointmentStorage,
+  healthProfileStorage,
   medicationStorage,
   normalizeMedication,
   type Appointment,
   type Medication,
   type MedicationDose,
+  type WidgetAppearancePreference,
 } from "@/lib/storage";
 
 type WidgetSnapshot = {
+  appearance: WidgetAppearancePreference;
   medication: null | {
     name: string;
     detail: string;
@@ -138,10 +141,14 @@ function formatAppointmentWhen(date: Date) {
 
 function getNextAppointmentSnapshot(appointments: Appointment[]) {
   const now = new Date();
+  const graceWindowMs = 1000 * 60 * 60 * 2;
   const upcoming = appointments
-    .filter((appointment) => appointment.status === undefined)
+    .filter((appointment) => appointment.status === undefined || appointment.status === "rescheduled")
     .map((appointment) => ({ appointment, startsAt: parseAppointmentDateTime(appointment) }))
-    .filter((item): item is { appointment: Appointment; startsAt: Date } => !!item.startsAt && item.startsAt >= now)
+    .filter(
+      (item): item is { appointment: Appointment; startsAt: Date } =>
+        !!item.startsAt && item.startsAt.getTime() >= now.getTime() - graceWindowMs
+    )
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
 
   if (!upcoming.length) return null;
@@ -157,12 +164,14 @@ function getNextAppointmentSnapshot(appointments: Appointment[]) {
 export async function syncWidgetSnapshot() {
   if (Platform.OS !== "ios" || !APP_WIDGET_BRIDGE?.saveSnapshot) return;
 
-  const [medications, appointments] = await Promise.all([
+  const [medications, appointments, profile] = await Promise.all([
     medicationStorage.getAll(),
     appointmentStorage.getAll(),
+    healthProfileStorage.get(),
   ]);
 
   const snapshot: WidgetSnapshot = {
+    appearance: profile.widgetAppearance ?? "system",
     medication: getNextMedicationSnapshot(medications),
     appointment: getNextAppointmentSnapshot(appointments),
     updatedAt: new Date().toISOString(),

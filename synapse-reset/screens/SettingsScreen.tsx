@@ -34,10 +34,12 @@ import {
   type Appointment,
   type HealthProfileInfo,
   type UserRole,
+  type WidgetAppearancePreference,
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { isCurrentMonthRamadan } from "@/lib/hijri";
 import { syncAllFromSettings } from "@/lib/notification-manager";
+import { syncWidgetSnapshot } from "@/lib/widget-sync";
 
 const SECTION_LABELS: Record<string, string> = {
   log: "Daily Log", healthdata: "Health Data", medications: "Medications", symptoms: "Symptoms",
@@ -74,7 +76,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   const styles = useMemo(() => makeStyles(C), [C]);
 
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
-  const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", backupCriticalMedications: [] });
+  const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", widgetAppearance: "system", backupCriticalMedications: [] });
   const [saved, setSaved] = useState(true);
   const [showNameModal, setShowNameModal] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -83,6 +85,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
 
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [showSectionsModal, setShowSectionsModal] = useState(false);
+  const [showAppearanceModal, setShowAppearanceModal] = useState(false);
   const [sectionSelections, setSectionSelections] = useState<Set<string>>(new Set());
   const [medications, setMedications] = useState<Medication[]>([]);
   const [medLogs, setMedLogs] = useState<MedicationLog[]>([]);
@@ -137,6 +140,12 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     await healthProfileStorage.save(nextProfile);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     syncAllFromSettings().catch(() => {});
+    syncWidgetSnapshot().catch(() => {});
+  };
+
+  const handleWidgetAppearanceChange = async (id: WidgetAppearancePreference) => {
+    Haptics.selectionAsync();
+    await handleSaveProfile({ ...profile, widgetAppearance: id });
   };
 
   const handlePickProfileImage = async () => {
@@ -565,34 +574,23 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           </View>
         )}
 
-        {/* ——— Appearance ——— */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Appearance</Text>
-          <Text style={[styles.desc, { marginBottom: 12 }]}>Choose a theme for the app</Text>
-          {THEME_OPTIONS.map((opt) => {
-            const isSelected = preference === opt.id;
-            return (
-              <Pressable
-                key={opt.id}
-                style={[styles.themeOption, isSelected && styles.themeOptionSelected]}
-                onPress={() => handleThemeChange(opt.id)}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: isSelected }}
-                accessibilityLabel={`${opt.label} theme`}
-              >
-                <View style={styles.themeOptionContent}>
-                  <View style={[styles.themeRadio, isSelected && styles.themeRadioSelected]}>
-                    {isSelected && <View style={styles.themeRadioDot} />}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.themeOptionLabel, isSelected && { color: C.tint }]}>{opt.label}</Text>
-                    <Text style={styles.themeOptionDesc}>{opt.description}</Text>
-                  </View>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
+        <Pressable
+          style={styles.card}
+          onPress={() => setShowAppearanceModal(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Manage appearances"
+        >
+          <View style={styles.profileRow}>
+            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
+              <Ionicons name="color-palette-outline" size={16} color={C.tint} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.profileRowTitle}>Appearances</Text>
+              <Text style={styles.profileRowDesc}>Choose your appearance for the widgets and your app.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+          </View>
+        </Pressable>
 
         <Pressable
           style={styles.card}
@@ -729,6 +727,71 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal visible={showAppearanceModal} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => setShowAppearanceModal(false)}>
+          <Pressable style={[styles.resetModal, styles.appearanceModal]} onPress={() => {}}>
+            <Text style={[styles.resetTitle, { marginBottom: 8 }]}>Appearances</Text>
+            <Text style={[styles.resetDesc, { marginBottom: 16 }]}>Choose your appearance for the widgets and your app.</Text>
+            <ScrollView style={{ maxHeight: 420, width: "100%" }} showsVerticalScrollIndicator>
+              <Text style={styles.appearanceGroupTitle}>App</Text>
+              {THEME_OPTIONS.map((opt) => {
+                const isSelected = preference === opt.id;
+                return (
+                  <Pressable
+                    key={`app-${opt.id}`}
+                    style={[styles.themeOption, isSelected && styles.themeOptionSelected]}
+                    onPress={() => handleThemeChange(opt.id)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: isSelected }}
+                    accessibilityLabel={`${opt.label} app appearance`}
+                  >
+                    <View style={styles.themeOptionContent}>
+                      <View style={[styles.themeRadio, isSelected && styles.themeRadioSelected]}>
+                        {isSelected && <View style={styles.themeRadioDot} />}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.themeOptionLabel, isSelected && { color: C.tint }]}>{opt.label}</Text>
+                        <Text style={styles.themeOptionDesc}>{opt.description}</Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })}
+
+              <Text style={[styles.appearanceGroupTitle, { marginTop: 12 }]}>Widgets</Text>
+              {THEME_OPTIONS.map((opt) => {
+                const isSelected = (profile.widgetAppearance ?? "system") === opt.id;
+                return (
+                  <Pressable
+                    key={`widget-${opt.id}`}
+                    style={[styles.themeOption, isSelected && styles.themeOptionSelected]}
+                    onPress={() => handleWidgetAppearanceChange(opt.id)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: isSelected }}
+                    accessibilityLabel={`${opt.label} widget appearance`}
+                  >
+                    <View style={styles.themeOptionContent}>
+                      <View style={[styles.themeRadio, isSelected && styles.themeRadioSelected]}>
+                        {isSelected && <View style={styles.themeRadioDot} />}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.themeOptionLabel, isSelected && { color: C.tint }]}>{opt.label}</Text>
+                        <Text style={styles.themeOptionDesc}>{opt.description}</Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <View style={[styles.modalActions, { marginTop: 16, width: "100%" }]}>
+              <Pressable style={[styles.resetConfirmBtn, { backgroundColor: C.tint }]} onPress={() => setShowAppearanceModal(false)}>
+                <Text style={styles.resetConfirmText}>Done</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -834,6 +897,8 @@ function makeStyles(C: Theme) {
     resetDesc: { fontWeight: "400", fontSize: 15, color: C.textSecondary, textAlign: "center", marginBottom: 24, lineHeight: 22 },
     resetConfirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.red, alignItems: "center" },
     resetConfirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
+    appearanceModal: { maxWidth: 420, alignItems: "stretch" },
+    appearanceGroupTitle: { fontWeight: "700", fontSize: 13, color: C.textSecondary, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.6 },
     sectionCheckbox: {
       width: 24, height: 24, borderRadius: 8, borderWidth: 2, borderColor: C.border,
       alignItems: "center", justifyContent: "center", backgroundColor: C.surface, marginRight: 12,

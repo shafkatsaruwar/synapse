@@ -127,6 +127,7 @@ export interface AllergyInfo {
 
 export type UserRole = "self" | "caregiver" | "backup";
 export type RecordOwner = "self" | "care_recipient";
+export type WidgetAppearancePreference = "system" | "calm" | "light" | "dark";
 
 export interface BackupCriticalMedication {
   id: string;
@@ -139,6 +140,7 @@ export interface HealthProfileInfo {
   dateOfBirth?: string;
   profileImageUri?: string;
   userRole?: UserRole;
+  widgetAppearance?: WidgetAppearancePreference;
   caredForName?: string;
   backupEmergencyProtocols?: string;
   backupCriticalMedications?: BackupCriticalMedication[];
@@ -890,11 +892,11 @@ export const healthProfileStorage = {
     try {
       const raw = await AsyncStorage.getItem(KEYS.HEALTH_PROFILE_INFO);
       return raw
-        ? { userRole: "self", backupCriticalMedications: [], ...JSON.parse(raw) }
-        : { userRole: "self", backupCriticalMedications: [] };
+        ? { userRole: "self", widgetAppearance: "system", backupCriticalMedications: [], ...JSON.parse(raw) }
+        : { userRole: "self", widgetAppearance: "system", backupCriticalMedications: [] };
     } catch (e) {
       console.warn("AsyncStorage healthProfile get failed", e);
-      return { userRole: "self", backupCriticalMedications: [] };
+      return { userRole: "self", widgetAppearance: "system", backupCriticalMedications: [] };
     }
   },
   save: async (data: HealthProfileInfo) => {
@@ -903,6 +905,7 @@ export const healthProfileStorage = {
         KEYS.HEALTH_PROFILE_INFO,
         JSON.stringify({
           userRole: "self",
+          widgetAppearance: "system",
           backupCriticalMedications: [],
           ...data,
         })

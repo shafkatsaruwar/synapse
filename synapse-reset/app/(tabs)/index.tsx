@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, StyleSheet, Alert, Platform, AppState } from "react-native";
+import { View, StyleSheet, Alert, Platform, AppState, Linking } from "react-native";
 import SidebarLayout from "@/components/SidebarLayout";
 import TabletSidebar from "@/components/TabletSidebar";
 import { useIsTablet } from "@/lib/device";
@@ -59,6 +59,26 @@ export default function MainScreen() {
   const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [walkthroughStepId, setWalkthroughStepId] = useState<string | null>(null);
   const [walkthroughMenuOpen, setWalkthroughMenuOpen] = useState<boolean | null>(null);
+
+  const navigateToWidgetTarget = useCallback((url: string | null | undefined) => {
+    if (!url) return false;
+
+    try {
+      const parsed = new URL(url);
+      const pathParts = parsed.pathname.split("/").filter(Boolean);
+      const route = parsed.host === "widget" ? pathParts[0] : parsed.host;
+
+      if (route === "medications" || route === "appointments") {
+        setActiveScreen(route);
+        setRefreshKey((k) => k + 1);
+        return true;
+      }
+    } catch {
+      return false;
+    }
+
+    return false;
+  }, []);
 
   const checkInitialState = useCallback(async () => {
     try {
@@ -162,6 +182,19 @@ export default function MainScreen() {
       handleLastNotificationResponse();
     }
   }, [showOnboarding]);
+
+  useEffect(() => {
+    const handleIncomingUrl = ({ url }: { url: string }) => {
+      navigateToWidgetTarget(url);
+    };
+
+    Linking.getInitialURL().then((url) => {
+      navigateToWidgetTarget(url);
+    }).catch(() => {});
+
+    const subscription = Linking.addEventListener("url", handleIncomingUrl);
+    return () => subscription.remove();
+  }, [navigateToWidgetTarget]);
 
   const handleActivateSickMode = () => {
     setSickMode(true);

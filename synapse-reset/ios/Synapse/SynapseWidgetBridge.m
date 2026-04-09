@@ -6,6 +6,4 @@ RCT_EXTERN_METHOD(saveSnapshot:(NSString *)payload
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
-+ (BOOL)requiresMainQueueSetup;
-
 @end
