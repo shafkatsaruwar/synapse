@@ -5,21 +5,14 @@
   },
   "build": {
     "development": {
-      "distribution": "internal",
-      "ios": {
-        "image": "macos-sequoia-15.6-xcode-16.4"
-      }
+      "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal",
-      "ios": {
-        "image": "macos-sequoia-15.6-xcode-16.4"
-      }
+      "distribution": "internal"
     },
     "production": {
       "ios": {
-        "resourceClass": "m-medium",
-        "image": "macos-sequoia-15.6-xcode-16.4"
+        "resourceClass": "m-medium"
       }
     }
   },
