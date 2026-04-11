@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.10",
   "scripts": {
+    "eas-build-pre-install": "bash ./scripts/eas-pre-install.sh",
     "postinstall": "node scripts/patch-dom-webview.js",
     "install-hooks": "node scripts/install-hooks.js",
     "start": "expo start",
