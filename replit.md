@@ -59,6 +59,7 @@ Design preferences: Apple-inspired, calm, minimal warm beige/maroon UI. Not play
 5. **System font**: Uses San Francisco system font via fontWeight (no custom font imports needed).
 
 ## Recent Changes
+- 2026-03-16: Removed accounts system and Supabase integration; app is now fully local-only — onboarding and user profile data are stored on-device via AsyncStorage, no sign-in or server-side account required
 - 2026-02-24: Sick Mode follow-up: 2-hour check-in timer with temperature input; <99°F → Recovery Mode (green UI, gentle messaging); ≥102°F → doctor alert; else continues tracking
 - 2026-02-24: Health Summary Report: 7/30 day range, chronological timeline, PNG export via react-native-view-shot + expo-sharing
 - 2026-02-24: Daily Log calendar view: monthly grid, logged day indicators, Hijri dates when Ramadan mode on, tap day to open log form
