@@ -282,11 +282,9 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
             </View>
             <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
           </Pressable>
-        </View>
 
-        <View style={styles.blockSpacer} />
+          <View style={styles.divider} />
 
-        <View style={styles.card}>
           <Pressable
             style={styles.profileRow}
             onPress={() => {
