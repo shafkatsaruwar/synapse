@@ -234,6 +234,7 @@ export interface FastingLog {
 export interface Vital {
   id: string;
   date: string;
+  recordedAt?: string;
   type: string;
   value: string;
   unit: string;

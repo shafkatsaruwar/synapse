@@ -24,6 +24,22 @@ function getCategories(C: Theme): { key: Category; label: string; icon: string; 
   ];
 }
 
+function getVitalRecordedAt(vital: Vital) {
+  return vital.recordedAt ?? `${vital.date}T00:00:00`;
+}
+
+function formatVitalTimestamp(value?: string) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
 export default function HealthDataScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -58,7 +74,7 @@ export default function HealthDataScreen() {
   const filteredVitals = vitals
     .filter((v) => v.type.toLowerCase().includes(selected.replace("_", " ")) || v.type.toLowerCase() === selected.replace("_", " "))
     .filter((v) => v.date >= cutoff)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort((a, b) => getVitalRecordedAt(a).localeCompare(getVitalRecordedAt(b)));
 
   const sleepData = selected === "sleep"
     ? logs.filter((l) => l.date >= cutoff).sort((a, b) => a.date.localeCompare(b.date))
@@ -75,9 +91,10 @@ export default function HealthDataScreen() {
   const handleAdd = async () => {
     if (!addValue.trim()) return;
     const today = getToday();
+    const recordedAt = new Date().toISOString();
     const type = selected === "labs" ? addLabel.trim() : cat.label;
     const unit = selected === "labs" ? addUnit.trim() : (addUnit || cat.unit);
-    await vitalStorage.save({ date: today, type, value: addValue.trim(), unit });
+    await vitalStorage.save({ date: today, recordedAt, type, value: addValue.trim(), unit });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setAddValue("");
     setAddLabel("");
@@ -205,7 +222,10 @@ export default function HealthDataScreen() {
           ) : (
             [...filteredVitals].reverse().slice(0, 20).map((v) => (
               <Pressable key={v.id} style={({ pressed }) => [styles.histRow, pressed && { opacity: 0.7 }]} onPress={() => openEdit(v)} accessibilityRole="button" accessibilityLabel={`Edit ${v.value} ${v.unit}`}>
-                <Text style={styles.histDate}>{formatDate(v.date)}</Text>
+                <View style={styles.histDateBlock}>
+                  <Text style={styles.histDate}>{formatDate(v.date)}</Text>
+                  <Text style={styles.histTime}>{formatVitalTimestamp(v.recordedAt)}</Text>
+                </View>
                 <View style={styles.histValRow}>
                   <Text style={[styles.histVal, { color: cat.color }]}>{v.value} {v.unit}</Text>
                   <Ionicons name="pencil" size={14} color={C.textTertiary} />
@@ -320,7 +340,9 @@ function makeStyles(C: Theme) {
   trendRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border },
   trendText: { fontWeight: "400", fontSize: 13, color: C.textSecondary },
   histRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  histDateBlock: { gap: 2 },
   histDate: { fontWeight: "400", fontSize: 13, color: C.textSecondary },
+  histTime: { fontWeight: "500", fontSize: 12, color: C.textTertiary },
   histValRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   histVal: { fontWeight: "600", fontSize: 14, color: C.text },
   unitRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
