@@ -58,7 +58,7 @@ export async function requestPermission(): Promise<boolean> {
 
 /** Get current permission status. */
 export async function getPermissionStatus(): Promise<Notifications.PermissionStatus> {
-  if (!isNative()) return "undetermined";
+  if (!isNative()) return "denied" as Notifications.PermissionStatus;
   const { status } = await Notifications.getPermissionsAsync();
   return status;
 }
@@ -97,9 +97,11 @@ export async function scheduleMedicationReminder(params: {
   dosage: string;
   hour: number;
   minute: number;
+  cadence?: "daily" | "weekly";
+  weekday?: number;
 }): Promise<string | null> {
   if (!isNative()) return null;
-  const { medicationId, doseIndex, medicationName, dosage, hour, minute } = params;
+  const { medicationId, doseIndex, medicationName, dosage, hour, minute, cadence = "daily", weekday } = params;
   const identifier = `${NOTIFICATION_IDS.prefixMed}-${medicationId}-${doseIndex}`;
   try {
     await Notifications.cancelScheduledNotificationAsync(identifier);
@@ -111,11 +113,19 @@ export async function scheduleMedicationReminder(params: {
         data: { medicationId, doseIndex, medicationName, dosage },
         categoryIdentifier: MEDICATION_CATEGORY,
       },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour,
-        minute,
-      },
+      trigger:
+        cadence === "weekly" && weekday
+          ? {
+              type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+              weekday,
+              hour,
+              minute,
+            }
+          : {
+              type: Notifications.SchedulableTriggerInputTypes.DAILY,
+              hour,
+              minute,
+            },
     });
     return id;
   } catch (e) {
@@ -212,6 +222,25 @@ function formatSupplyAmount(value?: number): string {
   if (Math.abs(value - Math.round(value)) < 0.001) return String(Math.round(value));
   if (value < 1) return value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
   return value.toFixed(1).replace(/\.0$/, "");
+}
+
+function getCurrentExpoWeekday() {
+  const day = new Date().getDay();
+  return day === 0 ? 1 : day + 1;
+}
+
+function inferMedicationReminderCadence(med: { reminderCadence?: "daily" | "weekly"; frequency?: string; reminderWeekday?: number }) {
+  if (med.reminderCadence === "weekly") {
+    return { cadence: "weekly" as const, weekday: med.reminderWeekday && med.reminderWeekday >= 1 && med.reminderWeekday <= 7 ? med.reminderWeekday : getCurrentExpoWeekday() };
+  }
+  if (med.reminderCadence === "daily") {
+    return { cadence: "daily" as const, weekday: undefined };
+  }
+  const freq = med.frequency?.trim().toLowerCase() ?? "";
+  if (freq.includes("week")) {
+    return { cadence: "weekly" as const, weekday: med.reminderWeekday && med.reminderWeekday >= 1 && med.reminderWeekday <= 7 ? med.reminderWeekday : getCurrentExpoWeekday() };
+  }
+  return { cadence: "daily" as const, weekday: undefined };
 }
 
 /** Schedule appointment reminder (1 day before or 1 hour before). */
@@ -514,6 +543,7 @@ export async function syncAllFromSettings(): Promise<void> {
           continue;
         }
         const normalized = normalizeMedication(med);
+        const reminderSchedule = inferMedicationReminderCadence(med);
         const doses = Array.isArray(normalized.doses) && normalized.doses.length > 0 ? normalized.doses : [];
         if (doses.length === 0) {
           const { hour, minute } = DEFAULT_REMINDER_TIMES["Morning"];
@@ -524,6 +554,8 @@ export async function syncAllFromSettings(): Promise<void> {
             dosage: (med as { dosage?: string }).dosage ?? "",
             hour,
             minute,
+            cadence: reminderSchedule.cadence,
+            weekday: reminderSchedule.weekday,
           });
         } else {
           for (let i = 0; i < doses.length; i++) {
@@ -546,6 +578,8 @@ export async function syncAllFromSettings(): Promise<void> {
               dosage: `${dose.amount} ${dose.unit}`.trim(),
               hour,
               minute,
+              cadence: reminderSchedule.cadence,
+              weekday: reminderSchedule.weekday,
             });
           }
         }

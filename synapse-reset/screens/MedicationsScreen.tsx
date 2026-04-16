@@ -23,6 +23,47 @@ import { syncWidgetSnapshot } from "@/lib/widget-sync";
 const TIME_TAGS: string[] = ["Morning", "Afternoon", "Night", "Before Fajr", "After Iftar"];
 const MED_LIST_DOSE_TIMES: MedListDoseTime[] = ["Morning", "Afternoon", "Evening", "Night", "As Needed"];
 const REFILL_UNITS = ["Pills", "Tablets", "Capsules", "Pre-filled pens", "Bottles", "Vials", "Syringes", "Inhalers", "Patches", "Boxes", "mL"] as const;
+const WEEKDAY_OPTIONS = [
+  { value: 1, label: "Sun" },
+  { value: 2, label: "Mon" },
+  { value: 3, label: "Tue" },
+  { value: 4, label: "Wed" },
+  { value: 5, label: "Thu" },
+  { value: 6, label: "Fri" },
+  { value: 7, label: "Sat" },
+] as const;
+
+function jsDayToExpoWeekday(day: number): number {
+  return day === 0 ? 1 : day + 1;
+}
+
+function formatMedicationFrequencyLabel(cadence: "daily" | "weekly", weekday: number): string {
+  if (cadence === "weekly") {
+    const weekdayLabel = WEEKDAY_OPTIONS.find((option) => option.value === weekday)?.label ?? "Sun";
+    return `Every week on ${weekdayLabel}`;
+  }
+  return "Every day";
+}
+
+function inferMedicationCadence(med: { reminderCadence?: "daily" | "weekly"; frequency?: string; reminderWeekday?: number }) {
+  if (med.reminderCadence === "weekly") {
+    return {
+      cadence: "weekly" as const,
+      weekday: med.reminderWeekday && med.reminderWeekday >= 1 && med.reminderWeekday <= 7 ? med.reminderWeekday : jsDayToExpoWeekday(new Date().getDay()),
+    };
+  }
+  if (med.reminderCadence === "daily") {
+    return { cadence: "daily" as const, weekday: med.reminderWeekday ?? jsDayToExpoWeekday(new Date().getDay()) };
+  }
+  const freq = med.frequency?.trim().toLowerCase() ?? "";
+  if (freq.includes("week")) {
+    return {
+      cadence: "weekly" as const,
+      weekday: med.reminderWeekday && med.reminderWeekday >= 1 && med.reminderWeekday <= 7 ? med.reminderWeekday : jsDayToExpoWeekday(new Date().getDay()),
+    };
+  }
+  return { cadence: "daily" as const, weekday: med.reminderWeekday ?? jsDayToExpoWeekday(new Date().getDay()) };
+}
 
 function normalizeRefillUnit(value?: string): string {
   if (!value) return "Pills";
@@ -159,7 +200,8 @@ export default function MedicationsScreen() {
   ]);
   const [showReminderTimePickerIndex, setShowReminderTimePickerIndex] = useState<number | null>(null);
   const [formRoute, setFormRoute] = useState("");
-  const [formFreq, setFormFreq] = useState("");
+  const [formReminderCadence, setFormReminderCadence] = useState<"daily" | "weekly">("daily");
+  const [formReminderWeekday, setFormReminderWeekday] = useState<number>(jsDayToExpoWeekday(new Date().getDay()));
   const [formEmoji, setFormEmoji] = useState("");
   const [formHasStressDose, setFormHasStressDose] = useState(false);
   const [showDoseTimePickerIndex, setShowDoseTimePickerIndex] = useState<number | null>(null);
@@ -259,7 +301,8 @@ export default function MedicationsScreen() {
     setFormName("");
     setFormDosesArray([{ id: Crypto.randomUUID(), amount: "", unit: "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }]);
     setFormRoute("");
-    setFormFreq("");
+    setFormReminderCadence("daily");
+    setFormReminderWeekday(jsDayToExpoWeekday(new Date().getDay()));
     setFormEmoji("");
     setFormHasStressDose(false);
     setFormStressDoseAmount("");
@@ -289,7 +332,9 @@ export default function MedicationsScreen() {
       : [{ id: Crypto.randomUUID(), amount: (med as { dosage?: string }).dosage ?? "", unit: (med as { unit?: string }).unit ?? "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }];
     setFormDosesArray(doses);
     setFormRoute(med.route || "");
-    setFormFreq(med.frequency);
+    const reminderConfig = inferMedicationCadence(med);
+    setFormReminderCadence(reminderConfig.cadence);
+    setFormReminderWeekday(reminderConfig.weekday);
     setFormEmoji(med.emoji || "");
     setFormHasStressDose(med.hasStressDose || false);
     setFormStressDoseAmount(med.stressDoseAmount || "");
@@ -335,11 +380,14 @@ export default function MedicationsScreen() {
     const supplyPerDose = formSupplyPerDose.trim() ? parseFloat(formSupplyPerDose) : undefined;
     const lowSupplyThreshold = formLowSupplyThreshold.trim() ? parseFloat(formLowSupplyThreshold) : undefined;
     const concentrationMgPerMl = formConcentrationMgPerMl.trim() ? parseFloat(formConcentrationMgPerMl) : undefined;
+    const normalizedFrequency = formatMedicationFrequencyLabel(formReminderCadence, formReminderWeekday);
     const data: Omit<Medication, "id"> = {
       name: formName.trim(),
-      frequency: formFreq.trim(),
+      frequency: normalizedFrequency,
       route: formRoute.trim(),
       emoji: formEmoji || "",
+      reminderCadence: formReminderCadence,
+      reminderWeekday: formReminderCadence === "weekly" ? formReminderWeekday : undefined,
       doses,
       active: true,
       totalPills: amountPerRefill != null && !isNaN(amountPerRefill) ? amountPerRefill : undefined,
@@ -1370,7 +1418,45 @@ export default function MedicationsScreen() {
               <TextInput style={styles.input} placeholder="e.g. tablet, injection, inhaler" placeholderTextColor={C.textTertiary} value={formRoute} onChangeText={setFormRoute} />
 
               <Text style={styles.label}>Frequency</Text>
-              <TextInput style={styles.input} placeholder="e.g. Once daily" placeholderTextColor={C.textTertiary} value={formFreq} onChangeText={setFormFreq} />
+              <View style={styles.frequencyChipRow}>
+                <Pressable
+                  style={[styles.frequencyChip, formReminderCadence === "daily" && styles.frequencyChipActive]}
+                  onPress={() => {
+                    setFormReminderCadence("daily");
+                    Haptics.selectionAsync();
+                  }}
+                >
+                  <Text style={[styles.frequencyChipText, formReminderCadence === "daily" && styles.frequencyChipTextActive]}>Every day</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.frequencyChip, formReminderCadence === "weekly" && styles.frequencyChipActive]}
+                  onPress={() => {
+                    setFormReminderCadence("weekly");
+                    Haptics.selectionAsync();
+                  }}
+                >
+                  <Text style={[styles.frequencyChipText, formReminderCadence === "weekly" && styles.frequencyChipTextActive]}>Every week</Text>
+                </Pressable>
+              </View>
+              {formReminderCadence === "weekly" && (
+                <>
+                  <Text style={[styles.label, { fontSize: 12 }]}>Which day?</Text>
+                  <View style={styles.frequencyChipRow}>
+                    {WEEKDAY_OPTIONS.map((option) => (
+                      <Pressable
+                        key={option.value}
+                        style={[styles.weekdayChip, formReminderWeekday === option.value && styles.frequencyChipActive]}
+                        onPress={() => {
+                          setFormReminderWeekday(option.value);
+                          Haptics.selectionAsync();
+                        }}
+                      >
+                        <Text style={[styles.frequencyChipText, formReminderWeekday === option.value && styles.frequencyChipTextActive]}>{option.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              )}
 
               <Text style={[styles.label, { marginTop: 16 }]}>Reminder Times</Text>
               <Text style={[styles.label, { fontSize: 12, color: C.textTertiary, marginTop: 2, marginBottom: 8 }]}>Set when Synapse should remind you for each dose. Used for daily notifications.</Text>
@@ -1615,6 +1701,12 @@ function makeStyles(C: Theme, S: SickModePalette) {
   doseRemoveBtn: { padding: 4 },
   addDoseBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, marginBottom: 14, borderWidth: 1, borderStyle: "dashed", borderColor: C.border, borderRadius: 10 },
   addDoseBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
+  frequencyChipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
+  frequencyChip: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  weekdayChip: { minWidth: 54, alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  frequencyChipActive: { backgroundColor: C.tintLight, borderColor: C.tint },
+  frequencyChipText: { fontWeight: "600", fontSize: 13, color: C.textSecondary },
+  frequencyChipTextActive: { color: C.tint },
   dosePickerBlock: { marginBottom: 14 },
   tagBadge: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
   tagText: { fontWeight: "600", fontSize: 12 },
