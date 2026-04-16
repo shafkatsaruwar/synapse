@@ -144,6 +144,12 @@ export default function EmergencyProtocolScreen({ onBack }: EmergencyProtocolScr
             <>
               <Divider />
               <InfoRow label="Managing care for" value={profile.caredForName} />
+              {profile.caredForAge != null ? (
+                <>
+                  <Divider />
+                  <InfoRow label="Their age" value={`${profile.caredForAge} years old`} />
+                </>
+              ) : null}
             </>
           ) : null}
           <Divider />

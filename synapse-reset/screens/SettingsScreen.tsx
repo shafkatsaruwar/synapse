@@ -442,15 +442,33 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           </View>
 
           {(profile.userRole ?? "self") === "caregiver" ? (
-            <View style={{ marginTop: 14 }}>
-              <Text style={styles.label}>Who are you caring for?</Text>
-              <TextInput
-                style={styles.input}
-                value={profile.caredForName ?? ""}
-                onChangeText={(text) => setProfile((prev) => ({ ...prev, caredForName: text }))}
-                placeholder="Their name"
-                placeholderTextColor={C.textTertiary}
-              />
+            <View style={{ marginTop: 14, gap: 12 }}>
+              <View>
+                <Text style={styles.label}>Who are you caring for?</Text>
+                <TextInput
+                  style={styles.input}
+                  value={profile.caredForName ?? ""}
+                  onChangeText={(text) => setProfile((prev) => ({ ...prev, caredForName: text }))}
+                  placeholder="Their name"
+                  placeholderTextColor={C.textTertiary}
+                />
+              </View>
+              <View>
+                <Text style={styles.label}>Their age</Text>
+                <TextInput
+                  style={styles.input}
+                  value={profile.caredForAge != null ? String(profile.caredForAge) : ""}
+                  onChangeText={(text) =>
+                    setProfile((prev) => ({
+                      ...prev,
+                      caredForAge: text.trim() ? Math.max(0, parseInt(text, 10) || 0) : undefined,
+                    }))
+                  }
+                  placeholder="Their age"
+                  placeholderTextColor={C.textTertiary}
+                  keyboardType="number-pad"
+                />
+              </View>
             </View>
           ) : null}
 
@@ -496,6 +514,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
               onPress={() =>
                 saveBackupRoleDetails({
                   caredForName: profile.caredForName?.trim() || undefined,
+                  caredForAge: profile.userRole === "caregiver" && profile.caredForAge != null ? profile.caredForAge : undefined,
                   backupEmergencyProtocols: profile.backupEmergencyProtocols?.trim() || undefined,
                   backupCriticalMedications: (profile.backupCriticalMedications ?? []).filter((item) => item.name.trim()),
                 })

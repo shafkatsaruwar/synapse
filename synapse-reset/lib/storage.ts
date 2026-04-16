@@ -167,6 +167,7 @@ export interface HealthProfileInfo {
   userRole?: UserRole;
   widgetAppearance?: WidgetAppearancePreference;
   caredForName?: string;
+  caredForAge?: number;
   backupEmergencyProtocols?: string;
   backupCriticalMedications?: BackupCriticalMedication[];
   vaccines?: VaccineRecord[];
