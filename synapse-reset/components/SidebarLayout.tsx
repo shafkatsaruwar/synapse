@@ -57,7 +57,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "meetfounder", label: "Meet the Founder", icon: "person-circle-outline", iconActive: "person-circle" },
 ];
 
-const PRIMARY_KEYS = ["dashboard", "healthdata", "settings"];
+const PRIMARY_KEYS = ["dashboard", "symptoms", "settings"];
 const PRIMARY_ITEMS = NAV_ITEMS.filter((n) => PRIMARY_KEYS.includes(n.key));
 const MORE_ITEMS = NAV_ITEMS.filter((n) => !PRIMARY_KEYS.includes(n.key));
 
