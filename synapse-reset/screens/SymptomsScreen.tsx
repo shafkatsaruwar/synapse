@@ -7,16 +7,31 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { symptomStorage, settingsStorage, sickModeStorage, type Symptom } from "@/lib/storage";
-import { getToday, getRelativeDay, getDaysAgo } from "@/lib/date-utils";
+import { symptomStorage, settingsStorage, sickModeStorage, enableRecoveryTracking, type Symptom } from "@/lib/storage";
+import { formatTimestamp, getToday, getRelativeDay, getDaysAgo } from "@/lib/date-utils";
 
 const C = Colors.dark;
 
 const COMMON_SYMPTOMS = [
-  "Fever", "Headache", "Fatigue", "Nausea", "Dizziness", "Joint Pain",
-  "Bloating", "Insomnia", "Anxiety", "Back Pain", "Chest Tightness",
-  "Shortness of Breath", "Brain Fog", "Muscle Ache", "Stomach Pain",
-];
+  "Chest pain",
+  "Wheezing",
+  "Dizziness",
+  "Fatigue",
+  "Palpitations",
+  "Fever",
+  "Other",
+] as const;
+
+const QUICK_TRIGGERS = [
+  "Resting",
+  "Walking",
+  "Sitting up",
+  "Standing",
+  "After medication",
+  "After eating",
+  "Unknown",
+  "Custom",
+] as const;
 
 interface SymptomsScreenProps {
   onActivateSickMode?: () => void;
@@ -32,7 +47,10 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
   const [showModal, setShowModal] = useState(false);
   const [selectedSymptom, setSelectedSymptom] = useState("");
   const [customSymptom, setCustomSymptom] = useState("");
-  const [severity, setSeverity] = useState(3);
+  const [severity, setSeverity] = useState(5);
+  const [selectedTrigger, setSelectedTrigger] = useState<string>("Unknown");
+  const [customTrigger, setCustomTrigger] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState("");
   const [notes, setNotes] = useState("");
   const [feverTemp, setFeverTemp] = useState("");
   const [showFeverAlert, setShowFeverAlert] = useState(false);
@@ -41,7 +59,7 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
 
   const loadData = useCallback(async () => {
     const all = await symptomStorage.getAll();
-    setSymptoms(all.sort((a, b) => b.date.localeCompare(a.date)));
+    setSymptoms(all.sort((a, b) => (b.recordedAt ?? `${b.date}T00:00:00`).localeCompare(a.recordedAt ?? `${a.date}T00:00:00`)));
   }, []);
 
   React.useEffect(() => { loadData(); }, [loadData]);
@@ -50,7 +68,17 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
     const name = selectedSymptom || customSymptom.trim();
     if (!name) return;
     const temp = isFeverSelected && feverTemp.trim() ? parseFloat(feverTemp) : undefined;
-    await symptomStorage.save({ date: today, name, severity, notes: notes.trim(), temperature: temp });
+    await symptomStorage.save({
+      date: today,
+      recordedAt: new Date().toISOString(),
+      name,
+      severity,
+      notes: notes.trim(),
+      temperature: temp,
+      trigger: selectedTrigger,
+      customTrigger: selectedTrigger === "Custom" ? customTrigger.trim() || undefined : undefined,
+      durationMinutes: durationMinutes.trim() ? Math.max(1, parseInt(durationMinutes, 10) || 1) : undefined,
+    });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     if (isFeverSelected && temp && temp >= 100) {
@@ -60,7 +88,7 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
       }
     }
 
-    setSelectedSymptom(""); setCustomSymptom(""); setSeverity(3); setNotes(""); setFeverTemp("");
+    setSelectedSymptom(""); setCustomSymptom(""); setSeverity(5); setSelectedTrigger("Unknown"); setCustomTrigger(""); setDurationMinutes(""); setNotes(""); setFeverTemp("");
     setShowModal(false);
     loadData();
   };
@@ -68,6 +96,7 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
   const handleActivateSickMode = async () => {
     const settings = await settingsStorage.get();
     await settingsStorage.save({ ...settings, sickMode: true });
+    await enableRecoveryTracking();
     const sd = await sickModeStorage.get();
     await sickModeStorage.save({ ...sd, active: true, startedAt: new Date().toISOString() });
     setShowFeverAlert(false);
@@ -83,8 +112,8 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
     ]);
   };
 
-  const sevColor = (sev: number) => sev >= 4 ? C.red : sev >= 3 ? C.orange : sev >= 2 ? C.yellow : C.green;
-  const sevLabel = (sev: number) => ["Mild", "Low", "Moderate", "High", "Severe"][sev - 1];
+  const sevColor = (sev: number) => sev >= 8 ? C.red : sev >= 5 ? C.orange : sev >= 2 ? C.yellow : C.green;
+  const sevLabel = (sev: number) => sev >= 8 ? "Severe" : sev >= 5 ? "Moderate" : sev >= 2 ? "Mild" : "Minimal";
 
   const todaySymptoms = symptoms.filter((s) => s.date === today);
   const recentSymptoms = symptoms.filter((s) => s.date !== today && s.date >= getDaysAgo(7));
@@ -136,7 +165,13 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
                       </View>
                     )}
                   </View>
-                  <Text style={[styles.sevText, { color: sevColor(s.severity) }]}>{sevLabel(s.severity)}</Text>
+                  <Text style={[styles.sevText, { color: sevColor(s.severity) }]}>{sevLabel(s.severity)} · {s.severity}/10</Text>
+                  <Text style={styles.symptomMeta}>{formatTimestamp(s.recordedAt)}</Text>
+                  {(s.trigger || s.durationMinutes) ? (
+                    <Text style={styles.symptomMeta}>
+                      {[s.trigger === "Custom" ? s.customTrigger : s.trigger, s.durationMinutes ? `${s.durationMinutes} min` : null].filter(Boolean).join(" · ")}
+                    </Text>
+                  ) : null}
                   {!!s.notes && <Text style={styles.symptomNotes}>{s.notes}</Text>}
                 </View>
                 <Pressable onPress={() => handleDelete(s)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Remove ${s.name}`}>
@@ -170,9 +205,10 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
                 <View style={{ flex: 1 }}>
                   <Text style={styles.recentName}>{s.name}</Text>
                   <Text style={styles.recentDate}>{getRelativeDay(s.date)}</Text>
+                  <Text style={styles.recentTime}>{formatTimestamp(s.recordedAt)}</Text>
                 </View>
                 <View style={[styles.sevBadge, { backgroundColor: sevColor(s.severity) + "22" }]}>
-                  <Text style={[styles.sevBadgeText, { color: sevColor(s.severity) }]}>{sevLabel(s.severity)}</Text>
+                  <Text style={[styles.sevBadgeText, { color: sevColor(s.severity) }]}>{s.severity}/10</Text>
                 </View>
               </View>
             ))}
@@ -183,8 +219,9 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
       <Modal visible={showModal} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowModal(false)}>
           <Pressable style={styles.modal} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Log Symptom</Text>
-            <Text style={styles.label}>Select or type a symptom</Text>
+            <Text style={styles.modalTitle}>Quick Symptom Event</Text>
+            <Text style={styles.quickHint}>Fast log: pick symptom, severity, and trigger. Notes are optional.</Text>
+            <Text style={styles.label}>Symptom type</Text>
             <View style={styles.chipGrid}>
               {COMMON_SYMPTOMS.map((s) => (
                 <Pressable key={s} style={[styles.chip, selectedSymptom === s && { backgroundColor: C.tintLight, borderColor: C.tint }]} onPress={() => { setSelectedSymptom(selectedSymptom === s ? "" : s); setCustomSymptom(""); Haptics.selectionAsync(); }} accessibilityRole="button" accessibilityLabel={s} accessibilityState={{ selected: selectedSymptom === s }}>
@@ -192,7 +229,9 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
                 </Pressable>
               ))}
             </View>
-            <TextInput style={styles.input} placeholder="Or type custom symptom" placeholderTextColor={C.textTertiary} value={customSymptom} onChangeText={(t) => { setCustomSymptom(t); setSelectedSymptom(""); }} accessibilityLabel="Custom symptom name" />
+            {(selectedSymptom === "Other" || !selectedSymptom) && (
+              <TextInput style={styles.input} placeholder="Type custom symptom" placeholderTextColor={C.textTertiary} value={customSymptom} onChangeText={(t) => { setCustomSymptom(t); if (t.trim()) setSelectedSymptom("Other"); }} accessibilityLabel="Custom symptom name" />
+            )}
 
             {isFeverSelected && (
               <View style={styles.feverInputWrap}>
@@ -218,13 +257,44 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
 
             <Text style={styles.label}>Severity</Text>
             <View style={styles.sevPicker}>
-              {[1, 2, 3, 4, 5].map((i) => (
+              {Array.from({ length: 11 }, (_, i) => i).map((i) => (
                 <Pressable key={i} style={[styles.sevPickBtn, severity === i && { backgroundColor: sevColor(i) + "22", borderColor: sevColor(i) }]} onPress={() => { setSeverity(i); Haptics.selectionAsync(); }} accessibilityRole="button" accessibilityLabel={`Severity ${i}, ${sevLabel(i)}`} accessibilityState={{ selected: severity === i }}>
                   <Text style={[styles.sevPickNum, severity === i && { color: sevColor(i) }]}>{i}</Text>
-                  <Text style={[styles.sevPickLabel, severity === i && { color: sevColor(i) }]}>{sevLabel(i)}</Text>
                 </Pressable>
               ))}
             </View>
+            <Text style={styles.label}>Trigger</Text>
+            <View style={styles.chipGrid}>
+              {QUICK_TRIGGERS.map((trigger) => (
+                <Pressable
+                  key={trigger}
+                  style={[styles.chip, selectedTrigger === trigger && { backgroundColor: C.orangeLight, borderColor: C.orange }]}
+                  onPress={() => { setSelectedTrigger(trigger); Haptics.selectionAsync(); }}
+                >
+                  <Text style={[styles.chipText, selectedTrigger === trigger && { color: C.orange }]}>{trigger}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {selectedTrigger === "Custom" && (
+              <TextInput
+                style={styles.input}
+                placeholder="Type your trigger"
+                placeholderTextColor={C.textTertiary}
+                value={customTrigger}
+                onChangeText={setCustomTrigger}
+                accessibilityLabel="Custom trigger"
+              />
+            )}
+            <Text style={styles.label}>Duration (optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Minutes"
+              placeholderTextColor={C.textTertiary}
+              value={durationMinutes}
+              onChangeText={setDurationMinutes}
+              keyboardType="number-pad"
+              accessibilityLabel="Duration in minutes"
+            />
             <Text style={styles.label}>Notes (optional)</Text>
             <TextInput style={[styles.input, { minHeight: 60 }]} placeholder="Additional details..." placeholderTextColor={C.textTertiary} value={notes} onChangeText={setNotes} multiline textAlignVertical="top" accessibilityLabel="Symptom notes" />
             <View style={styles.modalActions}>
@@ -272,6 +342,7 @@ const styles = StyleSheet.create({
   sevBar: { width: 3, height: 36, borderRadius: 2, marginTop: 2 },
   symptomName: { fontWeight: "600", fontSize: 14, color: C.text },
   sevText: { fontWeight: "500", fontSize: 12, marginTop: 2 },
+  symptomMeta: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 3 },
   symptomNotes: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 4 },
   card: { backgroundColor: C.surface, borderRadius: 14, padding: 18, borderWidth: 1, borderColor: C.border },
   cardTitle: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 14 },
@@ -283,11 +354,13 @@ const styles = StyleSheet.create({
   recentCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: C.border },
   recentName: { fontWeight: "500", fontSize: 13, color: C.text },
   recentDate: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2 },
+  recentTime: { fontWeight: "500", fontSize: 11, color: C.textTertiary, marginTop: 2 },
   sevBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   sevBadgeText: { fontWeight: "600", fontSize: 11 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
   modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 420, borderWidth: 1, borderColor: C.border, maxHeight: "90%" },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
+  quickHint: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginBottom: 14, lineHeight: 18 },
   label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
   chipGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
   chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
@@ -296,7 +369,6 @@ const styles = StyleSheet.create({
   sevPicker: { flexDirection: "row", gap: 6, marginBottom: 14 },
   sevPickBtn: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
   sevPickNum: { fontWeight: "700", fontSize: 16, color: C.textSecondary },
-  sevPickLabel: { fontWeight: "400", fontSize: 9, color: C.textTertiary, marginTop: 2 },
   modalActions: { flexDirection: "row", gap: 10 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center" },
   cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },

@@ -271,6 +271,8 @@ export default function MainScreen() {
         return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
       case "log":
         return <DailyLogScreen key={refreshKey} />;
+      case "logtoday":
+        return <DailyLogScreen key={refreshKey} openTodayOnLaunch />;
       case "healthdata":
         return <HealthDataScreen />;
       case "medications":

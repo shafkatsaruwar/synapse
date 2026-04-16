@@ -10,17 +10,23 @@ import ViewShot, { captureRef } from "react-native-view-shot";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import {
   healthLogStorage, medicationStorage, medicationLogStorage, appointmentStorage,
-  doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage, eatingStorage, monthlyCheckInStorage,
-  type HealthLog, type Medication, type MedicationLog, type Appointment, type DoctorNote, type Symptom, type UserSettings, type SickModeData, type HealthCondition, type EatingEntry, type MonthlyCheckIn,
+  doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage, eatingStorage, monthlyCheckInStorage, vitalStorage,
+  type HealthLog, type Medication, type MedicationLog, type Appointment, type DoctorNote, type Symptom, type UserSettings, type SickModeData, type HealthCondition, type EatingEntry, type MonthlyCheckIn, type Vital,
 } from "@/lib/storage";
 import { getMedList, type MedListItem } from "@/lib/med-list-storage";
 import { getDaysAgo, formatDate, formatDateWithYear, getToday } from "@/lib/date-utils";
+import { buildRecoveryInsights, type RecoveryStatusLabel } from "@/lib/recovery-insights";
 
 interface SummaryEvent {
   date: string;
   time?: string;
   type: "symptom" | "fever" | "medication" | "appointment" | "sickmode";
   text: string;
+}
+
+function normalizeLegacyFivePoint(value?: number): number {
+  if (typeof value !== "number" || Number.isNaN(value)) return 0;
+  return value <= 5 ? Math.max(0, Math.min(10, value * 2)) : Math.max(0, Math.min(10, value));
 }
 
 export default function ReportsScreen() {
@@ -37,6 +43,7 @@ export default function ReportsScreen() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [notes, setNotes] = useState<DoctorNote[]>([]);
   const [symptoms, setSymptoms] = useState<Symptom[]>([]);
+  const [vitals, setVitals] = useState<Vital[]>([]);
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
   const [healthConditions, setHealthConditions] = useState<HealthCondition[]>([]);
   const [sickMode, setSickMode] = useState<SickModeData | null>(null);
@@ -47,11 +54,11 @@ export default function ReportsScreen() {
   const [exporting, setExporting] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [l, m, ml, a, n, s, st, sm, conds, eating, checkIns, medList] = await Promise.all([
+    const [l, m, ml, a, n, s, st, sm, conds, eating, checkIns, medList, vitalsData] = await Promise.all([
       healthLogStorage.getAll(), medicationStorage.getAll(), medicationLogStorage.getAll(),
-      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), sickModeStorage.get(), conditionStorage.getAll(), eatingStorage.getAll(), monthlyCheckInStorage.getAll(), getMedList(),
+      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), sickModeStorage.get(), conditionStorage.getAll(), eatingStorage.getAll(), monthlyCheckInStorage.getAll(), getMedList(), vitalStorage.getAll(),
     ]);
-    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setSickMode(sm); setHealthConditions(conds); setEatingEntries(eating); setMonthlyCheckIns(checkIns); setMedListItems(medList);
+    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setSickMode(sm); setHealthConditions(conds); setEatingEntries(eating); setMonthlyCheckIns(checkIns); setMedListItems(medList); setVitals(vitalsData);
   }, []);
 
   React.useEffect(() => { loadData(); }, [loadData]);
@@ -59,9 +66,9 @@ export default function ReportsScreen() {
   const cutoff = getDaysAgo(range);
   const today = getToday();
   const recentLogs = logs.filter((l) => l.date >= cutoff).sort((a, b) => a.date.localeCompare(b.date));
-  const avgEnergy = recentLogs.length > 0 ? recentLogs.reduce((s, l) => s + l.energy, 0) / recentLogs.length : 0;
-  const avgMood = recentLogs.length > 0 ? recentLogs.reduce((s, l) => s + l.mood, 0) / recentLogs.length : 0;
-  const avgSleep = recentLogs.length > 0 ? recentLogs.reduce((s, l) => s + l.sleep, 0) / recentLogs.length : 0;
+  const avgEnergy = recentLogs.length > 0 ? recentLogs.reduce((s, l) => s + normalizeLegacyFivePoint(l.energy), 0) / recentLogs.length : 0;
+  const avgMood = recentLogs.length > 0 ? recentLogs.reduce((s, l) => s + normalizeLegacyFivePoint(l.mood), 0) / recentLogs.length : 0;
+  const avgSleep = recentLogs.length > 0 ? recentLogs.reduce((s, l) => s + normalizeLegacyFivePoint(l.sleep), 0) / recentLogs.length : 0;
   const fastingDays = recentLogs.filter((l) => l.fasting).length;
   const activeMeds = medications.filter((m) => m.active);
   const recentMedLogs = medLogs.filter((ml) => ml.date >= cutoff && ml.date <= today);
@@ -87,6 +94,7 @@ export default function ReportsScreen() {
   const missedDoses = Math.max(0, totalExpected - takenDoses);
 
   const recentSymptoms = symptoms.filter((s) => s.date >= cutoff);
+  const recentVitals = vitals.filter((v) => v.date >= cutoff && v.date <= today);
   const symptomCounts: Record<string, number> = {};
   recentSymptoms.forEach((s) => { symptomCounts[s.name] = (symptomCounts[s.name] || 0) + 1; });
   const topSymptoms = Object.entries(symptomCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
@@ -95,6 +103,28 @@ export default function ReportsScreen() {
   const recentAppointments = appointments.filter((a) => a.date >= cutoff && a.date <= today);
   const recentEating = eatingEntries.filter((e) => e.date >= cutoff && e.date <= today).sort((a, b) => b.date.localeCompare(a.date));
   const recentMonthlyCheckIns = monthlyCheckIns.filter((c) => c.date >= cutoff && c.date <= today).sort((a, b) => a.date.localeCompare(b.date));
+  const recoverySummary = useMemo(() => buildRecoveryInsights({
+    logs,
+    vitals,
+    symptoms,
+    medications,
+    medicationLogs: medLogs,
+    rangeDays: range,
+    today,
+  }), [logs, vitals, symptoms, medications, medLogs, range, today]);
+  const recoveryPoints = recoverySummary.dailyPoints.filter(
+    (point) => point.overallFeeling != null || point.symptomSeverity != null || point.heartRate != null || point.temperature != null || point.bloodPressureSystolic != null,
+  );
+  const averageFeeling = recoveryPoints.length > 0
+    ? recoveryPoints.reduce((sum, point) => sum + (point.overallFeeling ?? 0), 0) / recoveryPoints.filter((point) => point.overallFeeling != null).length
+    : 0;
+  const averageSymptomBurden = recoveryPoints.length > 0
+    ? recoveryPoints.reduce((sum, point) => sum + (point.symptomSeverity ?? 0), 0) / recoveryPoints.filter((point) => point.symptomSeverity != null).length
+    : 0;
+  const heartRateEntryCount = recentVitals.filter((vital) => vital.heartRate != null || vital.type === "heart_rate").length;
+  const bloodPressureEntryCount = recentVitals.filter(
+    (vital) => vital.bloodPressureSystolic != null || vital.type === "blood_pressure",
+  ).length;
 
   const buildChronologicalEvents = (): SummaryEvent[] => {
     const events: SummaryEvent[] = [];
@@ -102,8 +132,9 @@ export default function ReportsScreen() {
     recentSymptoms.forEach((s) => {
       events.push({
         date: s.date,
+        time: s.recordedAt,
         type: "symptom",
-        text: `${s.name} (severity ${s.severity}/5)${s.notes ? ` - ${s.notes}` : ""}`,
+        text: `${s.name} (${s.severity}/10)${s.notes ? ` - ${s.notes}` : ""}`,
       });
     });
 
@@ -144,7 +175,7 @@ export default function ReportsScreen() {
     r += `Conditions: ${healthConditions.length > 0 ? healthConditions.map(c => c.name).join(", ") : "None listed"}\n`;
     r += `Period: Last ${range} days (${formatDate(cutoff)} \u2013 ${formatDate(today)})\n\n`;
     r += `DAILY AVERAGES\n`;
-    r += `Energy: ${avgEnergy.toFixed(1)}/5 | Mood: ${avgMood.toFixed(1)}/5 | Sleep: ${avgSleep.toFixed(1)}/5\n`;
+    r += `Energy: ${avgEnergy.toFixed(1)}/10 | Mood: ${avgMood.toFixed(1)}/10 | Sleep: ${avgSleep.toFixed(1)}/10\n`;
     r += `Days Logged: ${recentLogs.length} | Fasting Days: ${fastingDays}\n\n`;
     r += `SYMPTOMS (${recentSymptoms.length} total)\n`;
     if (topSymptoms.length > 0) topSymptoms.forEach(([s, c]) => { r += `  ${s}: ${c}x\n`; });
@@ -276,6 +307,72 @@ export default function ReportsScreen() {
         ))}
       </View>
 
+      <View style={styles.card}>
+        <View style={styles.recoveryHeaderRow}>
+          <Text style={styles.cardTitle}>Recovery Snapshot</Text>
+          <View style={[styles.statusPill, styles[`statusPill${recoverySummary.statusLabel}` as keyof ReturnType<typeof makeStyles>] as object]}>
+            <Text style={styles.statusPillText}>{recoverySummary.statusLabel}</Text>
+          </View>
+        </View>
+        <Text style={styles.recoverySummaryText}>{recoverySummary.summaryText}</Text>
+        <View style={styles.recoveryMiniStats}>
+          <View style={styles.recoveryMiniStat}>
+            <Text style={styles.recoveryMiniValue}>
+              {Number.isFinite(averageFeeling) && averageFeeling > 0 ? averageFeeling.toFixed(1) : "--"}
+            </Text>
+            <Text style={styles.recoveryMiniLabel}>Avg Feeling</Text>
+          </View>
+          <View style={styles.recoveryMiniStat}>
+            <Text style={styles.recoveryMiniValue}>
+              {Number.isFinite(averageSymptomBurden) && averageSymptomBurden > 0 ? averageSymptomBurden.toFixed(1) : "--"}
+            </Text>
+            <Text style={styles.recoveryMiniLabel}>Symptom Burden</Text>
+          </View>
+          <View style={styles.recoveryMiniStat}>
+            <Text style={styles.recoveryMiniValue}>{heartRateEntryCount}</Text>
+            <Text style={styles.recoveryMiniLabel}>HR Entries</Text>
+          </View>
+          <View style={styles.recoveryMiniStat}>
+            <Text style={styles.recoveryMiniValue}>{bloodPressureEntryCount}</Text>
+            <Text style={styles.recoveryMiniLabel}>BP Entries</Text>
+          </View>
+        </View>
+        <Text style={styles.safetyCopy}>This app helps track symptoms and trends. It does not replace medical care.</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Recovery Trends</Text>
+        {recoveryPoints.length > 0 ? recoveryPoints.map((point) => (
+          <View key={point.date} style={styles.recoveryTrendRow}>
+            <View style={styles.recoveryTrendDateWrap}>
+              <Text style={styles.recoveryTrendDate}>{formatDate(point.date)}</Text>
+              <Text style={styles.recoveryTrendSummary}>{point.statusSummary}</Text>
+            </View>
+            <View style={styles.recoveryMetricChips}>
+              <Text style={styles.recoveryMetricChip}>Sym {point.symptomSeverity != null ? `${point.symptomSeverity}/10` : "—"}</Text>
+              <Text style={styles.recoveryMetricChip}>HR {point.heartRate != null ? Math.round(point.heartRate) : "—"}</Text>
+              <Text style={styles.recoveryMetricChip}>
+                BP {point.bloodPressureSystolic != null && point.bloodPressureDiastolic != null ? `${Math.round(point.bloodPressureSystolic)}/${Math.round(point.bloodPressureDiastolic)}` : "—"}
+              </Text>
+              <Text style={styles.recoveryMetricChip}>Temp {point.temperature != null ? point.temperature.toFixed(1) : "—"}</Text>
+              <Text style={styles.recoveryMetricChip}>Meds {point.medicationAdherence != null ? `${Math.round(point.medicationAdherence)}%` : "—"}</Text>
+            </View>
+          </View>
+        )) : (
+          <Text style={styles.summaryItemEmpty}>Add a few check-ins, symptom events, or vitals to unlock recovery trends.</Text>
+        )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Possible Patterns</Text>
+        {recoverySummary.insights.map((insight) => (
+          <View key={insight} style={styles.insightRow}>
+            <Ionicons name="sparkles-outline" size={14} color={C.tint} />
+            <Text style={styles.insightText}>{insight}</Text>
+          </View>
+        ))}
+      </View>
+
       {recentLogs.length > 0 && (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Energy Trend</Text>
@@ -283,7 +380,7 @@ export default function ReportsScreen() {
             {recentLogs.slice(-7).map((log) => (
               <View key={log.id} style={styles.barCol}>
                 <View style={styles.barTrack}>
-                  <View style={[styles.bar, { height: `${(log.energy / 5) * 100}%`, backgroundColor: C.tint }]} />
+                  <View style={[styles.bar, { height: `${(normalizeLegacyFivePoint(log.energy) / 10) * 100}%`, backgroundColor: C.tint }]} />
                 </View>
                 <Text style={styles.barLabel}>{new Date(log.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "narrow" })}</Text>
               </View>
@@ -426,6 +523,7 @@ export default function ReportsScreen() {
               </View>
               <View style={styles.timelineContent}>
                 <Text style={styles.timelineDate}>{formatDate(ev.date)}</Text>
+                {ev.time ? <Text style={styles.timelineTime}>{new Date(ev.time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</Text> : null}
                 <Text style={styles.timelineText}>{ev.text}</Text>
               </View>
             </View>
@@ -449,6 +547,14 @@ export default function ReportsScreen() {
 }
 
 function makeStyles(C: Theme) {
+  const statusBg = (label: RecoveryStatusLabel) => {
+    switch (label) {
+      case "Improving": return C.green + "22";
+      case "Worsening": return C.red + "18";
+      default: return C.surfaceElevated;
+    }
+  };
+
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
@@ -468,6 +574,26 @@ function makeStyles(C: Theme) {
   statLabel: { fontWeight: "400", fontSize: 11, color: C.textSecondary, marginTop: 2 },
   card: { backgroundColor: C.surface, borderRadius: 14, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border },
   cardTitle: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 14 },
+  recoveryHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  statusPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: C.border },
+  statusPillImproving: { backgroundColor: statusBg("Improving"), borderColor: C.green + "44" },
+  statusPillStable: { backgroundColor: statusBg("Stable") },
+  statusPillWorsening: { backgroundColor: statusBg("Worsening"), borderColor: C.red + "33" },
+  statusPillText: { fontWeight: "700", fontSize: 11, color: C.text },
+  recoverySummaryText: { fontWeight: "400", fontSize: 13, color: C.text, lineHeight: 20, marginBottom: 14 },
+  recoveryMiniStats: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+  recoveryMiniStat: { width: "48%", backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 12 },
+  recoveryMiniValue: { fontWeight: "700", fontSize: 20, color: C.text },
+  recoveryMiniLabel: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
+  safetyCopy: { fontWeight: "400", fontSize: 12, color: C.textTertiary, lineHeight: 18 },
+  recoveryTrendRow: { paddingVertical: 12, borderTopWidth: 1, borderTopColor: C.border },
+  recoveryTrendDateWrap: { marginBottom: 8 },
+  recoveryTrendDate: { fontWeight: "700", fontSize: 13, color: C.text },
+  recoveryTrendSummary: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 3, lineHeight: 18 },
+  recoveryMetricChips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  recoveryMetricChip: { fontWeight: "600", fontSize: 11, color: C.text, backgroundColor: C.surfaceElevated, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 999 },
+  insightRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 10 },
+  insightText: { flex: 1, fontWeight: "400", fontSize: 13, color: C.text, lineHeight: 19 },
   chart: { flexDirection: "row", alignItems: "flex-end", height: 100, gap: 6 },
   barCol: { flex: 1, alignItems: "center" },
   barTrack: { width: "100%", height: 80, justifyContent: "flex-end", alignItems: "center" },
@@ -497,6 +623,7 @@ function makeStyles(C: Theme) {
   timelineDot: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   timelineContent: { flex: 1 },
   timelineDate: { fontWeight: "600", fontSize: 11, color: C.textSecondary },
+  timelineTime: { fontWeight: "500", fontSize: 11, color: C.textTertiary, marginTop: 1 },
   timelineText: { fontWeight: "400", fontSize: 13, color: C.text, marginTop: 1 },
   generateBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
   generateBtnDisabled: { opacity: 0.6 },

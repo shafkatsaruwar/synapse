@@ -36,7 +36,7 @@ const MAROON_LIGHT = "rgba(128,0,32,0.12)";
 
 const SECTION_LABELS: Record<string, string> = {
   log: "Daily Log",
-  healthdata: "Health Data",
+  healthdata: "Vitals",
   medications: "Medications",
   symptoms: "Symptoms",
   monthlycheckin: "Monthly check-in",
@@ -252,7 +252,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const renderSlide4 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <Text style={styles.setupTitle}>Make Synapse yours.</Text>
-      <Text style={styles.setupSub}>Core features like Medications, Appointments, and Health Data are already included. Please choose what else you&apos;d like to include in your health journey.</Text>
+      <Text style={styles.setupSub}>Core features like Medications, Appointments, and Vitals are already included. Please choose what else you&apos;d like to include in your health journey.</Text>
       <View style={styles.coreFeaturesCard}>
         <Text style={styles.coreFeaturesTitle}>Core features already included</Text>
         <Text style={styles.coreFeaturesText}>

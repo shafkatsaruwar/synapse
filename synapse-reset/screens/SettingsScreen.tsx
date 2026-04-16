@@ -43,7 +43,7 @@ import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 
 const SECTION_LABELS: Record<string, string> = {
-  log: "Daily Log", healthdata: "Health Data", medications: "Medications", symptoms: "Symptoms",
+  log: "Daily Log", healthdata: "Vitals", medications: "Medications", symptoms: "Symptoms",
   monthlycheckin: "Monthly check-in", eating: "Eating", mentalhealth: "Mental health day",
   comfort: "Mood lifters", goals: "Goals", appointments: "Appointments", reports: "Reports", privacy: "Privacy", cycletracking: "Cycle tracking",
 };

@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { fastingLogStorage, settingsStorage, sickModeStorage, type FastingLog } from "@/lib/storage";
+import { fastingLogStorage, settingsStorage, sickModeStorage, enableRecoveryTracking, type FastingLog } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
 
@@ -114,6 +114,7 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
             onPress: async () => {
               const settings = await settingsStorage.get();
               await settingsStorage.save({ ...settings, sickMode: true });
+              await enableRecoveryTracking();
               await sickModeStorage.save({
                 active: true,
                 startedAt: new Date().toISOString(),
@@ -202,7 +203,7 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
 
       {fasted === false && (
         <View style={styles.skipSection}>
-          <Text style={styles.skipQuestion}>Why aren't you fasting today?</Text>
+          <Text style={styles.skipQuestion}>Why aren&apos;t you fasting today?</Text>
           <View style={styles.reasonGrid}>
             {SKIP_REASONS.map((r) => (
               <Pressable
@@ -221,7 +222,7 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
 
           {showTempInput && (
             <View style={styles.tempSection}>
-              <Text style={styles.tempLabel}>What's your temperature?</Text>
+              <Text style={styles.tempLabel}>What&apos;s your temperature?</Text>
               <View style={styles.tempInputRow}>
                 <TextInput
                   style={styles.tempInput}

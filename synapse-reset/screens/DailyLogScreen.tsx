@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { healthLogStorage, settingsStorage, healthProfileStorage, type UserSettings, type HealthProfileInfo, type RecordOwner } from "@/lib/storage";
-import { getToday } from "@/lib/date-utils";
+import { formatTimestamp, getToday } from "@/lib/date-utils";
 import RAMADAN_2026 from "@/constants/ramadan-timetable";
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -41,7 +41,25 @@ function getHijriDay(dateStr: string): number | undefined {
   return entry?.hijriDay;
 }
 
-export default function DailyLogScreen() {
+function normalizeLegacyFivePoint(value?: number): number {
+  if (typeof value !== "number" || Number.isNaN(value)) return 5;
+  return value <= 5 ? Math.max(0, Math.min(10, value * 2)) : Math.max(0, Math.min(10, value));
+}
+
+function getTenPointLabel(value: number): string {
+  if (value <= 1) return "Very low";
+  if (value <= 3) return "Low";
+  if (value <= 5) return "Okay";
+  if (value <= 7) return "Good";
+  if (value <= 9) return "High";
+  return "Excellent";
+}
+
+interface DailyLogScreenProps {
+  openTodayOnLaunch?: boolean;
+}
+
+export default function DailyLogScreen({ openTodayOnLaunch = false }: DailyLogScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -59,10 +77,16 @@ export default function DailyLogScreen() {
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [logEntryOwner, setLogEntryOwner] = useState<RecordOwner>("self");
-  const [energy, setEnergy] = useState(3);
-  const [mood, setMood] = useState(3);
-  const [sleep, setSleep] = useState(3);
+  const [energy, setEnergy] = useState(5);
+  const [mood, setMood] = useState(5);
+  const [sleep, setSleep] = useState(5);
+  const [overallFeeling, setOverallFeeling] = useState(5);
+  const [fatigue, setFatigue] = useState(0);
+  const [dizziness, setDizziness] = useState(0);
+  const [chestPain, setChestPain] = useState(0);
+  const [shortnessOfBreath, setShortnessOfBreath] = useState(0);
   const [notes, setNotes] = useState("");
+  const [recordedAt, setRecordedAt] = useState("");
   const [saved, setSaved] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -79,6 +103,12 @@ export default function DailyLogScreen() {
   React.useEffect(() => {
     loadData();
   }, [loadData]);
+
+  React.useEffect(() => {
+    if (!openTodayOnLaunch) return;
+    setSelectedDate(todayStr);
+    setLogEntryOwner("self");
+  }, [openTodayOnLaunch, todayStr]);
 
   const daysInMonth = useMemo(() => getDaysInMonth(viewYear, viewMonth), [viewYear, viewMonth]);
   const firstDayOfWeek = useMemo(() => getFirstDayOfWeek(viewYear, viewMonth), [viewYear, viewMonth]);
@@ -131,16 +161,28 @@ export default function DailyLogScreen() {
       const existing = await healthLogStorage.getByDate(selectedDate, logEntryOwner);
       if (!active) return;
       if (existing) {
-        setEnergy(existing.energy);
-        setMood(existing.mood);
-        setSleep(existing.sleep);
+        setEnergy(normalizeLegacyFivePoint(existing.energy));
+        setMood(normalizeLegacyFivePoint(existing.mood));
+        setSleep(normalizeLegacyFivePoint(existing.sleep));
+        setOverallFeeling(existing.overallFeeling ?? 5);
+        setFatigue(existing.fatigue ?? 0);
+        setDizziness(existing.dizziness ?? 0);
+        setChestPain(existing.chestPain ?? 0);
+        setShortnessOfBreath(existing.shortnessOfBreath ?? 0);
         setNotes(existing.notes);
+        setRecordedAt(existing.recordedAt ?? `${existing.date}T12:00:00`);
         setSaved(true);
       } else {
-        setEnergy(3);
-        setMood(3);
-        setSleep(3);
+        setEnergy(5);
+        setMood(5);
+        setSleep(5);
+        setOverallFeeling(5);
+        setFatigue(0);
+        setDizziness(0);
+        setChestPain(0);
+        setShortnessOfBreath(0);
         setNotes("");
+        setRecordedAt(new Date().toISOString());
         setSaved(false);
       }
     };
@@ -152,8 +194,24 @@ export default function DailyLogScreen() {
 
   const handleSave = async () => {
     if (!selectedDate) return;
-    await healthLogStorage.save({ date: selectedDate, energy, mood, sleep, fasting: false, notes, entryOwner: logEntryOwner });
+    const nextRecordedAt = new Date().toISOString();
+    await healthLogStorage.save({
+      date: selectedDate,
+      recordedAt: nextRecordedAt,
+      energy,
+      mood,
+      sleep,
+      overallFeeling,
+      fatigue,
+      dizziness,
+      chestPain,
+      shortnessOfBreath,
+      fasting: false,
+      notes,
+      entryOwner: logEntryOwner,
+    });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setRecordedAt(nextRecordedAt);
     setSaved(true);
     setLoggedDates((prev) => new Set([...prev, `${selectedDate}:${logEntryOwner}`]));
   };
@@ -169,35 +227,63 @@ export default function DailyLogScreen() {
     ...(isCaregiver ? [{ value: "care_recipient" as const, label: profile.caredForName!.trim() }] : []),
   ];
 
-  const energyLabels = ["Low", "Fair", "Good", "Great", "Excellent"];
-  const moodLabels = ["Down", "Low", "Okay", "Good", "Great"];
-  const sleepLabels = ["Poor", "Fair", "Okay", "Good", "Restful"];
-
   const renderSlider = (
     label: string,
     value: number,
     setValue: (v: number) => void,
-    labels: string[],
     color: string,
   ) => (
     <View style={styles.sliderSection}>
       <View style={styles.sliderHeader}>
         <Text style={styles.sliderLabel}>{label}</Text>
-        <Text style={[styles.sliderValue, { color }]}>{labels[value - 1]}</Text>
+        <Text style={[styles.sliderValue, { color }]}>{value}/10 · {getTenPointLabel(value)}</Text>
       </View>
-      <View style={styles.sliderTrack}>
-        {[1, 2, 3, 4, 5].map((i) => (
+      <View style={styles.recoveryScaleTrack}>
+        {Array.from({ length: 11 }, (_, index) => index).map((i) => (
           <Pressable
             key={i}
-            style={[styles.sliderDot, i <= value && { backgroundColor: color }]}
+            style={[styles.recoveryScaleDot, i <= value && { backgroundColor: color }]}
             onPress={() => {
               setValue(i);
               setSaved(false);
               Haptics.selectionAsync();
             }}
             accessibilityRole="adjustable"
-            accessibilityLabel={`${label} level ${i}, ${labels[i - 1]}`}
+            accessibilityLabel={`${label} ${i} out of 10`}
             accessibilityState={{ selected: i === value }}
+            hitSlop={{ top: 18, bottom: 18 }}
+          />
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderRecoveryScale = (
+    label: string,
+    value: number,
+    setValue: (v: number) => void,
+    color: string,
+    hint?: string,
+  ) => (
+    <View style={styles.sliderSection}>
+      <View style={styles.sliderHeader}>
+        <Text style={styles.sliderLabel}>{label}</Text>
+        <Text style={[styles.sliderValue, { color }]}>{value}/10</Text>
+      </View>
+      {hint ? <Text style={styles.scaleHint}>{hint}</Text> : null}
+      <View style={styles.recoveryScaleTrack}>
+        {Array.from({ length: 11 }, (_, index) => index).map((index) => (
+          <Pressable
+            key={index}
+            style={[styles.recoveryScaleDot, index <= value && { backgroundColor: color }]}
+            onPress={() => {
+              setValue(index);
+              setSaved(false);
+              Haptics.selectionAsync();
+            }}
+            accessibilityRole="adjustable"
+            accessibilityLabel={`${label} ${index} out of 10`}
+            accessibilityState={{ selected: index === value }}
             hitSlop={{ top: 18, bottom: 18 }}
           />
         ))}
@@ -219,7 +305,7 @@ export default function DailyLogScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title} accessibilityRole="header">Daily Log</Text>
+        <Text style={styles.title} accessibilityRole="header">Daily Check-in</Text>
 
         <View style={styles.monthNav}>
           <Pressable onPress={goToPrevMonth} style={styles.navBtn} accessibilityRole="button" accessibilityLabel="Previous month">
@@ -334,6 +420,10 @@ export default function DailyLogScreen() {
                 style={styles.modalScroll}
               >
                 <View style={styles.formCard}>
+                  <Text style={styles.sectionTitle}>Recovery check-in</Text>
+                  <Text style={styles.timestampLabel}>
+                    {recordedAt ? `Latest save: ${formatTimestamp(recordedAt)}` : "Not saved yet"}
+                  </Text>
                   {isCaregiver && (
                     <>
                       <Text style={styles.sectionTitle}>Who is this log for?</Text>
@@ -355,16 +445,21 @@ export default function DailyLogScreen() {
                       </View>
                     </>
                   )}
-                  {renderSlider("Energy", energy, setEnergy, energyLabels, C.tint)}
-                  {renderSlider("Mood", mood, setMood, moodLabels, C.purple)}
-                  {renderSlider("Sleep", sleep, setSleep, sleepLabels, C.cyan)}
+                  {renderRecoveryScale("Overall feeling", overallFeeling, setOverallFeeling, C.tint, "0 = worst, 10 = best")}
+                  {renderRecoveryScale("Fatigue", fatigue, setFatigue, C.orange)}
+                  {renderRecoveryScale("Dizziness", dizziness, setDizziness, C.cyan)}
+                  {renderRecoveryScale("Chest pain", chestPain, setChestPain, C.red)}
+                  {renderRecoveryScale("Shortness of breath / wheezing", shortnessOfBreath, setShortnessOfBreath, C.purple)}
+                  {renderSlider("Energy", energy, setEnergy, C.tint)}
+                  {renderSlider("Mood", mood, setMood, C.purple)}
+                  {renderSlider("Sleep", sleep, setSleep, C.cyan)}
                 </View>
 
                 <View style={styles.formCard}>
                   <Text style={styles.sectionTitle}>Notes</Text>
                   <TextInput
                     style={styles.notesInput}
-                    placeholder="How are you feeling?"
+                    placeholder="How was recovery today? Any meds, symptoms, triggers, or weird patterns?"
                     placeholderTextColor={C.textTertiary}
                     value={notes}
                     onChangeText={(t) => {
@@ -634,9 +729,12 @@ function makeStyles(C: Theme) {
   },
   sliderLabel: { fontWeight: "500", fontSize: 13, color: C.textSecondary },
   sliderValue: { fontWeight: "600", fontSize: 13 },
-  sliderTrack: { flexDirection: "row", gap: 8, alignItems: "center" },
-  sliderDot: {
-    flex: 1,
+  scaleHint: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: -4, marginBottom: 8 },
+  timestampLabel: { fontWeight: "500", fontSize: 12, color: C.textTertiary, marginBottom: 14 },
+  recoveryScaleTrack: { flexDirection: "row", gap: 8, alignItems: "center", flexWrap: "wrap" },
+  recoveryScaleDot: {
+    flexGrow: 1,
+    minWidth: 20,
     height: 8,
     borderRadius: 4,
     backgroundColor: C.surfaceElevated,

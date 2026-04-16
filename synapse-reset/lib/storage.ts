@@ -4,9 +4,15 @@ import * as Crypto from "expo-crypto";
 export interface HealthLog {
   id: string;
   date: string;
+  recordedAt?: string;
   energy: number;
   mood: number;
   sleep: number;
+  overallFeeling?: number;
+  fatigue?: number;
+  dizziness?: number;
+  chestPain?: number;
+  shortnessOfBreath?: number;
   notes: string;
   fasting: boolean;
   entryOwner?: RecordOwner;
@@ -15,10 +21,14 @@ export interface HealthLog {
 export interface Symptom {
   id: string;
   date: string;
+  recordedAt?: string;
   name: string;
   severity: number;
   notes: string;
   temperature?: number;
+  trigger?: string;
+  customTrigger?: string;
+  durationMinutes?: number;
 }
 
 /** A single dose: amount, unit, time of day. Each is tracked independently for reminders and logging. */
@@ -108,6 +118,9 @@ export interface MedicationLog {
   doseIndex?: number;
   date: string;
   taken: boolean;
+  recordedAt?: string;
+  scheduledTime?: string;
+  notes?: string;
 }
 
 export interface SickModeData {
@@ -166,6 +179,8 @@ export interface HealthProfileInfo {
   profileImageUri?: string;
   userRole?: UserRole;
   widgetAppearance?: WidgetAppearancePreference;
+  recoveryTrackingEnabled?: boolean;
+  recoveryFocus?: string;
   caredForName?: string;
   caredForAge?: number;
   backupEmergencyProtocols?: string;
@@ -239,6 +254,13 @@ export interface Vital {
   type: string;
   value: string;
   unit: string;
+  source?: "manual" | "apple_watch" | "blood_pressure_monitor" | "other";
+  bloodPressureSystolic?: number;
+  bloodPressureDiastolic?: number;
+  heartRate?: number;
+  bodyTemperature?: number;
+  oxygenSaturation?: number;
+  notes?: string;
 }
 
 export interface MonthlyCheckIn {
@@ -419,7 +441,11 @@ async function setItem<T>(key: string, data: T[]): Promise<void> {
 export const healthLogStorage = {
   getAll: async () => {
     const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
-    return logs.map((log) => ({ ...log, entryOwner: log.entryOwner ?? "self" }));
+    return logs.map((log) => ({
+      ...log,
+      entryOwner: log.entryOwner ?? "self",
+      recordedAt: log.recordedAt ?? `${log.date}T12:00:00`,
+    }));
   },
   getByDate: async (date: string, entryOwner: RecordOwner = "self") => {
     const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
@@ -430,9 +456,9 @@ export const healthLogStorage = {
     const owner = log.entryOwner ?? "self";
     const existing = logs.findIndex((l) => l.date === log.date && (l.entryOwner ?? "self") === owner);
     if (existing >= 0) {
-      logs[existing] = { ...logs[existing], ...log, entryOwner: owner };
+      logs[existing] = { ...logs[existing], ...log, entryOwner: owner, recordedAt: log.recordedAt ?? logs[existing].recordedAt ?? new Date().toISOString() };
     } else {
-      logs.push({ ...log, id: Crypto.randomUUID(), entryOwner: owner });
+      logs.push({ ...log, id: Crypto.randomUUID(), entryOwner: owner, recordedAt: log.recordedAt ?? new Date().toISOString() });
     }
     await setItem(KEYS.HEALTH_LOGS, logs);
   },
@@ -443,14 +469,20 @@ export const healthLogStorage = {
 };
 
 export const symptomStorage = {
-  getAll: () => getItem<Symptom>(KEYS.SYMPTOMS),
+  getAll: async () => {
+    const all = await getItem<Symptom>(KEYS.SYMPTOMS);
+    return all.map((symptom) => ({
+      ...symptom,
+      recordedAt: symptom.recordedAt ?? `${symptom.date}T12:00:00`,
+    }));
+  },
   getByDate: async (date: string) => {
     const all = await getItem<Symptom>(KEYS.SYMPTOMS);
     return all.filter((s) => s.date === date);
   },
   save: async (symptom: Omit<Symptom, "id">) => {
     const all = await getItem<Symptom>(KEYS.SYMPTOMS);
-    all.push({ ...symptom, id: Crypto.randomUUID() });
+    all.push({ ...symptom, id: Crypto.randomUUID(), recordedAt: symptom.recordedAt ?? new Date().toISOString() });
     await setItem(KEYS.SYMPTOMS, all);
   },
   delete: async (id: string) => {
@@ -484,20 +516,35 @@ export const medicationStorage = {
 };
 
 export const medicationLogStorage = {
-  getAll: () => getItem<MedicationLog>(KEYS.MEDICATION_LOGS),
+  getAll: async () => {
+    const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+    return logs.map((log) => ({ ...log, recordedAt: log.recordedAt ?? (log.taken ? `${log.date}T12:00:00` : undefined) }));
+  },
   getByDate: async (date: string) => {
     const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
     return logs.filter((l) => l.date === date);
   },
-  toggle: async (medicationId: string, date: string, doseIndex?: number) => {
+  toggle: async (medicationId: string, date: string, doseIndex?: number, metadata?: { scheduledTime?: string; notes?: string }) => {
     const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
     const existing = logs.findIndex(
       (l) => l.medicationId === medicationId && l.date === date && (l.doseIndex ?? 0) === (doseIndex ?? 0),
     );
     if (existing >= 0) {
       logs[existing].taken = !logs[existing].taken;
+      logs[existing].recordedAt = logs[existing].taken ? new Date().toISOString() : undefined;
+      logs[existing].scheduledTime = metadata?.scheduledTime ?? logs[existing].scheduledTime;
+      logs[existing].notes = metadata?.notes ?? logs[existing].notes;
     } else {
-      logs.push({ id: Crypto.randomUUID(), medicationId, doseIndex: doseIndex ?? 0, date, taken: true });
+      logs.push({
+        id: Crypto.randomUUID(),
+        medicationId,
+        doseIndex: doseIndex ?? 0,
+        date,
+        taken: true,
+        recordedAt: new Date().toISOString(),
+        scheduledTime: metadata?.scheduledTime,
+        notes: metadata?.notes,
+      });
     }
     await setItem(KEYS.MEDICATION_LOGS, logs);
   },
@@ -722,10 +769,17 @@ export const fastingLogStorage = {
 };
 
 export const vitalStorage = {
-  getAll: () => getItem<Vital>(KEYS.VITALS),
+  getAll: async () => {
+    const vitals = await getItem<Vital>(KEYS.VITALS);
+    return vitals.map((vital) => ({
+      ...vital,
+      recordedAt: vital.recordedAt ?? `${vital.date}T12:00:00`,
+      source: vital.source ?? "manual",
+    }));
+  },
   save: async (vital: Omit<Vital, "id">) => {
     const all = await getItem<Vital>(KEYS.VITALS);
-    all.push({ ...vital, id: Crypto.randomUUID() });
+    all.push({ ...vital, id: Crypto.randomUUID(), recordedAt: vital.recordedAt ?? new Date().toISOString(), source: vital.source ?? "manual" });
     await setItem(KEYS.VITALS, all);
   },
   update: async (id: string, updates: Partial<Omit<Vital, "id">>) => {
@@ -921,11 +975,11 @@ export const healthProfileStorage = {
     try {
       const raw = await AsyncStorage.getItem(KEYS.HEALTH_PROFILE_INFO);
       return raw
-        ? { userRole: "self", widgetAppearance: "system", backupCriticalMedications: [], vaccines: [], surgeries: [], ...JSON.parse(raw) }
-        : { userRole: "self", widgetAppearance: "system", backupCriticalMedications: [], vaccines: [], surgeries: [] };
+        ? { userRole: "self", widgetAppearance: "system", recoveryTrackingEnabled: false, recoveryFocus: "", backupCriticalMedications: [], vaccines: [], surgeries: [], ...JSON.parse(raw) }
+        : { userRole: "self", widgetAppearance: "system", recoveryTrackingEnabled: false, recoveryFocus: "", backupCriticalMedications: [], vaccines: [], surgeries: [] };
     } catch (e) {
       console.warn("AsyncStorage healthProfile get failed", e);
-      return { userRole: "self", widgetAppearance: "system", backupCriticalMedications: [], vaccines: [], surgeries: [] };
+      return { userRole: "self", widgetAppearance: "system", recoveryTrackingEnabled: false, recoveryFocus: "", backupCriticalMedications: [], vaccines: [], surgeries: [] };
     }
   },
   save: async (data: HealthProfileInfo) => {
@@ -935,6 +989,8 @@ export const healthProfileStorage = {
         JSON.stringify({
           userRole: "self",
           widgetAppearance: "system",
+          recoveryTrackingEnabled: false,
+          recoveryFocus: "",
           backupCriticalMedications: [],
           vaccines: [],
           surgeries: [],
@@ -945,6 +1001,28 @@ export const healthProfileStorage = {
       console.warn("AsyncStorage healthProfile save failed", e);
     }
   },
+};
+
+export const enableRecoveryTracking = async (focus = "sick mode recovery") => {
+  const profile = await healthProfileStorage.get();
+  const nextProfile: HealthProfileInfo = {
+    ...profile,
+    recoveryTrackingEnabled: true,
+    recoveryFocus: profile.recoveryFocus?.trim() ? profile.recoveryFocus : focus,
+  };
+  await healthProfileStorage.save(nextProfile);
+  return nextProfile;
+};
+
+export const disableRecoveryTracking = async () => {
+  const profile = await healthProfileStorage.get();
+  const nextProfile: HealthProfileInfo = {
+    ...profile,
+    recoveryTrackingEnabled: false,
+    recoveryFocus: "",
+  };
+  await healthProfileStorage.save(nextProfile);
+  return nextProfile;
 };
 
 export const cycleTrackingStorage = {

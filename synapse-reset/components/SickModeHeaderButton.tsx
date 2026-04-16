@@ -3,7 +3,7 @@ import { StyleSheet, Text, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { settingsStorage, sickModeStorage } from "@/lib/storage";
+import { settingsStorage, sickModeStorage, enableRecoveryTracking } from "@/lib/storage";
 
 interface SickModeHeaderButtonProps {
   onActivate: () => void;
@@ -32,6 +32,7 @@ export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKe
     }
     const s = await settingsStorage.get();
     await settingsStorage.save({ ...s, sickMode: true });
+    await enableRecoveryTracking();
     const sd = await sickModeStorage.get();
     await sickModeStorage.save({ ...sd, active: true, startedAt: new Date().toISOString() });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);

@@ -10,7 +10,8 @@ import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { vitalStorage, healthLogStorage, type Vital, type HealthLog } from "@/lib/storage";
 import { getDaysAgo, formatDate, getToday } from "@/lib/date-utils";
 
-type Category = "weight" | "blood_pressure" | "blood_sugar" | "heart_rate" | "sleep" | "hydration" | "labs";
+type Category = "weight" | "blood_pressure" | "blood_sugar" | "heart_rate" | "body_temperature" | "oxygen_saturation" | "sleep" | "hydration" | "labs";
+type VitalSource = "manual" | "apple_watch" | "blood_pressure_monitor" | "other";
 
 function getCategories(C: Theme): { key: Category; label: string; icon: string; color: string; unit: string; units: string[] }[] {
   return [
@@ -18,11 +19,20 @@ function getCategories(C: Theme): { key: Category; label: string; icon: string; 
     { key: "blood_pressure", label: "Blood Pressure", icon: "heart-outline", color: C.red, unit: "mmHg", units: ["mmHg"] },
     { key: "blood_sugar", label: "Blood Sugar", icon: "water-outline", color: C.orange, unit: "mg/dL", units: ["mg/dL", "mmol/L"] },
     { key: "heart_rate", label: "Heart Rate", icon: "pulse-outline", color: C.pink, unit: "bpm", units: ["bpm"] },
+    { key: "body_temperature", label: "Body Temperature", icon: "thermometer-outline", color: C.red, unit: "°F", units: ["°F", "°C"] },
+    { key: "oxygen_saturation", label: "Oxygen Saturation", icon: "fitness-outline", color: C.green, unit: "%", units: ["%"] },
     { key: "sleep", label: "Sleep", icon: "moon-outline", color: C.purple, unit: "hours", units: ["hours"] },
     { key: "hydration", label: "Hydration", icon: "cafe-outline", color: C.tint, unit: "glasses", units: ["glasses", "L", "ml"] },
     { key: "labs", label: "Labs", icon: "flask-outline", color: C.green, unit: "", units: [] },
   ];
 }
+
+const VITAL_SOURCE_OPTIONS: { value: VitalSource; label: string }[] = [
+  { value: "manual", label: "Manual entry" },
+  { value: "apple_watch", label: "Apple Watch" },
+  { value: "blood_pressure_monitor", label: "Blood pressure monitor" },
+  { value: "other", label: "Other" },
+];
 
 function getVitalRecordedAt(vital: Vital) {
   return vital.recordedAt ?? `${vital.date}T00:00:00`;
@@ -38,6 +48,22 @@ function formatVitalTimestamp(value?: string) {
     second: "2-digit",
     hour12: false,
   });
+}
+
+function getVitalNumericValue(vital: Vital, selected: Category) {
+  if (selected === "blood_pressure") {
+    return vital.bloodPressureSystolic ?? (parseFloat(vital.value.split("/")[0]) || 0);
+  }
+  if (selected === "heart_rate") {
+    return vital.heartRate ?? (parseFloat(vital.value) || 0);
+  }
+  if (selected === "body_temperature") {
+    return vital.bodyTemperature ?? (parseFloat(vital.value) || 0);
+  }
+  if (selected === "oxygen_saturation") {
+    return vital.oxygenSaturation ?? (parseFloat(vital.value) || 0);
+  }
+  return parseFloat(vital.value) || 0;
 }
 
 export default function HealthDataScreen() {
@@ -56,6 +82,10 @@ export default function HealthDataScreen() {
   const [addValue, setAddValue] = useState("");
   const [addUnit, setAddUnit] = useState("");
   const [addLabel, setAddLabel] = useState("");
+  const [addSource, setAddSource] = useState<VitalSource>("manual");
+  const [addSystolic, setAddSystolic] = useState("");
+  const [addDiastolic, setAddDiastolic] = useState("");
+  const [addOxygenSaturation, setAddOxygenSaturation] = useState("");
   const [editingVital, setEditingVital] = useState<Vital | null>(null);
   const [editValue, setEditValue] = useState("");
   const [editUnit, setEditUnit] = useState("");
@@ -81,24 +111,53 @@ export default function HealthDataScreen() {
     : [];
 
   const dataPoints = selected === "sleep"
-    ? sleepData.map((l) => ({ date: l.date, value: l.sleep, label: `${l.sleep}/5` }))
-    : filteredVitals.map((v) => ({ date: v.date, value: parseFloat(v.value) || 0, label: `${v.value} ${v.unit}` }));
+    ? sleepData.map((l) => ({
+      date: l.date,
+      value: l.sleep <= 5 ? l.sleep * 2 : l.sleep,
+      label: `${l.sleep <= 5 ? l.sleep * 2 : l.sleep}/10`,
+    }))
+    : filteredVitals.map((v) => ({ date: v.date, value: getVitalNumericValue(v, selected), label: `${v.value} ${v.unit}`.trim() }));
 
   const maxVal = dataPoints.length > 0 ? Math.max(...dataPoints.map((d) => d.value)) : 1;
   const minVal = dataPoints.length > 0 ? Math.min(...dataPoints.map((d) => d.value)) : 0;
   const valRange = maxVal - minVal || 1;
 
   const handleAdd = async () => {
-    if (!addValue.trim()) return;
+    if (selected === "blood_pressure" && (!addSystolic.trim() || !addDiastolic.trim())) return;
+    if (selected !== "blood_pressure" && !addValue.trim()) return;
     const today = getToday();
     const recordedAt = new Date().toISOString();
     const type = selected === "labs" ? addLabel.trim() : cat.label;
     const unit = selected === "labs" ? addUnit.trim() : (addUnit || cat.unit);
-    await vitalStorage.save({ date: today, recordedAt, type, value: addValue.trim(), unit });
+    const systolic = selected === "blood_pressure" ? parseInt(addSystolic, 10) || undefined : undefined;
+    const diastolic = selected === "blood_pressure" ? parseInt(addDiastolic, 10) || undefined : undefined;
+    const oxygenSaturation = selected === "oxygen_saturation" ? parseInt(addOxygenSaturation || addValue, 10) || undefined : undefined;
+    const heartRate = selected === "heart_rate" ? parseInt(addValue, 10) || undefined : undefined;
+    const bodyTemperature = selected === "body_temperature" ? parseFloat(addValue) || undefined : undefined;
+    const normalizedValue = selected === "blood_pressure"
+      ? `${addSystolic.trim()}/${addDiastolic.trim()}`
+      : addValue.trim();
+    await vitalStorage.save({
+      date: today,
+      recordedAt,
+      type,
+      value: normalizedValue,
+      unit,
+      source: addSource,
+      bloodPressureSystolic: systolic,
+      bloodPressureDiastolic: diastolic,
+      heartRate,
+      bodyTemperature,
+      oxygenSaturation,
+    });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setAddValue("");
     setAddLabel("");
     setAddUnit("");
+    setAddSource("manual");
+    setAddSystolic("");
+    setAddDiastolic("");
+    setAddOxygenSaturation("");
     setShowAdd(false);
     loadData();
   };
@@ -135,8 +194,8 @@ export default function HealthDataScreen() {
         paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
       }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.title}>Health Data</Text>
-          <Pressable testID="add-health-data" style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => setShowAdd(true)} accessibilityRole="button" accessibilityLabel="Add health data" hitSlop={{ top: 4, bottom: 4 }}>
+          <Text style={styles.title}>Vitals</Text>
+          <Pressable testID="add-health-data" style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]} onPress={() => setShowAdd(true)} accessibilityRole="button" accessibilityLabel="Add vital entry" hitSlop={{ top: 4, bottom: 4 }}>
             <Ionicons name="add" size={20} color="#fff" />
             <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>Add</Text>
           </Pressable>
@@ -246,8 +305,29 @@ export default function HealthDataScreen() {
                 <TextInput style={styles.modalInput} placeholder="e.g. HbA1c, TSH" placeholderTextColor={C.textTertiary} value={addLabel} onChangeText={setAddLabel} />
               </>
             )}
-            <Text style={styles.label}>Value</Text>
-            <TextInput style={styles.modalInput} placeholder={selected === "blood_pressure" ? "120/80" : "Enter value"} placeholderTextColor={C.textTertiary} value={addValue} onChangeText={setAddValue} keyboardType={selected === "blood_pressure" ? "default" : "numeric"} />
+            {selected === "blood_pressure" ? (
+              <>
+                <Text style={styles.label}>Blood pressure</Text>
+                <View style={styles.bpRow}>
+                  <TextInput style={[styles.modalInput, styles.bpInput]} placeholder="Systolic" placeholderTextColor={C.textTertiary} value={addSystolic} onChangeText={setAddSystolic} keyboardType="number-pad" />
+                  <Text style={styles.bpDivider}>/</Text>
+                  <TextInput style={[styles.modalInput, styles.bpInput]} placeholder="Diastolic" placeholderTextColor={C.textTertiary} value={addDiastolic} onChangeText={setAddDiastolic} keyboardType="number-pad" />
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>Value</Text>
+                <TextInput style={styles.modalInput} placeholder="Enter value" placeholderTextColor={C.textTertiary} value={addValue} onChangeText={setAddValue} keyboardType="numeric" />
+              </>
+            )}
+            <Text style={styles.label}>Source</Text>
+            <View style={styles.unitRow}>
+              {VITAL_SOURCE_OPTIONS.map((source) => (
+                <Pressable key={source.value} style={[styles.unitChip, addSource === source.value && styles.unitChipActive]} onPress={() => setAddSource(source.value)}>
+                  <Text style={[styles.unitChipText, addSource === source.value && styles.unitChipTextActive]}>{source.label}</Text>
+                </Pressable>
+              ))}
+            </View>
             {selected === "labs" ? (
               <>
                 <Text style={styles.label}>Unit</Text>
@@ -267,7 +347,7 @@ export default function HealthDataScreen() {
             ) : null}
             <View style={styles.modalActions}>
               <Pressable style={styles.cancelBtn} onPress={() => setShowAdd(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
-              <Pressable style={[styles.confirmBtn, { backgroundColor: cat.color }, !addValue.trim() && { opacity: 0.5 }]} onPress={handleAdd} disabled={!addValue.trim()}>
+              <Pressable style={[styles.confirmBtn, { backgroundColor: cat.color }, selected === "blood_pressure" ? (!addSystolic.trim() || !addDiastolic.trim()) && { opacity: 0.5 } : !addValue.trim() && { opacity: 0.5 }]} onPress={handleAdd} disabled={selected === "blood_pressure" ? (!addSystolic.trim() || !addDiastolic.trim()) : !addValue.trim()}>
                 <Text style={styles.confirmText}>Save</Text>
               </Pressable>
             </View>
@@ -354,6 +434,9 @@ function makeStyles(C: Theme) {
   modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 380, borderWidth: 1, borderColor: C.border },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
   label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
+  bpRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  bpInput: { flex: 1 },
+  bpDivider: { fontWeight: "700", fontSize: 24, color: C.textSecondary, marginTop: -12 },
   modalInput: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
   modalActions: { flexDirection: "row", gap: 10 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center" },

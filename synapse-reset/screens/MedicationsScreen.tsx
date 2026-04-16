@@ -604,13 +604,15 @@ export default function MedicationsScreen() {
 
   const handleDoseToggle = async (medId: string, doseIdx: number) => {
     const med = medications.find((m) => m.id === medId);
+    const normalizedMed = med ? normalizeMedication(med) : null;
+    const scheduledTime = normalizedMed?.doses?.[doseIdx]?.reminderTime;
     const log = medLogs.find((l) => l.medicationId === medId && (l.doseIndex ?? 0) === doseIdx);
     if (log?.taken) {
-      await medicationLogStorage.toggle(medId, today, doseIdx);
+      await medicationLogStorage.toggle(medId, today, doseIdx, { scheduledTime });
       if (med) await updateMedicationSupply(med, doseIdx, "undo");
       Haptics.selectionAsync();
     } else {
-      await medicationLogStorage.toggle(medId, today, doseIdx);
+      await medicationLogStorage.toggle(medId, today, doseIdx, { scheduledTime });
       if (med) await updateMedicationSupply(med, doseIdx, "take");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
@@ -631,7 +633,8 @@ export default function MedicationsScreen() {
       for (let i = 0; i < doseCount; i++) {
         const log = medLogs.find((l) => l.medicationId === nudgeMedId && (l.doseIndex ?? 0) === i);
         if (!log?.taken) {
-          await medicationLogStorage.toggle(nudgeMedId, today, i);
+          const scheduledTime = med ? normalizeMedication(med).doses?.[i]?.reminderTime : undefined;
+          await medicationLogStorage.toggle(nudgeMedId, today, i, { scheduledTime });
           if (med) med = await updateMedicationSupply(med, i, "take");
         }
       }

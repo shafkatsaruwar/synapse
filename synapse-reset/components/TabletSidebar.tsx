@@ -22,7 +22,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { key: "dashboard", label: "Dashboard", icon: "grid-outline", iconActive: "grid" },
   { key: "log", label: "Daily Log", icon: "heart-outline", iconActive: "heart" },
-  { key: "healthdata", label: "Health Data", icon: "analytics-outline", iconActive: "analytics" },
+  { key: "healthdata", label: "Vitals", icon: "analytics-outline", iconActive: "analytics" },
   { key: "medications", label: "Medications", icon: "medical-outline", iconActive: "medical" },
   { key: "symptoms", label: "Symptoms", icon: "pulse-outline", iconActive: "pulse" },
   ...(featureFlags.documentScannerEnabled

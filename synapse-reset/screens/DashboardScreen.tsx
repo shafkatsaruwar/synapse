@@ -10,7 +10,9 @@ import {
   ScrollView,
   LayoutAnimation,
   ActivityIndicator,
+  Modal,
 } from "react-native";
+import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +28,9 @@ import {
   fastingLogStorage,
   settingsStorage,
   healthProfileStorage,
+  symptomStorage,
+  vitalStorage,
+  sickModeStorage,
   type HealthLog,
   type Medication,
   type MedicationLog,
@@ -34,11 +39,14 @@ import {
   type UserSettings,
   type HealthProfileInfo,
   type RecordOwner,
+  type Symptom,
+  type Vital,
+  disableRecoveryTracking,
 } from "@/lib/storage";
-import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
+import { getToday, formatDate, formatTime12h, formatTimestamp } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
-import { useAuth } from "@/contexts/AuthContext";
 import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
+import { buildRecoveryInsights } from "@/lib/recovery-insights";
 
 // Gradient pairs: [top (darker), bottom (lighter)]. Soft, desaturated, top-to-bottom.
 const PRIORITY_GRADIENTS: Record<string, [string, string]> = {
@@ -118,6 +126,21 @@ const RAMADAN_WELLNESS_MESSAGES = [
   "May your day be filled with strength and peace.",
 ];
 
+function normalizeLegacyFivePoint(value?: number): number {
+  if (typeof value !== "number" || Number.isNaN(value)) return 0;
+  return value <= 5 ? Math.max(0, Math.min(10, value * 2)) : Math.max(0, Math.min(10, value));
+}
+
+function getTenPointLabel(value?: number): string {
+  if (typeof value !== "number" || Number.isNaN(value)) return "—";
+  if (value <= 1) return "Very low";
+  if (value <= 3) return "Low";
+  if (value <= 5) return "Okay";
+  if (value <= 7) return "Good";
+  if (value <= 9) return "High";
+  return "Excellent";
+}
+
 interface DashboardScreenProps {
   onNavigate: (screen: string) => void;
   onRefreshKey?: number;
@@ -135,8 +158,8 @@ interface DashboardHeroProps {
   nextApt: Appointment | null;
   getOwnerMeta: (owner?: RecordOwner) => { label: string; icon: React.ComponentProps<typeof Ionicons>["name"] };
   onNavigate: (screen: string) => void;
-  medicationCardRef?: React.RefObject<View>;
-  appointmentCardRef?: React.RefObject<View>;
+  medicationCardRef?: React.RefObject<View | null>;
+  appointmentCardRef?: React.RefObject<View | null>;
 }
 
 function DashboardHero({
@@ -156,7 +179,7 @@ function DashboardHero({
   const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeHeroStyles(C), [C]);
 
-  const heroGradientColors =
+  const heroGradientColors: [string, string] =
     themeId === "dark"
       ? ["#0F0F10", "#0F0F10"]
       : themeId === "calm"
@@ -361,7 +384,6 @@ const priorityLabelStyle = { fontWeight: "600" as const, fontSize: 12, color: "#
 export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { user } = useAuth();
   const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
@@ -386,31 +408,43 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   }, [registerTarget, unregisterTarget]);
 
   const [todayLog, setTodayLog] = useState<HealthLog | undefined>();
+  const [allLogs, setAllLogs] = useState<HealthLog[]>([]);
   const [medications, setMedications] = useState<Medication[]>([]);
   const [medLogs, setMedLogs] = useState<MedicationLog[]>([]);
+  const [allMedLogs, setAllMedLogs] = useState<MedicationLog[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [fastingLog, setFastingLog] = useState<FastingLog | undefined>();
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
   const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", backupCriticalMedications: [] });
+  const [symptoms, setSymptoms] = useState<Symptom[]>([]);
+  const [vitals, setVitals] = useState<Vital[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [showRecoverySetup, setShowRecoverySetup] = useState(false);
+  const [recoveryFocusInput, setRecoveryFocusInput] = useState("");
 
   const loadData = useCallback(async () => {
-    const [log, meds, ml, apts, fl, sett, profileInfo] = await Promise.all([
-      healthLogStorage.getByDate(today),
+    const [logsData, meds, ml, apts, fl, sett, profileInfo, symptomsData, vitalsData] = await Promise.all([
+      healthLogStorage.getAll(),
       medicationStorage.getAll(),
-      medicationLogStorage.getByDate(today),
+      medicationLogStorage.getAll(),
       appointmentStorage.getAll(),
       fastingLogStorage.getByDate(today),
       settingsStorage.get(),
       healthProfileStorage.get(),
+      symptomStorage.getAll(),
+      vitalStorage.getAll(),
     ]);
-    setTodayLog(log);
+    setTodayLog(logsData.find((log) => log.date === today));
+    setAllLogs(logsData);
     setMedications(meds.filter((m) => m.active));
-    setMedLogs(ml);
+    setMedLogs(ml.filter((log) => log.date === today));
+    setAllMedLogs(ml);
     setAppointments(apts.filter((a) => a.date >= today).sort((a, b) => a.date.localeCompare(b.date)));
     setFastingLog(fl);
     setSettings(sett);
     setProfile(profileInfo);
+    setSymptoms(symptomsData);
+    setVitals(vitalsData);
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setLoaded(true);
   }, [today]);
@@ -438,12 +472,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const nextApt = appointments[0];
 
   const dateObj = new Date();
-  const authNameRaw =
-    user?.user_metadata?.first_name ??
-    (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : undefined) ??
-    (user?.email ? user.email.split("@")[0] : undefined);
   const settingsFirstName = settings.firstName?.trim() || (settings.name?.trim() ? settings.name.trim().split(/\s+/)[0] : "");
-  const displayFirstName = (typeof authNameRaw === "string" ? authNameRaw.trim().split(/\s+/)[0] : "") || settingsFirstName || "";
+  const displayFirstName = settingsFirstName || "";
   const hour = dateObj.getHours();
   let greeting: string;
   if (hour < 12) {
@@ -469,8 +499,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     if (n >= 11 && n <= 13) return "th";
     switch (n % 10) { case 1: return "st"; case 2: return "nd"; case 3: return "rd"; default: return "th"; }
   };
-
-  const energyLabels = ["Low", "Fair", "Good", "Great", "Excellent"];
 
   const isRamadanMode = settings.ramadanMode;
   const leftLabel = isRamadanMode ? "Fajr" : "Sunrise";
@@ -551,6 +579,192 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   };
 
   const nextMedication = getNextMedicationInfo();
+  const recoverySummary = useMemo(() => buildRecoveryInsights({
+    logs: allLogs,
+    vitals,
+    symptoms,
+    medications,
+    medicationLogs: allMedLogs,
+    rangeDays: 7,
+    today,
+  }), [allLogs, vitals, symptoms, medications, allMedLogs, today]);
+
+  const recoveryStatusTone =
+    recoverySummary.statusLabel === "Improving"
+      ? C.green
+      : recoverySummary.statusLabel === "Worsening"
+        ? C.red
+        : C.tint;
+  const latestSymptomText = recoverySummary.latestSymptom
+    ? `${recoverySummary.latestSymptom.name} · ${recoverySummary.latestSymptom.severity}/10`
+    : "No recent symptoms";
+  const todayVitalsText = [
+    recoverySummary.todayVitals.bloodPressure,
+    recoverySummary.todayVitals.heartRate,
+    recoverySummary.todayVitals.temperature,
+    recoverySummary.todayVitals.oxygenSaturation,
+  ].filter(Boolean).slice(0, 2).join(" · ") || "No vitals logged";
+  const latestCheckInText = recoverySummary.latestCheckIn?.recordedAt
+    ? formatTimestamp(recoverySummary.latestCheckIn.recordedAt)
+    : recoverySummary.latestCheckIn?.date
+      ? formatDate(recoverySummary.latestCheckIn.date)
+      : "No check-in yet";
+  const hasRecoveryTracking = !!profile.recoveryTrackingEnabled && !!profile.recoveryFocus?.trim();
+
+  const openRecoverySetup = () => {
+    setRecoveryFocusInput(profile.recoveryFocus?.trim() ?? "");
+    setShowRecoverySetup(true);
+  };
+
+  const handleSaveRecoverySetup = async () => {
+    const trimmed = recoveryFocusInput.trim();
+    if (!trimmed) return;
+    const nextProfile = {
+      ...profile,
+      recoveryTrackingEnabled: true,
+      recoveryFocus: trimmed,
+    };
+    await healthProfileStorage.save(nextProfile);
+    setProfile(nextProfile);
+    setShowRecoverySetup(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleEndRecovery = async () => {
+    Alert.alert(
+      settings.sickMode ? "You're feeling better?" : "End recovery tracking?",
+      settings.sickMode
+        ? "This will turn off Sick Mode and end recovery tracking."
+        : "This will hide recovery tracking until you turn it on again.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: settings.sickMode ? "I'm better" : "End recovery",
+          style: "destructive",
+          onPress: async () => {
+            const nextProfile = await disableRecoveryTracking();
+            setProfile(nextProfile);
+
+            if (settings.sickMode) {
+              const nextSettings = { ...settings, sickMode: false };
+              await settingsStorage.save(nextSettings);
+              await sickModeStorage.reset();
+              setSettings(nextSettings);
+            }
+
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ],
+    );
+  };
+
+  const renderRecoverySummaryCard = () => (
+    <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.recoveryCardGlass, themeId === "light" && styles.recoveryCardLight]}>
+      <View style={styles.recoveryCardInner}>
+        <View style={styles.recoveryCardHeader}>
+          <View>
+            <Text style={styles.recoveryCardTitle}>Recovery Summary</Text>
+            <Text style={styles.recoveryCardSubtitle}>
+              {profile.recoveryFocus?.trim()
+                ? `Recovering from ${profile.recoveryFocus.trim()}. ${recoverySummary.summaryText}`
+                : recoverySummary.summaryText}
+            </Text>
+          </View>
+          <View style={[styles.recoveryStatusPill, { backgroundColor: recoveryStatusTone + "1F", borderColor: recoveryStatusTone + "44" }]}>
+            <Text style={styles.recoveryStatusText}>{recoverySummary.statusLabel}</Text>
+          </View>
+        </View>
+
+        <View style={styles.recoveryMetricsGrid}>
+          <Pressable
+            style={({ pressed }) => [styles.recoveryMetricCard, { opacity: pressed ? 0.88 : 1 }]}
+            onPress={() => onNavigate("healthdata")}
+            accessibilityRole="button"
+            accessibilityLabel="Open vitals"
+          >
+            <Text style={styles.recoveryMetricLabel}>Today’s vitals</Text>
+            <Text style={styles.recoveryMetricValue}>{todayVitalsText}</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.recoveryMetricCard, { opacity: pressed ? 0.88 : 1 }]}
+            onPress={() => onNavigate("symptoms")}
+            accessibilityRole="button"
+            accessibilityLabel="Open symptoms"
+          >
+            <Text style={styles.recoveryMetricLabel}>Last symptom</Text>
+            <Text style={styles.recoveryMetricValue}>{latestSymptomText}</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.recoveryMetricCard, { opacity: pressed ? 0.88 : 1 }]}
+            onPress={() => onNavigate("medications")}
+            accessibilityRole="button"
+            accessibilityLabel="Open medications"
+          >
+            <Text style={styles.recoveryMetricLabel}>Meds today</Text>
+            <Text style={styles.recoveryMetricValue}>
+              {recoverySummary.todayMedicationExpected > 0
+                ? `${recoverySummary.todayMedicationTaken}/${recoverySummary.todayMedicationExpected} taken`
+                : "No meds scheduled"}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.recoveryMetricCard, { opacity: pressed ? 0.88 : 1 }]}
+            onPress={() => onNavigate("logtoday")}
+            accessibilityRole="button"
+            accessibilityLabel="Open today's check-in"
+          >
+            <Text style={styles.recoveryMetricLabel}>Last check-in</Text>
+            <Text style={styles.recoveryMetricValue}>{latestCheckInText}</Text>
+          </Pressable>
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [styles.recoveryInsightBanner, { opacity: pressed ? 0.9 : 1 }]}
+          onPress={() => onNavigate("reports")}
+          accessibilityRole="button"
+          accessibilityLabel="Open recovery reports"
+        >
+          <Ionicons name="sparkles-outline" size={16} color={C.tint} />
+          <Text style={styles.recoveryInsightText}>{recoverySummary.insights[0]}</Text>
+        </Pressable>
+        <Text style={styles.recoverySafetyText}>This app helps track symptoms and trends. It does not replace medical care.</Text>
+        <Pressable
+          style={({ pressed }) => [styles.recoveryEndButton, { opacity: pressed ? 0.88 : 1 }]}
+          onPress={handleEndRecovery}
+          accessibilityRole="button"
+          accessibilityLabel={settings.sickMode ? "I'm better" : "End recovery tracking"}
+        >
+          <Text style={styles.recoveryEndButtonText}>{settings.sickMode ? "I’m better" : "End recovery"}</Text>
+        </Pressable>
+      </View>
+    </GlassView>
+  );
+
+  const renderRecoverySetupCard = () => (
+    <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.recoveryCardGlass, themeId === "light" && styles.recoveryCardLight]}>
+      <View style={styles.recoveryCardInner}>
+        <View style={styles.recoveryCardHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.recoveryCardTitle}>Recovery Tracking</Text>
+            <Text style={styles.recoveryCardSubtitle}>
+              Turn this on only when it’s actually relevant. We’ll use it to connect your vitals, symptoms, meds, and daily check-ins.
+            </Text>
+          </View>
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [styles.recoverySetupButton, { opacity: pressed ? 0.88 : 1 }]}
+          onPress={openRecoverySetup}
+          accessibilityRole="button"
+          accessibilityLabel="Set up recovery tracking"
+        >
+          <Ionicons name="bandage-outline" size={18} color="#fff" />
+          <Text style={styles.recoverySetupButtonText}>What are you recovering from?</Text>
+        </Pressable>
+      </View>
+    </GlassView>
+  );
 
   const renderMedicationsCard = () => (
     <PriorityCard colors={isSickMode ? PRIORITY_GRADIENTS.medicationsStress : PRIORITY_GRADIENTS.medications} icon="medical" label={isSickMode ? "Stress Dosing" : "Medications Today"} onPress={() => onNavigate("medications")}>
@@ -633,17 +847,17 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           <View style={styles.priLogRow}>
             <View style={styles.priLogItem}>
               <Text style={styles.priLogLabel}>Energy</Text>
-              <Text style={styles.priLogValue}>{energyLabels[todayLog.energy - 1]}</Text>
+              <Text style={styles.priLogValue}>{getTenPointLabel(normalizeLegacyFivePoint(todayLog.energy))}</Text>
             </View>
             <View style={styles.priLogDivider} />
             <View style={styles.priLogItem}>
               <Text style={styles.priLogLabel}>Mood</Text>
-              <Text style={styles.priLogValue}>{todayLog.mood}/5</Text>
+              <Text style={styles.priLogValue}>{normalizeLegacyFivePoint(todayLog.mood)}/10</Text>
             </View>
             <View style={styles.priLogDivider} />
             <View style={styles.priLogItem}>
               <Text style={styles.priLogLabel}>Sleep</Text>
-              <Text style={styles.priLogValue}>{todayLog.sleep}/5</Text>
+              <Text style={styles.priLogValue}>{normalizeLegacyFivePoint(todayLog.sleep)}/10</Text>
             </View>
           </View>
           {todayLog.fasting && <Text style={styles.priMeta}>Fasting today</Text>}
@@ -779,6 +993,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         </View>
       )}
 
+      {hasRecoveryTracking ? renderRecoverySummaryCard() : renderRecoverySetupCard()}
+
       <View style={[styles.grid, isWide && styles.gridWide]}>
         {featureFlags.documentScannerEnabled && (
           <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.cardGlass, isWide && styles.cardWide]}>
@@ -873,6 +1089,45 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       >
         {inner}
       </ScrollView>
+      <Modal visible={showRecoverySetup} animationType="fade" transparent onRequestClose={() => setShowRecoverySetup(false)}>
+        <View style={styles.recoveryModalBackdrop}>
+          <View style={styles.recoveryModalCard}>
+            <Text style={styles.recoveryModalTitle}>Recovery Tracking</Text>
+            <Text style={styles.recoveryModalSubtitle}>What are you recovering from?</Text>
+            <TextInput
+              value={recoveryFocusInput}
+              onChangeText={setRecoveryFocusInput}
+              placeholder="Surgery, illness, flare-up, injury..."
+              placeholderTextColor={C.textTertiary}
+              style={styles.recoveryModalInput}
+            />
+            <Text style={styles.recoveryModalHint}>You can change this later. Recovery tracking stays focused and local to your device.</Text>
+            <View style={styles.recoveryModalActions}>
+              <Pressable
+                style={({ pressed }) => [styles.recoveryModalButtonSecondary, { opacity: pressed ? 0.88 : 1 }]}
+                onPress={() => setShowRecoverySetup(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel recovery setup"
+              >
+                <Text style={styles.recoveryModalButtonSecondaryText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.recoveryModalButtonPrimary,
+                  { opacity: pressed || !recoveryFocusInput.trim() ? 0.88 : 1 },
+                  !recoveryFocusInput.trim() && styles.recoveryModalButtonDisabled,
+                ]}
+                onPress={handleSaveRecoverySetup}
+                disabled={!recoveryFocusInput.trim()}
+                accessibilityRole="button"
+                accessibilityLabel="Save recovery setup"
+              >
+                <Text style={styles.recoveryModalButtonPrimaryText}>Start tracking</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
       {fab}
     </View>
   );
@@ -1159,6 +1414,47 @@ function makeStyles(C: Theme) {
       alignItems: "center",
       justifyContent: "space-between",
     },
+    recoveryCardGlass: {
+      borderRadius: 20,
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      elevation: 6,
+      overflow: "hidden",
+    },
+    recoveryCardLight: {},
+    recoveryCardInner: {},
+    recoveryCardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 },
+    recoveryCardTitle: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3 },
+    recoveryCardSubtitle: { marginTop: 4, fontWeight: "400", fontSize: 13, color: C.textSecondary, lineHeight: 18, maxWidth: 230 },
+    recoveryStatusPill: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
+    recoveryStatusText: { fontWeight: "700", fontSize: 11, color: C.text },
+    recoveryMetricsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+    recoveryMetricCard: { width: "48%", backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 12, minHeight: 88 },
+    recoveryMetricLabel: { fontWeight: "600", fontSize: 11, color: C.textSecondary, marginBottom: 6 },
+    recoveryMetricValue: { fontWeight: "600", fontSize: 13, color: C.text, lineHeight: 18 },
+    recoveryInsightBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 12, marginBottom: 10 },
+    recoveryInsightText: { flex: 1, fontWeight: "500", fontSize: 13, color: C.text, lineHeight: 18 },
+    recoverySafetyText: { fontWeight: "400", fontSize: 12, color: C.textTertiary, lineHeight: 17 },
+    recoveryEndButton: { marginTop: 12, alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+    recoveryEndButtonText: { fontWeight: "700", fontSize: 13, color: C.red },
+    recoverySetupButton: { marginTop: 6, backgroundColor: C.tint, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+    recoverySetupButtonText: { fontWeight: "700", fontSize: 14, color: "#fff" },
+    recoveryModalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", alignItems: "center", justifyContent: "center", padding: 24 },
+    recoveryModalCard: { width: "100%", maxWidth: 420, backgroundColor: C.surface, borderRadius: 22, padding: 20, borderWidth: 1, borderColor: C.border },
+    recoveryModalTitle: { fontWeight: "700", fontSize: 24, color: C.text, letterSpacing: -0.4, marginBottom: 8 },
+    recoveryModalSubtitle: { fontWeight: "600", fontSize: 14, color: C.textSecondary, marginBottom: 14 },
+    recoveryModalInput: { marginBottom: 12 },
+    recoveryModalHint: { fontWeight: "400", fontSize: 12, color: C.textTertiary, lineHeight: 18, marginBottom: 16 },
+    recoveryModalActions: { flexDirection: "row", gap: 10 },
+    recoveryModalButtonSecondary: { flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: "center", justifyContent: "center", backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+    recoveryModalButtonSecondaryText: { fontWeight: "700", fontSize: 14, color: C.text },
+    recoveryModalButtonPrimary: { flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: "center", justifyContent: "center", backgroundColor: C.tint },
+    recoveryModalButtonPrimaryText: { fontWeight: "700", fontSize: 14, color: "#fff" },
+    recoveryModalButtonDisabled: { opacity: 0.5 },
     feelingTitle: { fontWeight: "600", fontSize: 14, color: C.text },
     feelingSubtitle: { marginTop: 4, fontWeight: "400", fontSize: 12, color: C.textSecondary },
     sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
