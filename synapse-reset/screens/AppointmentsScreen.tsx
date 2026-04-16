@@ -50,6 +50,14 @@ function dateStringFromParts(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function dateStringToDate(value: string) {
+  const fallback = new Date();
+  fallback.setHours(12, 0, 0, 0);
+  if (!value) return fallback;
+  const parsed = new Date(`${value}T12:00:00`);
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed;
+}
+
 function reminderTimeToDate(value: string) {
   const [hours, minutes] = (value || "09:00").split(":").map((part) => parseInt(part, 10));
   const date = new Date();
@@ -270,6 +278,8 @@ export default function AppointmentsScreen() {
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showRescheduleDatePicker, setShowRescheduleDatePicker] = useState(false);
 
   const loadData = useCallback(async () => {
     const apts = await appointmentStorage.getAll();
@@ -355,6 +365,8 @@ export default function AppointmentsScreen() {
     setCustomUnit("week");
     setEditingApt(null);
     setShowTimePicker(false);
+    setShowDatePicker(false);
+    setShowRescheduleDatePicker(false);
   };
 
   const openAppointmentModalForDate = useCallback((date: string) => {
@@ -823,8 +835,18 @@ export default function AppointmentsScreen() {
               </View>
               <View style={styles.fieldRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Date * (YYYY-MM-DD)</Text>
-                  <TextInput style={styles.input} placeholder="2026-03-15" placeholderTextColor={C.textTertiary} value={aptDate} onChangeText={setAptDate} />
+                  <Text style={styles.label}>Date *</Text>
+                  <Pressable
+                    style={styles.inputButton}
+                    onPress={() => setShowDatePicker(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Appointment date ${aptDate ? formatDate(aptDate) : "not selected"}`}
+                  >
+                    <Text style={[styles.inputButtonText, !aptDate && { color: C.textTertiary }]}>
+                      {aptDate ? formatDate(aptDate) : "Select date"}
+                    </Text>
+                    <Ionicons name="calendar-outline" size={18} color={C.textSecondary} />
+                  </Pressable>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.label}>Time</Text>
@@ -903,10 +925,28 @@ export default function AppointmentsScreen() {
             <Text style={styles.modalTitle}>Reschedule</Text>
             {rescheduleApt && (
               <>
-                <Text style={styles.label}>New date (YYYY-MM-DD) *</Text>
-                <TextInput style={styles.input} placeholder="2026-03-20" placeholderTextColor={C.textTertiary} value={rescheduleDate} onChangeText={setRescheduleDate} />
-                <Text style={styles.label}>New time (HH:MM)</Text>
-                <TextInput style={styles.input} placeholder="09:00" placeholderTextColor={C.textTertiary} value={rescheduleTime} onChangeText={setRescheduleTime} />
+                <Text style={styles.label}>New date *</Text>
+                <Pressable
+                  style={styles.inputButton}
+                  onPress={() => setShowRescheduleDatePicker(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Reschedule date ${rescheduleDate ? formatDate(rescheduleDate) : "not selected"}`}
+                >
+                  <Text style={[styles.inputButtonText, !rescheduleDate && { color: C.textTertiary }]}>
+                    {rescheduleDate ? formatDate(rescheduleDate) : "Select date"}
+                  </Text>
+                  <Ionicons name="calendar-outline" size={18} color={C.textSecondary} />
+                </Pressable>
+                <Text style={styles.label}>New time</Text>
+                <Pressable
+                  style={styles.inputButton}
+                  onPress={() => setShowTimePicker(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Reschedule time ${formatTime12h(rescheduleTime || "09:00")}`}
+                >
+                  <Text style={styles.inputButtonText}>{formatTime12h(rescheduleTime || "09:00")}</Text>
+                  <Ionicons name="time-outline" size={18} color={C.textSecondary} />
+                </Pressable>
                 <View style={styles.modalActions}>
                   <Pressable style={styles.cancelBtn} onPress={() => { setShowRescheduleModal(false); setRescheduleApt(null); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
                   <Pressable style={[styles.confirmBtn, !rescheduleDate.trim() && { opacity: 0.5 }]} onPress={handleRescheduleConfirm} disabled={!rescheduleDate.trim()}><Text style={styles.confirmText}>Confirm</Text></Pressable>
@@ -936,13 +976,15 @@ export default function AppointmentsScreen() {
           <Pressable style={styles.iosTimeSheet} onPress={() => {}}>
             <Text style={styles.modalTitle}>Appointment Time</Text>
             <DateTimePicker
-              value={reminderTimeToDate(aptTime || "09:00")}
+              value={reminderTimeToDate(showRescheduleModal ? (rescheduleTime || "09:00") : (aptTime || "09:00"))}
               mode="time"
               display="spinner"
               minuteInterval={1}
               onChange={(_, date) => {
                 if (date) {
-                  setAptTime(dateToReminderTime(date));
+                  const nextValue = dateToReminderTime(date);
+                  if (showRescheduleModal) setRescheduleTime(nextValue);
+                  else setAptTime(nextValue);
                 }
               }}
               style={styles.timePicker}
@@ -961,17 +1003,107 @@ export default function AppointmentsScreen() {
           <Pressable style={[styles.modal, styles.pickerModal]} onPress={() => {}}>
             <Text style={styles.modalTitle}>Appointment Time</Text>
             <DateTimePicker
-              value={reminderTimeToDate(aptTime || "09:00")}
+              value={reminderTimeToDate(showRescheduleModal ? (rescheduleTime || "09:00") : (aptTime || "09:00"))}
               mode="time"
               display="default"
               minuteInterval={1}
               onChange={(_, date) => {
                 if (date) {
-                  setAptTime(dateToReminderTime(date));
+                  const nextValue = dateToReminderTime(date);
+                  if (showRescheduleModal) setRescheduleTime(nextValue);
+                  else setAptTime(nextValue);
                 }
                 setShowTimePicker(false);
               }}
               style={styles.timePicker}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+      )}
+
+      {Platform.OS === "ios" && (
+      <Modal visible={showDatePicker} transparent animationType="fade" onRequestClose={() => setShowDatePicker(false)}>
+        <Pressable style={styles.overlay} onPress={() => setShowDatePicker(false)} accessibilityLabel="Close date picker">
+          <Pressable style={styles.iosTimeSheet} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Appointment Date</Text>
+            <DateTimePicker
+              value={dateStringToDate(aptDate)}
+              mode="date"
+              display="inline"
+              onChange={(_, date) => {
+                if (date) {
+                  setAptDate(dateStringFromParts(date.getFullYear(), date.getMonth(), date.getDate()));
+                }
+              }}
+            />
+            <Pressable style={styles.confirmBtn} onPress={() => setShowDatePicker(false)}>
+              <Text style={styles.confirmText}>Done</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+      )}
+
+      {Platform.OS !== "ios" && (
+      <Modal visible={showDatePicker} transparent animationType="fade" onRequestClose={() => setShowDatePicker(false)}>
+        <Pressable style={styles.overlay} onPress={() => setShowDatePicker(false)} accessibilityLabel="Close date picker">
+          <Pressable style={[styles.modal, styles.pickerModal]} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Appointment Date</Text>
+            <DateTimePicker
+              value={dateStringToDate(aptDate)}
+              mode="date"
+              display="default"
+              onChange={(_, date) => {
+                if (date) {
+                  setAptDate(dateStringFromParts(date.getFullYear(), date.getMonth(), date.getDate()));
+                }
+                setShowDatePicker(false);
+              }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+      )}
+
+      {Platform.OS === "ios" && (
+      <Modal visible={showRescheduleDatePicker} transparent animationType="fade" onRequestClose={() => setShowRescheduleDatePicker(false)}>
+        <Pressable style={styles.overlay} onPress={() => setShowRescheduleDatePicker(false)} accessibilityLabel="Close reschedule date picker">
+          <Pressable style={styles.iosTimeSheet} onPress={() => {}}>
+            <Text style={styles.modalTitle}>New Appointment Date</Text>
+            <DateTimePicker
+              value={dateStringToDate(rescheduleDate || rescheduleApt?.date || "")}
+              mode="date"
+              display="inline"
+              onChange={(_, date) => {
+                if (date) {
+                  setRescheduleDate(dateStringFromParts(date.getFullYear(), date.getMonth(), date.getDate()));
+                }
+              }}
+            />
+            <Pressable style={styles.confirmBtn} onPress={() => setShowRescheduleDatePicker(false)}>
+              <Text style={styles.confirmText}>Done</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+      )}
+
+      {Platform.OS !== "ios" && (
+      <Modal visible={showRescheduleDatePicker} transparent animationType="fade" onRequestClose={() => setShowRescheduleDatePicker(false)}>
+        <Pressable style={styles.overlay} onPress={() => setShowRescheduleDatePicker(false)} accessibilityLabel="Close reschedule date picker">
+          <Pressable style={[styles.modal, styles.pickerModal]} onPress={() => {}}>
+            <Text style={styles.modalTitle}>New Appointment Date</Text>
+            <DateTimePicker
+              value={dateStringToDate(rescheduleDate || rescheduleApt?.date || "")}
+              mode="date"
+              display="default"
+              onChange={(_, date) => {
+                if (date) {
+                  setRescheduleDate(dateStringFromParts(date.getFullYear(), date.getMonth(), date.getDate()));
+                }
+                setShowRescheduleDatePicker(false);
+              }}
             />
           </Pressable>
         </Pressable>
@@ -1020,6 +1152,7 @@ function makeStyles(C: Theme) {
   noteText: { fontWeight: "400", fontSize: 13, color: C.text, flex: 1, lineHeight: 19 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
   modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, maxHeight: "88%", borderWidth: 1, borderColor: C.border },
+  pickerModal: { maxWidth: 360 },
   iosTimeSheet: { backgroundColor: C.surface, borderRadius: 18, paddingTop: 20, paddingBottom: 16, paddingHorizontal: 20, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: C.border, alignItems: "stretch" },
   modalScrollContent: { paddingBottom: 28 },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },

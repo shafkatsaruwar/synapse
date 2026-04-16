@@ -252,25 +252,30 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const renderSlide4 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <Text style={styles.setupTitle}>Make Synapse yours.</Text>
-      <Text style={styles.setupSub}>Choose what matters to you. You can always change this later.</Text>
+      <Text style={styles.setupSub}>Core features like Medications, Appointments, and Health Data are already included. Please choose what else you&apos;d like to include in your health journey.</Text>
+      <View style={styles.coreFeaturesCard}>
+        <Text style={styles.coreFeaturesTitle}>Core features already included</Text>
+        <Text style={styles.coreFeaturesText}>
+          {REQUIRED_SECTION_KEYS.map((key) => SECTION_LABELS[key] ?? key).join(" • ")}
+        </Text>
+      </View>
       <ScrollView
         style={styles.sectionsScroll}
         contentContainerStyle={styles.sectionsScrollContent}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.sectionsList}>
-          {(ALL_SECTION_KEYS as unknown as string[]).map((key) => {
+          {(ALL_SECTION_KEYS as unknown as string[]).filter((key) => !REQUIRED_SECTION_KEYS.includes(key)).map((key) => {
             const label = SECTION_LABELS[key] ?? key;
-            const isRequired = REQUIRED_SECTION_KEYS.includes(key);
-            const isSelected = isRequired || selectedSections.has(key);
+            const isSelected = selectedSections.has(key);
             return (
               <Pressable
                 key={key}
-                style={[styles.sectionRow, isSelected && styles.sectionRowActive, isRequired && styles.sectionRowRequired]}
+                style={[styles.sectionRow, isSelected && styles.sectionRowActive]}
                 onPress={() => toggleSection(key)}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: isSelected }}
-                accessibilityLabel={`${label}, ${isRequired ? "required" : isSelected ? "on" : "off"}`}
+                accessibilityLabel={`${label}, ${isSelected ? "on" : "off"}`}
               >
                 <Text style={[styles.sectionRowLabel, isSelected && styles.sectionRowLabelActive]}>{label}</Text>
                 <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
@@ -564,6 +569,26 @@ const styles = StyleSheet.create({
     color: C.textSecondary,
   },
   sectionsList: { marginTop: 16, gap: 10 },
+  coreFeaturesCard: {
+    backgroundColor: "#FFF7F1",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: "rgba(128,0,32,0.18)",
+  },
+  coreFeaturesTitle: {
+    fontWeight: "700",
+    fontSize: 14,
+    color: MAROON,
+    marginBottom: 4,
+  },
+  coreFeaturesText: {
+    fontWeight: "500",
+    fontSize: 13,
+    color: C.textSecondary,
+    lineHeight: 20,
+  },
   sectionRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -578,9 +603,6 @@ const styles = StyleSheet.create({
   sectionRowActive: {
     borderColor: MAROON,
     backgroundColor: MAROON_LIGHT,
-  },
-  sectionRowRequired: {
-    opacity: 0.75,
   },
   sectionRowLabel: {
     fontWeight: "500",

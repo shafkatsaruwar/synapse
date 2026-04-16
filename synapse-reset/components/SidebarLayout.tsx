@@ -64,7 +64,7 @@ const MORE_ITEMS = NAV_ITEMS.filter((n) => !PRIMARY_KEYS.includes(n.key));
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
   { title: "Main", keys: ["dashboard"] },
   { title: "Emergency", keys: ["emergency", "emergencycard"] },
-  { title: "Primary", keys: ["log", "medications", "healthdata", "appointments"] },
+  { title: "Primary", keys: ["log", "medications", "healthdata", "appointments", "symptoms"] },
   { title: "Health & Insights", keys: ["reports", "monthlycheckin", "cycletracking", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
   { title: "System", keys: ["privacy", "settings", "meetfounder"] },
 ];
@@ -145,7 +145,7 @@ export default function SidebarLayout({
     loadSettings();
   }, [loadSettings, activeScreen]);
 
-  const alwaysNavKeys = ["dashboard", "medications", "settings", "privacy", "emergency", "emergencycard", "meetfounder"];
+  const alwaysNavKeys = ["dashboard", "medications", "symptoms", "settings", "privacy", "emergency", "emergencycard", "meetfounder"];
   const enabledKeysSet = new Set(
     enabledSections !== undefined
       ? [...alwaysNavKeys, ...enabledSections]

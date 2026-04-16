@@ -86,6 +86,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [showSectionsModal, setShowSectionsModal] = useState(false);
   const [showAppearanceModal, setShowAppearanceModal] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [sectionSelections, setSectionSelections] = useState<Set<string>>(new Set());
   const [medications, setMedications] = useState<Medication[]>([]);
   const [medLogs, setMedLogs] = useState<MedicationLog[]>([]);
@@ -236,6 +237,94 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     paddingHorizontal: 24,
   };
 
+  const accountShortcutCards = [
+    {
+      key: "founder",
+      title: "Meet the Founder",
+      description: "Why Synapse exists",
+      icon: "sparkles-outline" as const,
+      tintColor: C.tint,
+      tintBg: C.tintLight,
+      onPress: () => onNavigate?.("meetfounder"),
+    },
+    {
+      key: "emergency",
+      title: "Emergency",
+      description: "Protocol and responder info",
+      icon: "shield-half-outline" as const,
+      tintColor: C.tint,
+      tintBg: C.tint + "22",
+      onPress: () => onNavigate?.("emergency"),
+    },
+    {
+      key: "healthprofile",
+      title: "Health Profile",
+      description: "Conditions, allergies, vaccines",
+      icon: "person-outline" as const,
+      tintColor: C.tint,
+      tintBg: C.tintLight,
+      onPress: () => onNavigate?.("healthprofile"),
+    },
+    {
+      key: "doctors",
+      title: "Doctors",
+      description: "Your care team",
+      icon: "medical-outline" as const,
+      tintColor: C.tint,
+      tintBg: C.tintLight,
+      onPress: () => onNavigate?.("doctors"),
+    },
+    {
+      key: "pharmacies",
+      title: "Pharmacies",
+      description: "Pickup and refill spots",
+      icon: "storefront-outline" as const,
+      tintColor: C.tint,
+      tintBg: C.tintLight,
+      onPress: () => onNavigate?.("pharmacies"),
+    },
+    {
+      key: "appearance",
+      title: "Appearances",
+      description: "App and widget themes",
+      icon: "color-palette-outline" as const,
+      tintColor: C.tint,
+      tintBg: C.tintLight,
+      onPress: () => setShowAppearanceModal(true),
+    },
+    {
+      key: "sections",
+      title: "Menu Sections",
+      description: "Choose what shows in the menu",
+      icon: "grid-outline" as const,
+      tintColor: C.tint,
+      tintBg: C.tintLight,
+      onPress: () => setShowSectionsModal(true),
+    },
+    {
+      key: "notifications",
+      title: "Notifications",
+      description: "Medication, appointment, and check-in reminders",
+      icon: "notifications-outline" as const,
+      tintColor: C.tint,
+      tintBg: C.tintLight,
+      onPress: () => setShowNotificationsModal(true),
+    },
+    ...(onShowAppTour ? [{
+      key: "tour",
+      title: "App Tour",
+      description: "Replay the walkthrough",
+      icon: "compass-outline" as const,
+      tintColor: C.tint,
+      tintBg: C.tintLight,
+      onPress: () => {
+        Haptics.selectionAsync();
+        onShowAppTour();
+        onNavigate?.("dashboard");
+      },
+    }] : []),
+  ];
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -300,28 +389,6 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
             </Text>
           </Pressable>
         </Pressable>
-
-        {/* ——— Doctors & Pharmacies quick cards ——— */}
-        <View style={styles.quickCardsRow}>
-          <Pressable
-            style={({ pressed }) => [styles.quickCard, { opacity: pressed ? 0.8 : 1 }]}
-            onPress={() => onNavigate?.("doctors")}
-            accessibilityRole="button"
-            accessibilityLabel="Doctors"
-          >
-            <Ionicons name="medical-outline" size={26} color={C.tint} />
-            <Text style={styles.quickCardLabel}>Doctors</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.quickCard, { opacity: pressed ? 0.8 : 1 }]}
-            onPress={() => onNavigate?.("pharmacies")}
-            accessibilityRole="button"
-            accessibilityLabel="Pharmacies"
-          >
-            <Ionicons name="storefront-outline" size={26} color={C.tint} />
-            <Text style={styles.quickCardLabel}>Pharmacies</Text>
-          </Pressable>
-        </View>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Role</Text>
@@ -407,58 +474,28 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           ) : null}
         </View>
 
-        <Pressable
-          style={[styles.card, styles.emergencyCard]}
-          onPress={() => onNavigate?.("emergency")}
-          accessibilityRole="button"
-          accessibilityLabel="Emergency Protocol"
-        >
-          <View style={styles.profileRow}>
-            <View style={[styles.profileIcon, { backgroundColor: C.tint + "22" }]}>
-              <Ionicons name="shield-half-outline" size={18} color={C.tint} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.profileRowTitle, { color: C.tint }]}>Emergency Protocol</Text>
-              <Text style={styles.profileRowDesc}>Critical medical info for first responders</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.tint} />
+        <View style={styles.groupCard}>
+          <View style={styles.groupHeader}>
+            <Text style={styles.groupTitle}>Health Hub</Text>
+            <Text style={styles.groupSubtitle}>Quick ways into the stuff people actually use.</Text>
           </View>
-        </Pressable>
-
-        <View style={styles.card}>
-          <Pressable
-            style={styles.profileRow}
-            onPress={() => onNavigate?.("healthprofile")}
-            accessibilityRole="button"
-            accessibilityLabel="Health profile"
-          >
-            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
-              <Ionicons name="person-outline" size={16} color={C.tint} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.profileRowTitle}>Health Profile</Text>
-              <Text style={styles.profileRowDesc}>Name, age, birth date, conditions, and allergies</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
-          </Pressable>
-
-          <View style={styles.divider} />
-
-          <Pressable
-            style={styles.profileRow}
-            onPress={() => onNavigate?.("cycletracking")}
-            accessibilityRole="button"
-            accessibilityLabel="Cycle tracking"
-          >
-            <View style={[styles.profileIcon, { backgroundColor: C.orangeLight }]}>
-              <Ionicons name="water-outline" size={16} color={C.orange} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.profileRowTitle}>Cycle Tracking</Text>
-              <Text style={styles.profileRowDesc}>Log flow, symptoms, and notes in one place</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
-          </Pressable>
+          <View style={styles.tileGrid}>
+            {accountShortcutCards.map((item) => (
+              <Pressable
+                key={item.key}
+                style={({ pressed }) => [styles.tileCard, { opacity: pressed ? 0.82 : 1 }]}
+                onPress={item.onPress}
+                accessibilityRole="button"
+                accessibilityLabel={item.title}
+              >
+                <View style={[styles.tileIconWrap, { backgroundColor: item.tintBg }]}>
+                  <Ionicons name={item.icon} size={22} color={item.tintColor} />
+                </View>
+                <Text style={styles.tileTitle}>{item.title}</Text>
+                <Text style={styles.tileDesc}>{item.description}</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         <Pressable
@@ -513,100 +550,6 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
             <View style={[styles.toggle, settings.highContrast && styles.toggleActive]}>
               <View style={[styles.toggleThumb, settings.highContrast && styles.toggleThumbActive]} />
             </View>
-          </View>
-        </Pressable>
-
-        {/* ——— Notifications ——— */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Notifications</Text>
-          <Text style={[styles.desc, { marginBottom: 12 }]}>Local reminders for medications, appointments, and check-ins</Text>
-          {[
-            { key: "notificationsMedications" as const, label: "Medication reminders", desc: "Daily reminders to take your medications" },
-            { key: "notificationsAppointments" as const, label: "Appointment reminders", desc: "1 day and 1 hour before appointments" },
-            { key: "notificationsDailyCheckIn" as const, label: "Daily check-in reminders", desc: "Remind to log mood and symptoms (default 8 PM)" },
-            { key: "notificationsMonthly" as const, label: "Monthly reminders", desc: "Monthly health review reminder" },
-          ].map(({ key, label, desc }) => (
-            <Pressable
-              key={key}
-              style={[styles.toggleHeader, { marginTop: 8 }]}
-              onPress={() => {
-                setSettings((p) => ({ ...p, [key]: !(p[key] !== false) }));
-                setSaved(false);
-                Haptics.selectionAsync();
-              }}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: settings[key] !== false }}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sectionTitle}>{label}</Text>
-                <Text style={styles.desc}>{desc}</Text>
-              </View>
-              <View style={[styles.toggle, settings[key] !== false && styles.toggleActive]}>
-                <View style={[styles.toggleThumb, settings[key] !== false && styles.toggleThumbActive]} />
-              </View>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* ——— Help ——— */}
-        {onShowAppTour && (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Help</Text>
-            <Pressable
-              style={({ pressed }) => [styles.profileRow, { opacity: pressed ? 0.8 : 1 }]}
-              onPress={() => {
-                Haptics.selectionAsync();
-                onShowAppTour();
-                onNavigate?.("dashboard");
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Show app tour again"
-            >
-              <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
-                <Ionicons name="compass-outline" size={16} color={C.tint} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.profileRowTitle}>Show App Tour Again</Text>
-                <Text style={styles.profileRowDesc}>Walk through the main features of the app.</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
-            </Pressable>
-          </View>
-        )}
-
-        <Pressable
-          style={styles.card}
-          onPress={() => setShowAppearanceModal(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Manage appearances"
-        >
-          <View style={styles.profileRow}>
-            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
-              <Ionicons name="color-palette-outline" size={16} color={C.tint} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.profileRowTitle}>Appearances</Text>
-              <Text style={styles.profileRowDesc}>Choose your appearance for the widgets and your app.</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
-          </View>
-        </Pressable>
-
-        <Pressable
-          style={styles.card}
-          onPress={() => setShowSectionsModal(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Manage menu sections"
-        >
-          <View style={styles.profileRow}>
-            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
-              <Ionicons name="list-outline" size={16} color={C.tint} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.profileRowTitle}>Manage sections</Text>
-              <Text style={styles.profileRowDesc}>Choose which sections appear in the menu. You can change this anytime.</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
           </View>
         </Pressable>
 
@@ -792,6 +735,48 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal visible={showNotificationsModal} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => setShowNotificationsModal(false)}>
+          <Pressable style={[styles.resetModal, styles.appearanceModal]} onPress={() => {}}>
+            <Text style={[styles.resetTitle, { marginBottom: 8 }]}>Notifications</Text>
+            <Text style={[styles.resetDesc, { marginBottom: 16 }]}>Local reminders for medications, appointments, and check-ins.</Text>
+            <ScrollView style={{ maxHeight: 420, width: "100%" }} showsVerticalScrollIndicator>
+              {[
+                { key: "notificationsMedications" as const, label: "Medication reminders", desc: "Daily reminders to take your medications" },
+                { key: "notificationsAppointments" as const, label: "Appointment reminders", desc: "1 day and 1 hour before appointments" },
+                { key: "notificationsDailyCheckIn" as const, label: "Daily check-in reminders", desc: "Remind to log mood and symptoms (default 8 PM)" },
+                { key: "notificationsMonthly" as const, label: "Monthly reminders", desc: "Monthly health review reminder" },
+              ].map(({ key, label, desc }) => (
+                <Pressable
+                  key={key}
+                  style={[styles.notificationOption, { marginTop: 8 }]}
+                  onPress={() => {
+                    setSettings((p) => ({ ...p, [key]: !(p[key] !== false) }));
+                    setSaved(false);
+                    Haptics.selectionAsync();
+                  }}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: settings[key] !== false }}
+                >
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={styles.sectionTitle}>{label}</Text>
+                    <Text style={[styles.desc, { marginBottom: 0 }]}>{desc}</Text>
+                  </View>
+                  <View style={[styles.toggle, settings[key] !== false && styles.toggleActive]}>
+                    <View style={[styles.toggleThumb, settings[key] !== false && styles.toggleThumbActive]} />
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <View style={[styles.modalActions, { marginTop: 16, width: "100%" }]}>
+              <Pressable style={[styles.resetConfirmBtn, { backgroundColor: C.tint }]} onPress={() => setShowNotificationsModal(false)}>
+                <Text style={styles.resetConfirmText}>Done</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -803,19 +788,33 @@ function makeStyles(C: Theme) {
     scrollViewContent: { flexGrow: 1 },
     title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 24 },
     editProfileLink: { fontWeight: "500", fontSize: 13, color: C.tint, marginTop: 4 },
-    quickCardsRow: { flexDirection: "row", gap: 12, marginBottom: 12 },
-    quickCard: {
-      flex: 1,
-      backgroundColor: C.surface,
-      borderRadius: 14,
+    groupCard: { backgroundColor: C.surface, borderRadius: 14, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border },
+    groupHeader: { marginBottom: 14 },
+    groupTitle: { fontWeight: "700", fontSize: 17, color: C.text },
+    groupSubtitle: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 3 },
+    tileGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+    tileCard: {
+      width: "48%",
+      minHeight: 132,
+      backgroundColor: C.surfaceElevated,
+      borderRadius: 16,
       borderWidth: 1,
       borderColor: C.border,
-      paddingVertical: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+      justifyContent: "flex-start",
+      marginBottom: 12,
+    },
+    tileIconWrap: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
       alignItems: "center",
       justifyContent: "center",
-      gap: 8,
+      marginBottom: 12,
     },
-    quickCardLabel: { fontWeight: "600", fontSize: 14, color: C.text },
+    tileTitle: { fontWeight: "700", fontSize: 14, color: C.text, marginBottom: 4 },
+    tileDesc: { fontWeight: "400", fontSize: 12, lineHeight: 17, color: C.textSecondary },
     card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
     sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 4 },
     desc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 14 },
@@ -898,13 +897,22 @@ function makeStyles(C: Theme) {
     resetConfirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.red, alignItems: "center" },
     resetConfirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
     appearanceModal: { maxWidth: 420, alignItems: "stretch" },
+    notificationOption: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+      backgroundColor: C.surfaceElevated,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+    },
     appearanceGroupTitle: { fontWeight: "700", fontSize: 13, color: C.textSecondary, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.6 },
     sectionCheckbox: {
       width: 24, height: 24, borderRadius: 8, borderWidth: 2, borderColor: C.border,
       alignItems: "center", justifyContent: "center", backgroundColor: C.surface, marginRight: 12,
     },
     sectionCheckboxActive: { backgroundColor: C.tint, borderColor: C.tint },
-    emergencyCard: { borderColor: C.tint + "55" },
     // Appearance / theme selector
     themeOption: {
       borderRadius: 12,

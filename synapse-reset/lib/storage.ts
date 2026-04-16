@@ -135,6 +135,22 @@ export interface BackupCriticalMedication {
   instructions?: string;
 }
 
+export interface VaccineRecord {
+  id: string;
+  vaccine: string;
+  receivedAt: string;
+  location?: string;
+  lotNumber?: string;
+  recordImageUri?: string;
+}
+
+export interface SurgeryRecord {
+  id: string;
+  procedure: string;
+  estimatedWhen: string;
+  location?: string;
+}
+
 export interface HealthProfileInfo {
   age?: number;
   dateOfBirth?: string;
@@ -144,6 +160,8 @@ export interface HealthProfileInfo {
   caredForName?: string;
   backupEmergencyProtocols?: string;
   backupCriticalMedications?: BackupCriticalMedication[];
+  vaccines?: VaccineRecord[];
+  surgeries?: SurgeryRecord[];
 }
 
 export type RepeatUnit = "day" | "week" | "month";
@@ -892,11 +910,11 @@ export const healthProfileStorage = {
     try {
       const raw = await AsyncStorage.getItem(KEYS.HEALTH_PROFILE_INFO);
       return raw
-        ? { userRole: "self", widgetAppearance: "system", backupCriticalMedications: [], ...JSON.parse(raw) }
-        : { userRole: "self", widgetAppearance: "system", backupCriticalMedications: [] };
+        ? { userRole: "self", widgetAppearance: "system", backupCriticalMedications: [], vaccines: [], surgeries: [], ...JSON.parse(raw) }
+        : { userRole: "self", widgetAppearance: "system", backupCriticalMedications: [], vaccines: [], surgeries: [] };
     } catch (e) {
       console.warn("AsyncStorage healthProfile get failed", e);
-      return { userRole: "self", widgetAppearance: "system", backupCriticalMedications: [] };
+      return { userRole: "self", widgetAppearance: "system", backupCriticalMedications: [], vaccines: [], surgeries: [] };
     }
   },
   save: async (data: HealthProfileInfo) => {
@@ -907,6 +925,8 @@ export const healthProfileStorage = {
           userRole: "self",
           widgetAppearance: "system",
           backupCriticalMedications: [],
+          vaccines: [],
+          surgeries: [],
           ...data,
         })
       );
