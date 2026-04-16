@@ -32,7 +32,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
-      buildNumber: "1.0",
+      buildNumber: "4",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSFaceIDUsageDescription: "Unlock Synapse with Face ID to keep your health data private.",
@@ -68,6 +68,7 @@ module.exports = {
     web: { favicon: "./assets/favicon.png" },
     plugins: [
       "expo-router",
+      "expo-font",
       "expo-notifications",
       "@react-native-community/datetimepicker",
     ],

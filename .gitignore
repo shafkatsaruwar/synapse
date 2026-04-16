@@ -9,9 +9,9 @@ dist/
 web-build/
 expo-env.d.ts
 
-# Native
-ios/
-android/
+# Native (only ignore at repo root; synapse-reset/ios is committed for widgets + CocoaPods)
+/ios/
+/android/
 *.orig.*
 *.jks
 *.p8
