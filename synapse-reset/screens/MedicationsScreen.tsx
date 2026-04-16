@@ -262,6 +262,9 @@ export default function MedicationsScreen() {
   ]);
   const [showReminderTimePickerIndex, setShowReminderTimePickerIndex] = useState<number | null>(null);
   const [formRoute, setFormRoute] = useState("");
+  const [formPharmacyId, setFormPharmacyId] = useState<string | null>(null);
+  const [formLegacyPharmacyName, setFormLegacyPharmacyName] = useState("");
+  const [showMedicationPharmacyPicker, setShowMedicationPharmacyPicker] = useState(false);
   const [formReminderCadence, setFormReminderCadence] = useState<MedicationReminderCadence>("daily");
   const [formReminderWeekday, setFormReminderWeekday] = useState<number>(jsDayToExpoWeekday(new Date().getDay()));
   const [formReminderIntervalValue, setFormReminderIntervalValue] = useState("3");
@@ -365,6 +368,9 @@ export default function MedicationsScreen() {
     setFormName("");
     setFormDosesArray([{ id: Crypto.randomUUID(), amount: "", unit: "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }]);
     setFormRoute("");
+    setFormPharmacyId(null);
+    setFormLegacyPharmacyName("");
+    setShowMedicationPharmacyPicker(false);
     setFormReminderCadence("daily");
     setFormReminderWeekday(jsDayToExpoWeekday(new Date().getDay()));
     setFormReminderIntervalValue("3");
@@ -398,6 +404,10 @@ export default function MedicationsScreen() {
       : [{ id: Crypto.randomUUID(), amount: (med as { dosage?: string }).dosage ?? "", unit: (med as { unit?: string }).unit ?? "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }];
     setFormDosesArray(doses);
     setFormRoute(med.route || "");
+    const matchedPharmacyId = med.pharmacyId ?? pharmacies.find((pharmacy) => pharmacy.name === med.pharmacyName)?.id ?? null;
+    setFormPharmacyId(matchedPharmacyId);
+    setFormLegacyPharmacyName(med.pharmacyName ?? "");
+    setShowMedicationPharmacyPicker(false);
     const reminderConfig = inferMedicationCadence(med);
     setFormReminderCadence(reminderConfig.cadence);
     setFormReminderWeekday(reminderConfig.weekday);
@@ -454,11 +464,17 @@ export default function MedicationsScreen() {
     const lowSupplyThreshold = formLowSupplyThreshold.trim() ? parseFloat(formLowSupplyThreshold) : undefined;
     const concentrationMgPerMl = formConcentrationMgPerMl.trim() ? parseFloat(formConcentrationMgPerMl) : undefined;
     const normalizedFrequency = formatMedicationFrequencyLabel(formReminderCadence, formReminderWeekday, parsedIntervalValue, formReminderIntervalUnit);
+    const selectedPharmacy = pharmacies.find((pharmacy) => pharmacy.id === formPharmacyId);
     const data: Omit<Medication, "id"> = {
       name: formName.trim(),
       frequency: normalizedFrequency,
       route: formRoute.trim(),
       emoji: formEmoji || "",
+      pharmacyId: selectedPharmacy?.id,
+      pharmacyName: selectedPharmacy?.name ?? (formLegacyPharmacyName.trim() || undefined),
+      pharmacyPhone: selectedPharmacy?.phone ?? undefined,
+      pharmacyAddress: selectedPharmacy?.address ?? undefined,
+      pharmacyHospital: selectedPharmacy?.hospital ?? undefined,
       reminderCadence: formReminderCadence,
       reminderWeekday: formReminderCadence === "weekly" || formReminderCadence === "biweekly" || (formReminderCadence === "custom" && formReminderIntervalUnit === "weeks") ? formReminderWeekday : undefined,
       reminderIntervalValue: formReminderCadence === "custom" ? parsedIntervalValue : formReminderCadence === "biweekly" ? 2 : undefined,
@@ -916,8 +932,9 @@ export default function MedicationsScreen() {
                           {med.route ? ` · ${med.route}` : ""}
                         </Text>
                       ) : null}
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                         {!!med.frequency && <Text style={styles.medFreq}>{med.frequency}</Text>}
+                        {!!med.pharmacyName && <Text style={[styles.medFreq, { marginTop: 0, marginLeft: 0 }]}>{med.pharmacyName}</Text>}
                         {totalDosesMed > 0 && (
                           <Text style={[styles.medFreq, { marginTop: 0, marginLeft: 0 }]}>
                             ({takenTotalMed}/{totalDosesMed} doses today)
@@ -1492,6 +1509,37 @@ export default function MedicationsScreen() {
               <Text style={styles.label}>Route</Text>
               <TextInput style={styles.input} placeholder="e.g. tablet, injection, inhaler" placeholderTextColor={C.textTertiary} value={formRoute} onChangeText={setFormRoute} />
 
+              <Text style={styles.label}>Pharmacy</Text>
+              <Pressable style={styles.input} onPress={() => setShowMedicationPharmacyPicker((v) => !v)}>
+                <Text style={[styles.pickerPlaceholder, (formPharmacyId || formLegacyPharmacyName) && { color: C.text }]}>
+                  {pharmacies.find((p) => p.id === formPharmacyId)?.name
+                    || formLegacyPharmacyName
+                    || (pharmacies.length === 0 ? "No pharmacies found. Add pharmacies in Account." : "Select pharmacy")}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />
+              </Pressable>
+              {showMedicationPharmacyPicker && pharmacies.length > 0 && (
+                <View style={styles.dropdown}>
+                  <ScrollView style={styles.dropdownScroll} nestedScrollEnabled showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
+                    {pharmacies.map((pharmacy) => (
+                      <Pressable
+                        key={pharmacy.id}
+                        style={[styles.dropdownRow, formPharmacyId === pharmacy.id && styles.dropdownRowSelected]}
+                        onPress={() => {
+                          setFormPharmacyId(pharmacy.id);
+                          setFormLegacyPharmacyName(pharmacy.name);
+                          setShowMedicationPharmacyPicker(false);
+                          Haptics.selectionAsync();
+                        }}
+                      >
+                        <Text style={styles.dropdownText}>{pharmacy.name}</Text>
+                        {pharmacy.hospital ? <Text style={styles.dropdownSub}>{pharmacy.hospital}</Text> : null}
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
               <Text style={styles.label}>Frequency</Text>
               <View style={styles.frequencyChipRow}>
                 <Pressable
@@ -1704,7 +1752,7 @@ export default function MedicationsScreen() {
               </View>
 
               <View style={styles.modalActions}>
-                <Pressable style={styles.cancelBtn} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); setShowReminderTimePickerIndex(null); setShowRefillUnitPicker(false); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+                <Pressable style={styles.cancelBtn} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); setShowReminderTimePickerIndex(null); setShowRefillUnitPicker(false); setShowMedicationPharmacyPicker(false); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
                 <Pressable
                   style={[styles.confirmBtn, !canSaveMedication && { opacity: 0.5 }]}
                   onPress={handleSave}

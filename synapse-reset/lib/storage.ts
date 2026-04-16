@@ -42,6 +42,11 @@ export interface Medication {
   unit?: string;
   route?: string;
   emoji?: string;
+  pharmacyId?: string;
+  pharmacyName?: string;
+  pharmacyPhone?: string;
+  pharmacyAddress?: string;
+  pharmacyHospital?: string;
   reminderCadence?: "daily" | "weekly" | "biweekly" | "custom";
   reminderWeekday?: number;
   reminderIntervalValue?: number;
@@ -340,7 +345,7 @@ export const REQUIRED_SECTION_KEYS: readonly string[] = ["medications", "appoint
 
 export const ALL_SECTION_KEYS = [
   "log", "healthdata", "medications", "symptoms", "monthlycheckin",
-  "eating", "mentalhealth", "comfort", "goals", "appointments", "reports", "privacy",
+  "eating", "mentalhealth", "comfort", "goals", "appointments", "reports", "privacy", "cycletracking",
 ] as const;
 export type SectionKey = (typeof ALL_SECTION_KEYS)[number];
 
