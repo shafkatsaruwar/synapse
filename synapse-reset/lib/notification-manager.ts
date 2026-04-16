@@ -97,14 +97,39 @@ export async function scheduleMedicationReminder(params: {
   dosage: string;
   hour: number;
   minute: number;
-  cadence?: "daily" | "weekly";
+  cadence?: "daily" | "weekly" | "biweekly" | "custom";
   weekday?: number;
+  intervalValue?: number;
+  intervalUnit?: "days" | "weeks";
 }): Promise<string | null> {
   if (!isNative()) return null;
-  const { medicationId, doseIndex, medicationName, dosage, hour, minute, cadence = "daily", weekday } = params;
+  const { medicationId, doseIndex, medicationName, dosage, hour, minute, cadence = "daily", weekday, intervalValue, intervalUnit } = params;
   const identifier = `${NOTIFICATION_IDS.prefixMed}-${medicationId}-${doseIndex}`;
   try {
-    await Notifications.cancelScheduledNotificationAsync(identifier);
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const toCancel = scheduled
+      .filter((item) => item.identifier.startsWith(identifier))
+      .map((item) => item.identifier);
+    for (const id of toCancel) {
+      await Notifications.cancelScheduledNotificationAsync(id);
+    }
+
+    if (cadence === "biweekly" || cadence === "custom") {
+      return scheduleIntervalMedicationReminders({
+        identifier,
+        medicationId,
+        doseIndex,
+        medicationName,
+        dosage,
+        hour,
+        minute,
+        cadence,
+        weekday,
+        intervalValue,
+        intervalUnit,
+      });
+    }
+
     const id = await Notifications.scheduleNotificationAsync({
       identifier,
       content: {
@@ -132,6 +157,97 @@ export async function scheduleMedicationReminder(params: {
     console.warn("scheduleMedicationReminder failed", e);
     return null;
   }
+}
+
+function getNextMatchingWeekdayDate(hour: number, minute: number, weekday: number): Date {
+  const now = new Date();
+  const target = new Date();
+  target.setHours(hour, minute, 0, 0);
+  const currentWeekday = getCurrentExpoWeekday();
+  let offset = weekday - currentWeekday;
+  if (offset < 0) offset += 7;
+  if (offset === 0 && target.getTime() <= now.getTime()) {
+    offset = 7;
+  }
+  target.setDate(target.getDate() + offset);
+  return target;
+}
+
+function getNextMatchingDailyDate(hour: number, minute: number): Date {
+  const now = new Date();
+  const target = new Date();
+  target.setHours(hour, minute, 0, 0);
+  if (target.getTime() <= now.getTime()) {
+    target.setDate(target.getDate() + 1);
+  }
+  return target;
+}
+
+async function scheduleIntervalMedicationReminders(params: {
+  identifier: string;
+  medicationId: string;
+  doseIndex: number;
+  medicationName: string;
+  dosage: string;
+  hour: number;
+  minute: number;
+  cadence: "biweekly" | "custom";
+  weekday?: number;
+  intervalValue?: number;
+  intervalUnit?: "days" | "weeks";
+}): Promise<string | null> {
+  const {
+    identifier,
+    medicationId,
+    doseIndex,
+    medicationName,
+    dosage,
+    hour,
+    minute,
+    cadence,
+    weekday,
+    intervalValue,
+    intervalUnit,
+  } = params;
+
+  const normalizedIntervalValue = cadence === "biweekly" ? 2 : Math.max(1, intervalValue ?? 1);
+  const normalizedIntervalUnit = cadence === "biweekly" ? "weeks" : (intervalUnit ?? "days");
+  const startDate =
+    normalizedIntervalUnit === "weeks"
+      ? getNextMatchingWeekdayDate(hour, minute, weekday && weekday >= 1 && weekday <= 7 ? weekday : getCurrentExpoWeekday())
+      : getNextMatchingDailyDate(hour, minute);
+
+  const horizonDays = normalizedIntervalUnit === "weeks" ? 420 : 180;
+  const maxOccurrences = 60;
+  let scheduledId: string | null = null;
+
+  for (let i = 0; i < maxOccurrences; i++) {
+    const date = new Date(startDate);
+    if (normalizedIntervalUnit === "weeks") {
+      date.setDate(date.getDate() + i * normalizedIntervalValue * 7);
+    } else {
+      date.setDate(date.getDate() + i * normalizedIntervalValue);
+    }
+    const daysOut = (date.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+    if (daysOut > horizonDays) break;
+
+    const nextId = await Notifications.scheduleNotificationAsync({
+      identifier: `${identifier}-${i}`,
+      content: {
+        title: "Medication Reminder",
+        body: `Time to take ${medicationName}${dosage ? ` (${dosage})` : ""}`,
+        data: { medicationId, doseIndex, medicationName, dosage },
+        categoryIdentifier: MEDICATION_CATEGORY,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date,
+      },
+    });
+    if (!scheduledId) scheduledId = nextId;
+  }
+
+  return scheduledId;
 }
 
 /** Schedule one-time snooze (10 minutes from now). */
@@ -229,18 +345,53 @@ function getCurrentExpoWeekday() {
   return day === 0 ? 1 : day + 1;
 }
 
-function inferMedicationReminderCadence(med: { reminderCadence?: "daily" | "weekly"; frequency?: string; reminderWeekday?: number }) {
+function inferMedicationReminderCadence(med: {
+  reminderCadence?: "daily" | "weekly" | "biweekly" | "custom";
+  frequency?: string;
+  reminderWeekday?: number;
+  reminderIntervalValue?: number;
+  reminderIntervalUnit?: "days" | "weeks";
+}) {
+  const safeWeekday = med.reminderWeekday && med.reminderWeekday >= 1 && med.reminderWeekday <= 7 ? med.reminderWeekday : getCurrentExpoWeekday();
+  const safeIntervalValue = med.reminderIntervalValue && med.reminderIntervalValue > 0 ? med.reminderIntervalValue : 1;
+  const safeIntervalUnit = med.reminderIntervalUnit ?? "days";
+
+  if (med.reminderCadence === "biweekly") {
+    return { cadence: "biweekly" as const, weekday: safeWeekday, intervalValue: 2, intervalUnit: "weeks" as const };
+  }
+  if (med.reminderCadence === "custom") {
+    return { cadence: "custom" as const, weekday: safeWeekday, intervalValue: safeIntervalValue, intervalUnit: safeIntervalUnit };
+  }
   if (med.reminderCadence === "weekly") {
-    return { cadence: "weekly" as const, weekday: med.reminderWeekday && med.reminderWeekday >= 1 && med.reminderWeekday <= 7 ? med.reminderWeekday : getCurrentExpoWeekday() };
+    return { cadence: "weekly" as const, weekday: safeWeekday, intervalValue: undefined, intervalUnit: undefined };
   }
   if (med.reminderCadence === "daily") {
-    return { cadence: "daily" as const, weekday: undefined };
+    return { cadence: "daily" as const, weekday: undefined, intervalValue: undefined, intervalUnit: undefined };
   }
   const freq = med.frequency?.trim().toLowerCase() ?? "";
-  if (freq.includes("week")) {
-    return { cadence: "weekly" as const, weekday: med.reminderWeekday && med.reminderWeekday >= 1 && med.reminderWeekday <= 7 ? med.reminderWeekday : getCurrentExpoWeekday() };
+  const customWeekMatch = freq.match(/every\s+(\d+)\s+weeks?/);
+  if (customWeekMatch) {
+    const parsed = Math.max(1, parseInt(customWeekMatch[1], 10) || 1);
+    return {
+      cadence: parsed === 2 ? "biweekly" as const : "custom" as const,
+      weekday: safeWeekday,
+      intervalValue: parsed,
+      intervalUnit: "weeks" as const,
+    };
   }
-  return { cadence: "daily" as const, weekday: undefined };
+  const customDayMatch = freq.match(/every\s+(\d+)\s+days?/);
+  if (customDayMatch) {
+    return {
+      cadence: "custom" as const,
+      weekday: undefined,
+      intervalValue: Math.max(1, parseInt(customDayMatch[1], 10) || 1),
+      intervalUnit: "days" as const,
+    };
+  }
+  if (freq.includes("week")) {
+    return { cadence: "weekly" as const, weekday: safeWeekday, intervalValue: undefined, intervalUnit: undefined };
+  }
+  return { cadence: "daily" as const, weekday: undefined, intervalValue: undefined, intervalUnit: undefined };
 }
 
 /** Schedule appointment reminder (1 day before or 1 hour before). */
@@ -556,6 +707,8 @@ export async function syncAllFromSettings(): Promise<void> {
             minute,
             cadence: reminderSchedule.cadence,
             weekday: reminderSchedule.weekday,
+            intervalValue: reminderSchedule.intervalValue,
+            intervalUnit: reminderSchedule.intervalUnit,
           });
         } else {
           for (let i = 0; i < doses.length; i++) {
@@ -580,6 +733,8 @@ export async function syncAllFromSettings(): Promise<void> {
               minute,
               cadence: reminderSchedule.cadence,
               weekday: reminderSchedule.weekday,
+              intervalValue: reminderSchedule.intervalValue,
+              intervalUnit: reminderSchedule.intervalUnit,
             });
           }
         }

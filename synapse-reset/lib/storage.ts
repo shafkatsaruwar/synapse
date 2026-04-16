@@ -42,8 +42,10 @@ export interface Medication {
   unit?: string;
   route?: string;
   emoji?: string;
-  reminderCadence?: "daily" | "weekly";
+  reminderCadence?: "daily" | "weekly" | "biweekly" | "custom";
   reminderWeekday?: number;
+  reminderIntervalValue?: number;
+  reminderIntervalUnit?: "days" | "weeks";
   /** New: array of independent doses. If present, use this instead of dosage/timeTag/doses count. */
   doses?: MedicationDose[];
   /** @deprecated Use doses[].timeOfDay. Kept for migration. */
