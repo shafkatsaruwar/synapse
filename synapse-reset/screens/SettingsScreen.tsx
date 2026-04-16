@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -66,6 +67,36 @@ const THEME_OPTIONS: { id: ThemePreference; label: string; description: string }
   { id: "light", label: "Light", description: "Clean white, modern" },
   { id: "dark", label: "Dark", description: "True black, OLED-friendly" },
 ];
+
+const PROFILE_IMAGE_DIR = `${FileSystem.documentDirectory ?? ""}profile-images/`;
+
+function getFileExtension(uri: string) {
+  const clean = uri.split("?")[0] ?? uri;
+  const lastDot = clean.lastIndexOf(".");
+  if (lastDot === -1) return "jpg";
+  return clean.slice(lastDot + 1).toLowerCase() || "jpg";
+}
+
+async function persistProfileImage(sourceUri: string, previousUri?: string) {
+  if (Platform.OS === "web" || !FileSystem.documentDirectory) {
+    return sourceUri;
+  }
+
+  await FileSystem.makeDirectoryAsync(PROFILE_IMAGE_DIR, { intermediates: true });
+
+  const extension = getFileExtension(sourceUri);
+  const destinationUri = `${PROFILE_IMAGE_DIR}profile-${Date.now()}.${extension}`;
+  await FileSystem.copyAsync({ from: sourceUri, to: destinationUri });
+
+  if (previousUri?.startsWith(PROFILE_IMAGE_DIR) && previousUri !== destinationUri) {
+    const previousInfo = await FileSystem.getInfoAsync(previousUri);
+    if (previousInfo.exists) {
+      await FileSystem.deleteAsync(previousUri, { idempotent: true });
+    }
+  }
+
+  return destinationUri;
+}
 
 export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComplete, onShowAppTour }: SettingsScreenProps) {
   const insets = useSafeAreaInsets();
@@ -164,7 +195,8 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     });
 
     if (result.canceled || !result.assets?.[0]?.uri) return;
-    await handleSaveProfile({ ...profile, profileImageUri: result.assets[0].uri });
+    const persistedUri = await persistProfileImage(result.assets[0].uri, profile.profileImageUri);
+    await handleSaveProfile({ ...profile, profileImageUri: persistedUri });
   };
 
   const toggleSection = (key: string) => {
