@@ -987,9 +987,9 @@ export default function MedicationsScreen() {
                       ) : null}
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                         {!!med.frequency && <Text style={styles.medFreq}>{med.frequency}</Text>}
-                        {!!med.pharmacyName && <Text style={[styles.medFreq, { marginTop: 0, marginLeft: 0 }]}>{med.pharmacyName}</Text>}
+                        {!!med.pharmacyName && <Text style={[styles.medFreq, styles.medMetaInline]}>{med.pharmacyName}</Text>}
                         {totalDosesMed > 0 && (
-                          <Text style={[styles.medFreq, { marginTop: 0, marginLeft: 0 }]}>
+                          <Text style={[styles.medFreq, styles.medMetaInline]}>
                             ({takenTotalMed}/{totalDosesMed} doses today)
                           </Text>
                         )}
@@ -1023,11 +1023,11 @@ export default function MedicationsScreen() {
                       </Pressable>
                     ) : !hasAnyDueDose ? (
                       <View style={styles.notReadyBanner}>
-                        <Ionicons name="time-outline" size={16} color={C.textSecondary} />
+                        <Ionicons name="time-outline" size={13} color={C.textTertiary} style={styles.notReadyIcon} />
                         <Text style={styles.notReadyText}>
                           {nextReminderTime
-                            ? `It’s not time to take this medicine yet. Come back at ${formatReminderTimeDisplay(nextReminderTime)}.`
-                            : "It’s not time to take this medicine yet. Please come back at the scheduled time."}
+                            ? `Next dose • ${formatReminderTimeDisplay(nextReminderTime)}`
+                            : "Next dose • Scheduled time"}
                         </Text>
                       </View>
                     ) : (
@@ -1062,11 +1062,11 @@ export default function MedicationsScreen() {
                   ) : (
                     !hasAnyDueDose ? (
                       <View style={styles.notReadyBanner}>
-                        <Ionicons name="time-outline" size={16} color={C.textSecondary} />
+                        <Ionicons name="time-outline" size={13} color={C.textTertiary} style={styles.notReadyIcon} />
                         <Text style={styles.notReadyText}>
                           {nextReminderTime
-                            ? `It’s not time to take this medicine yet. Come back at ${formatReminderTimeDisplay(nextReminderTime)}.`
-                            : "It’s not time to take this medicine yet. Please come back at the scheduled time."}
+                            ? `Next dose • ${formatReminderTimeDisplay(nextReminderTime)}`
+                            : "Next dose • Scheduled time"}
                         </Text>
                       </View>
                     ) : (
@@ -1922,31 +1922,31 @@ function makeStyles(C: Theme, S: SickModePalette) {
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
   addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
-  progressBar: { height: 4, borderRadius: 2, backgroundColor: C.surfaceElevated, marginBottom: 24 },
-  progressFill: { height: 4, borderRadius: 2, backgroundColor: C.green },
+  progressBar: { height: 4, borderRadius: 999, backgroundColor: C.textTertiary + "33", marginBottom: 24, overflow: "hidden" },
+  progressFill: { height: 4, borderRadius: 999, backgroundColor: C.green },
   empty: { alignItems: "center", paddingVertical: 60, gap: 8 },
   emptyTitle: { fontWeight: "600", fontSize: 17, color: C.text, marginTop: 8 },
   emptyDesc: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
-  fab: { position: "absolute", width: 56, height: 56, borderRadius: 28, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 8 },
+  fab: { position: "absolute", width: 56, height: 56, borderRadius: 28, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.14, shadowRadius: 6, elevation: 5 },
   refillRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10, marginLeft: 26 },
-  refillText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
+  refillText: { fontWeight: "500", fontSize: 11, color: C.textTertiary },
   refillTextWarning: { color: C.red },
   sectionPanel: { marginBottom: 0, paddingVertical: 16, paddingHorizontal: 4 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   sectionTitle: { fontWeight: "700", fontSize: 18, color: C.text },
   sectionAddBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
-  sectionDivider: { height: 1, backgroundColor: C.border, marginVertical: 8, marginHorizontal: 4 },
+  sectionDivider: { height: 1, backgroundColor: C.textTertiary + "1F", marginVertical: 8, marginHorizontal: 4 },
   medListEmpty: { fontWeight: "400", fontSize: 13, color: C.textTertiary, marginBottom: 12 },
-  medListCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border },
+  medListCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.textTertiary + "22" },
   medListCardName: { fontWeight: "600", fontSize: 15, color: C.text },
   medListCardDoseLine: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 2 },
   medListCardPrescriber: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 2 },
   medListCardRefills: { fontWeight: "500", fontSize: 12, color: C.tint, marginTop: 4 },
   medListCardRefillsWarning: { color: C.red },
   pickerPlaceholder: { fontWeight: "400", fontSize: 14, color: C.textTertiary },
-  dropdown: { marginBottom: 14, maxHeight: 220, borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: "hidden", backgroundColor: C.surfaceElevated },
+  dropdown: { marginBottom: 14, maxHeight: 220, borderWidth: 1, borderColor: C.textTertiary + "22", borderRadius: 10, overflow: "hidden", backgroundColor: C.surfaceElevated },
   dropdownScroll: { maxHeight: 220 },
-  dropdownRow: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  dropdownRow: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.textTertiary + "1A" },
   dropdownRowSelected: { backgroundColor: C.tintLight },
   dropdownText: { fontWeight: "500", fontSize: 14, color: C.text },
   dropdownSub: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
@@ -1955,24 +1955,24 @@ function makeStyles(C: Theme, S: SickModePalette) {
   durationRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
   durationInput: { flex: 1, marginBottom: 0 },
   durationUnitRow: { flexDirection: "row", gap: 6 },
-  durationUnitBtn: { paddingHorizontal: 10, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  durationUnitBtn: { paddingHorizontal: 10, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
   durationUnitBtnActive: { backgroundColor: C.tint, borderColor: C.tint },
   durationUnitText: { fontWeight: "600", fontSize: 12, color: C.textSecondary },
-  doseCard: { marginBottom: 12, padding: 12, borderRadius: 12, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  doseCard: { marginBottom: 12, padding: 12, borderRadius: 12, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
   doseCardTitle: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 8 },
   doseRowWrap: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   doseAmountInput: { flex: 2, marginBottom: 0 },
   doseUnitInput: { flex: 1, marginBottom: 0 },
-  doseTimeBtn: { minWidth: 100, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4, paddingVertical: 12, paddingHorizontal: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  doseTimeBtn: { minWidth: 100, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4, paddingVertical: 12, paddingHorizontal: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
   doseTimeBtnText: { fontWeight: "500", fontSize: 13, color: C.text },
   doseTimePickerWrap: { minWidth: 100, marginBottom: 10 },
-  doseTimeDropdown: { marginTop: 6, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, borderRadius: 10, maxHeight: 160, overflow: "hidden" },
+  doseTimeDropdown: { marginTop: 6, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22", borderRadius: 10, maxHeight: 160, overflow: "hidden" },
   doseRemoveBtn: { padding: 4 },
-  addDoseBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, marginBottom: 14, borderWidth: 1, borderStyle: "dashed", borderColor: C.border, borderRadius: 10 },
+  addDoseBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, marginBottom: 14, borderWidth: 1, borderStyle: "dashed", borderColor: C.textTertiary + "22", borderRadius: 10 },
   addDoseBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
   frequencyChipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
-  frequencyChip: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
-  weekdayChip: { minWidth: 54, alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  frequencyChip: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
+  weekdayChip: { minWidth: 54, alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
   customFrequencyRow: { gap: 10, marginBottom: 14 },
   customFrequencyInput: { marginBottom: 0 },
   frequencyChipActive: { backgroundColor: C.tintLight, borderColor: C.tint },
@@ -1981,7 +1981,7 @@ function makeStyles(C: Theme, S: SickModePalette) {
   dosePickerBlock: { marginBottom: 14 },
   tagBadge: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
   tagText: { fontWeight: "600", fontSize: 12 },
-  medCard: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border },
+  medCard: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: C.textTertiary + "22" },
   medCardTaken: { borderColor: "rgba(48,209,88,0.25)", backgroundColor: "rgba(48,209,88,0.05)" },
   safetyNote: { flexDirection: "row", alignItems: "flex-start", gap: 6, paddingVertical: 12, paddingHorizontal: 4, marginBottom: 8 },
   safetyNoteText: { flex: 1, fontWeight: "400", fontSize: 11, color: C.textTertiary, lineHeight: 16 },
@@ -1992,7 +1992,7 @@ function makeStyles(C: Theme, S: SickModePalette) {
   toggleTrackActive: { backgroundColor: C.tint, borderColor: C.tint },
   toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff" },
   toggleThumbActive: { alignSelf: "flex-end" },
-  medInfo: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 12 },
+  medInfo: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 10 },
   medName: { fontWeight: "600", fontSize: 15, color: C.text },
   medNameTaken: { color: C.textSecondary },
   ownerBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.border },
@@ -2002,12 +2002,13 @@ function makeStyles(C: Theme, S: SickModePalette) {
   ownerChipActive: { backgroundColor: C.tintLight, borderColor: C.tint },
   ownerChipText: { fontWeight: "600", fontSize: 13, color: C.textSecondary },
   ownerChipTextActive: { color: C.tint },
-  medDose: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 4, marginLeft: 26 },
-  medFreq: { fontWeight: "500", fontSize: 11, color: C.tint, marginTop: 3, marginLeft: 26 },
-  actionRow: { flexDirection: "row", gap: 8 },
+  medDose: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginTop: 4, marginLeft: 26 },
+  medFreq: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 4, marginLeft: 26 },
+  medMetaInline: { marginTop: 0, marginLeft: 0 },
+  actionRow: { flexDirection: "row", gap: 8, marginLeft: 26, marginTop: 2 },
   yesBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: C.green },
   yesBtnText: { fontWeight: "600", fontSize: 13, color: "#fff" },
-  notYetBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  notYetBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
   notYetText: { fontWeight: "600", fontSize: 13, color: C.textSecondary },
   takenBanner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(48,209,88,0.1)" },
   takenText: { fontWeight: "600", fontSize: 13, color: C.green },
@@ -2019,50 +2020,47 @@ function makeStyles(C: Theme, S: SickModePalette) {
   doseNotYet: { paddingHorizontal: 8, paddingVertical: 4 },
   doseNotYetText: { fontWeight: "500", fontSize: 11, color: C.textTertiary },
   notReadyBanner: {
-    marginTop: 4,
+    marginTop: 2,
+    marginLeft: 26,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: C.surfaceElevated,
-    borderWidth: 1,
-    borderColor: C.border,
+    gap: 6,
+    paddingVertical: 4,
   },
+  notReadyIcon: { opacity: 0.7 },
   notReadyText: {
     flex: 1,
     color: C.textSecondary,
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 16,
     fontWeight: "500",
   },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
   bottomSheetOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   bottomSheet: { backgroundColor: C.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 32 },
-  inlineReminderPicker: { backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 8, borderWidth: 1, borderColor: C.border, marginTop: -2 },
-  modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, maxHeight: "85%", borderWidth: 1, borderColor: C.border },
+  inlineReminderPicker: { backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 8, borderWidth: 1, borderColor: C.textTertiary + "22", marginTop: -2 },
+  modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, maxHeight: "85%", borderWidth: 1, borderColor: C.textTertiary + "22" },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 20 },
   label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
-  input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
+  input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.textTertiary + "22", marginBottom: 14 },
   fieldRow: { flexDirection: "row", gap: 10 },
   emojiGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 16 },
-  emojiOpt: { width: 40, height: 40, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
+  emojiOpt: { width: 40, height: 40, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.textTertiary + "22" },
   emojiOptActive: { borderColor: C.tint, backgroundColor: C.tintLight },
   doseCountRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
-  doseCountBtn: { minWidth: 44, paddingHorizontal: 14, alignItems: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  doseCountBtn: { minWidth: 44, paddingHorizontal: 14, alignItems: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
   doseCountActive: { backgroundColor: C.tintLight, borderColor: C.tint },
   doseCountText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
   doseCountTextActive: { color: C.tint },
   tagPicker: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 20 },
-  tagOpt: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
+  tagOpt: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.textTertiary + "22", backgroundColor: C.surfaceElevated },
   tagOptText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
   modalActions: { flexDirection: "row", gap: 10, marginTop: 4 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center" },
   cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.tint, alignItems: "center" },
   confirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-  nudgeCard: { backgroundColor: C.surface, borderRadius: 20, padding: 28, width: "100%", maxWidth: 340, borderWidth: 1, borderColor: C.border, alignItems: "center" },
+  nudgeCard: { backgroundColor: C.surface, borderRadius: 20, padding: 28, width: "100%", maxWidth: 340, borderWidth: 1, borderColor: C.textTertiary + "22", alignItems: "center" },
   nudgeEmoji: { fontSize: 44, marginBottom: 16 },
   nudgeText: { fontWeight: "600", fontSize: 16, color: C.text, textAlign: "center", lineHeight: 22, marginBottom: 24 },
   nudgeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.green, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, width: "100%", marginBottom: 10 },

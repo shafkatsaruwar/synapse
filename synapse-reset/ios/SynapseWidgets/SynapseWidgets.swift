@@ -249,53 +249,57 @@ private struct MedBlock: View {
   let palette: SynapseWidgetPalette
 
   var body: some View {
-    VStack(alignment: .leading, spacing: compact ? 8 : 10) {
-      if showHeader {
-        Text("Next Medication")
-          .font(smallTitleFont())
-          .foregroundStyle(palette.muted)
-      }
-      if let medication {
-        Text(medication.name)
-          .font(mainFont(compact: compact))
-          .foregroundStyle(palette.ink)
-          .lineLimit(2)
-          .minimumScaleFactor(0.8)
-        Text(medication.detail)
-          .font(secondaryFont(compact: compact))
-          .foregroundStyle(palette.muted)
-          .lineLimit(1)
-
-        if medication.isTaken {
-          Text(medication.dueText)
-            .font(secondaryFont(compact: compact).weight(.semibold))
-            .foregroundStyle(palette.green)
+    VStack(alignment: .leading, spacing: 0) {
+      Spacer(minLength: compact ? 0 : 6)
+      VStack(alignment: .leading, spacing: compact ? 8 : 10) {
+        if showHeader {
+          Text("Next Medication")
+            .font(smallTitleFont())
+            .foregroundStyle(palette.muted)
+        }
+        if let medication {
+          Text(medication.name)
+            .font(mainFont(compact: compact))
+            .foregroundStyle(palette.ink)
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
+          Text(medication.detail)
+            .font(secondaryFont(compact: compact))
+            .foregroundStyle(palette.muted)
             .lineLimit(1)
-          if let nextText = medication.nextText {
-            Text(nextText)
-              .font(metaFont())
-              .foregroundStyle(palette.muted)
+
+          if medication.isTaken {
+            Text(medication.dueText)
+              .font(secondaryFont(compact: compact).weight(.semibold))
+              .foregroundStyle(palette.green)
               .lineLimit(1)
+            if let nextText = medication.nextText {
+              Text(nextText)
+                .font(metaFont())
+                .foregroundStyle(palette.muted)
+                .lineLimit(1)
+            }
+          } else {
+            MedicationProgressBar(progress: medicationProgress(medication), palette: palette)
+              .padding(.top, compact ? 2 : 4)
+            Text(compactRelativeMedicationText(medication.dueAt))
+              .font(secondaryFont(compact: compact).weight(.semibold))
+              .foregroundStyle(palette.red)
+              .lineLimit(1)
+              .minimumScaleFactor(0.85)
           }
         } else {
-          MedicationProgressBar(progress: medicationProgress(medication), palette: palette)
-            .padding(.top, compact ? 2 : 4)
-          Text(compactRelativeMedicationText(medication.dueAt))
-            .font(secondaryFont(compact: compact).weight(.semibold))
-            .foregroundStyle(palette.red)
-            .lineLimit(1)
-            .minimumScaleFactor(0.85)
+          Text("No medication due")
+            .font(mainFont(compact: compact))
+            .foregroundStyle(palette.ink)
+          Text("Stay on track")
+            .font(secondaryFont(compact: compact))
+            .foregroundStyle(palette.muted)
         }
-      } else {
-        Text("No medication due")
-          .font(mainFont(compact: compact))
-          .foregroundStyle(palette.ink)
-        Text("Stay on track")
-          .font(secondaryFont(compact: compact))
-          .foregroundStyle(palette.muted)
       }
+      Spacer(minLength: compact ? 0 : 2)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
   }
 }
 
@@ -306,38 +310,42 @@ private struct AppointmentBlock: View {
   let palette: SynapseWidgetPalette
 
   var body: some View {
-    VStack(alignment: .leading, spacing: compact ? 8 : 10) {
-      if showHeader {
-        Text("Next Visit")
-          .font(smallTitleFont())
-          .foregroundStyle(palette.muted)
+    VStack(alignment: .leading, spacing: 0) {
+      Spacer(minLength: compact ? 0 : 6)
+      VStack(alignment: .leading, spacing: compact ? 8 : 10) {
+        if showHeader {
+          Text("Next Visit")
+            .font(smallTitleFont())
+            .foregroundStyle(palette.muted)
+        }
+        if let appointment {
+          Text(appointment.doctorName)
+            .font(mainFont(compact: compact))
+            .foregroundStyle(palette.ink)
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
+          Text(appointment.detail)
+            .font(secondaryFont(compact: compact))
+            .foregroundStyle(palette.muted)
+            .lineLimit(1)
+          Text(appointment.whenText)
+            .font(secondaryFont(compact: compact).weight(.semibold))
+            .foregroundStyle(palette.blue)
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+        } else {
+          Text("No upcoming visit")
+            .font(mainFont(compact: compact))
+            .foregroundStyle(palette.ink)
+            .lineLimit(2)
+          Text("Add one in Synapse")
+            .font(secondaryFont(compact: compact))
+            .foregroundStyle(palette.muted)
+        }
       }
-      if let appointment {
-        Text(appointment.doctorName)
-          .font(mainFont(compact: compact))
-          .foregroundStyle(palette.ink)
-          .lineLimit(2)
-          .minimumScaleFactor(0.8)
-        Text(appointment.detail)
-          .font(secondaryFont(compact: compact))
-          .foregroundStyle(palette.muted)
-          .lineLimit(1)
-        Text(appointment.whenText)
-          .font(secondaryFont(compact: compact).weight(.semibold))
-          .foregroundStyle(palette.blue)
-          .lineLimit(1)
-          .minimumScaleFactor(0.85)
-      } else {
-        Text("No upcoming visit")
-          .font(mainFont(compact: compact))
-          .foregroundStyle(palette.ink)
-          .lineLimit(2)
-        Text("Add one in Synapse")
-          .font(secondaryFont(compact: compact))
-          .foregroundStyle(palette.muted)
-      }
+      Spacer(minLength: compact ? 0 : 2)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
   }
 }
 
@@ -351,10 +359,26 @@ private struct WidgetCard<Content: View>: View {
   }
 
   var body: some View {
-    ZStack {
+    let baseCard = ZStack {
       palette.background
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       content
         .padding(16)
+    }
+
+    if #available(iOSApplicationExtension 17.0, *) {
+      baseCard
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(palette.background)
+        .clipShape(ContainerRelativeShape())
+        .containerBackground(for: .widget) {
+          palette.background
+        }
+    } else {
+      baseCard
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(palette.background)
+        .clipShape(ContainerRelativeShape())
     }
   }
 }
@@ -434,6 +458,7 @@ struct SynapseOverviewWidget: Widget {
     .configurationDisplayName("Synapse Overview")
     .description("See your next medication and next appointment at a glance.")
     .supportedFamilies([.systemMedium])
+    .contentMarginsDisabled()
   }
 }
 
@@ -448,6 +473,7 @@ struct SynapseMedicationWidget: Widget {
     .configurationDisplayName("Next Medication")
     .description("Track your next dose with a live countdown.")
     .supportedFamilies([.systemSmall, .systemMedium])
+    .contentMarginsDisabled()
   }
 }
 
@@ -462,5 +488,6 @@ struct SynapseAppointmentWidget: Widget {
     .configurationDisplayName("Next Appointment")
     .description("See your next appointment at a glance.")
     .supportedFamilies([.systemSmall, .systemMedium])
+    .contentMarginsDisabled()
   }
 }

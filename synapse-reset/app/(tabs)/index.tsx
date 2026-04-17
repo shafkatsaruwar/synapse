@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { View, StyleSheet, Alert, Platform, AppState, Linking } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 import SidebarLayout from "@/components/SidebarLayout";
 import TabletSidebar from "@/components/TabletSidebar";
 import { useIsTablet } from "@/lib/device";
@@ -52,6 +53,7 @@ import { WalkthroughProvider } from "@/contexts/WalkthroughContext";
 
 export default function MainScreen() {
   const isTablet = useIsTablet();
+  const { widgetTarget } = useLocalSearchParams<{ widgetTarget?: string | string[] }>();
   const [activeScreen, setActiveScreen] = useState("dashboard");
   const [refreshKey, setRefreshKey] = useState(0);
   const [sickMode, setSickMode] = useState(false);
@@ -195,6 +197,14 @@ export default function MainScreen() {
     const subscription = Linking.addEventListener("url", handleIncomingUrl);
     return () => subscription.remove();
   }, [navigateToWidgetTarget]);
+
+  useEffect(() => {
+    const target = Array.isArray(widgetTarget) ? widgetTarget[0] : widgetTarget;
+    if (target === "medications" || target === "appointments") {
+      setActiveScreen(target);
+      setRefreshKey((k) => k + 1);
+    }
+  }, [widgetTarget]);
 
   const handleActivateSickMode = () => {
     setSickMode(true);
