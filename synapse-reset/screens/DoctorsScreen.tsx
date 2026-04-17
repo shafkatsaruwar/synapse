@@ -294,7 +294,7 @@ function makeStyles(C: Theme) {
     emergencyHint: { fontSize: 12, color: C.textTertiary, marginBottom: 16, marginTop: -12 },
     row: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 12, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border, gap: 12 },
     rowEmergency: { borderColor: C.tint, borderWidth: 1.5, backgroundColor: C.tintLight },
-    rowPrimary: { borderColor: C.blue, borderWidth: 1.5 },
+    rowPrimary: { borderColor: C.cyan, borderWidth: 1.5 },
     doctorName: { fontWeight: "600", fontSize: 15, color: C.text },
     doctorSpec: { fontSize: 13, color: C.textSecondary, marginTop: 2 },
     doctorMeta: { fontSize: 12, color: C.textTertiary, marginTop: 2 },

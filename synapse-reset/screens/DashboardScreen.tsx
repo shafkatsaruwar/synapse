@@ -5,6 +5,7 @@ import {
   View,
   Pressable,
   Platform,
+  Alert,
   useWindowDimensions,
   Animated,
   ScrollView,
@@ -726,17 +727,27 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           accessibilityLabel="Open recovery reports"
         >
           <Ionicons name="sparkles-outline" size={16} color={C.tint} />
-          <Text style={styles.recoveryInsightText}>{recoverySummary.insights[0]}</Text>
+        <Text style={styles.recoveryInsightText}>{recoverySummary.insights[0]}</Text>
         </Pressable>
         <Text style={styles.recoverySafetyText}>This app helps track symptoms and trends. It does not replace medical care.</Text>
-        <Pressable
-          style={({ pressed }) => [styles.recoveryEndButton, { opacity: pressed ? 0.88 : 1 }]}
-          onPress={handleEndRecovery}
-          accessibilityRole="button"
-          accessibilityLabel={settings.sickMode ? "I'm better" : "End recovery tracking"}
-        >
-          <Text style={styles.recoveryEndButtonText}>{settings.sickMode ? "I’m better" : "End recovery"}</Text>
-        </Pressable>
+        <View style={styles.recoveryActionRow}>
+          <Pressable
+            style={({ pressed }) => [styles.recoverySecondaryButton, { opacity: pressed ? 0.88 : 1 }]}
+            onPress={openRecoverySetup}
+            accessibilityRole="button"
+            accessibilityLabel="Edit what you're recovering from"
+          >
+            <Text style={styles.recoverySecondaryButtonText}>Edit focus</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.recoveryEndButton, { opacity: pressed ? 0.88 : 1 }]}
+            onPress={handleEndRecovery}
+            accessibilityRole="button"
+            accessibilityLabel={settings.sickMode ? "I'm better" : "End recovery tracking"}
+          >
+            <Text style={styles.recoveryEndButtonText}>{settings.sickMode ? "I’m better" : "End recovery"}</Text>
+          </Pressable>
+        </View>
       </View>
     </GlassView>
   );
@@ -1099,7 +1110,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               onChangeText={setRecoveryFocusInput}
               placeholder="Surgery, illness, flare-up, injury..."
               placeholderTextColor={C.textTertiary}
-              style={styles.recoveryModalInput}
+              keyboardAppearance={themeId === "dark" ? "dark" : "default"}
+              style={[styles.recoveryModalInput, { color: C.text }]}
             />
             <Text style={styles.recoveryModalHint}>You can change this later. Recovery tracking stays focused and local to your device.</Text>
             <View style={styles.recoveryModalActions}>
@@ -1122,7 +1134,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
                 accessibilityRole="button"
                 accessibilityLabel="Save recovery setup"
               >
-                <Text style={styles.recoveryModalButtonPrimaryText}>Start tracking</Text>
+                <Text style={styles.recoveryModalButtonPrimaryText}>{hasRecoveryTracking ? "Save changes" : "Start tracking"}</Text>
               </Pressable>
             </View>
           </View>
@@ -1439,7 +1451,10 @@ function makeStyles(C: Theme) {
     recoveryInsightBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 12, marginBottom: 10 },
     recoveryInsightText: { flex: 1, fontWeight: "500", fontSize: 13, color: C.text, lineHeight: 18 },
     recoverySafetyText: { fontWeight: "400", fontSize: 12, color: C.textTertiary, lineHeight: 17 },
-    recoveryEndButton: { marginTop: 12, alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+    recoveryActionRow: { marginTop: 12, flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    recoverySecondaryButton: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+    recoverySecondaryButtonText: { fontWeight: "700", fontSize: 13, color: C.text },
+    recoveryEndButton: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
     recoveryEndButtonText: { fontWeight: "700", fontSize: 13, color: C.red },
     recoverySetupButton: { marginTop: 6, backgroundColor: C.tint, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
     recoverySetupButtonText: { fontWeight: "700", fontSize: 14, color: "#fff" },

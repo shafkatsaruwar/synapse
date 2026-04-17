@@ -80,7 +80,8 @@ function getNextMedicationSnapshot(medications: Medication[]) {
       .sort((a, b) => getDoseSortMinutes(a) - getDoseSortMinutes(b));
     if (!doses.length) continue;
 
-    doses.forEach((dose, index) => {
+    for (let index = 0; index < doses.length; index++) {
+      const dose = doses[index];
       const [hour, minute] = (dose.reminderTime || "09:00").split(":").map((part) => parseInt(part, 10));
       const dueAt = new Date(now);
       dueAt.setHours(Number.isFinite(hour) ? hour : 9, Number.isFinite(minute) ? minute : 0, 0, 0);
@@ -91,7 +92,7 @@ function getNextMedicationSnapshot(medications: Medication[]) {
       if (!winner || dueAt < winner.dueAt) {
         winner = { dueAt, windowStart, med, dose };
       }
-    });
+    }
   }
 
   if (!winner) return null;

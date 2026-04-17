@@ -269,26 +269,8 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     paddingHorizontal: 24,
   };
 
-  const accountShortcutCards = [
-    {
-      key: "founder",
-      title: "Meet the Founder",
-      description: "Why Synapse exists",
-      icon: "sparkles-outline" as const,
-      tintColor: C.tint,
-      tintBg: C.tintLight,
-      onPress: () => onNavigate?.("meetfounder"),
-    },
-    {
-      key: "emergency",
-      title: "Emergency",
-      description: "Protocol and responder info",
-      icon: "shield-half-outline" as const,
-      tintColor: C.tint,
-      tintBg: C.tint + "22",
-      onPress: () => onNavigate?.("emergency"),
-    },
-    {
+  const shortcutCardMap = {
+    healthprofile: {
       key: "healthprofile",
       title: "Health Profile",
       description: "Conditions, allergies, vaccines",
@@ -297,7 +279,16 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
       tintBg: C.tintLight,
       onPress: () => onNavigate?.("healthprofile"),
     },
-    {
+    emergency: {
+      key: "emergency",
+      title: "Emergency",
+      description: "Protocol and responder info",
+      icon: "shield-half-outline" as const,
+      tintColor: C.tint,
+      tintBg: C.tint + "22",
+      onPress: () => onNavigate?.("emergency"),
+    },
+    doctors: {
       key: "doctors",
       title: "Doctors",
       description: "Your care team",
@@ -306,7 +297,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
       tintBg: C.tintLight,
       onPress: () => onNavigate?.("doctors"),
     },
-    {
+    pharmacies: {
       key: "pharmacies",
       title: "Pharmacies",
       description: "Pickup and refill spots",
@@ -315,7 +306,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
       tintBg: C.tintLight,
       onPress: () => onNavigate?.("pharmacies"),
     },
-    {
+    appearance: {
       key: "appearance",
       title: "Appearances",
       description: "App and widget themes",
@@ -324,16 +315,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
       tintBg: C.tintLight,
       onPress: () => setShowAppearanceModal(true),
     },
-    {
-      key: "sections",
-      title: "Menu Sections",
-      description: "Choose what shows in the menu",
-      icon: "grid-outline" as const,
-      tintColor: C.tint,
-      tintBg: C.tintLight,
-      onPress: () => setShowSectionsModal(true),
-    },
-    {
+    notifications: {
       key: "notifications",
       title: "Notifications",
       description: "Medication, appointment, and check-in reminders",
@@ -342,19 +324,53 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
       tintBg: C.tintLight,
       onPress: () => setShowNotificationsModal(true),
     },
-    ...(onShowAppTour ? [{
-      key: "tour",
-      title: "App Tour",
-      description: "Replay the walkthrough",
-      icon: "compass-outline" as const,
+    sections: {
+      key: "sections",
+      title: "Menu Sections",
+      description: "Choose what shows in the menu",
+      icon: "grid-outline" as const,
       tintColor: C.tint,
       tintBg: C.tintLight,
-      onPress: () => {
-        Haptics.selectionAsync();
-        onShowAppTour();
-        onNavigate?.("dashboard");
-      },
-    }] : []),
+      onPress: () => setShowSectionsModal(true),
+    },
+    founder: {
+      key: "founder",
+      title: "Meet the Founder",
+      description: "Why Synapse exists",
+      icon: "sparkles-outline" as const,
+      tintColor: C.tint,
+      tintBg: C.tintLight,
+      onPress: () => onNavigate?.("meetfounder"),
+    },
+    ...(onShowAppTour
+      ? {
+          tour: {
+            key: "tour",
+            title: "App Tour",
+            description: "Replay the walkthrough",
+            icon: "compass-outline" as const,
+            tintColor: C.tint,
+            tintBg: C.tintLight,
+            onPress: () => {
+              Haptics.selectionAsync();
+              onShowAppTour();
+              onNavigate?.("dashboard");
+            },
+          },
+        }
+      : {}),
+  } as const;
+
+  const accountShortcutCards = [
+    shortcutCardMap.healthprofile,
+    shortcutCardMap.emergency,
+    shortcutCardMap.doctors,
+    shortcutCardMap.pharmacies,
+    shortcutCardMap.appearance,
+    shortcutCardMap.notifications,
+    shortcutCardMap.sections,
+    shortcutCardMap.founder,
+    ...(shortcutCardMap.tour ? [shortcutCardMap.tour] : []),
   ];
 
   return (
@@ -404,7 +420,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
             </View>
           </View>
           <Text style={styles.localHint}>
-            Data is stored locally on this device. There are no accounts or cloud backups.
+            Data is stored locally on this device. Use Export All Data anytime if you want a manual backup file.
           </Text>
           <Pressable
             style={styles.photoLink}

@@ -98,13 +98,10 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
   const allergiesDisplay = allergyInfo?.hasAllergies && allergyInfo?.allergyName?.trim()
     ? allergyInfo.allergyName.trim()
     : "No allergies found yet";
-  const medicationNames = Array.from(
-    new Map(
-      [...medListItems.map((item) => item.name), ...currentMedications.filter((med) => med.active).map((med) => med.name)]
-        .map((name) => [name.trim().toLowerCase(), name.trim()])
-        .filter(([, name]) => Boolean(name))
-    ).values()
-  );
+  const medicationPairs: [string, string][] = [...medListItems.map((item) => item.name), ...currentMedications.filter((med) => med.active).map((med) => med.name)]
+    .map((name) => [name.trim().toLowerCase(), name.trim()] as [string, string])
+    .filter(([, name]) => Boolean(name));
+  const medicationNames = Array.from(new Map(medicationPairs).values());
   const currentMedicationsDisplay = medicationNames.length > 0
     ? medicationNames.join(", ")
     : "No medications found yet";

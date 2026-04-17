@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,7 +8,6 @@ import {
   Platform,
   KeyboardAvoidingView,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,7 +30,7 @@ interface AuthScreenProps {
 
 export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
   const insets = useSafeAreaInsets();
-  const { signIn, signUp, user, resetPassword, refreshSession } = useAuth();
+  const { signIn, signUp, resetPassword, refreshSession } = useAuth();
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
   const [configSaving, setConfigSaving] = useState(false);
@@ -45,43 +44,6 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
   const [lastName, setLastName] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
-  const [pendingRestoreCheck, setPendingRestoreCheck] = useState(false);
-  const restoreHandled = useRef(false);
-
-  useEffect(() => {
-    if (!pendingRestoreCheck || !user?.id || restoreHandled.current) return;
-    (async () => {
-      restoreHandled.current = true;
-      await initSupabaseFromStorage();
-      const status = await getBackupStatus(user.id);
-      setPendingRestoreCheck(false);
-      if (status.hasBackup) {
-        Alert.alert(
-          "Restore from backup?",
-          "You have data backed up. Restore it to this device?",
-          [
-            { text: "No thanks", onPress: () => onSuccess?.() },
-            {
-              text: "Restore",
-              onPress: async () => {
-                const { error } = await restoreFromCloud(user.id);
-                if (error) {
-                  setMessage({ type: "error", text: error.message });
-                  restoreHandled.current = false;
-                  return;
-                }
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                onSuccess?.();
-              },
-            },
-          ]
-        );
-      } else {
-        onSuccess?.();
-      }
-    })();
-  }, [pendingRestoreCheck, user?.id, onSuccess]);
-
   const handleSignIn = async () => {
     if (!email.trim() || !password) {
       setMessage({ type: "error", text: "Enter email and password." });
@@ -89,7 +51,6 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
     }
     setLoading(true);
     setMessage(null);
-    restoreHandled.current = false;
     const { error } = await signIn(email.trim(), password);
     setLoading(false);
     if (error) {
@@ -97,8 +58,8 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setPendingRestoreCheck(true);
     refreshSession();
+    onSuccess?.();
   };
 
   const handleSignUp = async () => {

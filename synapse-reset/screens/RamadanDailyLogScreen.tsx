@@ -36,7 +36,8 @@ function renderSlider(
   setValue: (v: number) => void,
   labels: string[],
   color: string,
-  styles: Record<string, object>
+  styles: Record<string, object>,
+  onDirty: () => void
 ) {
   return (
     <View style={styles.sliderSection}>
@@ -51,7 +52,7 @@ function renderSlider(
             style={[styles.sliderDot, i <= value && { backgroundColor: color }]}
             onPress={() => {
               setValue(i);
-              setSaved(false);
+              onDirty();
               Haptics.selectionAsync();
             }}
             accessibilityRole="adjustable"
@@ -222,9 +223,9 @@ export default function RamadanDailyLogScreen({ onBack }: RamadanDailyLogScreenP
         </View>
 
         <View style={styles.formCard}>
-          {renderSlider("Energy", energy, setEnergy, energyLabels, C.tint, styles)}
-          {renderSlider("Mood", mood, setMood, moodLabels, C.purple, styles)}
-          {renderSlider("Motivation", motivation, setMotivation, motivationLabels, C.cyan, styles)}
+          {renderSlider("Energy", energy, setEnergy, energyLabels, C.tint, styles, () => setSaved(false))}
+          {renderSlider("Mood", mood, setMood, moodLabels, C.purple, styles, () => setSaved(false))}
+          {renderSlider("Motivation", motivation, setMotivation, motivationLabels, C.cyan, styles, () => setSaved(false))}
         </View>
 
         <Pressable

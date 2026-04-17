@@ -240,10 +240,11 @@ function makeCalStyles(C: Theme) {
 export default function AppointmentsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { colors: C } = useTheme();
+  const { colors: C, themeId } = useTheme();
   const calStyles = useMemo(() => makeCalStyles(C), [C]);
   const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
+  const isDarkTheme = themeId === "dark";
   const today = getToday();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -882,6 +883,7 @@ export default function AppointmentsScreen() {
                     value={dateStringToDate(aptDate)}
                     mode="date"
                     display={Platform.OS === "ios" ? "inline" : "default"}
+                    themeVariant={Platform.OS === "ios" ? (isDarkTheme ? "dark" : "light") : undefined}
                     onChange={(_, date) => {
                       if (date) {
                         setAptDate(dateStringFromParts(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -904,6 +906,8 @@ export default function AppointmentsScreen() {
                     mode="time"
                     display={Platform.OS === "ios" ? "spinner" : "default"}
                     minuteInterval={1}
+                    themeVariant={Platform.OS === "ios" ? (isDarkTheme ? "dark" : "light") : undefined}
+                    textColor={Platform.OS === "ios" && isDarkTheme ? "#FFFFFF" : undefined}
                     onChange={(_, date) => {
                       if (date) {
                         setAptTime(dateToReminderTime(date));
@@ -1018,6 +1022,7 @@ export default function AppointmentsScreen() {
                       value={dateStringToDate(rescheduleDate || rescheduleApt?.date || "")}
                       mode="date"
                       display={Platform.OS === "ios" ? "inline" : "default"}
+                      themeVariant={Platform.OS === "ios" ? (isDarkTheme ? "dark" : "light") : undefined}
                       onChange={(_, date) => {
                         if (date) {
                           setRescheduleDate(dateStringFromParts(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -1040,6 +1045,8 @@ export default function AppointmentsScreen() {
                       mode="time"
                       display={Platform.OS === "ios" ? "spinner" : "default"}
                       minuteInterval={1}
+                      themeVariant={Platform.OS === "ios" ? (isDarkTheme ? "dark" : "light") : undefined}
+                      textColor={Platform.OS === "ios" && isDarkTheme ? "#FFFFFF" : undefined}
                       onChange={(_, date) => {
                         if (date) {
                           setRescheduleTime(dateToReminderTime(date));

@@ -1,16 +1,14 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
-  StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, Alert, useWindowDimensions,
+  StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, Alert, useWindowDimensions, useColorScheme,
 } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { symptomStorage, settingsStorage, sickModeStorage, enableRecoveryTracking, type Symptom } from "@/lib/storage";
 import { formatTimestamp, getToday, getRelativeDay, getDaysAgo } from "@/lib/date-utils";
-
-const C = Colors.dark;
 
 const COMMON_SYMPTOMS = [
   "Chest pain",
@@ -40,6 +38,24 @@ interface SymptomsScreenProps {
 export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const colorScheme = useColorScheme();
+  const { colors: themeColors, themeId } = useTheme();
+  const isDarkUi = themeId === "dark" || (themeId !== "light" && colorScheme === "dark");
+  const C = useMemo<Theme>(() => (
+    isDarkUi
+      ? {
+        ...themeColors,
+        background: "#000000",
+        surface: "#0E0E10",
+        surfaceElevated: "#17171A",
+        border: "rgba(255,255,255,0.12)",
+        text: "#FFFFFF",
+        textSecondary: "rgba(255,255,255,0.74)",
+        textTertiary: "rgba(255,255,255,0.52)",
+      }
+      : themeColors
+  ), [themeColors, isDarkUi]);
+  const styles = useMemo(() => makeStyles(C), [C]);
   const isWide = width >= 768;
   const today = getToday();
 
@@ -327,66 +343,68 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "transparent" },
-  content: { paddingHorizontal: 24 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
-  title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
-  subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
-  addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.orange, alignItems: "center", justifyContent: "center" },
-  empty: { alignItems: "center", paddingVertical: 60, gap: 8 },
-  emptyTitle: { fontWeight: "600", fontSize: 17, color: C.text, marginTop: 8 },
-  emptyDesc: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
-  sectionLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
-  symptomCard: { flexDirection: "row", alignItems: "flex-start", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 6, borderWidth: 1, borderColor: C.border, gap: 12 },
-  sevBar: { width: 3, height: 36, borderRadius: 2, marginTop: 2 },
-  symptomName: { fontWeight: "600", fontSize: 14, color: C.text },
-  sevText: { fontWeight: "500", fontSize: 12, marginTop: 2 },
-  symptomMeta: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 3 },
-  symptomNotes: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 4 },
-  card: { backgroundColor: C.surface, borderRadius: 14, padding: 18, borderWidth: 1, borderColor: C.border },
-  cardTitle: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 14 },
-  freqRow: { flexDirection: "row", alignItems: "center", marginBottom: 8, gap: 8 },
-  freqName: { fontWeight: "500", fontSize: 13, color: C.text, width: 100 },
-  freqBarOuter: { flex: 1, height: 6, backgroundColor: C.surfaceElevated, borderRadius: 3, overflow: "hidden" },
-  freqBarInner: { height: "100%", backgroundColor: C.orange, borderRadius: 3 },
-  freqCount: { fontWeight: "600", fontSize: 12, color: C.textSecondary, width: 20, textAlign: "right" },
-  recentCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: C.border },
-  recentName: { fontWeight: "500", fontSize: 13, color: C.text },
-  recentDate: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2 },
-  recentTime: { fontWeight: "500", fontSize: 11, color: C.textTertiary, marginTop: 2 },
-  sevBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  sevBadgeText: { fontWeight: "600", fontSize: 11 },
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
-  modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 420, borderWidth: 1, borderColor: C.border, maxHeight: "90%" },
-  modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
-  quickHint: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginBottom: 14, lineHeight: 18 },
-  label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
-  chipGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
-  chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
-  chipText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
-  input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
-  sevPicker: { flexDirection: "row", gap: 6, marginBottom: 14 },
-  sevPickBtn: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
-  sevPickNum: { fontWeight: "700", fontSize: 16, color: C.textSecondary },
-  modalActions: { flexDirection: "row", gap: 10 },
-  cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center" },
-  cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
-  confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.orange, alignItems: "center" },
-  confirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-  feverInputWrap: { marginBottom: 14, gap: 8 },
-  feverInputRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  feverWarning: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.redLight, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: "rgba(255,69,58,0.25)" },
-  feverWarningText: { fontWeight: "500", fontSize: 12, color: C.red },
-  tempBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: C.orangeLight },
-  tempBadgeHigh: { backgroundColor: C.redLight },
-  tempBadgeText: { fontWeight: "600", fontSize: 11, color: C.orange },
-  feverAlertCard: { backgroundColor: C.surface, borderRadius: 20, padding: 28, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: "rgba(255,69,58,0.3)", alignItems: "center" },
-  feverAlertIcon: { width: 56, height: 56, borderRadius: 16, backgroundColor: C.redLight, alignItems: "center", justifyContent: "center", marginBottom: 16 },
-  feverAlertTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 8 },
-  feverAlertDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 20, marginBottom: 20 },
-  feverAlertBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.red, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, width: "100%" },
-  feverAlertBtnText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-  feverAlertDismiss: { paddingVertical: 12 },
-  feverAlertDismissText: { fontWeight: "500", fontSize: 13, color: C.textTertiary },
-});
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: "transparent" },
+    content: { paddingHorizontal: 24 },
+    header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
+    title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
+    subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
+    addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.orange, alignItems: "center", justifyContent: "center" },
+    empty: { alignItems: "center", paddingVertical: 60, gap: 8 },
+    emptyTitle: { fontWeight: "600", fontSize: 17, color: C.text, marginTop: 8 },
+    emptyDesc: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
+    sectionLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
+    symptomCard: { flexDirection: "row", alignItems: "flex-start", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 6, borderWidth: 1, borderColor: C.border, gap: 12 },
+    sevBar: { width: 3, height: 36, borderRadius: 2, marginTop: 2 },
+    symptomName: { fontWeight: "600", fontSize: 14, color: C.text },
+    sevText: { fontWeight: "500", fontSize: 12, marginTop: 2 },
+    symptomMeta: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 3 },
+    symptomNotes: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 4 },
+    card: { backgroundColor: C.surface, borderRadius: 14, padding: 18, borderWidth: 1, borderColor: C.border },
+    cardTitle: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 14 },
+    freqRow: { flexDirection: "row", alignItems: "center", marginBottom: 8, gap: 8 },
+    freqName: { fontWeight: "500", fontSize: 13, color: C.text, width: 100 },
+    freqBarOuter: { flex: 1, height: 6, backgroundColor: C.surfaceElevated, borderRadius: 3, overflow: "hidden" },
+    freqBarInner: { height: "100%", backgroundColor: C.orange, borderRadius: 3 },
+    freqCount: { fontWeight: "600", fontSize: 12, color: C.textSecondary, width: 20, textAlign: "right" },
+    recentCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: C.border },
+    recentName: { fontWeight: "500", fontSize: 13, color: C.text },
+    recentDate: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2 },
+    recentTime: { fontWeight: "500", fontSize: 11, color: C.textTertiary, marginTop: 2 },
+    sevBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+    sevBadgeText: { fontWeight: "600", fontSize: 11 },
+    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
+    modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 420, borderWidth: 1, borderColor: C.border, maxHeight: "90%" },
+    modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
+    quickHint: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginBottom: 14, lineHeight: 18 },
+    label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
+    chipGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
+    chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
+    chipText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
+    input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
+    sevPicker: { flexDirection: "row", gap: 6, marginBottom: 14 },
+    sevPickBtn: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
+    sevPickNum: { fontWeight: "700", fontSize: 16, color: C.textSecondary },
+    modalActions: { flexDirection: "row", gap: 10 },
+    cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center" },
+    cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
+    confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.orange, alignItems: "center" },
+    confirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
+    feverInputWrap: { marginBottom: 14, gap: 8 },
+    feverInputRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+    feverWarning: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.redLight, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: "rgba(255,69,58,0.25)" },
+    feverWarningText: { fontWeight: "500", fontSize: 12, color: C.red },
+    tempBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: C.orangeLight },
+    tempBadgeHigh: { backgroundColor: C.redLight },
+    tempBadgeText: { fontWeight: "600", fontSize: 11, color: C.orange },
+    feverAlertCard: { backgroundColor: C.surface, borderRadius: 20, padding: 28, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: "rgba(255,69,58,0.3)", alignItems: "center" },
+    feverAlertIcon: { width: 56, height: 56, borderRadius: 16, backgroundColor: C.redLight, alignItems: "center", justifyContent: "center", marginBottom: 16 },
+    feverAlertTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 8 },
+    feverAlertDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 20, marginBottom: 20 },
+    feverAlertBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.red, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, width: "100%" },
+    feverAlertBtnText: { fontWeight: "600", fontSize: 14, color: "#fff" },
+    feverAlertDismiss: { paddingVertical: 12 },
+    feverAlertDismissText: { fontWeight: "500", fontSize: 13, color: C.textTertiary },
+  });
+}

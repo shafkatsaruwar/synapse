@@ -10,8 +10,8 @@ import ViewShot, { captureRef } from "react-native-view-shot";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import {
   healthLogStorage, medicationStorage, medicationLogStorage, appointmentStorage,
-  doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage, eatingStorage, monthlyCheckInStorage, vitalStorage,
-  type HealthLog, type Medication, type MedicationLog, type Appointment, type DoctorNote, type Symptom, type UserSettings, type SickModeData, type HealthCondition, type EatingEntry, type MonthlyCheckIn, type Vital,
+  doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage, eatingStorage, monthlyCheckInStorage, vitalStorage, healthProfileStorage,
+  type HealthLog, type Medication, type MedicationLog, type Appointment, type DoctorNote, type Symptom, type UserSettings, type SickModeData, type HealthCondition, type EatingEntry, type MonthlyCheckIn, type Vital, type HealthProfileInfo,
 } from "@/lib/storage";
 import { getMedList, type MedListItem } from "@/lib/med-list-storage";
 import { getDaysAgo, formatDate, formatDateWithYear, getToday } from "@/lib/date-utils";
@@ -45,6 +45,7 @@ export default function ReportsScreen() {
   const [symptoms, setSymptoms] = useState<Symptom[]>([]);
   const [vitals, setVitals] = useState<Vital[]>([]);
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
+  const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", widgetAppearance: "system", recoveryTrackingEnabled: false, recoveryFocus: "", backupCriticalMedications: [], vaccines: [], surgeries: [] });
   const [healthConditions, setHealthConditions] = useState<HealthCondition[]>([]);
   const [sickMode, setSickMode] = useState<SickModeData | null>(null);
   const [eatingEntries, setEatingEntries] = useState<EatingEntry[]>([]);
@@ -54,11 +55,11 @@ export default function ReportsScreen() {
   const [exporting, setExporting] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [l, m, ml, a, n, s, st, sm, conds, eating, checkIns, medList, vitalsData] = await Promise.all([
+    const [l, m, ml, a, n, s, st, profileInfo, sm, conds, eating, checkIns, medList, vitalsData] = await Promise.all([
       healthLogStorage.getAll(), medicationStorage.getAll(), medicationLogStorage.getAll(),
-      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), sickModeStorage.get(), conditionStorage.getAll(), eatingStorage.getAll(), monthlyCheckInStorage.getAll(), getMedList(), vitalStorage.getAll(),
+      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), healthProfileStorage.get(), sickModeStorage.get(), conditionStorage.getAll(), eatingStorage.getAll(), monthlyCheckInStorage.getAll(), getMedList(), vitalStorage.getAll(),
     ]);
-    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setSickMode(sm); setHealthConditions(conds); setEatingEntries(eating); setMonthlyCheckIns(checkIns); setMedListItems(medList); setVitals(vitalsData);
+    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setProfile(profileInfo); setSickMode(sm); setHealthConditions(conds); setEatingEntries(eating); setMonthlyCheckIns(checkIns); setMedListItems(medList); setVitals(vitalsData);
   }, []);
 
   React.useEffect(() => { loadData(); }, [loadData]);
@@ -125,6 +126,7 @@ export default function ReportsScreen() {
   const bloodPressureEntryCount = recentVitals.filter(
     (vital) => vital.bloodPressureSystolic != null || vital.type === "blood_pressure",
   ).length;
+  const hasRecoveryTracking = !!profile.recoveryTrackingEnabled && !!profile.recoveryFocus?.trim();
 
   const buildChronologicalEvents = (): SummaryEvent[] => {
     const events: SummaryEvent[] = [];
@@ -307,71 +309,75 @@ export default function ReportsScreen() {
         ))}
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.recoveryHeaderRow}>
-          <Text style={styles.cardTitle}>Recovery Snapshot</Text>
-          <View style={[styles.statusPill, styles[`statusPill${recoverySummary.statusLabel}` as keyof ReturnType<typeof makeStyles>] as object]}>
-            <Text style={styles.statusPillText}>{recoverySummary.statusLabel}</Text>
-          </View>
-        </View>
-        <Text style={styles.recoverySummaryText}>{recoverySummary.summaryText}</Text>
-        <View style={styles.recoveryMiniStats}>
-          <View style={styles.recoveryMiniStat}>
-            <Text style={styles.recoveryMiniValue}>
-              {Number.isFinite(averageFeeling) && averageFeeling > 0 ? averageFeeling.toFixed(1) : "--"}
-            </Text>
-            <Text style={styles.recoveryMiniLabel}>Avg Feeling</Text>
-          </View>
-          <View style={styles.recoveryMiniStat}>
-            <Text style={styles.recoveryMiniValue}>
-              {Number.isFinite(averageSymptomBurden) && averageSymptomBurden > 0 ? averageSymptomBurden.toFixed(1) : "--"}
-            </Text>
-            <Text style={styles.recoveryMiniLabel}>Symptom Burden</Text>
-          </View>
-          <View style={styles.recoveryMiniStat}>
-            <Text style={styles.recoveryMiniValue}>{heartRateEntryCount}</Text>
-            <Text style={styles.recoveryMiniLabel}>HR Entries</Text>
-          </View>
-          <View style={styles.recoveryMiniStat}>
-            <Text style={styles.recoveryMiniValue}>{bloodPressureEntryCount}</Text>
-            <Text style={styles.recoveryMiniLabel}>BP Entries</Text>
-          </View>
-        </View>
-        <Text style={styles.safetyCopy}>This app helps track symptoms and trends. It does not replace medical care.</Text>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Recovery Trends</Text>
-        {recoveryPoints.length > 0 ? recoveryPoints.map((point) => (
-          <View key={point.date} style={styles.recoveryTrendRow}>
-            <View style={styles.recoveryTrendDateWrap}>
-              <Text style={styles.recoveryTrendDate}>{formatDate(point.date)}</Text>
-              <Text style={styles.recoveryTrendSummary}>{point.statusSummary}</Text>
+      {hasRecoveryTracking && (
+        <>
+          <View style={styles.card}>
+            <View style={styles.recoveryHeaderRow}>
+              <Text style={styles.cardTitle}>Recovery Snapshot</Text>
+              <View style={[styles.statusPill, styles[`statusPill${recoverySummary.statusLabel}` as keyof ReturnType<typeof makeStyles>] as object]}>
+                <Text style={styles.statusPillText}>{recoverySummary.statusLabel}</Text>
+              </View>
             </View>
-            <View style={styles.recoveryMetricChips}>
-              <Text style={styles.recoveryMetricChip}>Sym {point.symptomSeverity != null ? `${point.symptomSeverity}/10` : "—"}</Text>
-              <Text style={styles.recoveryMetricChip}>HR {point.heartRate != null ? Math.round(point.heartRate) : "—"}</Text>
-              <Text style={styles.recoveryMetricChip}>
-                BP {point.bloodPressureSystolic != null && point.bloodPressureDiastolic != null ? `${Math.round(point.bloodPressureSystolic)}/${Math.round(point.bloodPressureDiastolic)}` : "—"}
-              </Text>
-              <Text style={styles.recoveryMetricChip}>Temp {point.temperature != null ? point.temperature.toFixed(1) : "—"}</Text>
-              <Text style={styles.recoveryMetricChip}>Meds {point.medicationAdherence != null ? `${Math.round(point.medicationAdherence)}%` : "—"}</Text>
+            <Text style={styles.recoverySummaryText}>{recoverySummary.summaryText}</Text>
+            <View style={styles.recoveryMiniStats}>
+              <View style={styles.recoveryMiniStat}>
+                <Text style={styles.recoveryMiniValue}>
+                  {Number.isFinite(averageFeeling) && averageFeeling > 0 ? averageFeeling.toFixed(1) : "--"}
+                </Text>
+                <Text style={styles.recoveryMiniLabel}>Avg Feeling</Text>
+              </View>
+              <View style={styles.recoveryMiniStat}>
+                <Text style={styles.recoveryMiniValue}>
+                  {Number.isFinite(averageSymptomBurden) && averageSymptomBurden > 0 ? averageSymptomBurden.toFixed(1) : "--"}
+                </Text>
+                <Text style={styles.recoveryMiniLabel}>Symptom Burden</Text>
+              </View>
+              <View style={styles.recoveryMiniStat}>
+                <Text style={styles.recoveryMiniValue}>{heartRateEntryCount}</Text>
+                <Text style={styles.recoveryMiniLabel}>HR Entries</Text>
+              </View>
+              <View style={styles.recoveryMiniStat}>
+                <Text style={styles.recoveryMiniValue}>{bloodPressureEntryCount}</Text>
+                <Text style={styles.recoveryMiniLabel}>BP Entries</Text>
+              </View>
             </View>
+            <Text style={styles.safetyCopy}>This app helps track symptoms and trends. It does not replace medical care.</Text>
           </View>
-        )) : (
-          <Text style={styles.summaryItemEmpty}>Add a few check-ins, symptom events, or vitals to unlock recovery trends.</Text>
-        )}
-      </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Possible Patterns</Text>
-        {recoverySummary.insights.map((insight) => (
-          <View key={insight} style={styles.insightRow}>
-            <Ionicons name="sparkles-outline" size={14} color={C.tint} />
-            <Text style={styles.insightText}>{insight}</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Recovery Trends</Text>
+            {recoveryPoints.length > 0 ? recoveryPoints.map((point) => (
+              <View key={point.date} style={styles.recoveryTrendRow}>
+                <View style={styles.recoveryTrendDateWrap}>
+                  <Text style={styles.recoveryTrendDate}>{formatDate(point.date)}</Text>
+                  <Text style={styles.recoveryTrendSummary}>{point.statusSummary}</Text>
+                </View>
+                <View style={styles.recoveryMetricChips}>
+                  <Text style={styles.recoveryMetricChip}>Sym {point.symptomSeverity != null ? `${point.symptomSeverity}/10` : "—"}</Text>
+                  <Text style={styles.recoveryMetricChip}>HR {point.heartRate != null ? Math.round(point.heartRate) : "—"}</Text>
+                  <Text style={styles.recoveryMetricChip}>
+                    BP {point.bloodPressureSystolic != null && point.bloodPressureDiastolic != null ? `${Math.round(point.bloodPressureSystolic)}/${Math.round(point.bloodPressureDiastolic)}` : "—"}
+                  </Text>
+                  <Text style={styles.recoveryMetricChip}>Temp {point.temperature != null ? point.temperature.toFixed(1) : "—"}</Text>
+                  <Text style={styles.recoveryMetricChip}>Meds {point.medicationAdherence != null ? `${Math.round(point.medicationAdherence)}%` : "—"}</Text>
+                </View>
+              </View>
+            )) : (
+              <Text style={styles.summaryItemEmpty}>Add a few check-ins, symptom events, or vitals to unlock recovery trends.</Text>
+            )}
           </View>
-        ))}
-      </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Possible Patterns</Text>
+            {recoverySummary.insights.map((insight) => (
+              <View key={insight} style={styles.insightRow}>
+                <Ionicons name="sparkles-outline" size={14} color={C.tint} />
+                <Text style={styles.insightText}>{insight}</Text>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
 
       {recentLogs.length > 0 && (
         <View style={styles.card}>
@@ -439,6 +445,22 @@ export default function ReportsScreen() {
             <Text style={styles.summaryStatLbl}>Med Adh.</Text>
           </View>
         </View>
+
+        {hasRecoveryTracking && (
+          <View style={styles.summaryBlock}>
+            <Text style={styles.summaryBlockTitle}>Recovery Snapshot</Text>
+            <Text style={styles.summaryItem}>
+              Focus: {profile.recoveryFocus?.trim() || "Recovery tracking"}
+            </Text>
+            <Text style={styles.summaryItem}>
+              Status: {recoverySummary.statusLabel} · Avg feeling {Number.isFinite(averageFeeling) && averageFeeling > 0 ? averageFeeling.toFixed(1) : "--"}/10
+            </Text>
+            <Text style={styles.summaryItem}>
+              Symptom burden: {Number.isFinite(averageSymptomBurden) && averageSymptomBurden > 0 ? averageSymptomBurden.toFixed(1) : "--"}/10 · HR entries: {heartRateEntryCount} · BP entries: {bloodPressureEntryCount}
+            </Text>
+            <Text style={styles.summaryItem}>{recoverySummary.summaryText}</Text>
+          </View>
+        )}
 
         <View style={styles.summaryBlock}>
           <Text style={styles.summaryBlockTitle}>Symptoms Logged ({recentSymptoms.length})</Text>

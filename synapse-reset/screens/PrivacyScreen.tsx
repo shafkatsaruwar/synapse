@@ -40,7 +40,7 @@ export default function PrivacyScreen() {
         title: "Synapse Health Data Export",
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (err) {
+    } catch {
     } finally {
       setExporting(false);
     }
@@ -137,7 +137,7 @@ export default function PrivacyScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.featureTitle}>HealthKit Ready</Text>
-            <Text style={styles.featureDesc}>Data structure is designed for future Apple HealthKit integration. When available, you'll be able to sync vitals automatically.</Text>
+            <Text style={styles.featureDesc}>Data structure is designed for future Apple HealthKit integration. When available, you&apos;ll be able to sync vitals automatically.</Text>
           </View>
         </View>
       </View>
@@ -171,7 +171,7 @@ export default function PrivacyScreen() {
       <View style={styles.infoCard}>
         <Ionicons name="information-circle-outline" size={16} color={C.textTertiary} />
         <Text style={styles.infoText}>
-          Synapse is designed with a privacy-first approach. Your health data never leaves your device unless you explicitly export it. AI features only process data when you click the generate button.
+          Synapse is designed with a privacy-first approach. Local data stays primary on your device. Export All Data gives you a manual backup path, and AI features only process data when you explicitly ask for them.
         </Text>
       </View>
     </ScrollView>
@@ -196,6 +196,10 @@ function makeStyles(C: Theme) {
     actionIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
     actionTitle: { fontWeight: "600", fontSize: 14, color: C.text },
     actionDesc: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2 },
+    backupMeta: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border },
+    backupMetaLabel: { fontWeight: "600", fontSize: 12, color: C.textSecondary, marginBottom: 4 },
+    backupMetaValue: { fontWeight: "600", fontSize: 14, color: C.text },
+    backupMetaFile: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 4 },
     infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 16, marginTop: 16 },
     infoText: { fontWeight: "400", fontSize: 12, color: C.textTertiary, flex: 1, lineHeight: 17 },
   });

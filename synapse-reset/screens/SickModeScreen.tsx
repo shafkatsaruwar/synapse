@@ -12,7 +12,7 @@ import {
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { useAccessibility } from "@/lib/accessibility";
-import { useTheme } from "@/contexts/ThemeContext";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { getSickModePalette } from "@/constants/sick-mode-colors";
 const HYDRATION_GOAL = 2000;
 const CHECK_IN_INTERVAL_MS = 2 * 60 * 60 * 1000;
@@ -542,7 +542,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
   );
 }
 
-function makeStyles(C: Record<string, string>, S: import("@/constants/sick-mode-colors").SickModePalette) {
+function makeStyles(C: Theme, S: import("@/constants/sick-mode-colors").SickModePalette) {
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: S.background },
   content: { paddingHorizontal: 24 },

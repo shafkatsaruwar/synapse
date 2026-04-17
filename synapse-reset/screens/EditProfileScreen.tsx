@@ -13,8 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { useAuth } from "@/contexts/AuthContext";
-import { conditionStorage } from "@/lib/storage";
+import { conditionStorage, settingsStorage } from "@/lib/storage";
 
 interface EditProfileScreenProps {
   onBack: () => void;
@@ -24,23 +23,21 @@ interface EditProfileScreenProps {
 
 export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplete }: EditProfileScreenProps) {
   const insets = useSafeAreaInsets();
-  const { user, signOut } = useAuth();
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
   const [conditionsCount, setConditionsCount] = useState(0);
+  const [displayName, setDisplayName] = useState("");
 
   useEffect(() => {
-    conditionStorage.getAll().then((conds) => setConditionsCount(conds.length));
-  }, [user?.id]);
+    (async () => {
+      const [conds, settings] = await Promise.all([conditionStorage.getAll(), settingsStorage.get()]);
+      setConditionsCount(conds.length);
+      setDisplayName(settings.name?.trim() || "");
+    })();
+  }, []);
 
-  const fullName =
-    (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : null) ??
-    ([user?.user_metadata?.first_name, user?.user_metadata?.last_name]
-      .filter(Boolean)
-      .join(" ") ||
-      user?.email?.split("@")[0] ||
-      "—");
+  const fullName = displayName || "—";
 
   const initials = (() => {
     const words = fullName.trim().split(/\s+/).filter(Boolean);
@@ -80,7 +77,7 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
             </View>
             <View style={styles.profileInfo}>
               <Text style={styles.fullName}>{fullName}</Text>
-              {user?.email ? <Text style={styles.email}>{user.email}</Text> : null}
+              <Text style={styles.email}>Stored on this device only</Text>
             </View>
           </View>
         </View>

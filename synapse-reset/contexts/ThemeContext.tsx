@@ -79,7 +79,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const colorScheme = useColorScheme();
   const [preference, setPreference] = useState<ThemePreference>(DEFAULT_PREFERENCE);
   const themeId = useMemo(
-    () => preferenceToThemeId(preference, colorScheme),
+    () => preferenceToThemeId(preference, colorScheme ?? null),
     [preference, colorScheme]
   );
   const colors = useMemo(() => getThemeColors(themeId), [themeId]);
