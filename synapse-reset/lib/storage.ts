@@ -1075,6 +1075,9 @@ export const monthlyCheckInStorage = {
   },
   save: async (data: Omit<MonthlyCheckIn, "id">) => {
     const all = await getItem<MonthlyCheckIn>(KEYS.MONTHLY_CHECK_INS);
+    const monthKey = data.date.slice(0, 7);
+    const existingForMonth = all.find((item) => item.date.slice(0, 7) === monthKey);
+    if (existingForMonth) return existingForMonth;
     const newItem = { ...data, id: Crypto.randomUUID() };
     all.push(newItem);
     await setItem(KEYS.MONTHLY_CHECK_INS, all);
