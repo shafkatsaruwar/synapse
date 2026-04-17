@@ -204,6 +204,13 @@ function formatReminderTimeDisplay(hhmm: string): string {
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
+function reminderTimeToMinutes(hhmm?: string): number | null {
+  if (!hhmm) return null;
+  const [hour, minute] = hhmm.split(":").map((part) => parseInt(part, 10));
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+  return hour * 60 + minute;
+}
+
 function makeTagColors(C: Theme): Record<string, { bg: string; text: string; icon: string }> {
   return {
     Morning: { bg: C.tintLight, text: C.tint, icon: "sunny-outline" },
@@ -680,6 +687,15 @@ export default function MedicationsScreen() {
   const isDoseTaken = (medId: string, doseIdx: number) =>
     medLogs.find((l) => l.medicationId === medId && (l.doseIndex ?? 0) === doseIdx)?.taken || false;
 
+  const isDoseDueNow = (med: Medication, doseIdx: number) => {
+    const reminderTime = normalizeMedication(med).doses?.[doseIdx]?.reminderTime;
+    const scheduledMinutes = reminderTimeToMinutes(reminderTime);
+    if (scheduledMinutes == null) return true;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    return currentMinutes >= scheduledMinutes;
+  };
+
   const isSickMode = settings.sickMode;
 
   const getDoseCount = (med?: Medication | null) => {
@@ -923,6 +939,9 @@ export default function MedicationsScreen() {
               const doseCountForTag = indicesForTag.length;
               const takenForTag = indicesForTag.filter((i) => isDoseTaken(med.id, i)).length;
               const allTaken = takenForTag === doseCountForTag;
+              const dueIndicesForTag = indicesForTag.filter((i) => isDoseDueNow(med, i));
+              const hasAnyDueDose = dueIndicesForTag.length > 0;
+              const nextReminderTime = normalizeMedication(med).doses?.[indicesForTag[0]]?.reminderTime;
               const labels = doseLabels(med);
               const emoji = getAutoEmoji(med);
               const totalDosesMed = getDoseCount(med);
@@ -1002,6 +1021,15 @@ export default function MedicationsScreen() {
                         <Ionicons name="checkmark-circle" size={18} color={C.green} />
                         <Text style={styles.takenText}>Taken</Text>
                       </Pressable>
+                    ) : !hasAnyDueDose ? (
+                      <View style={styles.notReadyBanner}>
+                        <Ionicons name="time-outline" size={16} color={C.textSecondary} />
+                        <Text style={styles.notReadyText}>
+                          {nextReminderTime
+                            ? `It’s not time to take this medicine yet. Come back at ${formatReminderTimeDisplay(nextReminderTime)}.`
+                            : "It’s not time to take this medicine yet. Please come back at the scheduled time."}
+                        </Text>
+                      </View>
                     ) : (
                       <View style={styles.actionRow}>
                         <Pressable
@@ -1032,30 +1060,43 @@ export default function MedicationsScreen() {
                       </View>
                     )
                   ) : (
+                    !hasAnyDueDose ? (
+                      <View style={styles.notReadyBanner}>
+                        <Ionicons name="time-outline" size={16} color={C.textSecondary} />
+                        <Text style={styles.notReadyText}>
+                          {nextReminderTime
+                            ? `It’s not time to take this medicine yet. Come back at ${formatReminderTimeDisplay(nextReminderTime)}.`
+                            : "It’s not time to take this medicine yet. Please come back at the scheduled time."}
+                        </Text>
+                      </View>
+                    ) : (
                     <View style={styles.dosesContainer}>
                       {indicesForTag.map((doseIdx) => {
                         const taken = isDoseTaken(med.id, doseIdx);
+                        const dueNow = isDoseDueNow(med, doseIdx);
+                        const reminderTime = normalizeMedication(med).doses?.[doseIdx]?.reminderTime;
                         return (
                           <Pressable
                             key={doseIdx}
-                            style={[styles.doseRow, taken && styles.doseRowTaken]}
+                            style={[styles.doseRow, taken && styles.doseRowTaken, !taken && !dueNow && styles.doseRowPending]}
                             onPress={(event) => {
                               event.stopPropagation();
+                              if (!dueNow) return;
                               handleDoseToggle(med.id, doseIdx);
                             }}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${med.name} ${labels[doseIdx]}, ${taken ? "taken" : "missed"}`}
+                            accessibilityRole={dueNow ? "button" : "text"}
+                            accessibilityLabel={`${med.name} ${labels[doseIdx]}, ${taken ? "taken" : dueNow ? "ready" : "not due yet"}`}
                           >
                             <Ionicons
-                              name={taken ? "checkmark-circle" : "close-circle-outline"}
+                              name={taken ? "checkmark-circle" : dueNow ? "radio-button-off-outline" : "time-outline"}
                               size={20}
-                              color={taken ? C.green : C.textTertiary}
+                              color={taken ? C.green : dueNow ? C.textTertiary : C.textSecondary}
                             />
                             <Text style={[styles.doseLabel, taken && { color: C.green }]}>{labels[doseIdx]}</Text>
                             <Text style={{ fontSize: 11, fontWeight: "600" as const, color: taken ? C.green : C.textTertiary }}>
-                              {taken ? "Taken" : "Missed"}
+                              {taken ? "Taken" : dueNow ? "Ready" : reminderTime ? `Due ${formatReminderTimeDisplay(reminderTime)}` : "Not yet"}
                             </Text>
-                            {!taken && (
+                            {!taken && dueNow && (
                               <Pressable
                                 style={styles.doseNotYet}
                                 onPress={(event) => {
@@ -1070,6 +1111,7 @@ export default function MedicationsScreen() {
                         );
                       })}
                     </View>
+                    )
                   )}
                 </Pressable>
               );
@@ -1971,10 +2013,30 @@ function makeStyles(C: Theme, S: SickModePalette) {
   takenText: { fontWeight: "600", fontSize: 13, color: C.green },
   dosesContainer: { gap: 6 },
   doseRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: C.surfaceElevated },
+  doseRowPending: { opacity: 0.82 },
   doseRowTaken: { backgroundColor: "rgba(48,209,88,0.08)" },
   doseLabel: { fontWeight: "500", fontSize: 13, color: C.text, flex: 1 },
   doseNotYet: { paddingHorizontal: 8, paddingVertical: 4 },
   doseNotYetText: { fontWeight: "500", fontSize: 11, color: C.textTertiary },
+  notReadyBanner: {
+    marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: C.surfaceElevated,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  notReadyText: {
+    flex: 1,
+    color: C.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "500",
+  },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
   bottomSheetOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   bottomSheet: { backgroundColor: C.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 32 },

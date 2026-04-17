@@ -4,6 +4,7 @@ import {
   Text,
   View,
   Pressable,
+  Image,
   Platform,
   ScrollView,
   useWindowDimensions,
@@ -20,7 +21,7 @@ import { useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
 import SynapseLogo from "@/components/SynapseLogo";
 import { featureFlags } from "@/constants/feature-flags";
 import { useAuth } from "@/contexts/AuthContext";
-import { settingsStorage } from "@/lib/storage";
+import { healthProfileStorage, settingsStorage } from "@/lib/storage";
 import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
@@ -111,6 +112,7 @@ export default function SidebarLayout({
   const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
   const [settingsName, setSettingsName] = useState<string | undefined>(undefined);
+  const [profileImageUri, setProfileImageUri] = useState<string | undefined>(undefined);
   const [enabledSections, setEnabledSections] = useState<string[] | undefined>(undefined);
   const menuButtonRef = useRef<View>(null);
   const emergencyCardRef = useRef<View>(null);
@@ -135,9 +137,10 @@ export default function SidebarLayout({
   const drawerWidth = Math.min(width * 0.78, isWideScreen ? 280 : 320);
 
   const loadSettings = useCallback(async () => {
-    const s = await settingsStorage.get();
+    const [s, profile] = await Promise.all([settingsStorage.get(), healthProfileStorage.get()]);
     setSettingsName(s?.firstName?.trim() || s?.name);
     setEnabledSections(s?.enabledSections);
+    setProfileImageUri(profile?.profileImageUri);
   }, []);
 
   useEffect(() => {
@@ -345,9 +348,13 @@ export default function SidebarLayout({
               >
                 <View style={styles.drawerProfile}>
                   <View style={styles.drawerAvatar}>
-                    <Text style={styles.drawerAvatarText}>
-                      {displayName.charAt(0).toUpperCase()}
-                    </Text>
+                    {profileImageUri ? (
+                      <Image source={{ uri: profileImageUri }} style={styles.drawerAvatarImage} />
+                    ) : (
+                      <Text style={styles.drawerAvatarText}>
+                        {displayName.charAt(0).toUpperCase()}
+                      </Text>
+                    )}
                   </View>
                   <Text style={styles.drawerProfileName} numberOfLines={1}>
                     {displayName}
@@ -617,6 +624,12 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       alignItems: "center",
       justifyContent: "center",
       marginBottom: 6,
+      overflow: "hidden",
+    },
+    drawerAvatarImage: {
+      width: "100%",
+      height: "100%",
+      resizeMode: "cover",
     },
     drawerAvatarText: {
       fontSize: 16,

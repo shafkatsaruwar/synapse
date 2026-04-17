@@ -2,6 +2,7 @@ import { NativeModules, Platform } from "react-native";
 import {
   appointmentStorage,
   healthProfileStorage,
+  medicationLogStorage,
   medicationStorage,
   normalizeMedication,
   type Appointment,
@@ -18,6 +19,8 @@ type WidgetSnapshot = {
     dueAt: string | null;
     windowStart: string | null;
     dueText: string;
+    isTaken: boolean;
+    nextText: string | null;
   };
   appointment: null | {
     doctorName: string;
@@ -54,6 +57,13 @@ function doseDetail(dose: MedicationDose) {
   return dose.timeOfDay;
 }
 
+function tomorrowAt(hour: number, minute: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  date.setHours(hour, minute, 0, 0);
+  return date;
+}
+
 function buildMedicationWindow(sortedDoses: MedicationDose[], index: number, dueAt: Date) {
   const previousDose = index > 0 ? sortedDoses[index - 1] : sortedDoses[sortedDoses.length - 1];
   const [prevHour, prevMinute] = (previousDose.reminderTime || "09:00").split(":").map((part) => parseInt(part, 10));
@@ -63,9 +73,16 @@ function buildMedicationWindow(sortedDoses: MedicationDose[], index: number, due
   return previousDate;
 }
 
-function getNextMedicationSnapshot(medications: Medication[]) {
+function getNextMedicationSnapshot(medications: Medication[], logs: { medicationId: string; doseIndex?: number; taken: boolean }[]) {
   const now = new Date();
-  let winner: null | {
+  let pendingWinner: null | {
+    dueAt: Date;
+    windowStart: Date;
+    med: Medication;
+    dose: MedicationDose;
+    doseIndex: number;
+  } = null;
+  let takenWinner: null | {
     dueAt: Date;
     windowStart: Date;
     med: Medication;
@@ -83,26 +100,52 @@ function getNextMedicationSnapshot(medications: Medication[]) {
     for (let index = 0; index < doses.length; index++) {
       const dose = doses[index];
       const [hour, minute] = (dose.reminderTime || "09:00").split(":").map((part) => parseInt(part, 10));
-      const dueAt = new Date(now);
-      dueAt.setHours(Number.isFinite(hour) ? hour : 9, Number.isFinite(minute) ? minute : 0, 0, 0);
-      if (dueAt <= now) {
-        dueAt.setDate(dueAt.getDate() + 1);
-      }
-      const windowStart = buildMedicationWindow(doses, index, dueAt);
-      if (!winner || dueAt < winner.dueAt) {
-        winner = { dueAt, windowStart, med, dose };
+      const safeHour = Number.isFinite(hour) ? hour : 9;
+      const safeMinute = Number.isFinite(minute) ? minute : 0;
+      const takenToday = logs.some((log) => log.medicationId === med.id && (log.doseIndex ?? 0) === index && log.taken);
+
+      if (!takenToday) {
+        const dueAt = new Date(now);
+        dueAt.setHours(safeHour, safeMinute, 0, 0);
+        const windowStart = buildMedicationWindow(doses, index, dueAt);
+        if (!pendingWinner || dueAt < pendingWinner.dueAt) {
+          pendingWinner = { dueAt, windowStart, med, dose, doseIndex: index };
+        }
+      } else {
+        const dueAt = tomorrowAt(safeHour, safeMinute);
+        const windowStart = buildMedicationWindow(doses, index, dueAt);
+        if (!takenWinner || dueAt < takenWinner.dueAt) {
+          takenWinner = { dueAt, windowStart, med, dose };
+        }
       }
     }
   }
 
-  if (!winner) return null;
-  return {
-    name: winner.med.name,
-    detail: doseDetail(winner.dose),
-    dueAt: winner.dueAt.toISOString(),
-    windowStart: winner.windowStart.toISOString(),
-    dueText: "Due soon",
-  };
+  if (pendingWinner) {
+    return {
+      name: pendingWinner.med.name,
+      detail: doseDetail(pendingWinner.dose),
+      dueAt: pendingWinner.dueAt.toISOString(),
+      windowStart: pendingWinner.windowStart.toISOString(),
+      dueText: "Due soon",
+      isTaken: false,
+      nextText: null,
+    };
+  }
+
+  if (takenWinner) {
+    return {
+      name: takenWinner.med.name,
+      detail: doseDetail(takenWinner.dose),
+      dueAt: takenWinner.dueAt.toISOString(),
+      windowStart: takenWinner.windowStart.toISOString(),
+      dueText: "Taken ✓",
+      isTaken: true,
+      nextText: "Next: tomorrow",
+    };
+  }
+
+  return null;
 }
 
 function parseAppointmentDateTime(appointment: Appointment) {
@@ -135,9 +178,31 @@ function formatAppointmentWhen(date: Date) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
+  }).format(date) + " • " + new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
+}
+
+function simplifyAppointmentDetail(detail?: string) {
+  const raw = detail?.trim();
+  if (!raw) return "Visit";
+  let normalized = raw
+    .replace(/\bphysician\b/gi, "")
+    .replace(/\bdoctor\b/gi, "")
+    .replace(/\bprovider\b/gi, "")
+    .replace(/\bclinic\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) normalized = raw;
+
+  const words = normalized.split(" ");
+  if (words.length > 2) {
+    normalized = words.slice(0, 2).join(" ");
+  }
+
+  return normalized;
 }
 
 function getNextAppointmentSnapshot(appointments: Appointment[]) {
@@ -156,7 +221,7 @@ function getNextAppointmentSnapshot(appointments: Appointment[]) {
   const { appointment, startsAt } = upcoming[0];
   return {
     doctorName: appointment.doctorName || "Appointment",
-    detail: appointment.specialty || appointment.location || "Upcoming visit",
+    detail: simplifyAppointmentDetail(appointment.specialty || appointment.location || "Upcoming visit"),
     startsAt: startsAt.toISOString(),
     whenText: formatAppointmentWhen(startsAt),
   };
@@ -170,10 +235,11 @@ export async function syncWidgetSnapshot() {
     appointmentStorage.getAll(),
     healthProfileStorage.get(),
   ]);
+  const logs = await medicationLogStorage.getByDate(new Date().toISOString().slice(0, 10));
 
   const snapshot: WidgetSnapshot = {
     appearance: profile.widgetAppearance ?? "system",
-    medication: getNextMedicationSnapshot(medications),
+    medication: getNextMedicationSnapshot(medications, logs),
     appointment: getNextAppointmentSnapshot(appointments),
     updatedAt: new Date().toISOString(),
   };

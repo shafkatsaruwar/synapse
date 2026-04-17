@@ -120,6 +120,28 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     }
   };
 
+  const finishWithBiometricPrompt = async (openMedications?: boolean) => {
+    if (Platform.OS === "ios" || Platform.OS === "android") {
+      Alert.alert(
+        "Enable Face ID / Touch ID?",
+        "Would you like to enable Face ID for this app? You can change this later in Synapse Privacy & Data.",
+        [
+          { text: "Not now", style: "cancel", onPress: () => { void handleFinish(openMedications); } },
+          {
+            text: "Enable",
+            onPress: async () => {
+              await setBiometricLockEnabled(true);
+              await handleFinish(openMedications);
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    await handleFinish(openMedications);
+  };
+
   const toggleSection = (key: string) => {
     if (REQUIRED_SECTION_KEYS.includes(key)) return;
     setSelectedSections((prev) => {
@@ -313,10 +335,10 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         <View style={styles.slideCenter}>
           <Text style={styles.setupTitle}>Add your medications?</Text>
           <Text style={styles.setupSub}>You can add them now or later from the Medications screen.</Text>
-          <Pressable style={styles.primaryAuthBtn} onPress={() => handleFinish(true)}>
+          <Pressable style={styles.primaryAuthBtn} onPress={() => void finishWithBiometricPrompt(true)}>
             <Text style={styles.primaryAuthBtnText}>Add Medications</Text>
           </Pressable>
-          <Pressable style={styles.secondaryAuthBtn} onPress={() => handleFinish(false)}>
+          <Pressable style={styles.secondaryAuthBtn} onPress={() => void finishWithBiometricPrompt(false)}>
             <Text style={styles.secondaryAuthBtnText}>Skip</Text>
           </Pressable>
         </View>
@@ -391,23 +413,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         {showOpenSynapse && (
           <Pressable
             style={styles.continueBtn}
-            onPress={() => {
-              if (Platform.OS === "ios" || Platform.OS === "android") {
-                Alert.alert(
-                  "Enable Face ID / Touch ID?",
-                  "Lock the app when opening so only you can access it. You can change this later in Settings → Privacy.",
-                  [
-                    { text: "Not now", style: "cancel", onPress: () => handleFinish() },
-                    { text: "Enable", onPress: async () => {
-                      await setBiometricLockEnabled(true);
-                      handleFinish();
-                    } },
-                  ]
-                );
-              } else {
-                handleFinish();
-              }
-            }}
+            onPress={() => { void finishWithBiometricPrompt(); }}
             accessibilityRole="button"
             accessibilityLabel="Open Synapse"
           >

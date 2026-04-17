@@ -63,18 +63,30 @@ export default function BiometricGate({ children }: BiometricGateProps) {
     return () => { mounted = false; };
   }, []);
 
-  // Only lock when app goes to background. Do NOT set unlocked=false on "active" — that caused the loop.
+  // Re-check the stored preference on app state changes so toggling app lock off inside settings
+  // actually sticks the next time the app backgrounds/foregrounds.
   useEffect(() => {
-    if (Platform.OS === "web" || enabled !== true) return;
+    if (Platform.OS === "web") return;
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "background") {
-        setUnlocked(false);
-        setError(null);
-        setFailCount(0);
-      }
+      void (async () => {
+        const biometricEnabled = await getBiometricLockEnabled();
+        setEnabled(biometricEnabled);
+
+        if (state === "background") {
+          setUnlocked(!biometricEnabled);
+          setError(null);
+          setFailCount(0);
+        }
+
+        if (state === "active" && !biometricEnabled) {
+          setUnlocked(true);
+          setError(null);
+          setFailCount(0);
+        }
+      })();
     });
     return () => sub.remove();
-  }, [enabled]);
+  }, []);
 
   if (enabled === null) {
     return <View style={[styles.centered, { backgroundColor: C.background }]} />;
