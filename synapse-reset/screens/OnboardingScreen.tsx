@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -17,9 +17,8 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
-import { settingsStorage, healthProfileStorage, ALL_SECTION_KEYS, REQUIRED_SECTION_KEYS } from "@/lib/storage";
-import { useTheme, type ThemePreference } from "@/contexts/ThemeContext";
+import { settingsStorage, ALL_SECTION_KEYS, REQUIRED_SECTION_KEYS } from "@/lib/storage";
+import { useTheme, type Theme, type ThemeId, type ThemePreference } from "@/contexts/ThemeContext";
 import { setBiometricLockEnabled } from "@/lib/biometric-storage";
 import SynapseLogo from "@/components/SynapseLogo";
 
@@ -29,16 +28,12 @@ const onboardingMedications = require("../assets/onboarding/medications.png");
 const onboardingDashboard = require("../assets/onboarding/dashboard.png");
 const onboardingAppointments = require("../assets/onboarding/appointments.png");
 
-const C = Colors.dark;
-const CREAM_BG = "#FDF1E5";
-const MAROON = "#800020";
-const MAROON_LIGHT = "rgba(128,0,32,0.12)";
-
 const SECTION_LABELS: Record<string, string> = {
   log: "Daily Log",
   healthdata: "Vitals",
   medications: "Medications",
   symptoms: "Symptoms",
+  cycletracking: "Cycle tracking",
   monthlycheckin: "Monthly check-in",
   eating: "Eating",
   mentalhealth: "Mental health day",
@@ -66,10 +61,21 @@ interface OnboardingScreenProps {
   onComplete: (options?: OnboardingCompleteOptions) => void;
 }
 
+function getPreviewTheme(themeId: ThemeId): Theme {
+  switch (themeId) {
+    case "light":
+      return require("@/themes/light").default as Theme;
+    case "dark":
+      return require("@/themes/dark").default as Theme;
+    default:
+      return require("@/themes/calm").default as Theme;
+  }
+}
+
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { setThemeId } = useTheme();
+  const { setThemeId, themeId, preference } = useTheme();
 
   const [step, setStep] = useState(0);
   const slideX = useRef(new Animated.Value(0)).current;
@@ -80,10 +86,17 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
   const [onboardingFirstName, setOnboardingFirstName] = useState("");
   const [onboardingLastName, setOnboardingLastName] = useState("");
-  const [selectedAppearance, setSelectedAppearance] = useState<ThemePreference>("system");
+  const [selectedAppearance, setSelectedAppearance] = useState<ThemePreference>(preference);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
+  const previewThemeId = useMemo<ThemeId>(
+    () => (selectedAppearance === "system" ? themeId : selectedAppearance),
+    [selectedAppearance, themeId]
+  );
+  const previewColors = useMemo(() => getPreviewTheme(previewThemeId), [previewThemeId]);
+  const styles = useMemo(() => makeStyles(previewColors), [previewColors]);
+  const statusBarStyle = previewThemeId === "dark" ? "light-content" : "dark-content";
 
   useEffect(() => {
     Animated.timing(slideX, {
@@ -148,7 +161,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <View style={styles.slideCenter}>
         <View style={styles.brainLogo}>
-          <SynapseLogo size={180} color={MAROON} />
+          <SynapseLogo size={180} color={previewColors.tint} />
         </View>
         <Text style={styles.welcomeTitle}>Synapse</Text>
         <Text style={styles.welcomeSub}>Built by a real patient, for real patients</Text>
@@ -196,7 +209,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         <TextInput
           style={styles.nameInput}
           placeholder="First name"
-          placeholderTextColor={C.textTertiary}
+          placeholderTextColor={previewColors.textTertiary}
           value={onboardingFirstName}
           onChangeText={setOnboardingFirstName}
           autoCapitalize="words"
@@ -205,7 +218,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         <TextInput
           style={[styles.nameInput, { marginTop: 16 }]}
           placeholder="Last name"
-          placeholderTextColor={C.textTertiary}
+          placeholderTextColor={previewColors.textTertiary}
           value={onboardingLastName}
           onChangeText={setOnboardingLastName}
           autoCapitalize="words"
@@ -229,6 +242,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
                 style={[styles.appearanceRow, isSelected && styles.appearanceRowActive]}
                 onPress={() => {
                   setSelectedAppearance(opt.id);
+                  void setThemeId(opt.id);
                   Haptics.selectionAsync();
                 }}
                 accessibilityRole="radio"
@@ -329,8 +343,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const showOpenSynapse = step === SLIDE_COUNT - 1;
 
   return (
-    <View style={[styles.container, styles.containerCream, { paddingTop: topPad, paddingBottom: bottomPad }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={CREAM_BG} translucent={false} />
+    <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
+      <StatusBar barStyle={statusBarStyle} backgroundColor={previewColors.background} translucent={false} />
       <View style={styles.sliderWrap}>
         <Animated.View
           style={[
@@ -364,7 +378,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         </View>
         {showBack && (
           <Pressable style={styles.backBtnFooter} onPress={goBack} accessibilityRole="button" accessibilityLabel="Go back">
-            <Ionicons name="arrow-back" size={18} color={MAROON} />
+            <Ionicons name="arrow-back" size={18} color={previewColors.tint} />
             <Text style={styles.backBtnFooterText}>Back</Text>
           </Pressable>
         )}
@@ -406,21 +420,21 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "transparent" },
-  containerCream: { backgroundColor: CREAM_BG },
+function makeStyles(C: Theme) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.background },
   sliderWrap: { flex: 1, overflow: "hidden" },
   sliderRow: { flexDirection: "row", flex: 1 },
   slide: { flex: 1, justifyContent: "center" },
   slideCenter: { alignItems: "center", justifyContent: "center", paddingVertical: 20 },
-  featureSlideBg: { backgroundColor: CREAM_BG },
+  featureSlideBg: { backgroundColor: C.background },
   featureSlideCenter: { alignItems: "center", justifyContent: "center", paddingVertical: 16 },
   phoneMockup: {
     width: 280,
     height: 420,
     borderRadius: 32,
     overflow: "hidden",
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -462,13 +476,13 @@ const styles = StyleSheet.create({
   backBtnFooterText: {
     fontWeight: "600",
     fontSize: 16,
-    color: MAROON,
+    color: C.tint,
   },
 
   dotsRow: { flexDirection: "row", justifyContent: "center", gap: 10 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(128,0,32,0.2)" },
-  dotActive: { width: 10, height: 10, borderRadius: 5, backgroundColor: MAROON },
-  dotDone: { backgroundColor: "rgba(128,0,32,0.4)" },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.tintLight },
+  dotActive: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.tint },
+  dotDone: { backgroundColor: C.tint },
 
   brainLogo: { width: 180, height: 180, resizeMode: "contain" },
   welcomeTitle: {
@@ -495,7 +509,7 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     overflow: "hidden",
     borderWidth: 3,
-    borderColor: MAROON,
+    borderColor: C.tint,
     alignSelf: "center",
     marginBottom: 28,
   },
@@ -506,7 +520,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     letterSpacing: -0.5,
     marginBottom: 20,
-    color: MAROON,
+    color: C.tint,
   },
   founderSub: {
     fontWeight: "400",
@@ -538,17 +552,17 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: C.border,
   },
-  appearanceRowActive: { borderColor: MAROON, backgroundColor: MAROON_LIGHT },
+  appearanceRowActive: { borderColor: C.tint, backgroundColor: C.tintLight },
   appearanceTextGroup: { flex: 1 },
   appearanceLabel: { fontWeight: "600", fontSize: 16, color: C.text },
-  appearanceLabelActive: { color: MAROON },
+  appearanceLabelActive: { color: C.tint },
   appearanceDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 2 },
   appearanceRadio: {
     width: 22, height: 22, borderRadius: 11, borderWidth: 2,
     borderColor: C.border, alignItems: "center", justifyContent: "center",
   },
-  appearanceRadioActive: { borderColor: MAROON },
-  appearanceRadioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: MAROON },
+  appearanceRadioActive: { borderColor: C.tint },
+  appearanceRadioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.tint },
 
   sectionsScroll: { flex: 1 },
   sectionsScrollContent: { paddingTop: 20, paddingBottom: 40 },
@@ -570,17 +584,17 @@ const styles = StyleSheet.create({
   },
   sectionsList: { marginTop: 16, gap: 10 },
   coreFeaturesCard: {
-    backgroundColor: "#FFF7F1",
+    backgroundColor: C.surface,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: "rgba(128,0,32,0.18)",
+    borderColor: C.border,
   },
   coreFeaturesTitle: {
     fontWeight: "700",
     fontSize: 14,
-    color: MAROON,
+    color: C.tint,
     marginBottom: 4,
   },
   coreFeaturesText: {
@@ -601,8 +615,8 @@ const styles = StyleSheet.create({
     borderColor: C.border,
   },
   sectionRowActive: {
-    borderColor: MAROON,
-    backgroundColor: MAROON_LIGHT,
+    borderColor: C.tint,
+    backgroundColor: C.tintLight,
   },
   sectionRowLabel: {
     fontWeight: "500",
@@ -611,7 +625,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionRowLabelActive: {
-    color: MAROON,
+    color: C.tint,
     fontWeight: "600",
   },
   sectionCheckbox: {
@@ -624,7 +638,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: C.surface,
   },
-  sectionCheckboxActive: { backgroundColor: MAROON, borderColor: MAROON },
+  sectionCheckboxActive: { backgroundColor: C.tint, borderColor: C.tint },
   medChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -651,7 +665,7 @@ const styles = StyleSheet.create({
     color: C.text,
     textAlign: "center",
     borderBottomWidth: 2,
-    borderBottomColor: MAROON,
+    borderBottomColor: C.tint,
     paddingVertical: 12,
     width: 160,
     marginBottom: 32,
@@ -673,7 +687,7 @@ const styles = StyleSheet.create({
     color: C.text,
     textAlign: "center",
     borderBottomWidth: 2,
-    borderBottomColor: MAROON,
+    borderBottomColor: C.tint,
     paddingVertical: 12,
     width: "100%",
     maxWidth: 280,
@@ -686,7 +700,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   primaryAuthBtn: {
-    backgroundColor: MAROON,
+    backgroundColor: C.tint,
     borderRadius: 16,
     paddingVertical: 16,
     paddingHorizontal: 32,
@@ -708,7 +722,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: MAROON,
+    backgroundColor: C.tint,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 32,
@@ -719,7 +733,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     letterSpacing: -0.5,
     marginBottom: 8,
-    color: MAROON,
+    color: C.tint,
   },
   completionSub: {
     fontWeight: "400",
@@ -734,9 +748,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: MAROON,
+    backgroundColor: C.tint,
     borderRadius: 16,
     paddingVertical: 18,
   },
   continueBtnText: { fontWeight: "600", fontSize: 17, color: "#fff" },
 });
+}
