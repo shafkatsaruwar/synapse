@@ -11,7 +11,7 @@ import { getSickModePalette, type SickModePalette } from "@/constants/sick-mode-
 import ReadAloudButton from "@/components/ReadAloudButton";
 import * as Crypto from "expo-crypto";
 import {
-  medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage, doctorsStorage, pharmacyStorage, healthProfileStorage,
+  medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage, doctorsStorage, pharmacyStorage, healthProfileStorage, normalizeMedication,
   type Medication, type MedicationDose, type MedicationLog, type UserSettings, type SickModeData, type Doctor, type Pharmacy, type HealthProfileInfo, type RecordOwner,
 } from "@/lib/storage";
 import { getMedList, addMedListItem, removeMedListItem, updateMedListItem, type MedListItem, type MedListDose, type MedListDoseTime } from "@/lib/med-list-storage";
@@ -321,6 +321,15 @@ export default function MedicationsScreen() {
     setPharmacies(pharmacyList);
   }, [today]);
 
+  const refreshMedicationStatus = useCallback(async () => {
+    const [meds, logs] = await Promise.all([
+      medicationStorage.getAll(),
+      medicationLogStorage.getByDate(today),
+    ]);
+    setMedications(meds);
+    setMedLogs(logs);
+  }, [today]);
+
   React.useEffect(() => {
     loadData();
     syncWidgetSnapshot().catch(() => {});
@@ -603,46 +612,68 @@ export default function MedicationsScreen() {
   };
 
   const handleDoseToggle = async (medId: string, doseIdx: number) => {
-    const med = medications.find((m) => m.id === medId);
-    const normalizedMed = med ? normalizeMedication(med) : null;
-    const scheduledTime = normalizedMed?.doses?.[doseIdx]?.reminderTime;
-    const log = medLogs.find((l) => l.medicationId === medId && (l.doseIndex ?? 0) === doseIdx);
-    if (log?.taken) {
-      await medicationLogStorage.toggle(medId, today, doseIdx, { scheduledTime });
-      if (med) await updateMedicationSupply(med, doseIdx, "undo");
-      Haptics.selectionAsync();
-    } else {
-      await medicationLogStorage.toggle(medId, today, doseIdx, { scheduledTime });
-      if (med) await updateMedicationSupply(med, doseIdx, "take");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      const med = medications.find((m) => m.id === medId);
+      const normalizedMed = med ? normalizeMedication(med) : null;
+      const scheduledTime = normalizedMed?.doses?.[doseIdx]?.reminderTime;
+      const log = medLogs.find((l) => l.medicationId === medId && (l.doseIndex ?? 0) === doseIdx);
+      const nextFeedback = log?.taken ? "selection" : "success";
+      if (log?.taken) {
+        await medicationLogStorage.toggle(medId, today, doseIdx, { scheduledTime });
+        if (med) await updateMedicationSupply(med, doseIdx, "undo");
+      } else {
+        await medicationLogStorage.toggle(medId, today, doseIdx, { scheduledTime });
+        if (med) await updateMedicationSupply(med, doseIdx, "take");
+      }
+      await refreshMedicationStatus();
+      if (nextFeedback === "selection") {
+        void Haptics.selectionAsync().catch(() => {});
+      } else {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      }
+      await syncAllFromSettings().catch((error) => {
+        console.warn("Medication reminder sync failed after dose toggle", error);
+      });
+      await syncWidgetSnapshot().catch((error) => {
+        console.warn("Medication widget sync failed after dose toggle", error);
+      });
+    } catch (error) {
+      console.warn("Failed to update medication dose", error);
+      Alert.alert("Couldn’t update medication", "Something got in the way when we tried to log that dose. Please try again.");
     }
-    await syncAllFromSettings();
-    await syncWidgetSnapshot().catch(() => {});
-    loadData();
   };
 
   const handleNotYet = (medId: string) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
     setNudgeMedId(medId);
   };
 
   const handleAlrightTookIt = async () => {
     if (nudgeMedId) {
-      let med = medications.find((m) => m.id === nudgeMedId);
-      const doseCount = getDoseCount(med);
-      for (let i = 0; i < doseCount; i++) {
-        const log = medLogs.find((l) => l.medicationId === nudgeMedId && (l.doseIndex ?? 0) === i);
-        if (!log?.taken) {
-          const scheduledTime = med ? normalizeMedication(med).doses?.[i]?.reminderTime : undefined;
-          await medicationLogStorage.toggle(nudgeMedId, today, i, { scheduledTime });
-          if (med) med = await updateMedicationSupply(med, i, "take");
+      try {
+        let med = medications.find((m) => m.id === nudgeMedId);
+        const doseCount = getDoseCount(med);
+        for (let i = 0; i < doseCount; i++) {
+          const log = medLogs.find((l) => l.medicationId === nudgeMedId && (l.doseIndex ?? 0) === i);
+          if (!log?.taken) {
+            const scheduledTime = med ? normalizeMedication(med).doses?.[i]?.reminderTime : undefined;
+            await medicationLogStorage.toggle(nudgeMedId, today, i, { scheduledTime });
+            if (med) med = await updateMedicationSupply(med, i, "take");
+          }
         }
+        setNudgeMedId(null);
+        await refreshMedicationStatus();
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        await syncAllFromSettings().catch((error) => {
+          console.warn("Medication reminder sync failed after nudge confirm", error);
+        });
+        await syncWidgetSnapshot().catch((error) => {
+          console.warn("Medication widget sync failed after nudge confirm", error);
+        });
+      } catch (error) {
+        console.warn("Failed to confirm nudged medication", error);
+        Alert.alert("Couldn’t log medication", "We hit a snag trying to mark that dose as taken. Please try again.");
       }
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setNudgeMedId(null);
-      await syncAllFromSettings();
-      await syncWidgetSnapshot().catch(() => {});
-      loadData();
     }
   };
 
@@ -975,7 +1006,10 @@ export default function MedicationsScreen() {
                       <View style={styles.actionRow}>
                         <Pressable
                           style={styles.yesBtn}
-                          onPress={() => handleDoseToggle(med.id, indicesForTag[0])}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            handleDoseToggle(med.id, indicesForTag[0]);
+                          }}
                           testID={`taken-${med.name}`}
                           accessibilityRole="button"
                           accessibilityLabel={`Mark ${med.name} as taken`}
@@ -983,7 +1017,16 @@ export default function MedicationsScreen() {
                           <Ionicons name="checkmark" size={16} color="#fff" />
                           <Text style={styles.yesBtnText}>Yes, took it</Text>
                         </Pressable>
-                        <Pressable style={styles.notYetBtn} onPress={() => handleNotYet(med.id)} testID={`notyet-${med.name}`} accessibilityRole="button" accessibilityLabel={`Skip ${med.name} for now`}>
+                        <Pressable
+                          style={styles.notYetBtn}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            handleNotYet(med.id);
+                          }}
+                          testID={`notyet-${med.name}`}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Skip ${med.name} for now`}
+                        >
                           <Text style={styles.notYetText}>Not yet</Text>
                         </Pressable>
                       </View>
@@ -996,7 +1039,10 @@ export default function MedicationsScreen() {
                           <Pressable
                             key={doseIdx}
                             style={[styles.doseRow, taken && styles.doseRowTaken]}
-                            onPress={() => handleDoseToggle(med.id, doseIdx)}
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              handleDoseToggle(med.id, doseIdx);
+                            }}
                             accessibilityRole="button"
                             accessibilityLabel={`${med.name} ${labels[doseIdx]}, ${taken ? "taken" : "missed"}`}
                           >
@@ -1010,7 +1056,13 @@ export default function MedicationsScreen() {
                               {taken ? "Taken" : "Missed"}
                             </Text>
                             {!taken && (
-                              <Pressable style={styles.doseNotYet} onPress={() => handleNotYet(med.id)}>
+                              <Pressable
+                                style={styles.doseNotYet}
+                                onPress={(event) => {
+                                  event.stopPropagation();
+                                  handleNotYet(med.id);
+                                }}
+                              >
                                 <Text style={styles.doseNotYetText}>skip</Text>
                               </Pressable>
                             )}
