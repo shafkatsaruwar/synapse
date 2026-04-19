@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, Alert, useWindowDimensions, useColorScheme,
 } from "react-native";
@@ -51,9 +51,10 @@ const SIMPLE_TRIGGER_OPTIONS = [
 
 interface SymptomsScreenProps {
   onActivateSickMode?: () => void;
+  simpleOpenAddToken?: number;
 }
 
-export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenProps) {
+export default function SymptomsScreen({ onActivateSickMode, simpleOpenAddToken }: SymptomsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const modeUI = useModeAwareScreen("symptoms");
@@ -188,6 +189,11 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
     setShowSimpleModal(true);
   }, [resetSimpleFlow]);
 
+  useEffect(() => {
+    if (!modeUI.isSimpleMode || !simpleOpenAddToken) return;
+    openSimpleLogFlow();
+  }, [modeUI.isSimpleMode, openSimpleLogFlow, simpleOpenAddToken]);
+
   const handleSimpleSeveritySelect = useCallback((value: 3 | 7 | 9) => {
     setSimpleSeverity(value);
     void Haptics.selectionAsync().catch(() => {});
@@ -260,10 +266,7 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
                 <Ionicons name="pulse-outline" size={34} color={C.textTertiary} />
               </View>
               <Text style={styles.simpleEmptyTitle}>No symptoms today</Text>
-              <Text style={styles.simpleEmptyBody}>Tap below to log how you&apos;re feeling</Text>
-              <Pressable style={styles.simplePrimaryButton} onPress={openSimpleLogFlow}>
-                <Text style={styles.simplePrimaryButtonText}>Log symptom</Text>
-              </Pressable>
+              <Text style={styles.simpleEmptyBody}>Use the + button to log how you&apos;re feeling</Text>
             </View>
           ) : (
             <View style={styles.simpleSection}>
@@ -287,12 +290,6 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
             </View>
           )}
         </ScrollView>
-
-        <View style={[styles.simpleFooterAction, { bottom: Platform.OS === "web" ? 20 : insets.bottom + 16 }]}>
-          <Pressable style={styles.simpleFooterButton} onPress={openSimpleLogFlow}>
-            <Text style={styles.simpleFooterButtonText}>Log symptom</Text>
-          </Pressable>
-        </View>
 
         <Modal visible={showSimpleModal} transparent animationType="fade">
           <View style={styles.overlay}>

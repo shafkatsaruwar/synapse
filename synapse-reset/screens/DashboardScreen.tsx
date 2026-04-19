@@ -150,6 +150,67 @@ function parseAppointmentDateTime(appointment: Pick<Appointment, "date" | "time"
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function parseTimeToMinutes(value?: string | null) {
+  if (!value) return null;
+  const match = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  return (hours * 60) + minutes;
+}
+
+function fallbackMinutesForTimeOfDay(timeOfDay?: string) {
+  switch ((timeOfDay ?? "").toLowerCase()) {
+    case "morning":
+      return 8 * 60;
+    case "afternoon":
+      return 13 * 60;
+    case "night":
+      return 20 * 60;
+    case "before fajr":
+      return 5 * 60;
+    case "after iftar":
+      return 19 * 60;
+    default:
+      return null;
+  }
+}
+
+function formatAppointmentPreview(appointment: Pick<Appointment, "doctorName" | "date" | "time">, today: string) {
+  const timeLabel = formatTime12h(appointment.time || "09:00");
+  const doctorName = appointment.doctorName || "Appointment";
+  const appointmentDate = appointment.date;
+  const tomorrow = (() => {
+    const date = new Date(`${today}T00:00:00`);
+    date.setDate(date.getDate() + 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  })();
+
+  if (appointmentDate === today) {
+    return `Next: ${doctorName} • ${timeLabel} today`;
+  }
+  if (appointmentDate === tomorrow) {
+    return `Next: ${doctorName} • Tomorrow at ${timeLabel}`;
+  }
+  return `Next: ${doctorName} • ${formatDate(appointmentDate)} at ${timeLabel}`;
+}
+
+function formatDueMedicationPrompt(timeOfDay?: string, ownerLabel?: string, isSelfOwner?: boolean) {
+  if (!isSelfOwner && ownerLabel?.trim()) {
+    return `${ownerLabel.trim()} needs medication now`;
+  }
+  const normalized = (timeOfDay ?? "").trim().toLowerCase();
+  if (!normalized) return "Your medication is due";
+  return `Take your ${normalized} dose`;
+}
+
+function formatDueMedicationStatus(currentMinutes: number, dueMinutes: number) {
+  const delta = currentMinutes - dueMinutes;
+  if (delta <= 5) return "Due now";
+  return `Missed ${delta} min${delta === 1 ? "" : "s"} ago`;
+}
+
 interface DashboardScreenProps {
   onNavigate: (screen: string) => void;
   onRefreshKey?: number;
@@ -475,15 +536,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     if (isSickMode && med.name === "Hydrocortisone") return base * 3;
     return base;
   };
-  const totalDoses = medications.reduce((s, m) => s + getDoseCount(m), 0);
-  const takenDoses = medications.reduce((s, m) => {
-    const dc = getDoseCount(m);
-    let t = 0;
-    for (let i = 0; i < dc; i++) {
-      if (medLogs.find((l) => l.medicationId === m.id && (l.doseIndex ?? 0) === i)?.taken) t++;
-    }
-    return s + t;
-  }, 0);
   const upcomingAppointments = useMemo(
     () => appointments.filter((appointment) => !appointment.status && (parseAppointmentDateTime(appointment)?.getTime() ?? -1) >= Date.now()),
     [appointments]
@@ -597,39 +649,75 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     return null;
   };
 
+  const currentMinutes = (hour * 60) + dateObj.getMinutes();
+  const dueMedication = useMemo(() => {
+    for (const med of medications) {
+      if (med.medicationType === "prn") continue;
+      const doses = Array.isArray(med.doses) && med.doses.length > 0 ? med.doses : [];
+      for (let index = 0; index < doses.length; index += 1) {
+        const dose = doses[index];
+        const alreadyTaken = medLogs.some((log) => log.medicationId === med.id && (log.doseIndex ?? 0) === index && log.taken);
+        if (alreadyTaken) continue;
+        const dueAt = parseTimeToMinutes(dose.reminderTime) ?? fallbackMinutesForTimeOfDay(dose.timeOfDay);
+        if (dueAt == null || dueAt > currentMinutes) continue;
+        return {
+          name: med.name || "Medication due",
+          timeOfDay: dose.timeOfDay,
+          dueMinutes: dueAt,
+          subtitle: dose.amount && dose.unit ? `${dose.amount} ${dose.unit} • ${dose.timeOfDay}` : dose.timeOfDay,
+          owner: med.entryOwner,
+        };
+      }
+    }
+    return null;
+  }, [currentMinutes, medLogs, medications]);
   const nextMedication = getNextMedicationInfo();
-  const todayAppointments = upcomingAppointments.filter((appointment) => appointment.date === today);
-  const dueDoseCount = Math.max(totalDoses - takenDoses, 0);
-  const simpleTaskItems = [
-    dueDoseCount > 0
-      ? dueDoseCount === 1
-        ? "Take your medication"
-        : `Take ${dueDoseCount} doses`
-      : "No medications due right now",
-    todayAppointments.length > 0
-      ? todayAppointments.length === 1
-        ? "You have 1 appointment today"
-        : `You have ${todayAppointments.length} appointments today`
-      : "No appointments today",
-  ];
-  const simpleTaskCount = Number(dueDoseCount > 0) + Number(todayAppointments.length > 0);
+  const todayAppointments = useMemo(
+    () => upcomingAppointments
+      .filter((appointment) => appointment.date === today)
+      .sort((a, b) => (parseAppointmentDateTime(a)?.getTime() ?? Number.MAX_SAFE_INTEGER) - (parseAppointmentDateTime(b)?.getTime() ?? Number.MAX_SAFE_INTEGER)),
+    [today, upcomingAppointments]
+  );
+  const todayAppointment = todayAppointments[0] ?? null;
   const simpleGreeting = (() => {
     if (hour < 12) return "Good morning";
     if (hour < 17) return "Good afternoon";
     if (hour < 22) return "Good evening";
     return "Good night";
   })();
-  const simpleDashboardCta = dueDoseCount > 0
-    ? { label: "Take Medication", target: "medications" }
-    : nextApt
-      ? { label: "View Appointment", target: "appointments" }
-      : { label: "Open Medications", target: "medications" };
-  const simpleMedicationSummary = nextMedication
-    ? nextMedication.lines[0] ?? "Medication due today"
-    : "None due right now";
-  const simpleAppointmentSummary = nextApt
-    ? `${nextApt.date === today ? "Today" : formatDate(nextApt.date)} · ${formatTime12h(nextApt.time)}`
-    : "None scheduled";
+  const simpleDashboardState = dueMedication
+    ? {
+      title: formatDueMedicationPrompt(
+        dueMedication.timeOfDay,
+        getOwnerMeta(dueMedication.owner).label,
+        (dueMedication.owner ?? "self") === "self",
+      ),
+      primary: dueMedication.name,
+      secondary: formatDueMedicationStatus(currentMinutes, dueMedication.dueMinutes),
+      tertiary: nextApt ? formatAppointmentPreview(nextApt, today) : null,
+      detail: dueMedication.subtitle,
+      ctaLabel: "Take Medication",
+      ctaTarget: "medications",
+    }
+    : todayAppointment
+      ? {
+        title: "You have an appointment",
+        primary: todayAppointment.doctorName,
+        secondary: formatTime12h(todayAppointment.time),
+        tertiary: todayAppointment.specialty || null,
+        detail: null,
+        ctaLabel: "View Details",
+        ctaTarget: "appointments",
+      }
+      : {
+        title: "You're all good",
+        primary: "No medications or appointments today",
+        secondary: null,
+        tertiary: null,
+        detail: null,
+        ctaLabel: "Log how you feel",
+        ctaTarget: "symptoms",
+      };
   const recoverySummary = useMemo(() => buildRecoveryInsights({
     logs: allLogs,
     vitals,
@@ -964,12 +1052,15 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
   };
   const fabBottom = Platform.OS === "web"
-    ? 100
-    : isWide ? insets.bottom + 8 : insets.bottom + 8;
-  const fab = (
+    ? (modeUI.isSimpleMode ? 132 : 100)
+    : modeUI.isSimpleMode ? insets.bottom + 108 : insets.bottom + 8;
+  const fab = modeUI.isSimpleMode ? null : (
     <Pressable
       style={({ pressed }) => [styles.fab, { bottom: fabBottom, opacity: pressed ? 0.85 : 1 }]}
-      onPress={() => { Haptics.selectionAsync(); onNavigate("emergency"); }}
+      onPress={() => {
+        Haptics.selectionAsync();
+        onNavigate("emergency");
+      }}
       accessibilityRole="button"
       accessibilityLabel="Emergency Protocol"
       accessibilityHint="View critical medical information"
@@ -1000,8 +1091,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             { paddingHorizontal: isWide ? 28 : 18 },
           ]}
           showsVerticalScrollIndicator={false}
-          bounces={true}
-          alwaysBounceVertical={true}
+          bounces={false}
+          alwaysBounceVertical={false}
         >
           <View style={styles.simpleDashboardHeader}>
             <Text style={styles.simpleDashboardGreeting}>
@@ -1009,139 +1100,36 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               {displayFirstName ? `, ${displayFirstName}` : ""}
             </Text>
             <Text style={styles.simpleDashboardSubtext}>
-              {simpleTaskCount > 0
-                ? `You have ${simpleTaskCount} thing${simpleTaskCount === 1 ? "" : "s"} to do`
-                : "Nothing urgent right now"}
+              {simpleDashboardState.title}
             </Text>
           </View>
 
           <View style={styles.simpleDashboardCard}>
             <Text style={styles.simpleDashboardCardTitle}>Today</Text>
-            <Text style={styles.simpleDashboardLead}>
-              {simpleTaskCount > 0
-                ? `You have ${simpleTaskCount} thing${simpleTaskCount === 1 ? "" : "s"} to do`
-                : "You’re all caught up for now"}
-            </Text>
-            <View style={styles.simpleDashboardList}>
-              {simpleTaskItems.map((item) => (
-                <View key={item} style={styles.simpleDashboardListRow}>
-                  <View style={styles.simpleDashboardBullet} />
-                  <Text style={styles.simpleDashboardListText}>{item}</Text>
-                </View>
-              ))}
-            </View>
+            <Text style={styles.simpleDashboardLead}>{simpleDashboardState.title}</Text>
+            <Text style={styles.simpleDashboardAppointmentName}>{simpleDashboardState.primary}</Text>
+            {simpleDashboardState.detail ? (
+              <Text style={styles.simpleDashboardAppointmentMeta}>{simpleDashboardState.detail}</Text>
+            ) : null}
+            {simpleDashboardState.secondary ? (
+              <Text style={simpleDashboardState.detail ? styles.simpleDashboardAppointmentSubtle : styles.simpleDashboardAppointmentMeta}>
+                {simpleDashboardState.secondary}
+              </Text>
+            ) : null}
+            {simpleDashboardState.tertiary ? (
+              <Text style={styles.simpleDashboardAppointmentSubtle}>{simpleDashboardState.tertiary}</Text>
+            ) : null}
             <Pressable
               style={({ pressed }) => [
                 styles.simpleDashboardPrimaryButton,
                 pressed && styles.simpleDashboardPrimaryButtonPressed,
               ]}
-              onPress={() => onNavigate(simpleDashboardCta.target)}
+              onPress={() => onNavigate(simpleDashboardState.ctaTarget)}
               accessibilityRole="button"
-              accessibilityLabel={simpleDashboardCta.label}
+              accessibilityLabel={simpleDashboardState.ctaLabel}
             >
-              <Text style={styles.simpleDashboardPrimaryButtonText}>{simpleDashboardCta.label}</Text>
+              <Text style={styles.simpleDashboardPrimaryButtonText}>{simpleDashboardState.ctaLabel}</Text>
             </Pressable>
-          </View>
-
-          <View style={styles.simpleDashboardCard}>
-            <Text style={styles.simpleDashboardCardTitle}>Medications</Text>
-            {nextMedication ? (
-              <>
-                <View style={styles.simpleDashboardAppointmentRow}>
-                  <View style={styles.simpleDashboardAvatar}>
-                    <Ionicons name="medical" size={28} color={C.tint} />
-                  </View>
-                  <View style={styles.simpleDashboardAppointmentTextWrap}>
-                    <Text style={styles.simpleDashboardAppointmentName}>{nextMedication.name}</Text>
-                    <Text style={styles.simpleDashboardAppointmentMeta}>{simpleMedicationSummary}</Text>
-                    {nextMedication.lines.length > 1 ? (
-                      <Text style={styles.simpleDashboardAppointmentSubtle}>
-                        {nextMedication.lines.slice(1).join(" • ")}
-                      </Text>
-                    ) : null}
-                  </View>
-                </View>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.simpleDashboardPrimaryButton,
-                    pressed && styles.simpleDashboardPrimaryButtonPressed,
-                  ]}
-                  onPress={() => onNavigate("medications")}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open medications"
-                >
-                  <Text style={styles.simpleDashboardPrimaryButtonText}>Open Medications</Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <Text style={styles.simpleDashboardEmptyTitle}>No medications due</Text>
-                <Text style={styles.simpleDashboardEmptyBody}>Open medications to check your schedule and log doses.</Text>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.simpleDashboardPrimaryButton,
-                    pressed && styles.simpleDashboardPrimaryButtonPressed,
-                  ]}
-                  onPress={() => onNavigate("medications")}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open medications"
-                >
-                  <Text style={styles.simpleDashboardPrimaryButtonText}>Open Medications</Text>
-                </Pressable>
-              </>
-            )}
-          </View>
-
-          <View style={styles.simpleDashboardCard}>
-            <Text style={styles.simpleDashboardCardTitle}>Appointments</Text>
-            {nextApt ? (
-              <>
-                {nextApt.date === today ? (
-                  <View style={styles.simpleDashboardTodayBadge}>
-                    <Text style={styles.simpleDashboardTodayBadgeText}>Today</Text>
-                  </View>
-                ) : null}
-                <View style={styles.simpleDashboardAppointmentRow}>
-                  <View style={styles.simpleDashboardAvatar}>
-                    <Ionicons name="person" size={28} color={C.tint} />
-                  </View>
-                  <View style={styles.simpleDashboardAppointmentTextWrap}>
-                    <Text style={styles.simpleDashboardAppointmentName}>{nextApt.doctorName}</Text>
-                    <Text style={styles.simpleDashboardAppointmentMeta}>{simpleAppointmentSummary}</Text>
-                    {nextApt.specialty ? (
-                      <Text style={styles.simpleDashboardAppointmentSubtle}>{nextApt.specialty}</Text>
-                    ) : null}
-                  </View>
-                </View>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.simpleDashboardPrimaryButton,
-                    pressed && styles.simpleDashboardPrimaryButtonPressed,
-                  ]}
-                  onPress={() => onNavigate("appointments")}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open appointments"
-                >
-                  <Text style={styles.simpleDashboardPrimaryButtonText}>Open Appointments</Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <Text style={styles.simpleDashboardEmptyTitle}>No appointments scheduled</Text>
-                <Text style={styles.simpleDashboardEmptyBody}>Open appointments to add your next visit.</Text>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.simpleDashboardPrimaryButton,
-                    pressed && styles.simpleDashboardPrimaryButtonPressed,
-                  ]}
-                  onPress={() => onNavigate("appointments")}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open appointments"
-                >
-                  <Text style={styles.simpleDashboardPrimaryButtonText}>Open Appointments</Text>
-                </Pressable>
-              </>
-            )}
           </View>
         </ScrollView>
         {fab}
@@ -1556,6 +1544,65 @@ function makeStyles(C: Theme, textScale: number) {
       shadowRadius: 22,
       elevation: 6,
       gap: 14,
+    },
+    simpleAddSheet: {
+      position: "absolute",
+      left: 16,
+      right: 16,
+      bottom: 24,
+      backgroundColor: C.surface,
+      borderRadius: 24,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: C.border,
+      gap: 12,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.16,
+      shadowRadius: 20,
+      elevation: 8,
+    },
+    simpleAddSheetTitle: {
+      fontWeight: "800",
+      fontSize: size(22),
+      lineHeight: size(28),
+      color: C.text,
+      letterSpacing: -0.4,
+    },
+    simpleAddSheetButton: {
+      minHeight: 56,
+      borderRadius: 18,
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 18,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    simpleAddSheetButtonPressed: {
+      opacity: 0.95,
+      transform: [{ scale: 0.99 }],
+    },
+    simpleAddSheetButtonText: {
+      fontWeight: "700",
+      fontSize: size(18),
+      color: C.text,
+    },
+    simpleAddSheetCancelButton: {
+      minHeight: 56,
+      borderRadius: 18,
+      backgroundColor: C.surface,
+      borderWidth: 1,
+      borderColor: C.border,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 18,
+    },
+    simpleAddSheetCancelText: {
+      fontWeight: "700",
+      fontSize: size(18),
+      color: C.textSecondary,
     },
     simpleDashboardCardTitle: {
       fontWeight: "800",
@@ -1995,6 +2042,7 @@ function makeStyles(C: Theme, textScale: number) {
       shadowOpacity: 0.35,
       shadowRadius: 10,
       elevation: 8,
+      zIndex: 30,
     },
   });
 }

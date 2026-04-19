@@ -263,7 +263,12 @@ function makeCalStyles(C: Theme) {
   });
 }
 
-export default function AppointmentsScreen() {
+interface AppointmentsScreenProps {
+  simpleOpenAddToken?: number;
+  onSimpleSaveComplete?: () => void;
+}
+
+export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveComplete }: AppointmentsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const modeUI = useModeAwareScreen("appointments");
@@ -357,6 +362,11 @@ export default function AppointmentsScreen() {
     setShowSimpleAptModal(true);
   }, [resetSimpleAppointmentForm]);
 
+  useEffect(() => {
+    if (!modeUI.isSimpleMode || !simpleOpenAddToken) return;
+    openSimpleAddAppointment();
+  }, [modeUI.isSimpleMode, openSimpleAddAppointment, simpleOpenAddToken]);
+
   const openSimpleEditAppointment = useCallback((appointment: Appointment) => {
     setEditingApt(appointment);
     setSimpleStep(4);
@@ -409,7 +419,10 @@ export default function AppointmentsScreen() {
     setShowSimpleAptModal(false);
     resetSimpleAppointmentForm();
     await loadData();
-  }, [editingApt, loadData, resetSimpleAppointmentForm, simpleDate, simpleDoctorName, simpleEntryOwner, simpleTime]);
+    if (!editingApt) {
+      onSimpleSaveComplete?.();
+    }
+  }, [editingApt, loadData, onSimpleSaveComplete, resetSimpleAppointmentForm, simpleDate, simpleDoctorName, simpleEntryOwner, simpleTime]);
 
   const handleSimpleMarkDone = useCallback(async (appointment: Appointment) => {
     await appointmentStorage.update(appointment.id, { status: "completed" });
@@ -733,20 +746,10 @@ export default function AppointmentsScreen() {
             ) : (
               <>
                 <Text style={styles.simpleAppointmentsEmptyTitle}>No appointments scheduled</Text>
-                <Text style={styles.simpleAppointmentsPerson}>Tap the button below to add one.</Text>
+                <Text style={styles.simpleAppointmentsPerson}>Use the + button to add one.</Text>
               </>
             )}
           </View>
-
-          <Pressable
-            style={({ pressed }) => [styles.simpleAppointmentsAddCard, pressed && styles.simpleAppointmentsSecondaryButtonPressed]}
-            onPress={openSimpleAddAppointment}
-            accessibilityRole="button"
-            accessibilityLabel="Add appointment"
-          >
-            <Ionicons name="add-circle-outline" size={22} color={C.tint} />
-            <Text style={styles.simpleAppointmentsAddCardText}>+ Add appointment</Text>
-          </Pressable>
 
           {simpleMoreUpcomingAppointments.length > 0 ? (
             <View style={styles.simpleAppointmentsListSection}>

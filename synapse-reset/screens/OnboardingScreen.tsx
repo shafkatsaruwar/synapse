@@ -17,7 +17,7 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { settingsStorage, ALL_SECTION_KEYS, REQUIRED_SECTION_KEYS, type AppMode } from "@/lib/storage";
+import { settingsStorage, healthProfileStorage, ALL_SECTION_KEYS, REQUIRED_SECTION_KEYS, type AppMode, type UserRole } from "@/lib/storage";
 import { useTheme, type Theme, type ThemeId, type ThemePreference } from "@/contexts/ThemeContext";
 import { useAppMode } from "@/contexts/AppModeContext";
 import { setBiometricLockEnabled } from "@/lib/biometric-storage";
@@ -45,7 +45,35 @@ const SECTION_LABELS: Record<string, string> = {
   privacy: "Privacy",
 };
 
-const SLIDE_COUNT = 8;
+type OnboardingStepId =
+  | "intro"
+  | "privacy"
+  | "mode"
+  | "name"
+  | "role"
+  | "appearance"
+  | "features"
+  | "addMeds"
+  | "done";
+
+const FULL_ONBOARDING_STEPS: OnboardingStepId[] = [
+  "intro",
+  "privacy",
+  "mode",
+  "name",
+  "appearance",
+  "features",
+  "addMeds",
+  "done",
+];
+
+const SIMPLE_ONBOARDING_STEPS: OnboardingStepId[] = [
+  "intro",
+  "privacy",
+  "mode",
+  "name",
+  "role",
+];
 
 const APP_MODE_OPTIONS: { id: AppMode; label: string; description: string }[] = [
   { id: "simple", label: "Simple Mode", description: "Bigger text, bigger buttons, and a simpler view of your main daily screens" },
@@ -61,6 +89,7 @@ const APPEARANCE_OPTIONS: { id: ThemePreference; label: string; description: str
 
 export interface OnboardingCompleteOptions {
   openMedications?: boolean;
+  appMode?: AppMode;
 }
 
 interface OnboardingScreenProps {
@@ -95,6 +124,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [onboardingLastName, setOnboardingLastName] = useState("");
   const [selectedAppearance, setSelectedAppearance] = useState<ThemePreference>(preference);
   const [selectedAppMode, setSelectedAppMode] = useState<AppMode | null>(null);
+  const [onboardingRole, setOnboardingRole] = useState<UserRole>("self");
+  const [onboardingCaredForName, setOnboardingCaredForName] = useState("");
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
@@ -105,6 +136,12 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const previewColors = useMemo(() => getPreviewTheme(previewThemeId), [previewThemeId]);
   const styles = useMemo(() => makeStyles(previewColors), [previewColors]);
   const statusBarStyle = previewThemeId === "dark" ? "light-content" : "dark-content";
+  const onboardingSteps = useMemo<OnboardingStepId[]>(
+    () => (selectedAppMode === "simple" ? SIMPLE_ONBOARDING_STEPS : FULL_ONBOARDING_STEPS),
+    [selectedAppMode]
+  );
+  const stepId = onboardingSteps[step];
+  const slideCount = onboardingSteps.length;
 
   useEffect(() => {
     Animated.timing(slideX, {
@@ -115,7 +152,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   }, [step, width]);
 
   const goNext = () => {
-    if (step < SLIDE_COUNT - 1) {
+    if (step < slideCount - 1) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setStep((s) => s + 1);
     }
@@ -129,6 +166,11 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   };
 
   const finishWithBiometricPrompt = async (openMedications?: boolean) => {
+    if ((selectedAppMode ?? "full") === "simple") {
+      await handleFinish(openMedications);
+      return;
+    }
+
     if (Platform.OS === "ios" || Platform.OS === "android") {
       Alert.alert(
         "Enable Face ID / Touch ID?",
@@ -163,11 +205,12 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
   const handleFinish = async (openMedications?: boolean) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const settings = await settingsStorage.get();
+    const [settings, profile] = await Promise.all([settingsStorage.get(), healthProfileStorage.get()]);
     const enabledSections = Array.from(selectedSections);
     const firstName = onboardingFirstName.trim();
     const lastName = onboardingLastName.trim();
     const resolvedAppMode = selectedAppMode ?? "full";
+    const caredForName = onboardingRole === "caregiver" ? onboardingCaredForName.trim() : "";
     await settingsStorage.save({
       ...settings,
       firstName: firstName || settings.firstName,
@@ -177,14 +220,22 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       appMode: resolvedAppMode,
       enabledSections: enabledSections.length > 0 ? enabledSections : (ALL_SECTION_KEYS as unknown as string[]),
     });
+    await healthProfileStorage.save({
+      ...profile,
+      userRole: onboardingRole,
+      caredForName: onboardingRole === "caregiver" ? caredForName || undefined : undefined,
+    });
     await setAppMode(resolvedAppMode);
     await setThemeId(selectedAppearance);
-    onComplete(openMedications ? { openMedications: true } : undefined);
+    onComplete({
+      ...(openMedications ? { openMedications: true } : {}),
+      appMode: resolvedAppMode,
+    });
   };
 
   const handleSkipForNow = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setStep(SLIDE_COUNT - 1);
+    setStep(slideCount - 1);
   };
 
   const slideWidth = width;
@@ -298,6 +349,54 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const renderSlide4 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <View style={styles.slideCenter}>
+        <Text style={styles.setupTitle}>Who is this for?</Text>
+        <Text style={styles.setupSub}>Choose the role that fits best.</Text>
+        <View style={styles.appearanceList}>
+          {[
+            { id: "self" as const, label: "Just me", description: "Track your own medications, appointments, and symptoms" },
+            { id: "caregiver" as const, label: "Helping someone", description: "Manage care for another person with a simpler view" },
+          ].map((opt) => {
+            const isSelected = onboardingRole === opt.id;
+            return (
+              <Pressable
+                key={opt.id}
+                style={[styles.appearanceRow, isSelected && styles.appearanceRowActive]}
+                onPress={() => {
+                  setOnboardingRole(opt.id);
+                  void Haptics.selectionAsync().catch(() => {});
+                }}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isSelected }}
+              >
+                <View style={styles.appearanceTextGroup}>
+                  <Text style={[styles.appearanceLabel, isSelected && styles.appearanceLabelActive]}>{opt.label}</Text>
+                  <Text style={styles.appearanceDesc}>{opt.description}</Text>
+                </View>
+                <View style={[styles.appearanceRadio, isSelected && styles.appearanceRadioActive]}>
+                  {isSelected && <View style={styles.appearanceRadioDot} />}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+        {onboardingRole === "caregiver" ? (
+          <TextInput
+            style={[styles.nameInput, { marginTop: 20 }]}
+            placeholder="Who are you helping?"
+            placeholderTextColor={previewColors.textTertiary}
+            value={onboardingCaredForName}
+            onChangeText={setOnboardingCaredForName}
+            autoCapitalize="words"
+            returnKeyType="done"
+          />
+        ) : null}
+      </View>
+    </View>
+  );
+
+  const renderSlide5 = () => (
+    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
+      <View style={styles.slideCenter}>
         <Text style={styles.setupTitle}>Choose your appearance</Text>
         <Text style={styles.setupSub}>You can change this anytime in Settings.</Text>
         <View style={styles.appearanceList}>
@@ -330,7 +429,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const renderSlide5 = () => (
+  const renderSlide6 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <Text style={styles.setupTitle}>Make Synapse yours.</Text>
       <Text style={styles.setupSub}>Core features like Medications, Appointments, and Vitals are already included. Please choose what else you&apos;d like to include in your health journey.</Text>
@@ -370,7 +469,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const renderSlide6 = () => (
+  const renderSlide7 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <KeyboardAvoidingView
         style={styles.authSlide}
@@ -391,7 +490,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const renderSlide7 = () => (
+  const renderSlide8 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <View style={styles.slideCenter}>
         <View style={styles.completionCircle}>
@@ -403,12 +502,27 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const slides = [renderSlide0, renderSlide1, renderSlide2, renderSlide3, renderSlide4, renderSlide5, renderSlide6, renderSlide7];
+  const renderSlide = (id: OnboardingStepId) => {
+    switch (id) {
+      case "intro": return renderSlide0();
+      case "privacy": return renderSlide1();
+      case "mode": return renderSlide2();
+      case "name": return renderSlide3();
+      case "role": return renderSlide4();
+      case "appearance": return renderSlide5();
+      case "features": return renderSlide6();
+      case "addMeds": return renderSlide7();
+      case "done": return renderSlide8();
+      default: return null;
+    }
+  };
 
   const showBack = step > 0;
-  const showContinue = step < SLIDE_COUNT - 1 && step !== 6;
-  const showOpenSynapse = step === SLIDE_COUNT - 1;
-  const continueDisabled = step === 2 && !selectedAppMode;
+  const showContinue = step < slideCount - 1 && stepId !== "addMeds";
+  const showOpenSynapse = step === slideCount - 1 && stepId !== "addMeds";
+  const continueDisabled =
+    (stepId === "mode" && !selectedAppMode) ||
+    (stepId === "role" && onboardingRole === "caregiver" && !onboardingCaredForName.trim());
 
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
@@ -418,14 +532,14 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           style={[
             styles.sliderRow,
             {
-              width: slideWidth * SLIDE_COUNT,
+              width: slideWidth * slideCount,
               transform: [{ translateX: slideX }],
             },
           ]}
         >
-          {slides.map((render, i) => (
+          {onboardingSteps.map((currentStepId, i) => (
             <View key={i} style={{ width: slideWidth }}>
-              {render()}
+              {renderSlide(currentStepId)}
             </View>
           ))}
         </Animated.View>
@@ -433,7 +547,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
       <View style={[styles.footer, { paddingHorizontal: paddingH }]}>
         <View style={styles.dotsRow}>
-          {Array.from({ length: SLIDE_COUNT }, (_, i) => (
+          {Array.from({ length: slideCount }, (_, i) => (
             <View
               key={i}
               style={[
@@ -468,9 +582,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
             style={styles.continueBtn}
             onPress={() => { void finishWithBiometricPrompt(); }}
             accessibilityRole="button"
-            accessibilityLabel="Open Synapse"
+            accessibilityLabel={selectedAppMode === "simple" ? "Get started" : "Open Synapse"}
           >
-            <Text style={styles.continueBtnText}>Open Synapse</Text>
+            <Text style={styles.continueBtnText}>{selectedAppMode === "simple" ? "Get Started" : "Open Synapse"}</Text>
             <Ionicons name="arrow-forward" size={18} color="#fff" />
           </Pressable>
         )}

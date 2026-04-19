@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import Constants from "expo-constants";
 import { useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
 import SynapseLogo from "@/components/SynapseLogo";
@@ -80,6 +81,7 @@ const ESSENTIAL_SICK_KEYS = ["dashboard", "sickmode", "medications", "symptoms",
 interface SidebarLayoutProps {
   activeScreen: string;
   onNavigate: (screen: string) => void;
+  onSimpleAddSelect?: (target: "medication" | "appointment" | "symptom") => void;
   children: React.ReactNode;
   sickMode?: boolean;
   simpleMode?: boolean;
@@ -91,6 +93,7 @@ interface SidebarLayoutProps {
 export default function SidebarLayout({
   activeScreen,
   onNavigate,
+  onSimpleAddSelect,
   children,
   sickMode,
   simpleMode = false,
@@ -102,6 +105,7 @@ export default function SidebarLayout({
   const { width, height } = useWindowDimensions();
   const isWide = width >= 768;
   const [moreOpen, setMoreOpen] = useState(false);
+  const [showSimpleAddSheet, setShowSimpleAddSheet] = useState(false);
   const drawerSlide = useRef(new Animated.Value(1)).current;
 
   const isWideRef = useRef(isWide);
@@ -252,6 +256,7 @@ export default function SidebarLayout({
 
       {showBottomNav && (
         <View
+          pointerEvents="box-none"
           style={[
             styles.mobileNavWrap,
             {
@@ -326,6 +331,66 @@ export default function SidebarLayout({
           )}
         </View>
       )}
+
+      {simpleMode ? (
+        <>
+          <Pressable
+            style={[
+              styles.simpleAddFab,
+              { bottom: Platform.OS === "web" ? 132 : insets.bottom + 108 },
+            ]}
+            onPress={() => {
+              void Haptics.selectionAsync().catch(() => {});
+              setShowSimpleAddSheet(true);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Add something"
+            accessibilityHint="Choose what to add"
+          >
+            <Ionicons name="add" size={30} color="#fff" />
+          </Pressable>
+
+          <Modal visible={showSimpleAddSheet} transparent animationType="fade" onRequestClose={() => setShowSimpleAddSheet(false)}>
+            <View style={styles.drawerContainer}>
+              <Pressable
+                style={styles.drawerOverlay}
+                onPress={() => setShowSimpleAddSheet(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close add options"
+              />
+              <View style={[styles.simpleAddSheetWrap, { paddingBottom: Platform.OS === "web" ? 24 : insets.bottom + 24 }]}>
+                <View style={styles.simpleAddSheet}>
+                  <Text style={styles.simpleAddSheetTitle}>What do you want to add?</Text>
+                  {[
+                    { key: "medication" as const, label: "Medication", icon: "medical-outline" as const },
+                    { key: "appointment" as const, label: "Appointment", icon: "calendar-outline" as const },
+                    { key: "symptom" as const, label: "Symptom", icon: "pulse-outline" as const },
+                  ].map((option) => (
+                    <Pressable
+                      key={option.key}
+                      style={({ pressed }) => [styles.simpleAddSheetButton, pressed && styles.simpleAddSheetButtonPressed]}
+                      onPress={() => {
+                        void Haptics.selectionAsync().catch(() => {});
+                        setShowSimpleAddSheet(false);
+                        onSimpleAddSelect?.(option.key);
+                      }}
+                    >
+                      <Ionicons name={option.icon} size={22} color={C.text} />
+                      <Text style={styles.simpleAddSheetButtonText}>{option.label}</Text>
+                    </Pressable>
+                  ))}
+                  <Pressable
+                    style={({ pressed }) => [styles.simpleAddSheetCancelButton, pressed && styles.simpleAddSheetButtonPressed]}
+                    onPress={() => setShowSimpleAddSheet(false)}
+                  >
+                    <Text style={styles.simpleAddSheetCancelText}>Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        </>
+      ) : null}
 
       {!simpleMode && !isWide && (
       <Modal
@@ -610,6 +675,81 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     },
     mobileNavLabelActive: {
       color: C.accent,
+    },
+    simpleAddFab: {
+      position: "absolute",
+      right: 20,
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: C.tint,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.28,
+      shadowRadius: 12,
+      elevation: 12,
+      zIndex: 40,
+    },
+    simpleAddSheetWrap: {
+      flex: 1,
+      justifyContent: "flex-end",
+      paddingHorizontal: 16,
+    },
+    simpleAddSheet: {
+      backgroundColor: C.surface,
+      borderRadius: 24,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: C.border,
+      gap: 12,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.16,
+      shadowRadius: 20,
+      elevation: 8,
+    },
+    simpleAddSheetTitle: {
+      fontWeight: "800",
+      fontSize: 22,
+      color: C.text,
+      letterSpacing: -0.4,
+    },
+    simpleAddSheetButton: {
+      minHeight: 56,
+      borderRadius: 18,
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: 18,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    simpleAddSheetButtonPressed: {
+      opacity: 0.95,
+      transform: [{ scale: 0.99 }],
+    },
+    simpleAddSheetButtonText: {
+      fontWeight: "700",
+      fontSize: 18,
+      color: C.text,
+    },
+    simpleAddSheetCancelButton: {
+      minHeight: 56,
+      borderRadius: 18,
+      backgroundColor: C.surface,
+      borderWidth: 1,
+      borderColor: C.border,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 18,
+    },
+    simpleAddSheetCancelText: {
+      fontWeight: "700",
+      fontSize: 18,
+      color: C.textSecondary,
     },
     drawerContainer: {
       flex: 1,

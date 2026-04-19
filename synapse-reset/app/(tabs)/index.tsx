@@ -74,10 +74,16 @@ export default function MainScreen() {
   const [walkthroughStepId, setWalkthroughStepId] = useState<string | null>(null);
   const [walkthroughMenuOpen, setWalkthroughMenuOpen] = useState<boolean | null>(null);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [showSimpleModeTour, setShowSimpleModeTour] = useState(false);
+  const [simpleModeTourStep, setSimpleModeTourStep] = useState(0);
   const [openAppearanceModalToken, setOpenAppearanceModalToken] = useState(0);
   const [showFeedbackPrompt, setShowFeedbackPrompt] = useState(false);
+  const [suppressPostOnboardingPrompts, setSuppressPostOnboardingPrompts] = useState(false);
   const [feedbackInitialSentiment, setFeedbackInitialSentiment] = useState<FeedbackSentiment | null>(null);
   const [feedbackEntrySource, setFeedbackEntrySource] = useState<"settings" | "prompt">("settings");
+  const [simpleAddMedicationToken, setSimpleAddMedicationToken] = useState(0);
+  const [simpleAddAppointmentToken, setSimpleAddAppointmentToken] = useState(0);
+  const [simpleAddSymptomToken, setSimpleAddSymptomToken] = useState(0);
 
   const navigateToWidgetTarget = useCallback((url: string | null | undefined) => {
     if (!url) return false;
@@ -129,7 +135,7 @@ export default function MainScreen() {
   }, [showOnboarding]);
 
   useEffect(() => {
-    if (showOnboarding !== false || showWalkthrough || showWhatsNew || showFeedbackPrompt) return;
+    if (showOnboarding !== false || showWalkthrough || showSimpleModeTour || showWhatsNew || showFeedbackPrompt || suppressPostOnboardingPrompts) return;
     if (activeScreen !== "dashboard") return;
     let cancelled = false;
     const timer = setTimeout(async () => {
@@ -142,10 +148,10 @@ export default function MainScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [FEEDBACK_VERSION_KEY, activeScreen, showFeedbackPrompt, showOnboarding, showWalkthrough, showWhatsNew]);
+  }, [FEEDBACK_VERSION_KEY, activeScreen, showFeedbackPrompt, showOnboarding, showSimpleModeTour, showWalkthrough, showWhatsNew, suppressPostOnboardingPrompts]);
 
   useEffect(() => {
-    if (showOnboarding !== false) return;
+    if (showOnboarding !== false || suppressPostOnboardingPrompts) return;
     let mounted = true;
     (async () => {
       if (Platform.OS !== "ios" && Platform.OS !== "android") return;
@@ -213,10 +219,10 @@ export default function MainScreen() {
     return () => {
       cancelled = true;
     };
-  }, [WHATS_NEW_SEEN_KEY, showOnboarding]);
+  }, [WHATS_NEW_SEEN_KEY, showOnboarding, suppressPostOnboardingPrompts]);
 
   useEffect(() => {
-    if (showOnboarding !== false) return;
+    if (showOnboarding !== false || isSimpleMode) return;
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
@@ -230,13 +236,37 @@ export default function MainScreen() {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [showOnboarding]);
+  }, [isSimpleMode, showOnboarding]);
 
   const handleNavigate = (screen: string) => {
     setActiveScreen(screen);
     setRefreshKey((k) => k + 1);
     settingsStorage.get().then(s => setSickMode(s.sickMode));
   };
+
+  const handleSimpleAddNavigate = useCallback((target: "medication" | "appointment" | "symptom") => {
+    if (target === "medication") {
+      setActiveScreen("medications");
+      setSimpleAddMedicationToken((value) => value + 1);
+      return;
+    }
+    if (target === "appointment") {
+      setActiveScreen("appointments");
+      setSimpleAddAppointmentToken((value) => value + 1);
+      return;
+    }
+    setActiveScreen("symptoms");
+    setSimpleAddSymptomToken((value) => value + 1);
+  }, []);
+
+  const handleSimpleSaveReturnToDashboard = useCallback(() => {
+    setActiveScreen("dashboard");
+    setRefreshKey((k) => k + 1);
+  }, []);
+
+  const handleSimpleMedicationAddConsumed = useCallback(() => {
+    setSimpleAddMedicationToken(0);
+  }, []);
 
   // Register navigate callback for notification tap routing
   useEffect(() => {
@@ -284,8 +314,20 @@ export default function MainScreen() {
     setRefreshKey((k) => k + 1);
   };
 
-  const handleOnboardingComplete = (options?: { openMedications?: boolean }) => {
-    setHasSeenWalkthrough(false); // always show tour after fresh onboarding
+  const handleOnboardingComplete = async (options?: { openMedications?: boolean; appMode?: "simple" | "full" }) => {
+    const completedAppMode = options?.appMode ?? "full";
+    if (completedAppMode === "simple") {
+      await setHasSeenWalkthrough(true);
+      setShowSimpleModeTour(true);
+      setSimpleModeTourStep(0);
+      setSuppressPostOnboardingPrompts(true);
+      try {
+        await AsyncStorage.setItem(WHATS_NEW_SEEN_KEY, "true");
+      } catch {}
+    } else {
+      await setHasSeenWalkthrough(false);
+      setSuppressPostOnboardingPrompts(false);
+    }
     setShowOnboarding(false);
     if (options?.openMedications) setActiveScreen("medications");
     setRefreshKey((k) => k + 1);
@@ -294,10 +336,35 @@ export default function MainScreen() {
   const handleResetApp = () => {
     setHasSeenWalkthrough(false); // reset tour on app reset too
     setShowOnboarding(true);
+    setShowSimpleModeTour(false);
+    setSimpleModeTourStep(0);
+    setSuppressPostOnboardingPrompts(false);
     setShowWhatsNew(false);
     setActiveScreen("dashboard");
     setSickMode(false);
   };
+
+  const SIMPLE_MODE_TOUR_CARDS = [
+    {
+      title: "Everything in one place",
+      body: "Track meds, appointments, and symptoms simply.",
+    },
+    {
+      title: "Tap + to add anything",
+      body: "Add medications, appointments, or symptoms quickly.",
+    },
+    {
+      title: "Stay on track",
+      body: "See what’s due and log how you feel daily.",
+    },
+  ] as const;
+
+  const handleCloseSimpleModeTour = useCallback(() => {
+    setShowSimpleModeTour(false);
+    setSimpleModeTourStep(0);
+    setActiveScreen("dashboard");
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   const markWhatsNewSeen = useCallback(async () => {
     try {
@@ -361,6 +428,8 @@ export default function MainScreen() {
 
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
+  const simpleTourCard = SIMPLE_MODE_TOUR_CARDS[simpleModeTourStep];
+  const isLastSimpleTourStep = simpleModeTourStep === SIMPLE_MODE_TOUR_CARDS.length - 1;
 
   // When storage hasn't loaded yet, show main app so the content area is never blank (avoids stuck splash-like screen).
   if (showOnboarding === true) {
@@ -389,9 +458,9 @@ export default function MainScreen() {
       case "healthdata":
         return <HealthDataScreen />;
       case "medications":
-        return <MedicationsScreen />;
+        return <MedicationsScreen simpleOpenAddToken={simpleAddMedicationToken} onSimpleOpenAddConsumed={handleSimpleMedicationAddConsumed} onSimpleSaveComplete={handleSimpleSaveReturnToDashboard} />;
       case "symptoms":
-        return <SymptomsScreen onActivateSickMode={handleActivateSickMode} />;
+        return <SymptomsScreen onActivateSickMode={handleActivateSickMode} simpleOpenAddToken={simpleAddSymptomToken} />;
       case "documents":
         return <DocumentsScreen />;
       case "insights":
@@ -407,7 +476,7 @@ export default function MainScreen() {
       case "goals":
         return <GoalsScreen />;
       case "appointments":
-        return <AppointmentsScreen />;
+        return <AppointmentsScreen simpleOpenAddToken={simpleAddAppointmentToken} onSimpleSaveComplete={handleSimpleSaveReturnToDashboard} />;
       case "reports":
         return <ReportsScreen />;
       case "ramadan":
@@ -474,6 +543,7 @@ export default function MainScreen() {
     <SidebarLayout
       activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
       onNavigate={handleNavigate}
+      onSimpleAddSelect={handleSimpleAddNavigate}
       sickMode={sickMode}
       simpleMode={isSimpleMode}
       headerRight={activeScreen === "dashboard" ? <SickModeHeaderButton onActivate={handleActivateSickMode} onNavigate={handleNavigate} refreshKey={refreshKey} /> : undefined}
@@ -509,6 +579,36 @@ export default function MainScreen() {
               setShowWalkthrough(false);
             }}
           />
+          <Modal animationType="fade" transparent visible={showSimpleModeTour} onRequestClose={handleCloseSimpleModeTour}>
+            <View style={styles.modalBackdrop}>
+              <View style={styles.simpleTourCard}>
+                <View style={styles.simpleTourDots}>
+                  {SIMPLE_MODE_TOUR_CARDS.map((_, index) => (
+                    <View key={index} style={[styles.simpleTourDot, index === simpleModeTourStep && styles.simpleTourDotActive]} />
+                  ))}
+                </View>
+                <Text style={styles.simpleTourTitle}>{simpleTourCard.title}</Text>
+                <Text style={styles.simpleTourBody}>{simpleTourCard.body}</Text>
+                <View style={styles.simpleTourActions}>
+                  <Pressable onPress={handleCloseSimpleModeTour} style={({ pressed }) => [styles.simpleTourSecondaryButton, pressed && styles.whatsNewButtonPressed]}>
+                    <Text style={styles.simpleTourSecondaryText}>Skip</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      if (isLastSimpleTourStep) {
+                        handleCloseSimpleModeTour();
+                        return;
+                      }
+                      setSimpleModeTourStep((current) => current + 1);
+                    }}
+                    style={({ pressed }) => [styles.simpleTourPrimaryButton, pressed && styles.whatsNewButtonPressed]}
+                  >
+                    <Text style={styles.simpleTourPrimaryText}>{isLastSimpleTourStep ? "Get Started" : "Next"}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </Modal>
           <Modal
             animationType="fade"
             transparent
@@ -595,6 +695,36 @@ export default function MainScreen() {
             setShowWalkthrough(false);
           }}
         />
+        <Modal animationType="fade" transparent visible={showSimpleModeTour} onRequestClose={handleCloseSimpleModeTour}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.simpleTourCard}>
+              <View style={styles.simpleTourDots}>
+                {SIMPLE_MODE_TOUR_CARDS.map((_, index) => (
+                  <View key={index} style={[styles.simpleTourDot, index === simpleModeTourStep && styles.simpleTourDotActive]} />
+                ))}
+              </View>
+              <Text style={styles.simpleTourTitle}>{simpleTourCard.title}</Text>
+              <Text style={styles.simpleTourBody}>{simpleTourCard.body}</Text>
+              <View style={styles.simpleTourActions}>
+                <Pressable onPress={handleCloseSimpleModeTour} style={({ pressed }) => [styles.simpleTourSecondaryButton, pressed && styles.whatsNewButtonPressed]}>
+                  <Text style={styles.simpleTourSecondaryText}>Skip</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    if (isLastSimpleTourStep) {
+                      handleCloseSimpleModeTour();
+                      return;
+                    }
+                    setSimpleModeTourStep((current) => current + 1);
+                  }}
+                  style={({ pressed }) => [styles.simpleTourPrimaryButton, pressed && styles.whatsNewButtonPressed]}
+                >
+                  <Text style={styles.simpleTourPrimaryText}>{isLastSimpleTourStep ? "Get Started" : "Next"}</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
         <Modal
           animationType="fade"
           transparent
@@ -682,6 +812,87 @@ function makeStyles(C: Theme) {
       backgroundColor: "rgba(0,0,0,0.28)",
       justifyContent: "center",
       paddingHorizontal: 22,
+    },
+    simpleTourCard: {
+      backgroundColor: C.surface,
+      borderRadius: 28,
+      paddingHorizontal: 24,
+      paddingTop: 24,
+      paddingBottom: 20,
+      borderWidth: 1,
+      borderColor: C.borderLight,
+      gap: 14,
+      shadowColor: "#000",
+      shadowOpacity: 0.12,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 8,
+    },
+    simpleTourDots: {
+      flexDirection: "row",
+      justifyContent: "center",
+      gap: 8,
+      paddingBottom: 2,
+    },
+    simpleTourDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: C.tintLight,
+    },
+    simpleTourDotActive: {
+      width: 22,
+      borderRadius: 4,
+      backgroundColor: C.accent,
+    },
+    simpleTourTitle: {
+      fontSize: 28,
+      lineHeight: 34,
+      fontWeight: "800",
+      color: C.text,
+      textAlign: "center",
+      letterSpacing: -0.5,
+    },
+    simpleTourBody: {
+      fontSize: 17,
+      lineHeight: 25,
+      color: C.textSecondary,
+      textAlign: "center",
+    },
+    simpleTourActions: {
+      flexDirection: "row",
+      gap: 12,
+      paddingTop: 8,
+    },
+    simpleTourPrimaryButton: {
+      flex: 1,
+      minHeight: 52,
+      borderRadius: 18,
+      backgroundColor: C.accent,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 18,
+    },
+    simpleTourSecondaryButton: {
+      flex: 1,
+      minHeight: 52,
+      borderRadius: 18,
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.borderLight,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 18,
+    },
+    simpleTourPrimaryText: {
+      fontSize: 16,
+      fontWeight: "800",
+      color: "#fff",
+    },
+    simpleTourSecondaryText: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: C.text,
     },
     whatsNewCard: {
       backgroundColor: C.surface,

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, Alert, useWindowDimensions,
 } from "react-native";
@@ -270,7 +270,13 @@ function getAutoEmoji(med: Medication): string {
   return "💊";
 }
 
-export default function MedicationsScreen() {
+interface MedicationsScreenProps {
+  simpleOpenAddToken?: number;
+  onSimpleOpenAddConsumed?: () => void;
+  onSimpleSaveComplete?: () => void;
+}
+
+export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddConsumed, onSimpleSaveComplete }: MedicationsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -294,7 +300,7 @@ export default function MedicationsScreen() {
 
   const [formName, setFormName] = useState("");
   const [formMedicationType, setFormMedicationType] = useState<"scheduled" | "prn">("scheduled");
-  const [simpleAddStep, setSimpleAddStep] = useState<1 | 2 | 3>(1);
+  const [simpleAddStep, setSimpleAddStep] = useState<0 | 1 | 2 | 3>(1);
   const [simpleAddTypeSelection, setSimpleAddTypeSelection] = useState<"scheduled" | "prn" | null>(null);
   const [simpleSelectedDoseTimes, setSimpleSelectedDoseTimes] = useState<string[]>(["Morning"]);
   const [prnFlowStep, setPrnFlowStep] = useState<1 | 2 | 3>(1);
@@ -424,7 +430,7 @@ export default function MedicationsScreen() {
     setEditingMed(null);
     setFormName("");
     setFormMedicationType("scheduled");
-    setSimpleAddStep(1);
+    setSimpleAddStep(ownerOptions.length > 1 ? 0 : 1);
     setSimpleAddTypeSelection(null);
     setSimpleSelectedDoseTimes(["Morning"]);
     setPrnFlowStep(1);
@@ -521,7 +527,9 @@ export default function MedicationsScreen() {
     }
   };
 
-  const dosesWithAmount = formDosesArray.filter((d) => d.amount.trim().length > 0);
+  const dosesWithAmount = Array.isArray(formDosesArray)
+    ? formDosesArray.filter((d) => d.amount.trim().length > 0)
+    : [];
   const isPrn = formMedicationType === "prn";
   const isSimpleAddFlow = modeUI.isSimpleMode && !editingMed;
   const isNewPrnFlow = !editingMed && isPrn;
@@ -580,6 +588,7 @@ export default function MedicationsScreen() {
     formName.trim().length > 0 &&
     dosesWithAmount.length > 0 &&
     (isPrn || !dosesWithAmount.some((d) => !d.reminderTime?.trim()));
+  const canAdvanceSimpleStepZero = !!formEntryOwner;
   const canAdvanceSimpleStepOne = simpleAddTypeSelection !== null;
   const canAdvanceSimpleStepTwo = !!formName.trim();
   const canAdvanceSimpleStepThree =
@@ -597,14 +606,41 @@ export default function MedicationsScreen() {
     }
   };
 
+  useEffect(() => {
+    if (!modeUI.isSimpleMode || !simpleOpenAddToken) return;
+    handleOpenAddMedication();
+    onSimpleOpenAddConsumed?.();
+  }, [modeUI.isSimpleMode, onSimpleOpenAddConsumed, simpleOpenAddToken]);
+
   const renderSimpleAddMedicationFlow = () => (
     <View style={styles.prnFlowCard}>
       <View style={styles.prnStepDots}>
-        {[1, 2, 3].map((step) => (
-          <View key={step} style={[styles.prnStepDot, simpleAddStep === step && styles.prnStepDotActive]} />
+        {Array.from({ length: simpleStepCount }, (_, index) => index + 1).map((step) => (
+          <View key={step} style={[styles.prnStepDot, simpleDisplayedStep === step && styles.prnStepDotActive]} />
         ))}
       </View>
-      {simpleAddStep === 1 ? (
+      {simpleAddStep === 0 ? (
+        <>
+          <Text style={styles.prnFlowTitle}>Step 0 · Who is this for?</Text>
+          <Text style={styles.prnFlowHelper}>Choose who this medication belongs to.</Text>
+          <View style={styles.simpleOwnerStack}>
+            {ownerOptions.map((option) => (
+              <Pressable
+                key={option.value}
+                style={[styles.simpleOwnerButton, formEntryOwner === option.value && styles.simpleOwnerButtonActive]}
+                onPress={() => {
+                  setFormEntryOwner(option.value);
+                  void Haptics.selectionAsync().catch(() => {});
+                }}
+              >
+                <Text style={[styles.simpleOwnerButtonText, formEntryOwner === option.value && styles.simpleOwnerButtonTextActive]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : simpleAddStep === 1 ? (
         <>
           <Text style={styles.prnFlowTitle}>Step 1 · Type</Text>
           <Text style={styles.prnFlowHelper}>What do you want to add?</Text>
@@ -751,6 +787,9 @@ export default function MedicationsScreen() {
             <Text style={styles.prnSummaryDose}>
               {(prnPrimaryDose.amount.trim() || "Dose")} {prnPrimaryDose.unit.trim() || "mg"} · {isPrn ? "As Needed" : (simpleSelectedDoseTimes.join(", ") || "Select a time")}
             </Text>
+            {shouldShowSimpleOwnerStep ? (
+              <Text style={styles.prnSummaryMeta}>For {getOwnerLabel(formEntryOwner)}</Text>
+            ) : null}
           </View>
         </>
       )}
@@ -758,25 +797,41 @@ export default function MedicationsScreen() {
         <Pressable
           style={styles.cancelBtn}
           onPress={() => {
-            if (simpleAddStep === 1) {
+            if (simpleAddStep === 0 || (!shouldShowSimpleOwnerStep && simpleAddStep === 1)) {
               setShowSimpleAddModal(false);
               setShowCurrentMedNamePicker(false);
               setEditingMed(null);
             } else {
-              setSimpleAddStep((prev) => (prev === 3 ? 2 : 1));
+              setSimpleAddStep((prev) => {
+                if (prev === 3) return 2;
+                if (prev === 2) return 1;
+                return 0;
+              });
             }
           }}
         >
-          <Text style={styles.cancelText}>{simpleAddStep === 1 ? "Cancel" : "Back"}</Text>
+          <Text style={styles.cancelText}>{simpleAddStep === 0 || (!shouldShowSimpleOwnerStep && simpleAddStep === 1) ? "Cancel" : "Back"}</Text>
         </Pressable>
         {simpleAddStep < 3 ? (
           <Pressable
             style={[
               styles.confirmBtn,
-              ((simpleAddStep === 1 && !canAdvanceSimpleStepOne) || (simpleAddStep === 2 && !canAdvanceSimpleStepTwo)) && { opacity: 0.5 },
+              (
+                (simpleAddStep === 0 && !canAdvanceSimpleStepZero) ||
+                (simpleAddStep === 1 && !canAdvanceSimpleStepOne) ||
+                (simpleAddStep === 2 && !canAdvanceSimpleStepTwo)
+              ) && { opacity: 0.5 },
             ]}
-            disabled={(simpleAddStep === 1 && !canAdvanceSimpleStepOne) || (simpleAddStep === 2 && !canAdvanceSimpleStepTwo)}
-            onPress={() => setSimpleAddStep((prev) => (prev === 1 ? 2 : 3))}
+            disabled={
+              (simpleAddStep === 0 && !canAdvanceSimpleStepZero) ||
+              (simpleAddStep === 1 && !canAdvanceSimpleStepOne) ||
+              (simpleAddStep === 2 && !canAdvanceSimpleStepTwo)
+            }
+            onPress={() => setSimpleAddStep((prev) => {
+              if (prev === 0) return 1;
+              if (prev === 1) return 2;
+              return 3;
+            })}
           >
             <Text style={styles.confirmText}>Next</Text>
           </Pressable>
@@ -893,24 +948,31 @@ export default function MedicationsScreen() {
     setShowCurrentMedNamePicker(false);
     if (shouldLogNewPrnMedication) {
       setPrnFlowStep(1);
-      loadData();
-      Alert.alert(
-        "Medication saved",
-        `${savedMedication.name} was saved and logged for now.`,
-        [
-          { text: "Done", style: "cancel" },
-          {
-            text: "Add more details",
-            onPress: () => {
-              openEditModal(savedMedication);
-              setShowPrnOptionalDetails(true);
+      await loadData();
+      if (modeUI.isSimpleMode) {
+        onSimpleSaveComplete?.();
+      } else {
+        Alert.alert(
+          "Medication saved",
+          `${savedMedication.name} was saved and logged for now.`,
+          [
+            { text: "Done", style: "cancel" },
+            {
+              text: "Add more details",
+              onPress: () => {
+                openEditModal(savedMedication);
+                setShowPrnOptionalDetails(true);
+              },
             },
-          },
-        ],
-      );
+          ],
+        );
+      }
       return;
     }
-    loadData();
+    await loadData();
+    if (modeUI.isSimpleMode) {
+      onSimpleSaveComplete?.();
+    }
   };
 
   const handleDelete = async (med: Medication) => {
@@ -1345,6 +1407,9 @@ export default function MedicationsScreen() {
     ...(isCaregiver ? [{ value: "care_recipient" as const, label: profile.caredForName!.trim() }] : []),
   ];
   const getOwnerLabel = (owner?: RecordOwner) => owner === "care_recipient" && isCaregiver ? profile.caredForName!.trim() : "You";
+  const shouldShowSimpleOwnerStep = ownerOptions.length > 1;
+  const simpleStepCount = shouldShowSimpleOwnerStep ? 4 : 3;
+  const simpleDisplayedStep = shouldShowSimpleOwnerStep ? simpleAddStep + 1 : simpleAddStep;
   const headerSubtitle = totalDoses > 0
     ? `${takenDoses}/${totalDoses} doses taken today`
     : prnMeds.length > 0
@@ -1391,10 +1456,7 @@ export default function MedicationsScreen() {
           {scheduledMeds.length === 0 && prnMeds.length === 0 ? (
             <View style={styles.simpleEmptyCard}>
               <Text style={styles.simpleEmptyTitle}>No medications yet</Text>
-              <Text style={styles.simpleEmptyBody}>Tap the add button to set up your first medication.</Text>
-              <Pressable style={styles.simpleEmptyActionButton} onPress={handleOpenAddMedication} accessibilityRole="button" accessibilityLabel="Add medication">
-                <Text style={styles.simpleEmptyActionText}>Add one</Text>
-              </Pressable>
+              <Text style={styles.simpleEmptyBody}>Use the + button to set up your first medication.</Text>
             </View>
           ) : (
             <>
@@ -1607,24 +1669,6 @@ export default function MedicationsScreen() {
             </View>
           </View>
         ) : null}
-
-        <Pressable
-          testID="add-medication"
-          style={({ pressed }) => [
-            styles.fab,
-            {
-              right: isWide ? 24 : 20,
-              bottom: Platform.OS === "web" ? 76 : insets.bottom + 42,
-              opacity: pressed ? 0.92 : 1,
-            },
-          ]}
-          onPress={handleOpenAddMedication}
-          accessibilityRole="button"
-          accessibilityLabel="Add medication"
-        >
-          <Ionicons name="add" size={28} color="#fff" />
-        </Pressable>
-
         <Modal visible={showSimpleAddModal} transparent animationType="fade">
           <View style={styles.overlay}>
             <Pressable
@@ -1984,7 +2028,7 @@ export default function MedicationsScreen() {
                     <Text style={styles.prnSummary}>
                       Taken {prnLogs.length} time{prnLogs.length === 1 ? "" : "s"} today
                     </Text>
-                    <Text style={styles.prnSummaryMeta}>
+                    <Text style={styles.prnInlineMeta}>
                       {lastTaken ? `Last taken ${formatRelativeTime(lastTaken)}` : "Not taken yet"}
                     </Text>
                   </View>
@@ -3264,6 +3308,31 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
   simpleTitle: { fontSize: size(34), lineHeight: size(38), letterSpacing: -0.9 },
   simpleSubtitle: { fontSize: size(18), lineHeight: size(24) },
+  simpleHeaderAddButton: {
+    minHeight: 34,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: C.tint,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 5,
+    shadowColor: C.tint,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  simpleHeaderAddButtonPressed: {
+    opacity: 0.94,
+    transform: [{ scale: 0.99 }],
+  },
+  simpleHeaderAddButtonText: {
+    fontWeight: "800",
+    fontSize: size(14),
+    color: "#fff",
+    letterSpacing: -0.2,
+  },
   simpleSection: { gap: 12 },
   simpleSectionLabel: {
     fontWeight: "700",
@@ -3470,6 +3539,19 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
     lineHeight: 20,
     color: C.textSecondary,
   },
+  simpleOwnerStack: { gap: 12, marginBottom: 12 },
+  simpleOwnerButton: {
+    minHeight: 58,
+    borderRadius: 18,
+    backgroundColor: C.surfaceElevated,
+    borderWidth: 1,
+    borderColor: C.border,
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  simpleOwnerButtonActive: { backgroundColor: C.tintLight, borderColor: C.tint },
+  simpleOwnerButtonText: { fontWeight: "700", fontSize: size(18), color: C.textSecondary },
+  simpleOwnerButtonTextActive: { color: C.tint },
   addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
   progressBar: { height: 3, borderRadius: 999, backgroundColor: C.green + "1F", marginBottom: 24, overflow: "hidden" },
   progressFill: { height: 3, borderRadius: 999, backgroundColor: C.green },
@@ -3566,7 +3648,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
     fontSize: 13,
     color: C.text,
   },
-  prnSummaryMeta: {
+  prnInlineMeta: {
     fontWeight: "500",
     fontSize: 12,
     color: C.textSecondary,
@@ -3709,6 +3791,13 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
     fontWeight: "500",
     fontSize: 13,
     color: C.textSecondary,
+  },
+  prnSummaryMeta: {
+    fontWeight: "600",
+    fontSize: 13,
+    lineHeight: 18,
+    color: C.textSecondary,
+    marginTop: 6,
   },
   doseCountRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
   doseCountBtn: { minWidth: 44, paddingHorizontal: 14, alignItems: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "1A" },
