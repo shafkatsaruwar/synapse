@@ -10,6 +10,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import KeyboardDoneBar from "@/components/KeyboardDoneBar";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { AppModeProvider } from "@/contexts/AppModeContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { queryClient } from "@/lib/query-client";
 import {
@@ -54,10 +55,12 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <QueryClientProvider client={queryClient}>
             <ThemeProvider>
-              <AuthProvider>
-                <Stack screenOptions={{ headerShown: false }} />
-                <KeyboardDoneBar />
-              </AuthProvider>
+              <AppModeProvider>
+                <AuthProvider>
+                  <Stack screenOptions={{ headerShown: false }} />
+                  <KeyboardDoneBar />
+                </AuthProvider>
+              </AppModeProvider>
             </ThemeProvider>
           </QueryClientProvider>
         </SafeAreaProvider>

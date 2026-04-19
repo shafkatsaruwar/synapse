@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type ThemePreference, type Theme } from "@/contexts/ThemeContext";
+import { useAppMode } from "@/contexts/AppModeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   settingsStorage,
@@ -36,6 +37,7 @@ import {
   type HealthProfileInfo,
   type UserRole,
   type WidgetAppearancePreference,
+  type AppMode,
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { isCurrentMonthRamadan } from "@/lib/hijri";
@@ -53,6 +55,7 @@ interface SettingsScreenProps {
   onNavigate?: (screen: string) => void;
   onRestoreComplete?: () => void;
   onShowAppTour?: () => void;
+  openAppearanceModalToken?: number;
 }
 
 const SECTION_ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
@@ -66,6 +69,11 @@ const THEME_OPTIONS: { id: ThemePreference; label: string; description: string }
   { id: "calm", label: "Calm", description: "Warm beige, easy on the eyes" },
   { id: "light", label: "Light", description: "Clean white, modern" },
   { id: "dark", label: "Dark", description: "True black, OLED-friendly" },
+];
+
+const APP_MODE_OPTIONS: { id: AppMode; label: string; description: string }[] = [
+  { id: "simple", label: "Simple Mode", description: "Larger buttons and fewer steps" },
+  { id: "full", label: "Full Mode", description: "Detailed tracking and more control" },
 ];
 
 const PROFILE_IMAGE_DIR = `${FileSystem.documentDirectory ?? ""}profile-images/`;
@@ -98,11 +106,18 @@ async function persistProfileImage(sourceUri: string, previousUri?: string) {
   return destinationUri;
 }
 
-export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComplete, onShowAppTour }: SettingsScreenProps) {
+export default function SettingsScreen({
+  onResetApp,
+  onNavigate,
+  onRestoreComplete,
+  onShowAppTour,
+  openAppearanceModalToken,
+}: SettingsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const { user } = useAuth();
+  const { appMode, setAppMode } = useAppMode();
   const { colors: C, preference, setThemeId } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
@@ -159,6 +174,12 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   React.useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if ((openAppearanceModalToken ?? 0) > 0) {
+      setShowAppearanceModal(true);
+    }
+  }, [openAppearanceModalToken]);
 
   const handleSave = async () => {
     await settingsStorage.save(settings);
@@ -221,6 +242,12 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   const handleThemeChange = async (id: ThemePreference) => {
     Haptics.selectionAsync();
     await setThemeId(id);
+  };
+
+  const handleAppModeChange = async (mode: AppMode) => {
+    Haptics.selectionAsync();
+    await setAppMode(mode);
+    setSettings((prev) => ({ ...prev, appMode: mode }));
   };
 
   const openNameModal = () => {
@@ -324,6 +351,15 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
       tintBg: C.tintLight,
       onPress: () => setShowNotificationsModal(true),
     },
+    feedback: {
+      key: "feedback",
+      title: "Send Feedback",
+      description: "Tell us what feels good or needs work",
+      icon: "chatbubble-ellipses-outline" as const,
+      tintColor: C.tint,
+      tintBg: C.tintLight,
+      onPress: () => onNavigate?.("feedback"),
+    },
     sections: {
       key: "sections",
       title: "Menu Sections",
@@ -368,6 +404,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     shortcutCardMap.pharmacies,
     shortcutCardMap.appearance,
     shortcutCardMap.notifications,
+    shortcutCardMap.feedback,
     shortcutCardMap.sections,
     shortcutCardMap.founder,
     ...(shortcutCardMap.tour ? [shortcutCardMap.tour] : []),
@@ -563,6 +600,30 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
               </Pressable>
             ))}
           </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>App Mode</Text>
+          <Text style={[styles.desc, { marginBottom: 12 }]}>
+            Simple Mode keeps things lighter. Full Mode keeps the detailed setup you already know.
+          </Text>
+          <View style={styles.roleRow}>
+            {APP_MODE_OPTIONS.map((option) => {
+              const active = appMode === option.id;
+              return (
+                <Pressable
+                  key={option.id}
+                  style={[styles.roleChip, active && styles.roleChipActive]}
+                  onPress={() => void handleAppModeChange(option.id)}
+                >
+                  <Text style={[styles.roleChipText, active && styles.roleChipTextActive]}>{option.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={[styles.desc, { marginTop: 12 }]}>
+            We&apos;re laying the groundwork here so key screens can branch cleanly later without duplicating your data.
+          </Text>
         </View>
 
         <Pressable

@@ -31,6 +31,22 @@ export interface Symptom {
   durationMinutes?: number;
 }
 
+export type FeedbackSentiment = "positive" | "needs_improvement";
+export type FeedbackCategory =
+  | "bug"
+  | "feature_request"
+  | "something_confusing"
+  | "general_feedback";
+
+export interface FeedbackEntry {
+  id: string;
+  timestamp: string;
+  sentiment: FeedbackSentiment;
+  category?: FeedbackCategory;
+  message: string;
+  email?: string;
+}
+
 /** A single dose: amount, unit, time of day. Each is tracked independently for reminders and logging. */
 export interface MedicationDose {
   id: string;
@@ -42,6 +58,8 @@ export interface MedicationDose {
   optionalNotes?: string;
 }
 
+export type MedicationType = "scheduled" | "prn";
+
 export interface Medication {
   id: string;
   name: string;
@@ -52,6 +70,7 @@ export interface Medication {
   unit?: string;
   route?: string;
   emoji?: string;
+  medicationType?: MedicationType;
   pharmacyId?: string;
   pharmacyName?: string;
   pharmacyPhone?: string;
@@ -89,8 +108,9 @@ export interface Medication {
 
 /** Normalize legacy medication (dosage + timeTag + doses count) to doses array. */
 export function normalizeMedication(med: Medication): Medication {
+  const medicationType = med.medicationType ?? "scheduled";
   if (Array.isArray(med.doses) && med.doses.length > 0) {
-    return { ...med, doses: med.doses };
+    return { ...med, medicationType, doses: med.doses };
   }
   const legacyDosage = (med as { dosage?: string }).dosage ?? "";
   const legacyUnit = (med as { unit?: string }).unit ?? "mg";
@@ -109,7 +129,7 @@ export function normalizeMedication(med: Medication): Medication {
     timeOfDay,
     optionalNotes: undefined,
   }));
-  return { ...med, doses };
+  return { ...med, medicationType, doses };
 }
 
 export interface MedicationLog {
@@ -121,6 +141,7 @@ export interface MedicationLog {
   recordedAt?: string;
   scheduledTime?: string;
   notes?: string;
+  reason?: string;
 }
 
 export interface SickModeData {
@@ -150,6 +171,7 @@ export interface AllergyInfo {
 export type UserRole = "self" | "caregiver" | "backup";
 export type RecordOwner = "self" | "care_recipient";
 export type WidgetAppearancePreference = "system" | "calm" | "light" | "dark";
+export type AppMode = "simple" | "full";
 
 export interface BackupCriticalMedication {
   id: string;
@@ -378,6 +400,7 @@ export interface UserSettings {
   firstName?: string;
   lastName?: string;
   conditions: string[];
+  appMode?: AppMode;
   ramadanMode: boolean;
   sickMode: boolean;
   highContrast?: boolean;
@@ -389,6 +412,9 @@ export interface UserSettings {
   notificationsAppointments?: boolean;
   notificationsDailyCheckIn?: boolean;
   notificationsMonthly?: boolean;
+  notificationsDailySummary?: boolean;
+  notificationsWeeklySummary?: boolean;
+  notificationsMonthlySummary?: boolean;
   /** Daily check-in reminder time "HH:mm" (default "20:00" = 8 PM). */
   dailyCheckInReminderTime?: string;
 }
@@ -418,6 +444,7 @@ const KEYS = {
   DOCTORS: "fir_doctors",
   PHARMACIES: "fir_pharmacies",
   CYCLE_ENTRIES: "fir_cycle_entries",
+  FEEDBACK: "fir_feedback",
 };
 
 async function getItem<T>(key: string): Promise<T[]> {
@@ -491,6 +518,24 @@ export const symptomStorage = {
   },
 };
 
+export const feedbackStorage = {
+  getAll: () => getItem<FeedbackEntry>(KEYS.FEEDBACK),
+  save: async (entry: Omit<FeedbackEntry, "id" | "timestamp"> & { timestamp?: string }) => {
+    const all = await getItem<FeedbackEntry>(KEYS.FEEDBACK);
+    const saved: FeedbackEntry = {
+      id: Crypto.randomUUID(),
+      timestamp: entry.timestamp ?? new Date().toISOString(),
+      sentiment: entry.sentiment,
+      category: entry.category,
+      message: entry.message,
+      email: entry.email?.trim() || undefined,
+    };
+    all.unshift(saved);
+    await setItem(KEYS.FEEDBACK, all);
+    return saved;
+  },
+};
+
 export const medicationStorage = {
   getAll: async () => {
     const raw = await getItem<Medication>(KEYS.MEDICATIONS);
@@ -498,7 +543,12 @@ export const medicationStorage = {
   },
   save: async (med: Omit<Medication, "id">) => {
     const meds = await getItem<Medication>(KEYS.MEDICATIONS);
-    meds.push({ ...med, id: Crypto.randomUUID(), entryOwner: med.entryOwner ?? "self" });
+    meds.push({
+      ...med,
+      medicationType: med.medicationType ?? "scheduled",
+      id: Crypto.randomUUID(),
+      entryOwner: med.entryOwner ?? "self",
+    });
     await setItem(KEYS.MEDICATIONS, meds);
   },
   update: async (id: string, updates: Partial<Medication>) => {
@@ -547,6 +597,26 @@ export const medicationLogStorage = {
       });
     }
     await setItem(KEYS.MEDICATION_LOGS, logs);
+  },
+  logPrnDose: async (
+    medicationId: string,
+    metadata?: { notes?: string; reason?: string; timestamp?: string },
+  ) => {
+    const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+    const recordedAt = metadata?.timestamp ?? new Date().toISOString();
+    const nextLog: MedicationLog = {
+      id: Crypto.randomUUID(),
+      medicationId,
+      doseIndex: -1,
+      date: recordedAt.slice(0, 10),
+      taken: true,
+      recordedAt,
+      notes: metadata?.notes?.trim() || undefined,
+      reason: metadata?.reason?.trim() || undefined,
+    };
+    logs.push(nextLog);
+    await setItem(KEYS.MEDICATION_LOGS, logs);
+    return nextLog;
   },
 };
 
@@ -797,7 +867,16 @@ export const vitalStorage = {
 
 export const settingsStorage = {
   get: async (): Promise<UserSettings> => {
-    const defaults: UserSettings = { name: "", conditions: [], ramadanMode: false, sickMode: false };
+    const defaults: UserSettings = {
+      name: "",
+      conditions: [],
+      appMode: "full",
+      ramadanMode: false,
+      sickMode: false,
+      notificationsDailySummary: true,
+      notificationsWeeklySummary: true,
+      notificationsMonthlySummary: true,
+    };
     try {
       const raw = await AsyncStorage.getItem(KEYS.SETTINGS);
       return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
@@ -1203,6 +1282,7 @@ export type ExportPayload = {
   comfortItems?: ComfortItem[];
   goals?: Goal[];
   cycleEntries?: CycleEntry[];
+  feedback?: FeedbackEntry[];
 };
 
 export const exportAllData = async (): Promise<ExportPayload> => {
@@ -1243,7 +1323,7 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     sickModeStorage.get(),
     healthProfileStorage.get(),
   ]);
-  const [medComparisons, monthlyCheckIns, eatingLogs, mentalHealthMode, comfortItems, goals, cycleEntries] = await Promise.all([
+  const [medComparisons, monthlyCheckIns, eatingLogs, mentalHealthMode, comfortItems, goals, cycleEntries, feedback] = await Promise.all([
     medComparisonStorage.getAll(),
     monthlyCheckInStorage.getAll(),
     eatingStorage.getAll(),
@@ -1251,6 +1331,7 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     comfortStorage.getAll(),
     goalStorage.getAll(),
     cycleTrackingStorage.getAll(),
+    feedbackStorage.getAll(),
   ]);
   return {
     exportDate: new Date().toISOString(),
@@ -1279,6 +1360,7 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     comfortItems,
     goals,
     cycleEntries,
+    feedback,
   };
 };
 
@@ -1308,6 +1390,7 @@ export const importAllData = async (payload: ExportPayload): Promise<void> => {
   await setItem(KEYS.COMFORT_ITEMS, payload.comfortItems ?? []);
   await setItem(KEYS.GOALS, payload.goals ?? []);
   await setItem(KEYS.CYCLE_ENTRIES, payload.cycleEntries ?? []);
+  await setItem(KEYS.FEEDBACK, payload.feedback ?? []);
 };
 
 export const clearAllData = async () => {

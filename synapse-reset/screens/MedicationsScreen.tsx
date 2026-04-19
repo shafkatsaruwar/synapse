@@ -37,6 +37,18 @@ const REMINDER_INTERVAL_UNITS = [
   { value: "days", label: "Days" },
   { value: "weeks", label: "Weeks" },
 ] as const;
+const MEDICATION_TYPE_OPTIONS = [
+  { value: "scheduled", label: "Scheduled" },
+  { value: "prn", label: "As Needed" },
+] as const;
+const PRN_REASON_OPTIONS = [
+  "Pain",
+  "Headache",
+  "Shortness of breath",
+  "Fever",
+  "Nausea",
+  "Other",
+] as const;
 
 type MedicationReminderCadence = "daily" | "weekly" | "biweekly" | "custom";
 
@@ -264,6 +276,7 @@ export default function MedicationsScreen() {
   const [nudgeMedId, setNudgeMedId] = useState<string | null>(null);
 
   const [formName, setFormName] = useState("");
+  const [formMedicationType, setFormMedicationType] = useState<"scheduled" | "prn">("scheduled");
   const [formDosesArray, setFormDosesArray] = useState<Array<{ id: string; amount: string; unit: string; timeOfDay: string; reminderTime: string; optionalNotes: string }>>([
     { id: "", amount: "", unit: "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" },
   ]);
@@ -294,6 +307,10 @@ export default function MedicationsScreen() {
   const [showRefillUnitPicker, setShowRefillUnitPicker] = useState(false);
   const [tempInput, setTempInput] = useState("");
   const [showTempModal, setShowTempModal] = useState(false);
+  const [showPrnLogModal, setShowPrnLogModal] = useState(false);
+  const [prnLogMed, setPrnLogMed] = useState<Medication | null>(null);
+  const [prnReason, setPrnReason] = useState("");
+  const [prnNotes, setPrnNotes] = useState("");
 
   const [medListItems, setMedListItems] = useState<MedListItem[]>([]);
   const [editingMedListItem, setEditingMedListItem] = useState<MedListItem | null>(null);
@@ -382,6 +399,7 @@ export default function MedicationsScreen() {
   const openAddModal = () => {
     setEditingMed(null);
     setFormName("");
+    setFormMedicationType("scheduled");
     setFormDosesArray([{ id: Crypto.randomUUID(), amount: "", unit: "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }]);
     setFormRoute("");
     setFormPharmacyId(null);
@@ -415,6 +433,7 @@ export default function MedicationsScreen() {
   const openEditModal = (med: Medication) => {
     setEditingMed(med);
     setFormName(med.name);
+    setFormMedicationType(med.medicationType ?? "scheduled");
     const doses = Array.isArray(med.doses) && med.doses.length > 0
       ? med.doses.map((d) => ({ id: d.id, amount: d.amount, unit: d.unit, timeOfDay: d.timeOfDay, reminderTime: d.reminderTime ?? defaultReminderTimeFor(d.timeOfDay), optionalNotes: d.optionalNotes ?? "" }))
       : [{ id: Crypto.randomUUID(), amount: (med as { dosage?: string }).dosage ?? "", unit: (med as { unit?: string }).unit ?? "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }];
@@ -453,13 +472,13 @@ export default function MedicationsScreen() {
   const canSaveMedication =
     formName.trim().length > 0 &&
     dosesWithAmount.length > 0 &&
-    !dosesWithAmount.some((d) => !d.reminderTime?.trim());
+    (formMedicationType === "prn" || !dosesWithAmount.some((d) => !d.reminderTime?.trim()));
 
   const handleSave = async () => {
     if (!formName.trim()) return;
     const dosesWithAmount = formDosesArray.filter((d) => d.amount.trim().length > 0);
     if (dosesWithAmount.length === 0) return;
-    const missingReminder = dosesWithAmount.some((d) => !d.reminderTime?.trim());
+    const missingReminder = formMedicationType !== "prn" && dosesWithAmount.some((d) => !d.reminderTime?.trim());
     if (missingReminder) {
       Alert.alert("Reminder time required", "Every dose must have a reminder time. Please set a time for each dose.");
       return;
@@ -481,9 +500,11 @@ export default function MedicationsScreen() {
     const concentrationMgPerMl = formConcentrationMgPerMl.trim() ? parseFloat(formConcentrationMgPerMl) : undefined;
     const normalizedFrequency = formatMedicationFrequencyLabel(formReminderCadence, formReminderWeekday, parsedIntervalValue, formReminderIntervalUnit);
     const selectedPharmacy = pharmacies.find((pharmacy) => pharmacy.id === formPharmacyId);
+    const isPrn = formMedicationType === "prn";
     const data: Omit<Medication, "id"> = {
       name: formName.trim(),
-      frequency: normalizedFrequency,
+      medicationType: formMedicationType,
+      frequency: isPrn ? "As needed" : normalizedFrequency,
       route: formRoute.trim(),
       emoji: formEmoji || "",
       pharmacyId: selectedPharmacy?.id,
@@ -491,10 +512,14 @@ export default function MedicationsScreen() {
       pharmacyPhone: selectedPharmacy?.phone ?? undefined,
       pharmacyAddress: selectedPharmacy?.address ?? undefined,
       pharmacyHospital: selectedPharmacy?.hospital ?? undefined,
-      reminderCadence: formReminderCadence,
-      reminderWeekday: formReminderCadence === "weekly" || formReminderCadence === "biweekly" || (formReminderCadence === "custom" && formReminderIntervalUnit === "weeks") ? formReminderWeekday : undefined,
-      reminderIntervalValue: formReminderCadence === "custom" ? parsedIntervalValue : formReminderCadence === "biweekly" ? 2 : undefined,
-      reminderIntervalUnit: formReminderCadence === "custom" ? formReminderIntervalUnit : formReminderCadence === "biweekly" ? "weeks" : undefined,
+      reminderCadence: isPrn ? undefined : formReminderCadence,
+      reminderWeekday: isPrn
+        ? undefined
+        : formReminderCadence === "weekly" || formReminderCadence === "biweekly" || (formReminderCadence === "custom" && formReminderIntervalUnit === "weeks")
+          ? formReminderWeekday
+          : undefined,
+      reminderIntervalValue: isPrn ? undefined : formReminderCadence === "custom" ? parsedIntervalValue : formReminderCadence === "biweekly" ? 2 : undefined,
+      reminderIntervalUnit: isPrn ? undefined : formReminderCadence === "custom" ? formReminderIntervalUnit : formReminderCadence === "biweekly" ? "weeks" : undefined,
       doses,
       active: true,
       totalPills: amountPerRefill != null && !isNaN(amountPerRefill) ? amountPerRefill : undefined,
@@ -655,6 +680,38 @@ export default function MedicationsScreen() {
     setNudgeMedId(medId);
   };
 
+  const openPrnLogModal = (med: Medication) => {
+    setPrnLogMed(med);
+    setPrnReason("");
+    setPrnNotes("");
+    setShowPrnLogModal(true);
+  };
+
+  const handleConfirmPrnLog = async () => {
+    if (!prnLogMed) return;
+    try {
+      await medicationLogStorage.logPrnDose(prnLogMed.id, {
+        reason: prnReason.trim() || undefined,
+        notes: prnNotes.trim() || undefined,
+      });
+      await refreshMedicationStatus();
+      setShowPrnLogModal(false);
+      setPrnLogMed(null);
+      setPrnReason("");
+      setPrnNotes("");
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      await syncAllFromSettings().catch((error) => {
+        console.warn("Medication reminder sync failed after PRN log", error);
+      });
+      await syncWidgetSnapshot().catch((error) => {
+        console.warn("Medication widget sync failed after PRN log", error);
+      });
+    } catch (error) {
+      console.warn("Failed to log PRN dose", error);
+      Alert.alert("Couldn’t log dose", "Something got in the way when we tried to log that dose. Please try again.");
+    }
+  };
+
   const handleAlrightTookIt = async () => {
     if (nudgeMedId) {
       try {
@@ -774,12 +831,33 @@ export default function MedicationsScreen() {
     if (Array.isArray(med.doses) && med.doses.length > 0) return med.doses.map((d) => d.timeOfDay);
     return Array.isArray(med.timeTag) ? med.timeTag : [med.timeTag ?? "Morning"];
   };
+  const getPrnLogsForMed = useCallback((medId: string) => (
+    medLogs
+      .filter((log) => log.medicationId === medId && log.taken && (log.doseIndex ?? -1) === -1)
+      .sort((a, b) => (b.recordedAt ?? "").localeCompare(a.recordedAt ?? ""))
+  ), [medLogs]);
+
+  const formatRelativeTime = (recordedAt?: string) => {
+    if (!recordedAt) return "Not taken yet";
+    const diffMs = Date.now() - new Date(recordedAt).getTime();
+    const mins = Math.max(1, Math.floor(diffMs / 60000));
+    if (mins < 60) return `${mins} min ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} hr ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days === 1 ? "" : "s"} ago`;
+  };
+
+  const scheduledMeds = medications.filter((m) => m.active && (m.medicationType ?? "scheduled") !== "prn");
+  const prnMeds = medications.filter((m) => m.active && (m.medicationType ?? "scheduled") === "prn");
+  const totalPrnLogsToday = prnMeds.reduce((sum, med) => sum + getPrnLogsForMed(med.id).length, 0);
+
   const grouped = TIME_TAGS.map((tag) => ({
-    tag, meds: medications.filter((m) => getMedTags(m).includes(tag) && m.active),
+    tag, meds: scheduledMeds.filter((m) => getMedTags(m).includes(tag)),
   })).filter((g) => g.meds.length > 0);
 
-  const totalDoses = medications.filter((m) => m.active).reduce((sum, m) => sum + getDoseCount(m), 0);
-  const takenDoses = medications.filter((m) => m.active).reduce((sum, m) => {
+  const totalDoses = scheduledMeds.reduce((sum, m) => sum + getDoseCount(m), 0);
+  const takenDoses = scheduledMeds.reduce((sum, m) => {
     const dc = getDoseCount(m);
     let taken = 0;
     for (let i = 0; i < dc; i++) {
@@ -840,7 +918,7 @@ export default function MedicationsScreen() {
   const getReadAloudText = useCallback(() => {
     const parts: string[] = [];
     parts.push(`${takenDoses} of ${totalDoses} doses taken today.`);
-    medications.filter((m) => m.active).forEach((med) => {
+    scheduledMeds.forEach((med) => {
       const dc = getDoseCount(med);
       let taken = 0;
       for (let i = 0; i < dc; i++) {
@@ -852,8 +930,15 @@ export default function MedicationsScreen() {
         : `${(med as { dosage?: string }).dosage ?? ""} ${(med as { unit?: string }).unit ?? ""}`.trim() || "—";
       parts.push(`${med.name}, ${doseDesc}, ${status}.`);
     });
+    prnMeds.forEach((med) => {
+      const prnLogs = getPrnLogsForMed(med.id);
+      const doseDesc = Array.isArray(med.doses) && med.doses.length > 0
+        ? med.doses.map((d) => `${d.amount} ${d.unit}`).join(", ")
+        : `${(med as { dosage?: string }).dosage ?? ""} ${(med as { unit?: string }).unit ?? ""}`.trim() || "—";
+      parts.push(`${med.name}, as needed, ${doseDesc}, ${prnLogs.length} time${prnLogs.length === 1 ? "" : "s"} today${prnLogs[0]?.recordedAt ? `. Last taken ${formatRelativeTime(prnLogs[0].recordedAt)}` : ""}.`);
+    });
     return parts.join(" ");
-  }, [medications, medLogs, takenDoses, totalDoses]);
+  }, [scheduledMeds, prnMeds, takenDoses, totalDoses, getPrnLogsForMed]);
 
   const doseLabels = (med: Medication): string[] => {
     if (Array.isArray(med.doses) && med.doses.length > 0) {
@@ -872,6 +957,11 @@ export default function MedicationsScreen() {
     ...(isCaregiver ? [{ value: "care_recipient" as const, label: profile.caredForName!.trim() }] : []),
   ];
   const getOwnerLabel = (owner?: RecordOwner) => owner === "care_recipient" && isCaregiver ? profile.caredForName!.trim() : "You";
+  const headerSubtitle = totalDoses > 0
+    ? `${takenDoses}/${totalDoses} doses taken today`
+    : prnMeds.length > 0
+      ? `${totalPrnLogsToday} PRN dose${totalPrnLogsToday === 1 ? "" : "s"} logged today`
+      : "No doses logged today";
 
   return (
     <View style={[styles.container, isSickMode && { backgroundColor: sickPalette.background }]}>
@@ -887,7 +977,7 @@ export default function MedicationsScreen() {
         <View style={styles.header}>
           <View>
             <Text style={[styles.title, isSickMode && { color: sickPalette.accent }]}>Medications</Text>
-            <Text style={[styles.subtitle, isSickMode && { color: sickPalette.text }]}>{takenDoses}/{totalDoses} doses taken today</Text>
+            <Text style={[styles.subtitle, isSickMode && { color: sickPalette.text }]}>{headerSubtitle}</Text>
           </View>
         </View>
         {totalDoses > 0 && (
@@ -904,7 +994,7 @@ export default function MedicationsScreen() {
         }]}
         showsVerticalScrollIndicator={false}
       >
-        {grouped.length === 0 ? (
+        {grouped.length === 0 && prnMeds.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="medical-outline" size={40} color={C.textTertiary} />
             <Text style={styles.emptyTitle}>No medications yet</Text>
@@ -985,7 +1075,7 @@ export default function MedicationsScreen() {
                           {med.route ? ` · ${med.route}` : ""}
                         </Text>
                       ) : null}
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+                      <View style={styles.medMetaRow}>
                         {!!med.frequency && <Text style={styles.medFreq}>{med.frequency}</Text>}
                         {!!med.pharmacyName && <Text style={[styles.medFreq, styles.medMetaInline]}>{med.pharmacyName}</Text>}
                         {totalDosesMed > 0 && (
@@ -1023,7 +1113,7 @@ export default function MedicationsScreen() {
                       </Pressable>
                     ) : !hasAnyDueDose ? (
                       <View style={styles.notReadyBanner}>
-                        <Ionicons name="time-outline" size={13} color={C.textTertiary} style={styles.notReadyIcon} />
+                        <Ionicons name="time-outline" size={12} color={C.textTertiary} style={styles.notReadyIcon} />
                         <Text style={styles.notReadyText}>
                           {nextReminderTime
                             ? `Next dose • ${formatReminderTimeDisplay(nextReminderTime)}`
@@ -1062,7 +1152,7 @@ export default function MedicationsScreen() {
                   ) : (
                     !hasAnyDueDose ? (
                       <View style={styles.notReadyBanner}>
-                        <Ionicons name="time-outline" size={13} color={C.textTertiary} style={styles.notReadyIcon} />
+                        <Ionicons name="time-outline" size={12} color={C.textTertiary} style={styles.notReadyIcon} />
                         <Text style={styles.notReadyText}>
                           {nextReminderTime
                             ? `Next dose • ${formatReminderTimeDisplay(nextReminderTime)}`
@@ -1118,6 +1208,116 @@ export default function MedicationsScreen() {
             })}
           </View>
         )))}
+
+        {prnMeds.length > 0 && (
+          <View style={{ marginBottom: 20 }}>
+            <View style={[styles.tagBadge, { backgroundColor: C.orangeLight }]}>
+              <Ionicons name="flash-outline" size={12} color={C.orange} />
+              <Text style={[styles.tagText, { color: C.orange }]}>As Needed</Text>
+            </View>
+            {prnMeds.map((med) => {
+              const prnLogs = getPrnLogsForMed(med.id);
+              const lastTaken = prnLogs[0]?.recordedAt;
+              const emoji = getAutoEmoji(med);
+              const currentSupply = getCurrentSupplyAmount(med);
+              const remainingRefills = med.refillsRemaining;
+              const showRefill = currentSupply != null || remainingRefills != null;
+
+              return (
+                <Pressable
+                  key={med.id}
+                  style={styles.medCard}
+                  onPress={() => openEditModal(med)}
+                >
+                  <View style={styles.medInfo}>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <Text style={{ fontSize: 18 }}>{emoji}</Text>
+                        <Text style={styles.medName}>{med.name}</Text>
+                        {isCaregiver && (
+                          <View style={styles.ownerBadge}>
+                            <Text style={styles.ownerBadgeText}>{getOwnerLabel(med.entryOwner)}</Text>
+                          </View>
+                        )}
+                      </View>
+                      {Array.isArray(med.doses) && med.doses.length > 0 ? (
+                        med.doses.map((d, i) => (
+                          <Text key={d.id || i} style={styles.medDose}>
+                            {d.amount && d.unit ? `${d.amount} ${d.unit}` : "Dose"}
+                            {d.optionalNotes ? ` • ${d.optionalNotes}` : ""}
+                          </Text>
+                        ))
+                      ) : (med as { dosage?: string }).dosage ? (
+                        <Text style={styles.medDose}>
+                          {(med as { dosage?: string }).dosage}
+                          {(med as { unit?: string }).unit ? ` ${(med as { unit?: string }).unit}` : ""}
+                        </Text>
+                      ) : null}
+                      <View style={styles.medMetaRow}>
+                        <Text style={styles.medFreq}>As needed</Text>
+                        {!!med.pharmacyName && (
+                          <Text style={[styles.medFreq, styles.medMetaInline]}>{med.pharmacyName}</Text>
+                        )}
+                      </View>
+                    </View>
+                    <Pressable
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        handleDelete(med);
+                      }}
+                      hitSlop={12}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${med.name}`}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={C.textTertiary} />
+                    </Pressable>
+                  </View>
+
+                  {showRefill && (
+                    <View style={styles.refillRow}>
+                      <Ionicons name="alert-circle-outline" size={14} color={C.textTertiary} />
+                      <Text
+                        style={[
+                          styles.refillText,
+                          currentSupply != null &&
+                            currentSupply <= getLowSupplyThreshold(med) &&
+                            styles.refillTextWarning,
+                        ]}
+                      >
+                        Supply · {currentSupply != null ? `${formatSupplyAmount(currentSupply)} ${displayRefillUnit(getInventoryUnit(med), currentSupply)} left` : "Not set"}
+                        {remainingRefills != null ? ` · ${remainingRefills} refill${remainingRefills === 1 ? "" : "s"} left` : ""}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.prnInlineStatus}>
+                    <Text style={styles.prnSummary}>
+                      Taken {prnLogs.length} time{prnLogs.length === 1 ? "" : "s"} today
+                    </Text>
+                    <Text style={styles.prnSummaryMeta}>
+                      {lastTaken ? `Last taken ${formatRelativeTime(lastTaken)}` : "Not taken yet"}
+                    </Text>
+                  </View>
+
+                  <View style={styles.actionRow}>
+                    <Pressable
+                      style={styles.prnLogBtn}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        openPrnLogModal(med);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Log dose for ${med.name}`}
+                    >
+                      <Ionicons name="add" size={16} color="#fff" />
+                      <Text style={styles.prnLogBtnText}>Log Dose</Text>
+                    </Pressable>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
 
         {medications.length > 0 && (
           <View style={styles.safetyNote}>
@@ -1250,8 +1450,8 @@ export default function MedicationsScreen() {
           styles.fab,
           {
             right: isWide ? 24 : 20,
-            bottom: Platform.OS === "web" ? 100 : insets.bottom + 80,
-            opacity: pressed ? 0.9 : 1,
+            bottom: Platform.OS === "web" ? 76 : insets.bottom + 42,
+            opacity: pressed ? 0.92 : 1,
           },
         ]}
         onPress={openAddModal}
@@ -1535,8 +1735,29 @@ export default function MedicationsScreen() {
                     })}
                 </View>
               )}
+              <Text style={styles.label}>Type</Text>
+              <View style={styles.frequencyChipRow}>
+                {MEDICATION_TYPE_OPTIONS.map((option) => (
+                  <Pressable
+                    key={option.value}
+                    style={[styles.frequencyChip, formMedicationType === option.value && styles.frequencyChipActive]}
+                    onPress={() => {
+                      setFormMedicationType(option.value);
+                      Haptics.selectionAsync();
+                    }}
+                  >
+                    <Text style={[styles.frequencyChipText, formMedicationType === option.value && styles.frequencyChipTextActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
               <Text style={styles.label}>Doses</Text>
-              <Text style={[styles.medFreq, { marginBottom: 8 }]}>Each dose is tracked independently for reminders and logging.</Text>
+              <Text style={[styles.medFreq, { marginBottom: 8 }]}>
+                {formMedicationType === "prn"
+                  ? "Each logged dose is recorded with a timestamp for later review."
+                  : "Each dose is tracked independently for reminders and logging."}
+              </Text>
               {formDosesArray.map((dose, idx) => (
                 <View key={dose.id || idx} style={styles.doseCard}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -1563,32 +1784,34 @@ export default function MedicationsScreen() {
                       onChangeText={(t) => setFormDosesArray((prev) => prev.map((d, i) => (i === idx ? { ...d, unit: t } : d)))}
                     />
                   </View>
-                  <View style={styles.doseTimePickerWrap}>
-                    <Pressable
-                      style={styles.doseTimeBtn}
-                      onPress={() => setShowDoseTimePickerIndex((v) => (v === idx ? null : idx))}
-                    >
-                      <Text style={styles.doseTimeBtnText} numberOfLines={1}>{dose.timeOfDay}</Text>
-                      <Ionicons name="chevron-down" size={14} color={C.textSecondary} />
-                    </Pressable>
-                    {showDoseTimePickerIndex === idx && (
-                      <View style={styles.doseTimeDropdown}>
-                        {TIME_TAGS.filter((tag) => settings.ramadanMode || (tag !== "Before Fajr" && tag !== "After Iftar")).map((tag) => (
-                          <Pressable
-                            key={tag}
-                            style={[styles.dropdownRow, dose.timeOfDay === tag && styles.dropdownRowSelected]}
-                            onPress={() => {
-                              setFormDosesArray((prev) => prev.map((d, i) => (i === idx ? { ...d, timeOfDay: tag } : d)));
-                              setShowDoseTimePickerIndex(null);
-                              Haptics.selectionAsync();
-                            }}
-                          >
-                            <Text style={styles.dropdownText}>{tag}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    )}
-                  </View>
+                  {formMedicationType !== "prn" && (
+                    <View style={styles.doseTimePickerWrap}>
+                      <Pressable
+                        style={styles.doseTimeBtn}
+                        onPress={() => setShowDoseTimePickerIndex((v) => (v === idx ? null : idx))}
+                      >
+                        <Text style={styles.doseTimeBtnText} numberOfLines={1}>{dose.timeOfDay}</Text>
+                        <Ionicons name="chevron-down" size={14} color={C.textSecondary} />
+                      </Pressable>
+                      {showDoseTimePickerIndex === idx && (
+                        <View style={styles.doseTimeDropdown}>
+                          {TIME_TAGS.filter((tag) => settings.ramadanMode || (tag !== "Before Fajr" && tag !== "After Iftar")).map((tag) => (
+                            <Pressable
+                              key={tag}
+                              style={[styles.dropdownRow, dose.timeOfDay === tag && styles.dropdownRowSelected]}
+                              onPress={() => {
+                                setFormDosesArray((prev) => prev.map((d, i) => (i === idx ? { ...d, timeOfDay: tag } : d)));
+                                setShowDoseTimePickerIndex(null);
+                                Haptics.selectionAsync();
+                              }}
+                            >
+                              <Text style={styles.dropdownText}>{tag}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  )}
                   <TextInput
                     style={[styles.input, { marginTop: 6 }]}
                     placeholder="Optional notes"
@@ -1636,128 +1859,131 @@ export default function MedicationsScreen() {
                   </ScrollView>
                 </View>
               )}
-
-              <Text style={styles.label}>Frequency</Text>
-              <View style={styles.frequencyChipRow}>
-                <Pressable
-                  style={[styles.frequencyChip, formReminderCadence === "daily" && styles.frequencyChipActive]}
-                  onPress={() => {
-                    setFormReminderCadence("daily");
-                    Haptics.selectionAsync();
-                  }}
-                >
-                  <Text style={[styles.frequencyChipText, formReminderCadence === "daily" && styles.frequencyChipTextActive]}>Every day</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.frequencyChip, formReminderCadence === "weekly" && styles.frequencyChipActive]}
-                  onPress={() => {
-                    setFormReminderCadence("weekly");
-                    Haptics.selectionAsync();
-                  }}
-                >
-                  <Text style={[styles.frequencyChipText, formReminderCadence === "weekly" && styles.frequencyChipTextActive]}>Every week</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.frequencyChip, formReminderCadence === "biweekly" && styles.frequencyChipActive]}
-                  onPress={() => {
-                    setFormReminderCadence("biweekly");
-                    setFormReminderIntervalUnit("weeks");
-                    setFormReminderIntervalValue("2");
-                    Haptics.selectionAsync();
-                  }}
-                >
-                  <Text style={[styles.frequencyChipText, formReminderCadence === "biweekly" && styles.frequencyChipTextActive]}>Every 2 weeks</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.frequencyChip, formReminderCadence === "custom" && styles.frequencyChipActive]}
-                  onPress={() => {
-                    setFormReminderCadence("custom");
-                    Haptics.selectionAsync();
-                  }}
-                >
-                  <Text style={[styles.frequencyChipText, formReminderCadence === "custom" && styles.frequencyChipTextActive]}>Custom</Text>
-                </Pressable>
-              </View>
-              {(formReminderCadence === "weekly" || formReminderCadence === "biweekly" || (formReminderCadence === "custom" && formReminderIntervalUnit === "weeks")) && (
+              {formMedicationType !== "prn" && (
                 <>
-                  <Text style={[styles.label, { fontSize: 12 }]}>Which day?</Text>
+                  <Text style={styles.label}>Frequency</Text>
                   <View style={styles.frequencyChipRow}>
-                    {WEEKDAY_OPTIONS.map((option) => (
-                      <Pressable
-                        key={option.value}
-                        style={[styles.weekdayChip, formReminderWeekday === option.value && styles.frequencyChipActive]}
-                        onPress={() => {
-                          setFormReminderWeekday(option.value);
-                          Haptics.selectionAsync();
-                        }}
-                      >
-                        <Text style={[styles.frequencyChipText, formReminderWeekday === option.value && styles.frequencyChipTextActive]}>{option.label}</Text>
-                      </Pressable>
-                    ))}
+                    <Pressable
+                      style={[styles.frequencyChip, formReminderCadence === "daily" && styles.frequencyChipActive]}
+                      onPress={() => {
+                        setFormReminderCadence("daily");
+                        Haptics.selectionAsync();
+                      }}
+                    >
+                      <Text style={[styles.frequencyChipText, formReminderCadence === "daily" && styles.frequencyChipTextActive]}>Every day</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.frequencyChip, formReminderCadence === "weekly" && styles.frequencyChipActive]}
+                      onPress={() => {
+                        setFormReminderCadence("weekly");
+                        Haptics.selectionAsync();
+                      }}
+                    >
+                      <Text style={[styles.frequencyChipText, formReminderCadence === "weekly" && styles.frequencyChipTextActive]}>Every week</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.frequencyChip, formReminderCadence === "biweekly" && styles.frequencyChipActive]}
+                      onPress={() => {
+                        setFormReminderCadence("biweekly");
+                        setFormReminderIntervalUnit("weeks");
+                        setFormReminderIntervalValue("2");
+                        Haptics.selectionAsync();
+                      }}
+                    >
+                      <Text style={[styles.frequencyChipText, formReminderCadence === "biweekly" && styles.frequencyChipTextActive]}>Every 2 weeks</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.frequencyChip, formReminderCadence === "custom" && styles.frequencyChipActive]}
+                      onPress={() => {
+                        setFormReminderCadence("custom");
+                        Haptics.selectionAsync();
+                      }}
+                    >
+                      <Text style={[styles.frequencyChipText, formReminderCadence === "custom" && styles.frequencyChipTextActive]}>Custom</Text>
+                    </Pressable>
                   </View>
-                </>
-              )}
-              {formReminderCadence === "custom" && (
-                <>
-                  <Text style={[styles.label, { fontSize: 12 }]}>Custom interval</Text>
-                  <View style={styles.customFrequencyRow}>
-                    <TextInput
-                      style={[styles.input, styles.customFrequencyInput]}
-                      placeholder="3"
-                      placeholderTextColor={C.textTertiary}
-                      keyboardType="number-pad"
-                      value={formReminderIntervalValue}
-                      onChangeText={setFormReminderIntervalValue}
-                    />
-                    <View style={styles.frequencyChipRow}>
-                      {REMINDER_INTERVAL_UNITS.map((unit) => (
-                        <Pressable
-                          key={unit.value}
-                          style={[styles.frequencyChip, formReminderIntervalUnit === unit.value && styles.frequencyChipActive]}
-                          onPress={() => {
-                            setFormReminderIntervalUnit(unit.value);
-                            Haptics.selectionAsync();
-                          }}
-                        >
-                          <Text style={[styles.frequencyChipText, formReminderIntervalUnit === unit.value && styles.frequencyChipTextActive]}>{unit.label}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
-                </>
-              )}
-
-              <Text style={[styles.label, { marginTop: 16 }]}>Reminder Times</Text>
-              <Text style={[styles.label, { fontSize: 12, color: C.textTertiary, marginTop: 2, marginBottom: 8 }]}>Set when Synapse should remind you for each dose. Synapse will use these times for your repeat schedule.</Text>
-              {formDosesArray.map((dose, idx) => (
-                <View key={dose.id || idx} style={{ marginBottom: 12 }}>
-                  <Text style={[styles.label, { fontSize: 13, marginBottom: 4 }]}>Dose {idx + 1} – {dose.timeOfDay}</Text>
-                  <Pressable
-                    style={[styles.input, { justifyContent: "center" }]}
-                    onPress={() => setShowReminderTimePickerIndex(idx)}
-                  >
-                    <Text style={{ color: C.text, fontSize: 16 }}>{formatReminderTimeDisplay(dose.reminderTime)}</Text>
-                  </Pressable>
-                  {Platform.OS === "ios" && showReminderTimePickerIndex === idx && (
-                    <View style={styles.inlineReminderPicker}>
-                      <DateTimePicker
-                        value={reminderTimeToDate(dose.reminderTime)}
-                        mode="time"
-                        display="spinner"
-                        onChange={(_, date) => {
-                          if (!date) return;
-                          setFormDosesArray((prev) => prev.map((item, itemIdx) => (
-                            itemIdx === idx ? { ...item, reminderTime: dateToReminderTime(date) } : item
-                          )));
-                        }}
-                      />
-                      <Pressable style={[styles.confirmBtn, { marginTop: 8 }]} onPress={() => setShowReminderTimePickerIndex(null)}>
-                        <Text style={styles.confirmText}>Done</Text>
-                      </Pressable>
-                    </View>
+                  {(formReminderCadence === "weekly" || formReminderCadence === "biweekly" || (formReminderCadence === "custom" && formReminderIntervalUnit === "weeks")) && (
+                    <>
+                      <Text style={[styles.label, { fontSize: 12 }]}>Which day?</Text>
+                      <View style={styles.frequencyChipRow}>
+                        {WEEKDAY_OPTIONS.map((option) => (
+                          <Pressable
+                            key={option.value}
+                            style={[styles.weekdayChip, formReminderWeekday === option.value && styles.frequencyChipActive]}
+                            onPress={() => {
+                              setFormReminderWeekday(option.value);
+                              Haptics.selectionAsync();
+                            }}
+                          >
+                            <Text style={[styles.frequencyChipText, formReminderWeekday === option.value && styles.frequencyChipTextActive]}>{option.label}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </>
                   )}
-                </View>
-              ))}
+                  {formReminderCadence === "custom" && (
+                    <>
+                      <Text style={[styles.label, { fontSize: 12 }]}>Custom interval</Text>
+                      <View style={styles.customFrequencyRow}>
+                        <TextInput
+                          style={[styles.input, styles.customFrequencyInput]}
+                          placeholder="3"
+                          placeholderTextColor={C.textTertiary}
+                          keyboardType="number-pad"
+                          value={formReminderIntervalValue}
+                          onChangeText={setFormReminderIntervalValue}
+                        />
+                        <View style={styles.frequencyChipRow}>
+                          {REMINDER_INTERVAL_UNITS.map((unit) => (
+                            <Pressable
+                              key={unit.value}
+                              style={[styles.frequencyChip, formReminderIntervalUnit === unit.value && styles.frequencyChipActive]}
+                              onPress={() => {
+                                setFormReminderIntervalUnit(unit.value);
+                                Haptics.selectionAsync();
+                              }}
+                            >
+                              <Text style={[styles.frequencyChipText, formReminderIntervalUnit === unit.value && styles.frequencyChipTextActive]}>{unit.label}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+                    </>
+                  )}
+
+                  <Text style={[styles.label, { marginTop: 16 }]}>Reminder Times</Text>
+                  <Text style={[styles.label, { fontSize: 12, color: C.textTertiary, marginTop: 2, marginBottom: 8 }]}>Set when Synapse should remind you for each dose. Synapse will use these times for your repeat schedule.</Text>
+                  {formDosesArray.map((dose, idx) => (
+                    <View key={dose.id || idx} style={{ marginBottom: 12 }}>
+                      <Text style={[styles.label, { fontSize: 13, marginBottom: 4 }]}>Dose {idx + 1} – {dose.timeOfDay}</Text>
+                      <Pressable
+                        style={[styles.input, { justifyContent: "center" }]}
+                        onPress={() => setShowReminderTimePickerIndex(idx)}
+                      >
+                        <Text style={{ color: C.text, fontSize: 16 }}>{formatReminderTimeDisplay(dose.reminderTime)}</Text>
+                      </Pressable>
+                      {Platform.OS === "ios" && showReminderTimePickerIndex === idx && (
+                        <View style={styles.inlineReminderPicker}>
+                          <DateTimePicker
+                            value={reminderTimeToDate(dose.reminderTime)}
+                            mode="time"
+                            display="spinner"
+                            onChange={(_, date) => {
+                              if (!date) return;
+                              setFormDosesArray((prev) => prev.map((item, itemIdx) => (
+                                itemIdx === idx ? { ...item, reminderTime: dateToReminderTime(date) } : item
+                              )));
+                            }}
+                          />
+                          <Pressable style={[styles.confirmBtn, { marginTop: 8 }]} onPress={() => setShowReminderTimePickerIndex(null)}>
+                            <Text style={styles.confirmText}>Done</Text>
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </>
+              )}
 
               <Text style={[styles.label, { marginTop: 12 }]}>Refill reminder (optional)</Text>
               <Text style={[styles.label, { fontSize: 11, color: C.textTertiary, marginBottom: 6 }]}>Tell Synapse what you have right now, how much comes in each refill, and how much you use each time.</Text>
@@ -1889,6 +2115,57 @@ export default function MedicationsScreen() {
         </Modal>
       )}
 
+      <Modal visible={showPrnLogModal} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowPrnLogModal(false)} accessibilityLabel="Close PRN log" />
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Log Dose</Text>
+            <Text style={styles.prnModalSubtitle}>{prnLogMed?.name ?? "As needed medication"}</Text>
+            <Text style={styles.label}>Reason (optional)</Text>
+            <View style={styles.prnReasonWrap}>
+              {PRN_REASON_OPTIONS.map((option) => {
+                const active = prnReason === option;
+                return (
+                  <Pressable
+                    key={option}
+                    style={[styles.prnReasonChip, active && styles.prnReasonChipActive]}
+                    onPress={() => {
+                      setPrnReason(option);
+                      Haptics.selectionAsync();
+                    }}
+                  >
+                    <Text style={[styles.prnReasonChipText, active && styles.prnReasonChipTextActive]}>{option}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={styles.label}>Notes (optional)</Text>
+            <TextInput
+              style={[styles.input, { minHeight: 90, textAlignVertical: "top" }]}
+              placeholder="Anything worth remembering?"
+              placeholderTextColor={C.textTertiary}
+              value={prnNotes}
+              onChangeText={setPrnNotes}
+              multiline
+            />
+            <View style={styles.modalActions}>
+              <Pressable
+                style={styles.cancelBtn}
+                onPress={() => {
+                  setShowPrnLogModal(false);
+                  setPrnLogMed(null);
+                }}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.confirmBtn} onPress={handleConfirmPrnLog}>
+                <Text style={styles.confirmText}>Log</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={!!nudgeMedId} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.nudgeCard}>
@@ -1922,31 +2199,31 @@ function makeStyles(C: Theme, S: SickModePalette) {
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
   addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
-  progressBar: { height: 4, borderRadius: 999, backgroundColor: C.textTertiary + "33", marginBottom: 24, overflow: "hidden" },
-  progressFill: { height: 4, borderRadius: 999, backgroundColor: C.green },
+  progressBar: { height: 3, borderRadius: 999, backgroundColor: C.green + "1F", marginBottom: 24, overflow: "hidden" },
+  progressFill: { height: 3, borderRadius: 999, backgroundColor: C.green },
   empty: { alignItems: "center", paddingVertical: 60, gap: 8 },
   emptyTitle: { fontWeight: "600", fontSize: 17, color: C.text, marginTop: 8 },
   emptyDesc: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
-  fab: { position: "absolute", width: 56, height: 56, borderRadius: 28, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.14, shadowRadius: 6, elevation: 5 },
-  refillRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10, marginLeft: 26 },
-  refillText: { fontWeight: "500", fontSize: 11, color: C.textTertiary },
+  fab: { position: "absolute", width: 56, height: 56, borderRadius: 28, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 2.5, elevation: 2 },
+  refillRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8, marginLeft: 26 },
+  refillText: { fontWeight: "400", fontSize: 10.5, color: C.textTertiary, opacity: 0.72 },
   refillTextWarning: { color: C.red },
   sectionPanel: { marginBottom: 0, paddingVertical: 16, paddingHorizontal: 4 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   sectionTitle: { fontWeight: "700", fontSize: 18, color: C.text },
   sectionAddBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
-  sectionDivider: { height: 1, backgroundColor: C.textTertiary + "1F", marginVertical: 8, marginHorizontal: 4 },
+  sectionDivider: { height: 1, backgroundColor: C.textTertiary + "12", marginVertical: 8, marginHorizontal: 4 },
   medListEmpty: { fontWeight: "400", fontSize: 13, color: C.textTertiary, marginBottom: 12 },
-  medListCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.textTertiary + "22" },
+  medListCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.textTertiary + "10" },
   medListCardName: { fontWeight: "600", fontSize: 15, color: C.text },
   medListCardDoseLine: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 2 },
   medListCardPrescriber: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 2 },
   medListCardRefills: { fontWeight: "500", fontSize: 12, color: C.tint, marginTop: 4 },
   medListCardRefillsWarning: { color: C.red },
   pickerPlaceholder: { fontWeight: "400", fontSize: 14, color: C.textTertiary },
-  dropdown: { marginBottom: 14, maxHeight: 220, borderWidth: 1, borderColor: C.textTertiary + "22", borderRadius: 10, overflow: "hidden", backgroundColor: C.surfaceElevated },
+  dropdown: { marginBottom: 14, maxHeight: 220, borderWidth: 1, borderColor: C.textTertiary + "14", borderRadius: 10, overflow: "hidden", backgroundColor: C.surfaceElevated },
   dropdownScroll: { maxHeight: 220 },
-  dropdownRow: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.textTertiary + "1A" },
+  dropdownRow: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.textTertiary + "10" },
   dropdownRowSelected: { backgroundColor: C.tintLight },
   dropdownText: { fontWeight: "500", fontSize: 14, color: C.text },
   dropdownSub: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
@@ -1955,24 +2232,24 @@ function makeStyles(C: Theme, S: SickModePalette) {
   durationRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
   durationInput: { flex: 1, marginBottom: 0 },
   durationUnitRow: { flexDirection: "row", gap: 6 },
-  durationUnitBtn: { paddingHorizontal: 10, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
+  durationUnitBtn: { paddingHorizontal: 10, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "1A" },
   durationUnitBtnActive: { backgroundColor: C.tint, borderColor: C.tint },
   durationUnitText: { fontWeight: "600", fontSize: 12, color: C.textSecondary },
-  doseCard: { marginBottom: 12, padding: 12, borderRadius: 12, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
+  doseCard: { marginBottom: 12, padding: 12, borderRadius: 12, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "14" },
   doseCardTitle: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 8 },
   doseRowWrap: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   doseAmountInput: { flex: 2, marginBottom: 0 },
   doseUnitInput: { flex: 1, marginBottom: 0 },
-  doseTimeBtn: { minWidth: 100, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4, paddingVertical: 12, paddingHorizontal: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
+  doseTimeBtn: { minWidth: 100, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4, paddingVertical: 12, paddingHorizontal: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "14" },
   doseTimeBtnText: { fontWeight: "500", fontSize: 13, color: C.text },
   doseTimePickerWrap: { minWidth: 100, marginBottom: 10 },
-  doseTimeDropdown: { marginTop: 6, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22", borderRadius: 10, maxHeight: 160, overflow: "hidden" },
+  doseTimeDropdown: { marginTop: 6, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "14", borderRadius: 10, maxHeight: 160, overflow: "hidden" },
   doseRemoveBtn: { padding: 4 },
-  addDoseBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, marginBottom: 14, borderWidth: 1, borderStyle: "dashed", borderColor: C.textTertiary + "22", borderRadius: 10 },
+  addDoseBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, marginBottom: 14, borderWidth: 1, borderStyle: "dashed", borderColor: C.textTertiary + "14", borderRadius: 10 },
   addDoseBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
   frequencyChipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
-  frequencyChip: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
-  weekdayChip: { minWidth: 54, alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
+  frequencyChip: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "14" },
+  weekdayChip: { minWidth: 54, alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "14" },
   customFrequencyRow: { gap: 10, marginBottom: 14 },
   customFrequencyInput: { marginBottom: 0 },
   frequencyChipActive: { backgroundColor: C.tintLight, borderColor: C.tint },
@@ -1981,8 +2258,8 @@ function makeStyles(C: Theme, S: SickModePalette) {
   dosePickerBlock: { marginBottom: 14 },
   tagBadge: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
   tagText: { fontWeight: "600", fontSize: 12 },
-  medCard: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: C.textTertiary + "22" },
-  medCardTaken: { borderColor: "rgba(48,209,88,0.25)", backgroundColor: "rgba(48,209,88,0.05)" },
+  medCard: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: C.textTertiary + "10" },
+  medCardTaken: { borderColor: "rgba(48,209,88,0.14)", backgroundColor: "rgba(48,209,88,0.04)" },
   safetyNote: { flexDirection: "row", alignItems: "flex-start", gap: 6, paddingVertical: 12, paddingHorizontal: 4, marginBottom: 8 },
   safetyNoteText: { flex: 1, fontWeight: "400", fontSize: 11, color: C.textTertiary, lineHeight: 16 },
   stressDoseSection: { marginBottom: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.border },
@@ -1993,7 +2270,7 @@ function makeStyles(C: Theme, S: SickModePalette) {
   toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff" },
   toggleThumbActive: { alignSelf: "flex-end" },
   medInfo: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 10 },
-  medName: { fontWeight: "600", fontSize: 15, color: C.text },
+  medName: { fontWeight: "600", fontSize: 17, color: C.text },
   medNameTaken: { color: C.textSecondary },
   ownerBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.border },
   ownerBadgeText: { fontWeight: "700", fontSize: 10, color: C.tint, textTransform: "uppercase", letterSpacing: 0.5 },
@@ -2002,15 +2279,16 @@ function makeStyles(C: Theme, S: SickModePalette) {
   ownerChipActive: { backgroundColor: C.tintLight, borderColor: C.tint },
   ownerChipText: { fontWeight: "600", fontSize: 13, color: C.textSecondary },
   ownerChipTextActive: { color: C.tint },
-  medDose: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginTop: 4, marginLeft: 26 },
-  medFreq: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 4, marginLeft: 26 },
+  medDose: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginTop: 4, marginLeft: 26, opacity: 0.86 },
+  medMetaRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 5, marginLeft: 26, flexWrap: "wrap" },
+  medFreq: { fontWeight: "400", fontSize: 11, color: C.textSecondary, opacity: 0.72 },
   medMetaInline: { marginTop: 0, marginLeft: 0 },
-  actionRow: { flexDirection: "row", gap: 8, marginLeft: 26, marginTop: 2 },
+  actionRow: { flexDirection: "row", gap: 8, marginLeft: 26, marginTop: 6 },
   yesBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: C.green },
   yesBtnText: { fontWeight: "600", fontSize: 13, color: "#fff" },
-  notYetBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
+  notYetBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "12" },
   notYetText: { fontWeight: "600", fontSize: 13, color: C.textSecondary },
-  takenBanner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(48,209,88,0.1)" },
+  takenBanner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(48,209,88,0.09)" },
   takenText: { fontWeight: "600", fontSize: 13, color: C.green },
   dosesContainer: { gap: 6 },
   doseRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: C.surfaceElevated },
@@ -2020,47 +2298,48 @@ function makeStyles(C: Theme, S: SickModePalette) {
   doseNotYet: { paddingHorizontal: 8, paddingVertical: 4 },
   doseNotYetText: { fontWeight: "500", fontSize: 11, color: C.textTertiary },
   notReadyBanner: {
-    marginTop: 2,
+    marginTop: 6,
     marginLeft: 26,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingVertical: 4,
+    paddingVertical: 0,
   },
-  notReadyIcon: { opacity: 0.7 },
+  notReadyIcon: { opacity: 0.38 },
   notReadyText: {
     flex: 1,
     color: C.textSecondary,
     fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 15,
     fontWeight: "500",
+    opacity: 0.8,
   },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
   bottomSheetOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   bottomSheet: { backgroundColor: C.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 32 },
-  inlineReminderPicker: { backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 8, borderWidth: 1, borderColor: C.textTertiary + "22", marginTop: -2 },
-  modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, maxHeight: "85%", borderWidth: 1, borderColor: C.textTertiary + "22" },
+  inlineReminderPicker: { backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 8, borderWidth: 1, borderColor: C.textTertiary + "14", marginTop: -2 },
+  modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, maxHeight: "85%", borderWidth: 1, borderColor: C.textTertiary + "14" },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 20 },
   label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
-  input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.textTertiary + "22", marginBottom: 14 },
+  input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.textTertiary + "14", marginBottom: 14 },
   fieldRow: { flexDirection: "row", gap: 10 },
   emojiGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 16 },
-  emojiOpt: { width: 40, height: 40, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.textTertiary + "22" },
+  emojiOpt: { width: 40, height: 40, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.textTertiary + "1A" },
   emojiOptActive: { borderColor: C.tint, backgroundColor: C.tintLight },
   doseCountRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
-  doseCountBtn: { minWidth: 44, paddingHorizontal: 14, alignItems: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "22" },
+  doseCountBtn: { minWidth: 44, paddingHorizontal: 14, alignItems: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "1A" },
   doseCountActive: { backgroundColor: C.tintLight, borderColor: C.tint },
   doseCountText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
   doseCountTextActive: { color: C.tint },
   tagPicker: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 20 },
-  tagOpt: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.textTertiary + "22", backgroundColor: C.surfaceElevated },
+  tagOpt: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.textTertiary + "1A", backgroundColor: C.surfaceElevated },
   tagOptText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
   modalActions: { flexDirection: "row", gap: 10, marginTop: 4 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center" },
   cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.tint, alignItems: "center" },
   confirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-  nudgeCard: { backgroundColor: C.surface, borderRadius: 20, padding: 28, width: "100%", maxWidth: 340, borderWidth: 1, borderColor: C.textTertiary + "22", alignItems: "center" },
+  nudgeCard: { backgroundColor: C.surface, borderRadius: 20, padding: 28, width: "100%", maxWidth: 340, borderWidth: 1, borderColor: C.textTertiary + "14", alignItems: "center" },
   nudgeEmoji: { fontSize: 44, marginBottom: 16 },
   nudgeText: { fontWeight: "600", fontSize: 16, color: C.text, textAlign: "center", lineHeight: 22, marginBottom: 24 },
   nudgeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.green, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, width: "100%", marginBottom: 10 },
@@ -2075,8 +2354,8 @@ function makeStyles(C: Theme, S: SickModePalette) {
   protocolCardTitle: { fontWeight: "600", fontSize: 14, color: S.text, flex: 1 },
   protocolMeta: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
   protocolEmpty: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
-  hydrationBar: { height: 8, borderRadius: 4, backgroundColor: S.progress, marginBottom: 12, overflow: "hidden" },
-  hydrationFill: { height: "100%", backgroundColor: S.accent, borderRadius: 4 },
+  hydrationBar: { height: 4, borderRadius: 999, backgroundColor: S.progress, marginBottom: 12, overflow: "hidden" },
+  hydrationFill: { height: "100%", backgroundColor: S.accent, borderRadius: 999 },
   hydrationBtns: { flexDirection: "row", gap: 8 },
   hydrationBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, borderRadius: 10, backgroundColor: S.accentLight, borderWidth: 1, borderColor: S.accentBorder },
   hydrationBtnText: { fontWeight: "600", fontSize: 13, color: S.accent },

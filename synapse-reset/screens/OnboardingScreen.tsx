@@ -17,8 +17,9 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { settingsStorage, ALL_SECTION_KEYS, REQUIRED_SECTION_KEYS } from "@/lib/storage";
+import { settingsStorage, ALL_SECTION_KEYS, REQUIRED_SECTION_KEYS, type AppMode } from "@/lib/storage";
 import { useTheme, type Theme, type ThemeId, type ThemePreference } from "@/contexts/ThemeContext";
+import { useAppMode } from "@/contexts/AppModeContext";
 import { setBiometricLockEnabled } from "@/lib/biometric-storage";
 import SynapseLogo from "@/components/SynapseLogo";
 
@@ -44,7 +45,12 @@ const SECTION_LABELS: Record<string, string> = {
   privacy: "Privacy",
 };
 
-const SLIDE_COUNT = 7;
+const SLIDE_COUNT = 8;
+
+const APP_MODE_OPTIONS: { id: AppMode; label: string; description: string }[] = [
+  { id: "simple", label: "Simple Mode", description: "Easier to use, with fewer steps and larger buttons" },
+  { id: "full", label: "Full Mode", description: "More control with detailed tracking and options" },
+];
 
 const APPEARANCE_OPTIONS: { id: ThemePreference; label: string; description: string }[] = [
   { id: "system", label: "System", description: "Follows your device setting" },
@@ -76,6 +82,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { setThemeId, themeId, preference } = useTheme();
+  const { setAppMode } = useAppMode();
 
   const [step, setStep] = useState(0);
   const slideX = useRef(new Animated.Value(0)).current;
@@ -87,6 +94,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [onboardingFirstName, setOnboardingFirstName] = useState("");
   const [onboardingLastName, setOnboardingLastName] = useState("");
   const [selectedAppearance, setSelectedAppearance] = useState<ThemePreference>(preference);
+  const [selectedAppMode, setSelectedAppMode] = useState<AppMode>("full");
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
@@ -165,8 +173,10 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       lastName: lastName || settings.lastName,
       name: [firstName, lastName].filter(Boolean).join(" ") || settings.name || "You",
       onboardingCompleted: true,
+      appMode: selectedAppMode,
       enabledSections: enabledSections.length > 0 ? enabledSections : (ALL_SECTION_KEYS as unknown as string[]),
     });
+    await setAppMode(selectedAppMode);
     await setThemeId(selectedAppearance);
     onComplete(openMedications ? { openMedications: true } : undefined);
   };
@@ -224,6 +234,40 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const renderSlide2 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <View style={styles.slideCenter}>
+        <Text style={styles.setupTitle}>How would you like to use Synapse?</Text>
+        <Text style={styles.setupSub}>You can change this anytime in Settings.</Text>
+        <View style={styles.appearanceList}>
+          {APP_MODE_OPTIONS.map((opt) => {
+            const isSelected = selectedAppMode === opt.id;
+            return (
+              <Pressable
+                key={opt.id}
+                style={[styles.appearanceRow, isSelected && styles.appearanceRowActive]}
+                onPress={() => {
+                  setSelectedAppMode(opt.id);
+                  Haptics.selectionAsync();
+                }}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isSelected }}
+              >
+                <View style={styles.appearanceTextGroup}>
+                  <Text style={[styles.appearanceLabel, isSelected && styles.appearanceLabelActive]}>{opt.label}</Text>
+                  <Text style={styles.appearanceDesc}>{opt.description}</Text>
+                </View>
+                <View style={[styles.appearanceRadio, isSelected && styles.appearanceRadioActive]}>
+                  {isSelected && <View style={styles.appearanceRadioDot} />}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderSlide3 = () => (
+    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
+      <View style={styles.slideCenter}>
         <Text style={styles.setupTitle}>What should we call you?</Text>
         <Text style={styles.setupSub}>
           Only used to personalize your experience inside the app.
@@ -250,7 +294,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const renderSlide3 = () => (
+  const renderSlide4 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <View style={styles.slideCenter}>
         <Text style={styles.setupTitle}>Choose your appearance</Text>
@@ -285,7 +329,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const renderSlide4 = () => (
+  const renderSlide5 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <Text style={styles.setupTitle}>Make Synapse yours.</Text>
       <Text style={styles.setupSub}>Core features like Medications, Appointments, and Vitals are already included. Please choose what else you&apos;d like to include in your health journey.</Text>
@@ -325,7 +369,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const renderSlide5 = () => (
+  const renderSlide6 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <KeyboardAvoidingView
         style={styles.authSlide}
@@ -346,7 +390,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const renderSlide6 = () => (
+  const renderSlide7 = () => (
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <View style={styles.slideCenter}>
         <View style={styles.completionCircle}>
@@ -358,10 +402,10 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     </View>
   );
 
-  const slides = [renderSlide0, renderSlide1, renderSlide2, renderSlide3, renderSlide4, renderSlide5, renderSlide6];
+  const slides = [renderSlide0, renderSlide1, renderSlide2, renderSlide3, renderSlide4, renderSlide5, renderSlide6, renderSlide7];
 
   const showBack = step > 0;
-  const showContinue = step < SLIDE_COUNT - 1 && step !== 5;
+  const showContinue = step < SLIDE_COUNT - 1 && step !== 6;
   const showOpenSynapse = step === SLIDE_COUNT - 1;
 
   return (
