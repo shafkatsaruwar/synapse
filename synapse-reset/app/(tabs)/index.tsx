@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, StyleSheet, Alert, Platform, AppState, Linking } from "react-native";
+import { View, StyleSheet, Alert, Platform, AppState, Linking, Modal, Pressable, Text } from "react-native";
 import { useLocalSearchParams } from "expo-router";
+import Constants from "expo-constants";
 import SidebarLayout from "@/components/SidebarLayout";
 import TabletSidebar from "@/components/TabletSidebar";
 import { useIsTablet } from "@/lib/device";
@@ -35,6 +36,7 @@ import EditProfileScreen from "@/screens/EditProfileScreen";
 import EmergencyProtocolScreen from "@/screens/EmergencyProtocolScreen";
 import EmergencyCardScreen from "@/screens/EmergencyCardScreen";
 import MeetFounderScreen from "@/screens/MeetFounderScreen";
+import FeedbackScreen from "@/screens/FeedbackScreen";
 import { settingsStorage } from "@/lib/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -50,9 +52,19 @@ import BiometricGate from "@/components/BiometricGate";
 import AppWalkthrough from "@/components/AppWalkthrough";
 import { getHasSeenWalkthrough, setHasSeenWalkthrough } from "@/lib/walkthrough-storage";
 import { WalkthroughProvider } from "@/contexts/WalkthroughContext";
+import {
+  markFeedbackPromptCompleted,
+  markFeedbackPromptDismissed,
+  shouldShowFeedbackPrompt,
+  trackFeedbackAppOpen,
+  trackFeedbackWidgetLaunch,
+} from "@/lib/feedback-service";
+import type { FeedbackSentiment } from "@/lib/storage";
+import { useAppMode } from "@/contexts/AppModeContext";
 
 export default function MainScreen() {
   const isTablet = useIsTablet();
+  const { isSimpleMode } = useAppMode();
   const { widgetTarget } = useLocalSearchParams<{ widgetTarget?: string | string[] }>();
   const [activeScreen, setActiveScreen] = useState("dashboard");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -61,18 +73,25 @@ export default function MainScreen() {
   const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [walkthroughStepId, setWalkthroughStepId] = useState<string | null>(null);
   const [walkthroughMenuOpen, setWalkthroughMenuOpen] = useState<boolean | null>(null);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [openAppearanceModalToken, setOpenAppearanceModalToken] = useState(0);
+  const [showFeedbackPrompt, setShowFeedbackPrompt] = useState(false);
+  const [feedbackInitialSentiment, setFeedbackInitialSentiment] = useState<FeedbackSentiment | null>(null);
+  const [feedbackEntrySource, setFeedbackEntrySource] = useState<"settings" | "prompt">("settings");
 
   const navigateToWidgetTarget = useCallback((url: string | null | undefined) => {
     if (!url) return false;
 
     try {
       const parsed = new URL(url);
+      const queryTarget = parsed.searchParams.get("widgetTarget");
       const pathParts = parsed.pathname.split("/").filter(Boolean);
-      const route = parsed.host === "widget" ? pathParts[0] : parsed.host;
+      const route = queryTarget || (parsed.host === "widget" ? pathParts[0] : parsed.host);
 
       if (route === "medications" || route === "appointments") {
         setActiveScreen(route);
         setRefreshKey((k) => k + 1);
+        trackFeedbackWidgetLaunch().catch(() => {});
         return true;
       }
     } catch {
@@ -99,6 +118,32 @@ export default function MainScreen() {
   }, [checkInitialState]);
 
   const NOTIFICATION_ASKED_KEY = "notification_permission_asked";
+  const appVersion = Constants.expoConfig?.version ?? "dev";
+  const appBuild = Constants.expoConfig?.ios?.buildNumber ?? "dev";
+  const WHATS_NEW_SEEN_KEY = `whats_new_seen_${appVersion}_${appBuild}`;
+  const FEEDBACK_VERSION_KEY = `${appVersion}_${appBuild}`;
+
+  useEffect(() => {
+    if (showOnboarding !== false) return;
+    trackFeedbackAppOpen().catch(() => {});
+  }, [showOnboarding]);
+
+  useEffect(() => {
+    if (showOnboarding !== false || showWalkthrough || showWhatsNew || showFeedbackPrompt) return;
+    if (activeScreen !== "dashboard") return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const shouldPrompt = await shouldShowFeedbackPrompt(FEEDBACK_VERSION_KEY);
+      if (!cancelled && shouldPrompt) {
+        setShowFeedbackPrompt(true);
+      }
+    }, 900);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [FEEDBACK_VERSION_KEY, activeScreen, showFeedbackPrompt, showOnboarding, showWalkthrough, showWhatsNew]);
+
   useEffect(() => {
     if (showOnboarding !== false) return;
     let mounted = true;
@@ -153,6 +198,26 @@ export default function MainScreen() {
   useEffect(() => {
     if (showOnboarding !== false) return;
     let cancelled = false;
+    (async () => {
+      try {
+        const seen = await AsyncStorage.getItem(WHATS_NEW_SEEN_KEY);
+        if (!cancelled && seen !== "true") {
+          setShowWhatsNew(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setShowWhatsNew(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [WHATS_NEW_SEEN_KEY, showOnboarding]);
+
+  useEffect(() => {
+    if (showOnboarding !== false) return;
+    let cancelled = false;
     const t = setTimeout(async () => {
       try {
         const seen = await getHasSeenWalkthrough();
@@ -203,6 +268,7 @@ export default function MainScreen() {
     if (target === "medications" || target === "appointments") {
       setActiveScreen(target);
       setRefreshKey((k) => k + 1);
+      trackFeedbackWidgetLaunch().catch(() => {});
     }
   }, [widgetTarget]);
 
@@ -228,9 +294,46 @@ export default function MainScreen() {
   const handleResetApp = () => {
     setHasSeenWalkthrough(false); // reset tour on app reset too
     setShowOnboarding(true);
+    setShowWhatsNew(false);
     setActiveScreen("dashboard");
     setSickMode(false);
   };
+
+  const markWhatsNewSeen = useCallback(async () => {
+    try {
+      await AsyncStorage.setItem(WHATS_NEW_SEEN_KEY, "true");
+    } catch {}
+  }, [WHATS_NEW_SEEN_KEY]);
+
+  const handleDismissWhatsNew = useCallback(async () => {
+    await markWhatsNewSeen();
+    setShowWhatsNew(false);
+  }, [markWhatsNewSeen]);
+
+  const handleExploreWhatsNew = useCallback(async () => {
+    await markWhatsNewSeen();
+    setShowWhatsNew(false);
+    setActiveScreen("settings");
+    setOpenAppearanceModalToken((value) => value + 1);
+    setRefreshKey((k) => k + 1);
+  }, [markWhatsNewSeen]);
+
+  const handleDismissFeedbackPrompt = useCallback(async () => {
+    await markFeedbackPromptDismissed(FEEDBACK_VERSION_KEY);
+    setShowFeedbackPrompt(false);
+  }, [FEEDBACK_VERSION_KEY]);
+
+  const handleOpenFeedback = useCallback(async (sentiment?: FeedbackSentiment) => {
+    await markFeedbackPromptDismissed(FEEDBACK_VERSION_KEY);
+    setShowFeedbackPrompt(false);
+    setFeedbackEntrySource("prompt");
+    setFeedbackInitialSentiment(sentiment ?? null);
+    setActiveScreen("feedback");
+  }, [FEEDBACK_VERSION_KEY]);
+
+  const handleFinishFeedbackFlow = useCallback(async () => {
+    await markFeedbackPromptCompleted(FEEDBACK_VERSION_KEY);
+  }, [FEEDBACK_VERSION_KEY]);
 
   const handleWalkthroughStepEnter = useCallback(async (stepId: string | null) => {
     switch (stepId) {
@@ -339,6 +442,19 @@ export default function MainScreen() {
         );
       case "meetfounder":
         return <MeetFounderScreen />;
+      case "feedback":
+        return (
+          <FeedbackScreen
+            key={`${feedbackEntrySource}-${feedbackInitialSentiment ?? "choice"}`}
+            onBack={() => {
+              setFeedbackInitialSentiment(null);
+              setActiveScreen(feedbackEntrySource === "prompt" ? "dashboard" : "settings");
+              setRefreshKey((k) => k + 1);
+            }}
+            initialSentiment={feedbackInitialSentiment}
+            onFinished={handleFinishFeedbackFlow}
+          />
+        );
       case "settings":
         return (
           <SettingsScreen
@@ -346,6 +462,7 @@ export default function MainScreen() {
             onNavigate={handleNavigate}
             onRestoreComplete={() => setRefreshKey((k) => k + 1)}
             onShowAppTour={() => setShowWalkthrough(true)}
+            openAppearanceModalToken={openAppearanceModalToken}
           />
         );
       default:
@@ -358,6 +475,7 @@ export default function MainScreen() {
       activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
       onNavigate={handleNavigate}
       sickMode={sickMode}
+      simpleMode={isSimpleMode}
       headerRight={activeScreen === "dashboard" ? <SickModeHeaderButton onActivate={handleActivateSickMode} onNavigate={handleNavigate} refreshKey={refreshKey} /> : undefined}
       walkthroughStepId={walkthroughStepId}
       walkthroughMenuOpen={walkthroughMenuOpen}
@@ -372,10 +490,12 @@ export default function MainScreen() {
         <BiometricGate>
           <WalkthroughProvider>
           <View style={styles.container}>
-            <TabletSidebar
-              activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
-              onNavigate={handleNavigate}
-            />
+            {!isSimpleMode ? (
+              <TabletSidebar
+                activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
+                onNavigate={handleNavigate}
+              />
+            ) : null}
             <View style={styles.tabletContent}>{content}</View>
           </View>
           <AppWalkthrough
@@ -389,6 +509,70 @@ export default function MainScreen() {
               setShowWalkthrough(false);
             }}
           />
+          <Modal
+            animationType="fade"
+            transparent
+            visible={showFeedbackPrompt}
+            onRequestClose={handleDismissFeedbackPrompt}
+          >
+            <View style={styles.modalBackdrop}>
+              <View style={styles.feedbackPromptCard}>
+                <Text style={styles.feedbackPromptTitle}>Help improve Synapse</Text>
+                <Text style={styles.feedbackPromptBody}>How’s Synapse working for you?</Text>
+                <View style={styles.feedbackPromptActions}>
+                  <Pressable
+                    onPress={() => handleOpenFeedback("positive")}
+                    style={({ pressed }) => [styles.feedbackPromptPrimary, pressed && styles.whatsNewButtonPressed]}
+                  >
+                    <Text style={styles.feedbackPromptPrimaryText}>I’m enjoying it</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleOpenFeedback("needs_improvement")}
+                    style={({ pressed }) => [styles.feedbackPromptSecondary, pressed && styles.whatsNewButtonPressed]}
+                  >
+                    <Text style={styles.feedbackPromptSecondaryText}>Needs improvement</Text>
+                  </Pressable>
+                </View>
+                <Pressable onPress={handleDismissFeedbackPrompt} style={styles.feedbackPromptDismiss}>
+                  <Text style={styles.feedbackPromptDismissText}>Not now</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Modal>
+          <Modal
+            animationType="fade"
+            transparent
+            visible={showWhatsNew}
+            onRequestClose={handleDismissWhatsNew}
+          >
+            <View style={styles.modalBackdrop}>
+              <View style={styles.whatsNewCard}>
+                <Text style={styles.whatsNewEyebrow}>What’s New in Synapse</Text>
+                <Text style={styles.whatsNewTitle}>A little more thoughtful. A lot easier to live with.</Text>
+                <Text style={styles.whatsNewBody}>
+                  This update makes Synapse feel more personal, more supportive, and way easier to stay on top of.
+                </Text>
+                <View style={styles.whatsNewList}>
+                  <Text style={styles.whatsNewBullet}>• New widgets for quick, at-a-glance updates</Text>
+                  <Text style={styles.whatsNewBullet}>• Recovery tracking to follow your progress over time</Text>
+                  <Text style={styles.whatsNewBullet}>• Smarter symptom and vitals logging</Text>
+                  <Text style={styles.whatsNewBullet}>• Improved medications, appointments, and dashboard</Text>
+                  <Text style={styles.whatsNewBullet}>• Expanded health profile with vaccines, surgeries, and more</Text>
+                </View>
+                <Text style={styles.whatsNewFooter}>
+                  We also polished onboarding, navigation, and dark mode so everything feels smoother, cleaner, and more intentional.
+                </Text>
+                <View style={styles.whatsNewActions}>
+                  <Pressable onPress={handleDismissWhatsNew} style={({ pressed }) => [styles.whatsNewSecondaryButton, pressed && styles.whatsNewButtonPressed]}>
+                    <Text style={styles.whatsNewSecondaryText}>Got it</Text>
+                  </Pressable>
+                  <Pressable onPress={handleExploreWhatsNew} style={({ pressed }) => [styles.whatsNewPrimaryButton, pressed && styles.whatsNewButtonPressed]}>
+                    <Text style={styles.whatsNewPrimaryText}>Explore what’s new</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </Modal>
           </WalkthroughProvider>
         </BiometricGate>
       </AppBackground>
@@ -411,6 +595,70 @@ export default function MainScreen() {
             setShowWalkthrough(false);
           }}
         />
+        <Modal
+          animationType="fade"
+          transparent
+          visible={showFeedbackPrompt}
+          onRequestClose={handleDismissFeedbackPrompt}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.feedbackPromptCard}>
+              <Text style={styles.feedbackPromptTitle}>Help improve Synapse</Text>
+              <Text style={styles.feedbackPromptBody}>How’s Synapse working for you?</Text>
+              <View style={styles.feedbackPromptActions}>
+                <Pressable
+                  onPress={() => handleOpenFeedback("positive")}
+                  style={({ pressed }) => [styles.feedbackPromptPrimary, pressed && styles.whatsNewButtonPressed]}
+                >
+                  <Text style={styles.feedbackPromptPrimaryText}>I’m enjoying it</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => handleOpenFeedback("needs_improvement")}
+                  style={({ pressed }) => [styles.feedbackPromptSecondary, pressed && styles.whatsNewButtonPressed]}
+                >
+                  <Text style={styles.feedbackPromptSecondaryText}>Needs improvement</Text>
+                </Pressable>
+              </View>
+              <Pressable onPress={handleDismissFeedbackPrompt} style={styles.feedbackPromptDismiss}>
+                <Text style={styles.feedbackPromptDismissText}>Not now</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+        <Modal
+          animationType="fade"
+          transparent
+          visible={showWhatsNew}
+          onRequestClose={handleDismissWhatsNew}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.whatsNewCard}>
+              <Text style={styles.whatsNewEyebrow}>What’s New in Synapse</Text>
+              <Text style={styles.whatsNewTitle}>A little more thoughtful. A lot easier to live with.</Text>
+              <Text style={styles.whatsNewBody}>
+                This update makes Synapse feel more personal, more supportive, and way easier to stay on top of.
+              </Text>
+              <View style={styles.whatsNewList}>
+                <Text style={styles.whatsNewBullet}>• New widgets for quick, at-a-glance updates</Text>
+                <Text style={styles.whatsNewBullet}>• Recovery tracking to follow your progress over time</Text>
+                <Text style={styles.whatsNewBullet}>• Smarter symptom and vitals logging</Text>
+                <Text style={styles.whatsNewBullet}>• Improved medications, appointments, and dashboard</Text>
+                <Text style={styles.whatsNewBullet}>• Expanded health profile with vaccines, surgeries, and more</Text>
+              </View>
+              <Text style={styles.whatsNewFooter}>
+                We also polished onboarding, navigation, and dark mode so everything feels smoother, cleaner, and more intentional.
+              </Text>
+              <View style={styles.whatsNewActions}>
+                <Pressable onPress={handleDismissWhatsNew} style={({ pressed }) => [styles.whatsNewSecondaryButton, pressed && styles.whatsNewButtonPressed]}>
+                  <Text style={styles.whatsNewSecondaryText}>Got it</Text>
+                </Pressable>
+                <Pressable onPress={handleExploreWhatsNew} style={({ pressed }) => [styles.whatsNewPrimaryButton, pressed && styles.whatsNewButtonPressed]}>
+                  <Text style={styles.whatsNewPrimaryText}>Explore what’s new</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
         </WalkthroughProvider>
       </BiometricGate>
     </AppBackground>
@@ -428,6 +676,168 @@ function makeStyles(C: Theme) {
     tabletContent: {
       flex: 1,
       minWidth: 0,
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.28)",
+      justifyContent: "center",
+      paddingHorizontal: 22,
+    },
+    whatsNewCard: {
+      backgroundColor: C.surface,
+      borderRadius: 28,
+      paddingHorizontal: 24,
+      paddingTop: 24,
+      paddingBottom: 20,
+      borderWidth: 1,
+      borderColor: C.borderLight,
+      gap: 12,
+      shadowColor: "#000",
+      shadowOpacity: 0.12,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 8,
+    },
+    feedbackPromptCard: {
+      backgroundColor: C.surface,
+      borderRadius: 26,
+      paddingHorizontal: 24,
+      paddingTop: 24,
+      paddingBottom: 18,
+      borderWidth: 1,
+      borderColor: C.borderLight,
+      gap: 14,
+      shadowColor: "#000",
+      shadowOpacity: 0.12,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 8,
+    },
+    feedbackPromptTitle: {
+      fontSize: 28,
+      lineHeight: 34,
+      fontWeight: "800",
+      color: C.text,
+      letterSpacing: -0.6,
+    },
+    feedbackPromptBody: {
+      fontSize: 17,
+      lineHeight: 24,
+      color: C.textSecondary,
+    },
+    feedbackPromptActions: {
+      gap: 12,
+      paddingTop: 4,
+    },
+    feedbackPromptPrimary: {
+      minHeight: 54,
+      borderRadius: 18,
+      backgroundColor: C.accent,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 18,
+    },
+    feedbackPromptPrimaryText: {
+      fontSize: 16,
+      fontWeight: "800",
+      color: "#fff",
+    },
+    feedbackPromptSecondary: {
+      minHeight: 54,
+      borderRadius: 18,
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.borderLight,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 18,
+    },
+    feedbackPromptSecondaryText: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: C.text,
+    },
+    feedbackPromptDismiss: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingTop: 2,
+      paddingBottom: 4,
+    },
+    feedbackPromptDismissText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: C.textSecondary,
+    },
+    whatsNewEyebrow: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: C.accent,
+      letterSpacing: 0.2,
+    },
+    whatsNewTitle: {
+      fontSize: 28,
+      lineHeight: 34,
+      fontWeight: "800",
+      color: C.text,
+    },
+    whatsNewBody: {
+      fontSize: 17,
+      lineHeight: 25,
+      color: C.textSecondary,
+    },
+    whatsNewList: {
+      gap: 10,
+      paddingTop: 4,
+    },
+    whatsNewBullet: {
+      fontSize: 16,
+      lineHeight: 23,
+      color: C.text,
+    },
+    whatsNewFooter: {
+      fontSize: 15,
+      lineHeight: 22,
+      color: C.textSecondary,
+      paddingTop: 2,
+    },
+    whatsNewActions: {
+      flexDirection: "row",
+      gap: 12,
+      paddingTop: 8,
+    },
+    whatsNewPrimaryButton: {
+      flex: 1,
+      minHeight: 52,
+      borderRadius: 18,
+      backgroundColor: C.accent,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 18,
+    },
+    whatsNewSecondaryButton: {
+      flex: 1,
+      minHeight: 52,
+      borderRadius: 18,
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.borderLight,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 18,
+    },
+    whatsNewPrimaryText: {
+      fontSize: 16,
+      fontWeight: "800",
+      color: "#fff",
+    },
+    whatsNewSecondaryText: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: C.text,
+    },
+    whatsNewButtonPressed: {
+      opacity: 0.9,
+      transform: [{ scale: 0.99 }],
     },
   });
 }

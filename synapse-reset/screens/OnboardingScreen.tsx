@@ -48,7 +48,7 @@ const SECTION_LABELS: Record<string, string> = {
 const SLIDE_COUNT = 8;
 
 const APP_MODE_OPTIONS: { id: AppMode; label: string; description: string }[] = [
-  { id: "simple", label: "Simple Mode", description: "Easier to use, with fewer steps and larger buttons" },
+  { id: "simple", label: "Simple Mode", description: "Bigger text, bigger buttons, and a simpler view of your main daily screens" },
   { id: "full", label: "Full Mode", description: "More control with detailed tracking and options" },
 ];
 
@@ -94,7 +94,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [onboardingFirstName, setOnboardingFirstName] = useState("");
   const [onboardingLastName, setOnboardingLastName] = useState("");
   const [selectedAppearance, setSelectedAppearance] = useState<ThemePreference>(preference);
-  const [selectedAppMode, setSelectedAppMode] = useState<AppMode>("full");
+  const [selectedAppMode, setSelectedAppMode] = useState<AppMode | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
@@ -167,16 +167,17 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     const enabledSections = Array.from(selectedSections);
     const firstName = onboardingFirstName.trim();
     const lastName = onboardingLastName.trim();
+    const resolvedAppMode = selectedAppMode ?? "full";
     await settingsStorage.save({
       ...settings,
       firstName: firstName || settings.firstName,
       lastName: lastName || settings.lastName,
       name: [firstName, lastName].filter(Boolean).join(" ") || settings.name || "You",
       onboardingCompleted: true,
-      appMode: selectedAppMode,
+      appMode: resolvedAppMode,
       enabledSections: enabledSections.length > 0 ? enabledSections : (ALL_SECTION_KEYS as unknown as string[]),
     });
-    await setAppMode(selectedAppMode);
+    await setAppMode(resolvedAppMode);
     await setThemeId(selectedAppearance);
     onComplete(openMedications ? { openMedications: true } : undefined);
   };
@@ -235,7 +236,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
       <View style={styles.slideCenter}>
         <Text style={styles.setupTitle}>How would you like to use Synapse?</Text>
-        <Text style={styles.setupSub}>You can change this anytime in Settings.</Text>
+        <Text style={styles.setupSub}>Simple Mode focuses on Dashboard, Medications, Appointments, Symptoms, and Roles. You can change this anytime in Settings.</Text>
         <View style={styles.appearanceList}>
           {APP_MODE_OPTIONS.map((opt) => {
             const isSelected = selectedAppMode === opt.id;
@@ -407,6 +408,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const showBack = step > 0;
   const showContinue = step < SLIDE_COUNT - 1 && step !== 6;
   const showOpenSynapse = step === SLIDE_COUNT - 1;
+  const continueDisabled = step === 2 && !selectedAppMode;
 
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
@@ -449,7 +451,14 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           </Pressable>
         )}
         {showContinue && (
-          <Pressable style={styles.continueBtn} onPress={goNext} accessibilityRole="button" accessibilityLabel="Continue">
+          <Pressable
+            style={[styles.continueBtn, continueDisabled && styles.continueBtnDisabled]}
+            onPress={goNext}
+            disabled={continueDisabled}
+            accessibilityRole="button"
+            accessibilityLabel="Continue"
+            accessibilityState={{ disabled: continueDisabled }}
+          >
             <Text style={styles.continueBtnText}>Continue</Text>
             <Ionicons name="arrow-forward" size={18} color="#fff" />
           </Pressable>
@@ -801,6 +810,9 @@ function makeStyles(C: Theme) {
     backgroundColor: C.tint,
     borderRadius: 16,
     paddingVertical: 18,
+  },
+  continueBtnDisabled: {
+    opacity: 0.45,
   },
   continueBtnText: { fontWeight: "600", fontSize: 17, color: "#fff" },
 });

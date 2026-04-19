@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,6 +8,7 @@ import {
   Platform,
   useWindowDimensions,
   Modal,
+  PanResponder,
 } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -47,12 +48,149 @@ function normalizeLegacyFivePoint(value?: number): number {
 }
 
 function getTenPointLabel(value: number): string {
-  if (value <= 1) return "Very low";
-  if (value <= 3) return "Low";
-  if (value <= 5) return "Okay";
-  if (value <= 7) return "Good";
-  if (value <= 9) return "High";
-  return "Excellent";
+  if (value <= 2) return "Low";
+  if (value <= 6) return "Okay";
+  if (value <= 8) return "Good";
+  return "Great";
+}
+
+type StepSliderProps = {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  color: string;
+  textColor: string;
+  trackColor: string;
+  hint?: string;
+};
+
+function StepSlider({
+  label,
+  value,
+  onChange,
+  color,
+  textColor,
+  trackColor,
+  hint,
+}: StepSliderProps) {
+  const [trackWidth, setTrackWidth] = useState(0);
+  const lastHapticValue = useRef(value);
+
+  React.useEffect(() => {
+    lastHapticValue.current = value;
+  }, [value]);
+
+  const snapToStep = useCallback(
+    (positionX: number) => {
+      if (!trackWidth) return;
+      const clampedX = Math.max(0, Math.min(positionX, trackWidth));
+      const nextValue = Math.round((clampedX / trackWidth) * 10);
+      if (nextValue !== lastHapticValue.current) {
+        lastHapticValue.current = nextValue;
+        Haptics.selectionAsync().catch(() => {});
+      }
+      onChange(nextValue);
+    },
+    [onChange, trackWidth],
+  );
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (event) => {
+          snapToStep(event.nativeEvent.locationX);
+        },
+        onPanResponderMove: (event) => {
+          snapToStep(event.nativeEvent.locationX);
+        },
+      }),
+    [snapToStep],
+  );
+
+  const fillPercent = `${(value / 10) * 100}%`;
+  const thumbOffset = trackWidth ? (value / 10) * trackWidth - 16 : 0;
+
+  return (
+    <View style={{ marginBottom: 20 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <Text style={{ fontWeight: "500", fontSize: 13, color: textColor }}>{label}</Text>
+        <Text style={{ fontWeight: "600", fontSize: 13, color }}>
+          {value} / 10 · {getTenPointLabel(value)}
+        </Text>
+      </View>
+      {hint ? (
+        <Text style={{ fontWeight: "400", fontSize: 11, color: trackColor, marginTop: -4, marginBottom: 8 }}>
+          {hint}
+        </Text>
+      ) : null}
+      <View
+        style={{
+          height: 44,
+          justifyContent: "center",
+          paddingHorizontal: 2,
+        }}
+        onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width - 4)}
+        {...panResponder.panHandlers}
+        accessibilityRole="adjustable"
+        accessibilityLabel={`${label} ${value} out of 10`}
+      >
+        <View
+          style={{
+            height: 10,
+            borderRadius: 999,
+            backgroundColor: trackColor,
+            overflow: "hidden",
+          }}
+        >
+          <View
+            style={{
+              width: fillPercent,
+              height: "100%",
+              borderRadius: 999,
+              backgroundColor: color,
+            }}
+          />
+        </View>
+        {Array.from({ length: 11 }, (_, index) => (
+          <View
+            key={index}
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              left: `${(index / 10) * 100}%`,
+              marginLeft: index === 0 ? 2 : index === 10 ? -2 : 0,
+              width: 4,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: index <= value ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.2)",
+              top: 20,
+            }}
+          />
+        ))}
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: thumbOffset,
+            top: 6,
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: color,
+            borderWidth: 3,
+            borderColor: "#fff",
+            shadowColor: "#000",
+            shadowOpacity: 0.14,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 3 },
+            elevation: 3,
+          }}
+        />
+      </View>
+    </View>
+  );
 }
 
 interface DailyLogScreenProps {
@@ -232,63 +370,20 @@ export default function DailyLogScreen({ openTodayOnLaunch = false }: DailyLogSc
     value: number,
     setValue: (v: number) => void,
     color: string,
-  ) => (
-    <View style={styles.sliderSection}>
-      <View style={styles.sliderHeader}>
-        <Text style={styles.sliderLabel}>{label}</Text>
-        <Text style={[styles.sliderValue, { color }]}>{value}/10 · {getTenPointLabel(value)}</Text>
-      </View>
-      <View style={styles.recoveryScaleTrack}>
-        {Array.from({ length: 11 }, (_, index) => index).map((i) => (
-          <Pressable
-            key={i}
-            style={[styles.recoveryScaleDot, i <= value && { backgroundColor: color }]}
-            onPress={() => {
-              setValue(i);
-              setSaved(false);
-              Haptics.selectionAsync();
-            }}
-            accessibilityRole="adjustable"
-            accessibilityLabel={`${label} ${i} out of 10`}
-            accessibilityState={{ selected: i === value }}
-            hitSlop={{ top: 18, bottom: 18 }}
-          />
-        ))}
-      </View>
-    </View>
-  );
-
-  const renderRecoveryScale = (
-    label: string,
-    value: number,
-    setValue: (v: number) => void,
-    color: string,
     hint?: string,
   ) => (
-    <View style={styles.sliderSection}>
-      <View style={styles.sliderHeader}>
-        <Text style={styles.sliderLabel}>{label}</Text>
-        <Text style={[styles.sliderValue, { color }]}>{value}/10</Text>
-      </View>
-      {hint ? <Text style={styles.scaleHint}>{hint}</Text> : null}
-      <View style={styles.recoveryScaleTrack}>
-        {Array.from({ length: 11 }, (_, index) => index).map((index) => (
-          <Pressable
-            key={index}
-            style={[styles.recoveryScaleDot, index <= value && { backgroundColor: color }]}
-            onPress={() => {
-              setValue(index);
-              setSaved(false);
-              Haptics.selectionAsync();
-            }}
-            accessibilityRole="adjustable"
-            accessibilityLabel={`${label} ${index} out of 10`}
-            accessibilityState={{ selected: index === value }}
-            hitSlop={{ top: 18, bottom: 18 }}
-          />
-        ))}
-      </View>
-    </View>
+    <StepSlider
+      label={label}
+      value={value}
+      onChange={(next) => {
+        setValue(next);
+        setSaved(false);
+      }}
+      color={color}
+      textColor={C.textSecondary}
+      trackColor={C.surfaceElevated}
+      hint={hint}
+    />
   );
 
   const cellSize = Math.min((width - 48 - 12) / 7, 52);
@@ -445,11 +540,11 @@ export default function DailyLogScreen({ openTodayOnLaunch = false }: DailyLogSc
                       </View>
                     </>
                   )}
-                  {renderRecoveryScale("Overall feeling", overallFeeling, setOverallFeeling, C.tint, "0 = worst, 10 = best")}
-                  {renderRecoveryScale("Fatigue", fatigue, setFatigue, C.orange)}
-                  {renderRecoveryScale("Dizziness", dizziness, setDizziness, C.cyan)}
-                  {renderRecoveryScale("Chest pain", chestPain, setChestPain, C.red)}
-                  {renderRecoveryScale("Shortness of breath / wheezing", shortnessOfBreath, setShortnessOfBreath, C.purple)}
+                  {renderSlider("Overall feeling", overallFeeling, setOverallFeeling, C.tint, "0 = worst, 10 = best")}
+                  {renderSlider("Fatigue", fatigue, setFatigue, C.orange)}
+                  {renderSlider("Dizziness", dizziness, setDizziness, C.cyan)}
+                  {renderSlider("Chest pain", chestPain, setChestPain, C.red)}
+                  {renderSlider("Shortness of breath / wheezing", shortnessOfBreath, setShortnessOfBreath, C.purple)}
                   {renderSlider("Energy", energy, setEnergy, C.tint)}
                   {renderSlider("Mood", mood, setMood, C.purple)}
                   {renderSlider("Sleep", sleep, setSleep, C.cyan)}

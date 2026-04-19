@@ -11,6 +11,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import KeyboardDoneBar from "@/components/KeyboardDoneBar";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AppModeProvider } from "@/contexts/AppModeContext";
+import { DisplaySettingsProvider } from "@/contexts/DisplaySettingsContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { queryClient } from "@/lib/query-client";
 import {
@@ -54,14 +55,16 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <QueryClientProvider client={queryClient}>
-            <ThemeProvider>
-              <AppModeProvider>
-                <AuthProvider>
-                  <Stack screenOptions={{ headerShown: false }} />
-                  <KeyboardDoneBar />
-                </AuthProvider>
-              </AppModeProvider>
-            </ThemeProvider>
+            <DisplaySettingsProvider>
+              <ThemeProvider>
+                <AppModeProvider>
+                  <AuthProvider>
+                    <Stack screenOptions={{ headerShown: false }} />
+                    <KeyboardDoneBar />
+                  </AuthProvider>
+                </AppModeProvider>
+              </ThemeProvider>
+            </DisplaySettingsProvider>
           </QueryClientProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>

@@ -8,6 +8,8 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import { useModeAwareScreen } from "@/contexts/AppModeContext";
+import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import {
   appointmentStorage,
   doctorNoteStorage,
@@ -67,6 +69,30 @@ function reminderTimeToDate(value: string) {
 
 function dateToReminderTime(date: Date) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function parseAppointmentDateTime(appointment: Pick<Appointment, "date" | "time">) {
+  const parsed = new Date(`${appointment.date}T${appointment.time || "09:00"}:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isUpcomingAppointment(appointment: Appointment) {
+  if (appointment.status) return false;
+  const startsAt = parseAppointmentDateTime(appointment);
+  return !!startsAt && startsAt.getTime() >= Date.now();
+}
+
+function formatSimpleAppointmentWhen(appointment: Pick<Appointment, "date" | "time">, today: string) {
+  if (appointment.date === today) {
+    return `Today • ${formatTime12h(appointment.time || "09:00")}`;
+  }
+  const tomorrow = new Date(`${today}T00:00:00`);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowString = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+  if (appointment.date === tomorrowString) {
+    return `Tomorrow • ${formatTime12h(appointment.time || "09:00")}`;
+  }
+  return `${formatDate(appointment.date)} • ${formatTime12h(appointment.time || "09:00")}`;
 }
 
 type CalendarCell = {
@@ -240,9 +266,11 @@ function makeCalStyles(C: Theme) {
 export default function AppointmentsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const modeUI = useModeAwareScreen("appointments");
   const { colors: C, themeId } = useTheme();
+  const { textScale } = useDisplaySettings();
   const calStyles = useMemo(() => makeCalStyles(C), [C]);
-  const styles = useMemo(() => makeStyles(C), [C]);
+  const styles = useMemo(() => makeStyles(C, textScale), [C, textScale]);
   const isWide = width >= 768;
   const isDarkTheme = themeId === "dark";
   const today = getToday();
@@ -282,6 +310,15 @@ export default function AppointmentsScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showRescheduleDatePicker, setShowRescheduleDatePicker] = useState(false);
   const [showRescheduleTimePicker, setShowRescheduleTimePicker] = useState(false);
+  const [showSimpleAptModal, setShowSimpleAptModal] = useState(false);
+  const [simpleStep, setSimpleStep] = useState<1 | 2 | 3 | 4>(1);
+  const [simpleEntryOwner, setSimpleEntryOwner] = useState<RecordOwner>("self");
+  const [simpleDoctorName, setSimpleDoctorName] = useState("");
+  const [simpleDate, setSimpleDate] = useState(today);
+  const [simpleTime, setSimpleTime] = useState("09:00");
+  const [showSimpleDatePicker, setShowSimpleDatePicker] = useState(false);
+  const [showSimpleTimePicker, setShowSimpleTimePicker] = useState(false);
+  const [simpleViewingApt, setSimpleViewingApt] = useState<Appointment | null>(null);
 
   const loadData = useCallback(async () => {
     const apts = await appointmentStorage.getAll();
@@ -297,7 +334,106 @@ export default function AppointmentsScreen() {
     syncWidgetSnapshot().catch(() => {});
   }, [loadData]);
 
+  const isCaregiver = profile.userRole === "caregiver" && !!profile.caredForName?.trim();
+  const ownerOptions: { value: RecordOwner; label: string }[] = [
+    { value: "self", label: "You" },
+    ...(isCaregiver ? [{ value: "care_recipient" as const, label: profile.caredForName!.trim() }] : []),
+  ];
+  const getOwnerLabel = (owner?: RecordOwner) => owner === "care_recipient" && isCaregiver ? profile.caredForName!.trim() : "You";
+
+  const resetSimpleAppointmentForm = useCallback(() => {
+    setSimpleStep(1);
+    setSimpleEntryOwner("self");
+    setSimpleDoctorName("");
+    setSimpleDate(today);
+    setSimpleTime("09:00");
+    setShowSimpleDatePicker(false);
+    setShowSimpleTimePicker(false);
+    setEditingApt(null);
+  }, [today]);
+
+  const openSimpleAddAppointment = useCallback(() => {
+    resetSimpleAppointmentForm();
+    setShowSimpleAptModal(true);
+  }, [resetSimpleAppointmentForm]);
+
+  const openSimpleEditAppointment = useCallback((appointment: Appointment) => {
+    setEditingApt(appointment);
+    setSimpleStep(4);
+    setSimpleEntryOwner(appointment.entryOwner ?? "self");
+    setSimpleDoctorName(appointment.doctorName || "");
+    setSimpleDate(appointment.date || today);
+    setSimpleTime(appointment.time || "09:00");
+    setShowSimpleDatePicker(false);
+    setShowSimpleTimePicker(false);
+    setShowSimpleAptModal(true);
+    setSimpleViewingApt(null);
+  }, [today]);
+
   const selectedDoctor = selectedDoctorId ? doctors.find((d) => d.id === selectedDoctorId) : null;
+  const simpleUpcomingAppointments = useMemo(
+    () => appointments
+      .filter(isUpcomingAppointment)
+      .sort((a, b) => {
+        const aTime = parseAppointmentDateTime(a)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const bTime = parseAppointmentDateTime(b)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        return aTime - bTime;
+      }),
+    [appointments]
+  );
+  const simpleNextAppointment = simpleUpcomingAppointments[0] ?? null;
+  const simpleMoreUpcomingAppointments = simpleUpcomingAppointments.slice(1, 4);
+  const canAdvanceSimpleStepOne = !!simpleEntryOwner;
+  const canAdvanceSimpleStepTwo = simpleDoctorName.trim().length > 0;
+  const canAdvanceSimpleStepThree = !!simpleDate.trim() && !!simpleTime.trim();
+
+  const handleSimpleSaveAppointment = useCallback(async () => {
+    if (!simpleDoctorName.trim() || !simpleDate.trim() || !simpleTime.trim()) return;
+    const payload: Omit<Appointment, "id"> = {
+      doctorName: simpleDoctorName.trim(),
+      doctor_id: undefined,
+      specialty: "",
+      date: simpleDate.trim(),
+      time: simpleTime.trim(),
+      location: "",
+      notes: "",
+      entryOwner: simpleEntryOwner,
+    };
+    if (editingApt) {
+      await appointmentStorage.update(editingApt.id, payload);
+    } else {
+      await appointmentStorage.save(payload);
+    }
+    await syncWidgetSnapshot().catch(() => {});
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    setShowSimpleAptModal(false);
+    resetSimpleAppointmentForm();
+    await loadData();
+  }, [editingApt, loadData, resetSimpleAppointmentForm, simpleDate, simpleDoctorName, simpleEntryOwner, simpleTime]);
+
+  const handleSimpleMarkDone = useCallback(async (appointment: Appointment) => {
+    await appointmentStorage.update(appointment.id, { status: "completed" });
+    await syncWidgetSnapshot().catch(() => {});
+    setSimpleViewingApt(null);
+    await loadData();
+    Alert.alert("Appointment marked done", "You're all set.");
+  }, [loadData]);
+
+  const handleSimpleDelete = useCallback((appointment: Appointment) => {
+    Alert.alert("Delete appointment?", `${appointment.doctorName} will be removed.`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          await appointmentStorage.delete(appointment.id);
+          await syncWidgetSnapshot().catch(() => {});
+          setSimpleViewingApt(null);
+          await loadData();
+        },
+      },
+    ]);
+  }, [loadData]);
 
   const resetInlineDoctorForm = () => {
     setNewDoctorName("");
@@ -545,12 +681,6 @@ export default function AppointmentsScreen() {
     () => appointments.filter((a) => a.date < today && a.status === undefined),
     [appointments, today]
   );
-  const isCaregiver = profile.userRole === "caregiver" && !!profile.caredForName?.trim();
-  const ownerOptions: { value: RecordOwner; label: string }[] = [
-    { value: "self", label: "You" },
-    ...(isCaregiver ? [{ value: "care_recipient" as const, label: profile.caredForName!.trim() }] : []),
-  ];
-  const getOwnerLabel = (owner?: RecordOwner) => owner === "care_recipient" && isCaregiver ? profile.caredForName!.trim() : "You";
   const firstOverdueApt = overdueApts[0] ?? null;
   useEffect(() => {
     if (!firstOverdueApt || showRescheduleModal) return;
@@ -563,6 +693,281 @@ export default function AppointmentsScreen() {
       { text: "Cancelled", onPress: () => { markAppointmentStatus(apt, "cancelled"); } },
     ]);
   }, [firstOverdueApt, showRescheduleModal, markAppointmentStatus, openRescheduleFor]);
+
+  if (modeUI.isSimpleMode) {
+    return (
+      <View style={styles.container}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.content, styles.simpleAppointmentsContent, {
+            paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 18),
+            paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
+          }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.simpleAppointmentsHeader}>
+            <Text style={styles.title}>Appointments</Text>
+          </View>
+
+          <View style={[styles.simpleAppointmentsCard, simpleNextAppointment?.date === today && styles.simpleAppointmentsCardToday]}>
+            <Text style={styles.simpleAppointmentsCardLabel}>Next visit</Text>
+            {simpleNextAppointment ? (
+              <>
+                {simpleNextAppointment.date === today ? (
+                  <View style={styles.simpleAppointmentsTodayBadge}>
+                    <Text style={styles.simpleAppointmentsTodayBadgeText}>Today</Text>
+                  </View>
+                ) : null}
+                <Text style={styles.simpleAppointmentsDoctor}>{simpleNextAppointment.doctorName}</Text>
+                <Text style={styles.simpleAppointmentsWhen}>{formatSimpleAppointmentWhen(simpleNextAppointment, today)}</Text>
+                <Text style={styles.simpleAppointmentsPerson}>For {getOwnerLabel(simpleNextAppointment.entryOwner)}</Text>
+                <Pressable
+                  style={({ pressed }) => [styles.simpleAppointmentsSecondaryButton, pressed && styles.simpleAppointmentsSecondaryButtonPressed]}
+                  onPress={() => setSimpleViewingApt(simpleNextAppointment)}
+                  accessibilityRole="button"
+                  accessibilityLabel="View next appointment"
+                >
+                  <Text style={styles.simpleAppointmentsSecondaryButtonText}>View</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={styles.simpleAppointmentsEmptyTitle}>No appointments scheduled</Text>
+                <Text style={styles.simpleAppointmentsPerson}>Tap the button below to add one.</Text>
+              </>
+            )}
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [styles.simpleAppointmentsAddCard, pressed && styles.simpleAppointmentsSecondaryButtonPressed]}
+            onPress={openSimpleAddAppointment}
+            accessibilityRole="button"
+            accessibilityLabel="Add appointment"
+          >
+            <Ionicons name="add-circle-outline" size={22} color={C.tint} />
+            <Text style={styles.simpleAppointmentsAddCardText}>+ Add appointment</Text>
+          </Pressable>
+
+          {simpleMoreUpcomingAppointments.length > 0 ? (
+            <View style={styles.simpleAppointmentsListSection}>
+              <Text style={styles.simpleAppointmentsSectionTitle}>Upcoming</Text>
+              {simpleMoreUpcomingAppointments.map((appointment) => (
+                <Pressable
+                  key={appointment.id}
+                  style={({ pressed }) => [
+                    styles.simpleAppointmentsListCard,
+                    pressed && styles.simpleAppointmentsSecondaryButtonPressed,
+                  ]}
+                  onPress={() => setSimpleViewingApt(appointment)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View appointment with ${appointment.doctorName}`}
+                >
+                  <View style={styles.simpleAppointmentsListTextWrap}>
+                    <Text style={styles.simpleAppointmentsListDoctor}>{appointment.doctorName}</Text>
+                    <Text style={styles.simpleAppointmentsListWhen}>{formatSimpleAppointmentWhen(appointment, today)}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </ScrollView>
+
+        <Modal visible={showSimpleAptModal} transparent animationType="fade">
+          <View style={styles.overlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => { setShowSimpleAptModal(false); resetSimpleAppointmentForm(); }} accessibilityLabel="Close appointment form" />
+            <View style={styles.modal}>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <Text style={styles.modalTitle}>{editingApt ? "Edit Appointment" : "Add Appointment"}</Text>
+                <View style={styles.simpleStepDots}>
+                  {[1, 2, 3, 4].map((step) => (
+                    <View key={step} style={[styles.simpleStepDot, simpleStep === step && styles.simpleStepDotActive]} />
+                  ))}
+                </View>
+
+                {simpleStep === 1 ? (
+                  <>
+                    <Text style={styles.simpleStepTitle}>Who is this for?</Text>
+                    <View style={styles.simpleOwnerStack}>
+                      {ownerOptions.map((option) => (
+                        <Pressable
+                          key={option.value}
+                          style={[styles.simpleOwnerButton, simpleEntryOwner === option.value && styles.simpleOwnerButtonActive]}
+                          onPress={() => {
+                            setSimpleEntryOwner(option.value);
+                            void Haptics.selectionAsync().catch(() => {});
+                          }}
+                        >
+                          <Text style={[styles.simpleOwnerButtonText, simpleEntryOwner === option.value && styles.simpleOwnerButtonTextActive]}>
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </>
+                ) : simpleStep === 2 ? (
+                  <>
+                    <Text style={styles.simpleStepTitle}>Who is the appointment with?</Text>
+                    <TextInput
+                      style={[styles.input, styles.simpleAppointmentsInput]}
+                      placeholder="Doctor name"
+                      placeholderTextColor={C.textTertiary}
+                      value={simpleDoctorName}
+                      onChangeText={setSimpleDoctorName}
+                      autoCorrect={false}
+                    />
+                  </>
+                ) : simpleStep === 3 ? (
+                  <>
+                    <Text style={styles.simpleStepTitle}>When is it?</Text>
+                    <Pressable
+                      style={styles.simplePickerButton}
+                      onPress={() => {
+                        setShowSimpleDatePicker((current) => !current);
+                        setShowSimpleTimePicker(false);
+                      }}
+                    >
+                      <Text style={styles.simplePickerLabel}>Pick Date</Text>
+                      <Text style={styles.simplePickerValue}>{formatDate(simpleDate)}</Text>
+                    </Pressable>
+                    {showSimpleDatePicker ? (
+                      <View style={styles.simpleInlinePicker}>
+                        <DateTimePicker
+                          value={dateStringToDate(simpleDate)}
+                          mode="date"
+                          display={Platform.OS === "ios" ? "inline" : "default"}
+                          onChange={(_, selected) => {
+                            if (selected) setSimpleDate(dateStringFromParts(selected.getFullYear(), selected.getMonth(), selected.getDate()));
+                            if (Platform.OS !== "ios") setShowSimpleDatePicker(false);
+                          }}
+                        />
+                      </View>
+                    ) : null}
+                    <Pressable
+                      style={styles.simplePickerButton}
+                      onPress={() => {
+                        setShowSimpleTimePicker((current) => !current);
+                        setShowSimpleDatePicker(false);
+                      }}
+                    >
+                      <Text style={styles.simplePickerLabel}>Pick Time</Text>
+                      <Text style={styles.simplePickerValue}>{formatTime12h(simpleTime)}</Text>
+                    </Pressable>
+                    {showSimpleTimePicker ? (
+                      <View style={styles.simpleInlinePicker}>
+                        <DateTimePicker
+                          value={reminderTimeToDate(simpleTime)}
+                          mode="time"
+                          display={Platform.OS === "ios" ? "spinner" : "default"}
+                          onChange={(_, selected) => {
+                            if (selected) setSimpleTime(dateToReminderTime(selected));
+                            if (Platform.OS !== "ios") setShowSimpleTimePicker(false);
+                          }}
+                        />
+                      </View>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.simpleStepTitle}>You&apos;re all set</Text>
+                    <View style={styles.simpleAppointmentsReviewCard}>
+                      <Text style={styles.simpleAppointmentsReviewDoctor}>{simpleDoctorName.trim() || "Doctor name"}</Text>
+                      <Text style={styles.simpleAppointmentsReviewWhen}>
+                        {formatSimpleAppointmentWhen({ date: simpleDate, time: simpleTime }, today)}
+                      </Text>
+                      <Text style={styles.simpleAppointmentsReviewPerson}>For {getOwnerLabel(simpleEntryOwner)}</Text>
+                    </View>
+                  </>
+                )}
+
+                <View style={styles.modalActions}>
+                  <Pressable
+                    style={styles.cancelBtn}
+                    onPress={() => {
+                      if (simpleStep === 1) {
+                        setShowSimpleAptModal(false);
+                        resetSimpleAppointmentForm();
+                      } else {
+                        setSimpleStep((prev) => (prev - 1) as 1 | 2 | 3 | 4);
+                      }
+                    }}
+                  >
+                    <Text style={styles.cancelText}>{simpleStep === 1 ? "Cancel" : "Back"}</Text>
+                  </Pressable>
+                  {simpleStep < 4 ? (
+                    <Pressable
+                      style={[
+                        styles.confirmBtn,
+                        ((simpleStep === 1 && !canAdvanceSimpleStepOne) ||
+                          (simpleStep === 2 && !canAdvanceSimpleStepTwo) ||
+                          (simpleStep === 3 && !canAdvanceSimpleStepThree)) && { opacity: 0.5 },
+                      ]}
+                      disabled={
+                        (simpleStep === 1 && !canAdvanceSimpleStepOne) ||
+                        (simpleStep === 2 && !canAdvanceSimpleStepTwo) ||
+                        (simpleStep === 3 && !canAdvanceSimpleStepThree)
+                      }
+                      onPress={() => setSimpleStep((prev) => (prev + 1) as 1 | 2 | 3 | 4)}
+                    >
+                      <Text style={styles.confirmText}>Next</Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable style={styles.confirmBtn} onPress={handleSimpleSaveAppointment}>
+                      <Text style={styles.confirmText}>{editingApt ? "Save Changes" : "Save Appointment"}</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal visible={!!simpleViewingApt} transparent animationType="fade">
+          <View style={styles.overlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setSimpleViewingApt(null)} accessibilityLabel="Close appointment details" />
+            <View style={styles.modal}>
+              {simpleViewingApt ? (
+                <View>
+                  <Text style={styles.modalTitle}>Appointment</Text>
+                  <View style={styles.simpleAppointmentsReviewCard}>
+                    <Text style={styles.simpleAppointmentsReviewDoctor}>{simpleViewingApt.doctorName}</Text>
+                    <Text style={styles.simpleAppointmentsReviewWhen}>{formatSimpleAppointmentWhen(simpleViewingApt, today)}</Text>
+                    <Text style={styles.simpleAppointmentsReviewPerson}>For {getOwnerLabel(simpleViewingApt.entryOwner)}</Text>
+                  </View>
+                  <View style={styles.simpleActionStack}>
+                    <Pressable style={styles.simpleAppointmentsPrimaryButton} onPress={() => { void handleSimpleMarkDone(simpleViewingApt); }}>
+                      <Text style={styles.simpleAppointmentsPrimaryButtonText}>Mark as done</Text>
+                    </Pressable>
+                    <View style={styles.simpleAppointmentsActionDivider} />
+                    <View style={styles.simpleAppointmentsSecondaryRow}>
+                      <Pressable
+                        style={styles.simpleAppointmentsSecondaryButton}
+                        onPress={() => openSimpleEditAppointment(simpleViewingApt)}
+                      >
+                        <View style={styles.simpleAppointmentsActionLabel}>
+                          <Ionicons name="pencil" size={18} color={C.text} />
+                          <Text style={styles.simpleAppointmentsSecondaryButtonText}>Edit</Text>
+                        </View>
+                      </Pressable>
+                      <Pressable
+                        style={styles.simpleAppointmentsDeleteButton}
+                        onPress={() => handleSimpleDelete(simpleViewingApt)}
+                      >
+                        <View style={styles.simpleAppointmentsActionLabel}>
+                          <Ionicons name="trash-outline" size={18} color={C.red} />
+                          <Text style={styles.simpleAppointmentsDeleteButtonText}>Delete</Text>
+                        </View>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        </Modal>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -1089,12 +1494,44 @@ export default function AppointmentsScreen() {
   );
 }
 
-function makeStyles(C: Theme) {
+function makeStyles(C: Theme, textScale: number) {
+  const size = (base: number) => Math.round(base * textScale * 100) / 100;
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
+  simpleAppointmentsContent: { gap: 18 },
+  simpleAppointmentsHeader: { marginBottom: 6 },
+  simpleAppointmentsCard: { backgroundColor: C.surface, borderRadius: 24, padding: 20, borderWidth: 1, borderColor: C.border, gap: 10 },
+  simpleAppointmentsCardToday: { borderColor: C.tint, backgroundColor: C.tintLight },
+  simpleAppointmentsCardLabel: { fontWeight: "700", fontSize: size(18), color: C.textSecondary },
+  simpleAppointmentsTodayBadge: { alignSelf: "flex-start", paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, backgroundColor: C.tint },
+  simpleAppointmentsTodayBadgeText: { fontWeight: "800", fontSize: size(12), color: "#fff", textTransform: "uppercase", letterSpacing: 0.4 },
+  simpleAppointmentsDoctor: { fontWeight: "800", fontSize: size(28), color: C.text, letterSpacing: -0.6 },
+  simpleAppointmentsWhen: { fontWeight: "600", fontSize: size(18), color: C.textSecondary, lineHeight: size(24) },
+  simpleAppointmentsPerson: { fontWeight: "600", fontSize: size(15), color: C.textTertiary },
+  simpleAppointmentsButtonRow: { flexDirection: "row", gap: 10, marginTop: 6 },
+  simpleAppointmentsPrimaryButton: { minHeight: 54, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", flex: 1 },
+  simpleAppointmentsPrimaryButtonPressed: { opacity: 0.94, transform: [{ scale: 0.99 }] },
+  simpleAppointmentsPrimaryButtonText: { fontWeight: "800", fontSize: size(18), color: "#fff", letterSpacing: -0.2 },
+  simpleAppointmentsActionDivider: { height: 1, backgroundColor: C.border, opacity: 0.9, marginVertical: 2 },
+  simpleAppointmentsSecondaryRow: { flexDirection: "row", gap: 10 },
+  simpleAppointmentsActionLabel: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  simpleAppointmentsSecondaryButton: { minHeight: 54, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", flex: 1 },
+  simpleAppointmentsSecondaryButtonPressed: { opacity: 0.95, transform: [{ scale: 0.99 }] },
+  simpleAppointmentsSecondaryButtonText: { fontWeight: "700", fontSize: size(17), color: C.text },
+  simpleAppointmentsDeleteButton: { minHeight: 54, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.redLight, borderWidth: 1, borderColor: C.red, alignItems: "center", justifyContent: "center", flex: 1 },
+  simpleAppointmentsDeleteButtonText: { fontWeight: "800", fontSize: size(17), color: C.red },
+  simpleAppointmentsEmptyTitle: { fontWeight: "700", fontSize: size(24), color: C.text, marginBottom: 2 },
+  simpleAppointmentsAddCard: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 58, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  simpleAppointmentsAddCardText: { fontWeight: "700", fontSize: size(18), color: C.text },
+  simpleAppointmentsListSection: { gap: 10 },
+  simpleAppointmentsSectionTitle: { fontWeight: "700", fontSize: size(18), color: C.textSecondary, marginLeft: 4 },
+  simpleAppointmentsListCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surface, borderRadius: 18, paddingHorizontal: 18, paddingVertical: 16, borderWidth: 1, borderColor: C.border, gap: 10 },
+  simpleAppointmentsListTextWrap: { flex: 1, gap: 3 },
+  simpleAppointmentsListDoctor: { fontWeight: "700", fontSize: size(18), color: C.text },
+  simpleAppointmentsListWhen: { fontWeight: "500", fontSize: size(15), color: C.textSecondary },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
+  title: { fontWeight: "700", fontSize: size(28), color: C.text, letterSpacing: -0.5 },
   addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.purple, alignItems: "center", justifyContent: "center" },
   tabRow: { flexDirection: "row", backgroundColor: C.surface, borderRadius: 10, padding: 3, marginBottom: 16, borderWidth: 1, borderColor: C.border },
   tabBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center" },
@@ -1127,11 +1564,30 @@ function makeStyles(C: Theme) {
   noteBulletNum: { fontWeight: "600", fontSize: 12, color: C.text },
   noteText: { fontWeight: "400", fontSize: 13, color: C.text, flex: 1, lineHeight: 19 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
-  modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, maxHeight: "88%", borderWidth: 1, borderColor: C.border },
+  modal: { backgroundColor: C.surface, borderRadius: 18, paddingTop: 24, paddingHorizontal: 24, paddingBottom: 60, width: "100%", maxWidth: 400, maxHeight: "88%", borderWidth: 1, borderColor: C.border },
   pickerModal: { maxWidth: 360 },
   iosTimeSheet: { backgroundColor: C.surface, borderRadius: 18, paddingTop: 20, paddingBottom: 16, paddingHorizontal: 20, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: C.border, alignItems: "stretch" },
   modalScrollContent: { paddingBottom: 28 },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
+  simpleStepDots: { flexDirection: "row", gap: 8, marginBottom: 18 },
+  simpleStepDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.border },
+  simpleStepDotActive: { backgroundColor: C.tint, width: 24 },
+  simpleStepTitle: { fontWeight: "700", fontSize: size(20), color: C.text, marginBottom: 14, letterSpacing: -0.3 },
+  simpleOwnerStack: { gap: 12, marginBottom: 12 },
+  simpleOwnerButton: { minHeight: 58, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, justifyContent: "center", paddingHorizontal: 18 },
+  simpleOwnerButtonActive: { backgroundColor: C.tintLight, borderColor: C.tint },
+  simpleOwnerButtonText: { fontWeight: "700", fontSize: size(18), color: C.textSecondary },
+  simpleOwnerButtonTextActive: { color: C.tint },
+  simpleAppointmentsInput: { minHeight: 58, fontSize: size(18), borderRadius: 18 },
+  simplePickerButton: { minHeight: 58, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, paddingHorizontal: 18, paddingVertical: 14, justifyContent: "center", marginBottom: 12 },
+  simplePickerLabel: { fontWeight: "600", fontSize: size(14), color: C.textSecondary, marginBottom: 4 },
+  simplePickerValue: { fontWeight: "700", fontSize: size(18), color: C.text },
+  simpleInlinePicker: { marginBottom: 12, backgroundColor: C.surfaceElevated, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: C.border },
+  simpleAppointmentsReviewCard: { borderRadius: 20, padding: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, gap: 6, marginBottom: 14 },
+  simpleAppointmentsReviewDoctor: { fontWeight: "800", fontSize: size(24), color: C.text, letterSpacing: -0.5 },
+  simpleAppointmentsReviewWhen: { fontWeight: "600", fontSize: size(17), color: C.textSecondary },
+  simpleAppointmentsReviewPerson: { fontWeight: "600", fontSize: size(15), color: C.textTertiary },
+  simpleActionStack: { gap: 10, paddingBottom: 20 },
   inlinePickerCard: { marginTop: -2, marginBottom: 14, backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.border },
   inlinePickerTitle: { fontWeight: "600", fontSize: 13, color: C.text, marginBottom: 10 },
   inlinePickerDoneBtn: { marginTop: 10, alignSelf: "flex-end", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: C.purple },

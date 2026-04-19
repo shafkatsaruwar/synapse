@@ -33,6 +33,12 @@ interface NavItem {
   iconActive: IconName;
 }
 
+const SIMPLE_NAV_ITEMS: NavItem[] = [
+  { key: "dashboard", label: "Home", icon: "home-outline", iconActive: "home" },
+  { key: "symptoms", label: "Symptoms", icon: "pulse-outline", iconActive: "pulse" },
+  { key: "settings", label: "Account", icon: "person-circle-outline", iconActive: "person-circle" },
+];
+
 const NAV_ITEMS: NavItem[] = [
   { key: "dashboard", label: "Dashboard", icon: "grid-outline", iconActive: "grid" },
   { key: "log", label: "Daily Log", icon: "heart-outline", iconActive: "heart" },
@@ -76,6 +82,7 @@ interface SidebarLayoutProps {
   onNavigate: (screen: string) => void;
   children: React.ReactNode;
   sickMode?: boolean;
+  simpleMode?: boolean;
   headerRight?: React.ReactNode;
   walkthroughStepId?: string | null;
   walkthroughMenuOpen?: boolean | null;
@@ -86,6 +93,7 @@ export default function SidebarLayout({
   onNavigate,
   children,
   sickMode,
+  simpleMode = false,
   headerRight,
   walkthroughStepId,
   walkthroughMenuOpen,
@@ -132,7 +140,6 @@ export default function SidebarLayout({
     return () => unregisterTarget("emergencycard");
   }, [registerTarget, unregisterTarget, moreOpen]);
 
-  const moreIsActive = MORE_ITEMS.some((n) => n.key === activeScreen);
   const isWideScreen = width >= 768;
   const drawerWidth = Math.min(width * 0.78, isWideScreen ? 280 : 320);
 
@@ -155,6 +162,9 @@ export default function SidebarLayout({
   );
   const primaryItemsFiltered = PRIMARY_ITEMS.filter((n) => enabledKeysSet.has(n.key));
   const moreItemsFiltered = MORE_ITEMS.filter((n) => enabledKeysSet.has(n.key));
+  const bottomNavItems = simpleMode ? SIMPLE_NAV_ITEMS : primaryItemsFiltered;
+  const showBottomNav = simpleMode || (!isWide && primaryItemsFiltered.length > 0);
+  const shouldShowHeaderRow = !simpleMode && (!isWide || headerRight != null);
 
   // Auth has been removed – app is fully local. Treat everyone as a local profile.
   const isSignedIn = false;
@@ -205,40 +215,42 @@ export default function SidebarLayout({
 
   return (
     <View style={styles.mobileContainer} {...swipePanResponder.panHandlers}>
-      <View style={[styles.mobileHeaderRow, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 4 }]}>
-        {isWide ? <View style={styles.headerSpacerLeft} /> : (
-          <View ref={menuButtonRef} collapsable={false}>
-            <Pressable
-              style={styles.mobileMenuBtn}
-              onPress={() => setMoreOpen(true)}
-              testID="tab-more"
-              accessibilityRole="button"
-              accessibilityLabel="Open menu"
-            >
-              <Ionicons name="menu" size={26} color={C.text} />
-            </Pressable>
-          </View>
-        )}
-        {headerRight != null ? headerRight : <View style={styles.mobileHeaderSpacer} />}
-      </View>
+      {shouldShowHeaderRow ? (
+        <View style={[styles.mobileHeaderRow, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 4 }]}>
+          {isWide ? <View style={styles.headerSpacerLeft} /> : (
+            <View ref={menuButtonRef} collapsable={false}>
+              <Pressable
+                style={styles.mobileMenuBtn}
+                onPress={() => setMoreOpen(true)}
+                testID="tab-more"
+                accessibilityRole="button"
+                accessibilityLabel="Open menu"
+              >
+                <Ionicons name="menu" size={26} color={C.text} />
+              </Pressable>
+            </View>
+          )}
+          {headerRight != null ? headerRight : <View style={styles.mobileHeaderSpacer} />}
+        </View>
+      ) : null}
 
       <View
         style={[
           styles.mobileContent,
           {
-            paddingBottom: isWide
-              ? Platform.OS === "web" ? 34 : insets.bottom + 16
-              : primaryItemsFiltered.length > 0
-                ? (Platform.OS === "web" ? 88 : insets.bottom + 80)
+            paddingBottom: showBottomNav
+              ? (Platform.OS === "web" ? 108 : insets.bottom + 96)
+              : isWide
+                ? Platform.OS === "web" ? 34 : insets.bottom + 16
                 : 24,
-            minHeight: isWide ? undefined : Math.max(200, height * 0.4),
+            minHeight: showBottomNav || !isWide ? Math.max(200, height * 0.4) : undefined,
           },
         ]}
       >
         {children}
       </View>
 
-      {!isWide && primaryItemsFiltered.length > 0 && (
+      {showBottomNav && (
         <View
           style={[
             styles.mobileNavWrap,
@@ -252,13 +264,13 @@ export default function SidebarLayout({
           {Platform.OS === "web" ? (
             <View style={[styles.mobileNav, styles.mobileNavFallback]}>
               <View style={styles.mobileNavContent}>
-                {primaryItemsFiltered.map((item) => {
+                {bottomNavItems.map((item) => {
                   const active = activeScreen === item.key;
                   const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
                   return (
                     <Pressable
                       key={item.key}
-                      style={[styles.mobileNavItem, dimmed && { opacity: 0.35 }]}
+                      style={[styles.mobileNavItem, simpleMode && styles.mobileNavItemSimple, dimmed && { opacity: 0.35 }]}
                       onPress={() => onNavigate(item.key)}
                       testID={`tab-${item.key}`}
                       accessibilityRole="button"
@@ -270,6 +282,11 @@ export default function SidebarLayout({
                         size={24}
                         color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
                       />
+                      {simpleMode ? (
+                        <Text style={[styles.mobileNavLabel, active && styles.mobileNavLabelActive]}>
+                          {item.label}
+                        </Text>
+                      ) : null}
                     </Pressable>
                   );
                 })}
@@ -278,13 +295,13 @@ export default function SidebarLayout({
           ) : (
             <BlurView intensity={45} tint={themeId === "dark" ? "dark" : "light"} style={styles.mobileNav}>
               <View style={styles.mobileNavContent}>
-                {primaryItemsFiltered.map((item) => {
+                {bottomNavItems.map((item) => {
                   const active = activeScreen === item.key;
                   const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
                   return (
                     <Pressable
                       key={item.key}
-                      style={[styles.mobileNavItem, dimmed && { opacity: 0.35 }]}
+                      style={[styles.mobileNavItem, simpleMode && styles.mobileNavItemSimple, dimmed && { opacity: 0.35 }]}
                       onPress={() => onNavigate(item.key)}
                       testID={`tab-${item.key}`}
                       accessibilityRole="button"
@@ -296,6 +313,11 @@ export default function SidebarLayout({
                         size={24}
                         color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
                       />
+                      {simpleMode ? (
+                        <Text style={[styles.mobileNavLabel, active && styles.mobileNavLabelActive]}>
+                          {item.label}
+                        </Text>
+                      ) : null}
                     </Pressable>
                   );
                 })}
@@ -305,7 +327,7 @@ export default function SidebarLayout({
         </View>
       )}
 
-      {!isWide && (
+      {!simpleMode && !isWide && (
       <Modal
           visible={moreOpen}
           transparent
@@ -575,6 +597,19 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       justifyContent: "center",
       paddingVertical: 8,
       paddingHorizontal: 20,
+    },
+    mobileNavItemSimple: {
+      minWidth: 88,
+      gap: 4,
+    },
+    mobileNavLabel: {
+      fontWeight: "600",
+      fontSize: 12,
+      color: "#8E8E93",
+      textAlign: "center",
+    },
+    mobileNavLabelActive: {
+      color: C.accent,
     },
     drawerContainer: {
       flex: 1,

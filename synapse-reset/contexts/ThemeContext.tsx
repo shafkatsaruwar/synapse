@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 
 export interface Theme {
   background: string;
@@ -75,14 +76,30 @@ function preferenceToThemeId(preference: ThemePreference, colorScheme: string | 
   return preference;
 }
 
+function applyHighContrast(theme: Theme): Theme {
+  return {
+    ...theme,
+    border: theme.textSecondary,
+    borderLight: theme.textSecondary,
+    textSecondary: theme.text,
+    textTertiary: theme.textSecondary,
+    tintLight: theme.tintLight,
+    surfaceElevated: theme.surface,
+  };
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const colorScheme = useColorScheme();
+  const { highContrast } = useDisplaySettings();
   const [preference, setPreference] = useState<ThemePreference>(DEFAULT_PREFERENCE);
   const themeId = useMemo(
     () => preferenceToThemeId(preference, colorScheme ?? null),
     [preference, colorScheme]
   );
-  const colors = useMemo(() => getThemeColors(themeId), [themeId]);
+  const colors = useMemo(() => {
+    const baseTheme = getThemeColors(themeId);
+    return highContrast ? applyHighContrast(baseTheme) : baseTheme;
+  }, [highContrast, themeId]);
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_STORAGE_KEY).then((saved) => {

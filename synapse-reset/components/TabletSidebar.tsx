@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
+import { useAppMode } from "@/contexts/AppModeContext";
 import { useIsTablet } from "@/lib/device";
 import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
 import { featureFlags } from "@/constants/feature-flags";
@@ -62,6 +63,7 @@ const SIDEBAR_WIDTH = 280;
 
 export default function TabletSidebar({ activeScreen, onNavigate }: TabletSidebarProps) {
   const isTablet = useIsTablet();
+  const { isSimpleMode } = useAppMode();
   const insets = useSafeAreaInsets();
   const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
@@ -76,7 +78,7 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
     return () => unregisterTarget("emergencycard");
   }, [registerTarget, unregisterTarget, isTablet]);
 
-  if (!isTablet) return null;
+  if (!isTablet || isSimpleMode) return null;
 
   return (
     <View style={[styles.sidebarWrap, { width: SIDEBAR_WIDTH }]}>

@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type ThemePreference, type Theme } from "@/contexts/ThemeContext";
+import { useDisplaySettings, type TextSizeSetting } from "@/contexts/DisplaySettingsContext";
 import { useAppMode } from "@/contexts/AppModeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -72,8 +73,14 @@ const THEME_OPTIONS: { id: ThemePreference; label: string; description: string }
 ];
 
 const APP_MODE_OPTIONS: { id: AppMode; label: string; description: string }[] = [
-  { id: "simple", label: "Simple Mode", description: "Larger buttons and fewer steps" },
+  { id: "simple", label: "Simple Mode", description: "Bigger text, bigger buttons, and simpler main screens" },
   { id: "full", label: "Full Mode", description: "Detailed tracking and more control" },
+];
+
+const SIMPLE_TEXT_SIZE_OPTIONS: { id: TextSizeSetting; label: string }[] = [
+  { id: "normal", label: "Normal" },
+  { id: "large", label: "Large" },
+  { id: "extra_large", label: "Extra Large" },
 ];
 
 const PROFILE_IMAGE_DIR = `${FileSystem.documentDirectory ?? ""}profile-images/`;
@@ -118,6 +125,7 @@ export default function SettingsScreen({
   const isWide = width >= 768;
   const { user } = useAuth();
   const { appMode, setAppMode } = useAppMode();
+  const { textSize, setTextSize, highContrast, setHighContrast, textScale } = useDisplaySettings();
   const { colors: C, preference, setThemeId } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
@@ -250,6 +258,18 @@ export default function SettingsScreen({
     setSettings((prev) => ({ ...prev, appMode: mode }));
   };
 
+  const handleTextSizeChange = async (size: TextSizeSetting) => {
+    Haptics.selectionAsync();
+    await setTextSize(size);
+    setSettings((prev) => ({ ...prev, textSize: size }));
+  };
+
+  const handleHighContrastChange = async (enabled: boolean) => {
+    Haptics.selectionAsync();
+    await setHighContrast(enabled);
+    setSettings((prev) => ({ ...prev, highContrast: enabled }));
+  };
+
   const openNameModal = () => {
     setDraftName(settings.name?.trim() || "");
     setShowNameModal(true);
@@ -290,8 +310,17 @@ export default function SettingsScreen({
     ? `${new Date(nextApt.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${nextApt.doctorName}`
     : "None scheduled";
 
+  const saveSimpleRoleDetails = async () => {
+    await saveBackupRoleDetails({
+      caredForName: profile.userRole === "caregiver" ? profile.caredForName?.trim() || undefined : undefined,
+      caredForAge: undefined,
+      backupEmergencyProtocols: undefined,
+      backupCriticalMedications: profile.backupCriticalMedications ?? [],
+    });
+  };
+
   const contentPadding = {
-    paddingTop: isWide ? 40 : Platform.OS === "web" ? 67 : 16,
+    paddingTop: isWide ? 40 : Platform.OS === "web" ? 67 : insets.top + (appMode === "simple" ? 18 : 16),
     paddingBottom: isWide ? 40 : Platform.OS === "web" ? 118 : insets.bottom + 100,
     paddingHorizontal: 24,
   };
@@ -409,6 +438,209 @@ export default function SettingsScreen({
     shortcutCardMap.founder,
     ...(shortcutCardMap.tour ? [shortcutCardMap.tour] : []),
   ];
+
+  const simpleHeaderTitleSize = Math.round(28 * textScale);
+  const simpleSectionTitleSize = Math.round(20 * textScale);
+  const simpleBodySize = Math.round(17 * textScale);
+  const simpleActionSize = Math.round(16 * textScale);
+
+  if (appMode === "simple") {
+    return (
+      <View style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[contentPadding, styles.scrollViewContent, styles.simpleSettingsContent]}
+          showsVerticalScrollIndicator={false}
+          bounces={true}
+        >
+          <Text style={[styles.title, { fontSize: simpleHeaderTitleSize, marginBottom: 18 }]}>Account</Text>
+
+          <View style={styles.simpleSettingsCard}>
+            <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Profile</Text>
+            <View style={styles.simpleProfileRow}>
+              <Pressable
+                style={styles.simpleProfileAvatar}
+                onPress={handlePickProfileImage}
+                accessibilityRole="button"
+                accessibilityLabel={profile.profileImageUri ? "Change photo" : "Add photo"}
+              >
+                {profile.profileImageUri ? (
+                  <Image source={{ uri: profile.profileImageUri }} style={styles.simpleProfileAvatarImage} />
+                ) : (
+                  <Text style={styles.simpleProfileAvatarText}>
+                    {(settings.name?.trim()?.[0] ?? "Y").toUpperCase()}
+                  </Text>
+                )}
+              </Pressable>
+              <View style={styles.simpleProfileTextWrap}>
+                <Text style={[styles.simpleProfileName, { fontSize: simpleSectionTitleSize }]}>
+                  {settings.name?.trim() || "You"}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.simpleSettingsButtonRow}>
+              <Pressable style={styles.simpleSettingsSecondaryButton} onPress={openNameModal}>
+                <Text style={[styles.simpleSettingsSecondaryButtonText, { fontSize: simpleActionSize }]}>Edit name</Text>
+              </Pressable>
+              <Pressable style={styles.simpleSettingsPrimaryButton} onPress={handlePickProfileImage}>
+                <Text style={[styles.simpleSettingsPrimaryButtonText, { fontSize: simpleActionSize }]}>
+                  {profile.profileImageUri ? "Change photo" : "Add photo"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.simpleSettingsCard}>
+            <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Role</Text>
+            <Text style={[styles.simpleSettingsPrompt, { fontSize: simpleBodySize }]}>Who is this for?</Text>
+            <View style={styles.simpleSettingsOptionStack}>
+              {[
+                { id: "self" as const, label: "Just me" },
+                { id: "caregiver" as const, label: "I help someone" },
+              ].map((option) => {
+                const active = (profile.userRole ?? "self") === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    style={[styles.simpleSettingsOptionButton, active && styles.simpleSettingsOptionButtonActive]}
+                    onPress={() => updateRole(option.id)}
+                  >
+                    <Text style={[styles.simpleSettingsOptionText, { fontSize: simpleBodySize }, active && styles.simpleSettingsOptionTextActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {(profile.userRole ?? "self") === "caregiver" ? (
+              <View style={styles.simpleSettingsInputBlock}>
+                <TextInput
+                  style={[styles.simpleSettingsInput, { fontSize: simpleBodySize }]}
+                  value={profile.caredForName ?? ""}
+                  onChangeText={(text) => setProfile((prev) => ({ ...prev, caredForName: text }))}
+                  placeholder="Who are you helping?"
+                  placeholderTextColor={C.textTertiary}
+                />
+                <Pressable style={styles.simpleSettingsPrimaryButton} onPress={saveSimpleRoleDetails}>
+                  <Text style={[styles.simpleSettingsPrimaryButtonText, { fontSize: simpleActionSize }]}>Save role</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.simpleSettingsCard}>
+            <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Accessibility</Text>
+            <Text style={[styles.simpleSettingsPrompt, { fontSize: simpleBodySize }]}>Text size</Text>
+            <View style={styles.simpleSettingsOptionStack}>
+              {SIMPLE_TEXT_SIZE_OPTIONS.map((option) => {
+                const active = textSize === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    style={[styles.simpleSettingsOptionButton, active && styles.simpleSettingsOptionButtonActive]}
+                    onPress={() => void handleTextSizeChange(option.id)}
+                  >
+                    <Text style={[styles.simpleSettingsOptionText, { fontSize: simpleBodySize }, active && styles.simpleSettingsOptionTextActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable
+              style={styles.simpleSettingsToggleRow}
+              onPress={() => void handleHighContrastChange(!highContrast)}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: highContrast }}
+            >
+              <Text style={[styles.simpleSettingsPrompt, { fontSize: simpleBodySize, marginBottom: 0 }]}>High contrast</Text>
+              <View style={[styles.toggle, highContrast && styles.toggleActive]}>
+                <View style={[styles.toggleThumb, highContrast && styles.toggleThumbActive]} />
+              </View>
+            </Pressable>
+          </View>
+
+          <View style={styles.simpleSettingsCard}>
+            <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>App Mode</Text>
+            <View style={styles.simpleSettingsOptionStack}>
+              {APP_MODE_OPTIONS.map((option) => {
+                const active = appMode === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    style={[styles.simpleSettingsOptionButton, active && styles.simpleSettingsOptionButtonActive]}
+                    onPress={() => void handleAppModeChange(option.id)}
+                  >
+                    <Text style={[styles.simpleSettingsOptionText, { fontSize: simpleBodySize }, active && styles.simpleSettingsOptionTextActive]}>
+                      {option.id === "simple" ? "Simple" : "Full"}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {onResetApp ? (
+            <View style={styles.simpleSettingsDangerWrap}>
+              <Pressable
+                style={styles.simpleSettingsDangerButton}
+                onPress={() => setShowResetConfirm(true)}
+                testID="reset-app"
+                accessibilityRole="button"
+                accessibilityLabel="Reset app"
+              >
+                <Text style={[styles.simpleSettingsDangerText, { fontSize: simpleActionSize }]}>Reset App</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </ScrollView>
+
+        <Modal visible={showResetConfirm} transparent animationType="fade">
+          <Pressable style={styles.overlay} onPress={() => setShowResetConfirm(false)}>
+            <Pressable style={styles.resetModal} onPress={() => {}}>
+              <Text style={styles.resetEmoji}>⚠️</Text>
+              <Text style={styles.resetTitle}>Reset App</Text>
+              <Text style={styles.resetDesc}>This will delete all your data.</Text>
+              <View style={styles.modalActions}>
+                <Pressable style={styles.cancelBtn} onPress={() => setShowResetConfirm(false)}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={styles.resetConfirmBtn} onPress={handleResetApp}>
+                  <Text style={styles.resetConfirmText}>Reset</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        <Modal visible={showNameModal} transparent animationType="fade">
+          <Pressable style={styles.overlay} onPress={() => setShowNameModal(false)}>
+            <Pressable style={styles.resetModal} onPress={() => {}}>
+              <Text style={[styles.resetTitle, { marginBottom: 12 }]}>Edit name</Text>
+              <TextInput
+                style={[styles.input, { marginBottom: 16 }]}
+                placeholder="Your name"
+                placeholderTextColor={C.textTertiary}
+                value={draftName}
+                onChangeText={setDraftName}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleSaveName}
+              />
+              <View style={styles.modalActions}>
+                <Pressable style={styles.cancelBtn} onPress={() => setShowNameModal(false)}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={[styles.resetConfirmBtn, { backgroundColor: C.tint }, !draftName.trim() && { opacity: 0.5 }]} onPress={handleSaveName} disabled={!draftName.trim()}>
+                  <Text style={styles.resetConfirmText}>Save</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -605,7 +837,7 @@ export default function SettingsScreen({
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>App Mode</Text>
           <Text style={[styles.desc, { marginBottom: 12 }]}>
-            Simple Mode keeps things lighter. Full Mode keeps the detailed setup you already know.
+            Simple Mode is a focused view for Dashboard, Medications, Appointments, Symptoms, and Roles. Full Mode keeps the full detailed experience.
           </Text>
           <View style={styles.roleRow}>
             {APP_MODE_OPTIONS.map((option) => {
@@ -622,7 +854,7 @@ export default function SettingsScreen({
             })}
           </View>
           <Text style={[styles.desc, { marginTop: 12 }]}>
-            We&apos;re laying the groundwork here so key screens can branch cleanly later without duplicating your data.
+            Simple Mode is being rolled out in phases, so only those key areas are simplified right now.
           </Text>
         </View>
 
@@ -915,6 +1147,32 @@ function makeStyles(C: Theme) {
     scrollView: { flex: 1 },
     scrollViewContent: { flexGrow: 1 },
     title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 24 },
+    simpleSettingsContent: { gap: 12 },
+    simpleSettingsCard: { backgroundColor: C.surface, borderRadius: 22, padding: 20, borderWidth: 1, borderColor: C.border, gap: 14 },
+    simpleSettingsSectionTitle: { fontWeight: "800", color: C.text, letterSpacing: -0.4 },
+    simpleSettingsPrompt: { fontWeight: "600", color: C.textSecondary, marginBottom: 2 },
+    simpleProfileRow: { flexDirection: "row", alignItems: "center", gap: 16 },
+    simpleProfileAvatar: { width: 82, height: 82, borderRadius: 41, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+    simpleProfileAvatarImage: { width: 82, height: 82, borderRadius: 41 },
+    simpleProfileAvatarText: { fontWeight: "700", fontSize: 28, color: "#fff" },
+    simpleProfileTextWrap: { flex: 1, minWidth: 0 },
+    simpleProfileName: { fontWeight: "800", color: C.text, letterSpacing: -0.5 },
+    simpleSettingsButtonRow: { flexDirection: "row", gap: 10 },
+    simpleSettingsPrimaryButton: { minHeight: 54, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", flex: 1 },
+    simpleSettingsPrimaryButtonText: { fontWeight: "800", color: "#fff", letterSpacing: -0.2 },
+    simpleSettingsSecondaryButton: { minHeight: 54, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", flex: 1 },
+    simpleSettingsSecondaryButtonText: { fontWeight: "800", color: C.text, letterSpacing: -0.2 },
+    simpleSettingsOptionStack: { gap: 10 },
+    simpleSettingsOptionButton: { minHeight: 56, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, justifyContent: "center", paddingHorizontal: 18 },
+    simpleSettingsOptionButtonActive: { borderColor: C.tint, backgroundColor: C.tintLight },
+    simpleSettingsOptionText: { fontWeight: "700", color: C.textSecondary, letterSpacing: -0.2 },
+    simpleSettingsOptionTextActive: { color: C.tint },
+    simpleSettingsInputBlock: { gap: 10 },
+    simpleSettingsInput: { minHeight: 56, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, paddingHorizontal: 18, color: C.text },
+    simpleSettingsToggleRow: { minHeight: 58, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    simpleSettingsDangerWrap: { paddingTop: 6, marginTop: 10, borderTopWidth: 1, borderTopColor: C.border },
+    simpleSettingsDangerButton: { minHeight: 56, borderRadius: 18, borderWidth: 1, borderColor: C.red + "55", alignItems: "center", justifyContent: "center", backgroundColor: C.surface },
+    simpleSettingsDangerText: { fontWeight: "800", color: C.red, letterSpacing: -0.2 },
     editProfileLink: { fontWeight: "500", fontSize: 13, color: C.tint, marginTop: 4 },
     groupCard: { backgroundColor: C.surface, borderRadius: 14, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border },
     groupHeader: { marginBottom: 14 },

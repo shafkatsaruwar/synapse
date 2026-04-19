@@ -20,6 +20,8 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { featureFlags } from "@/constants/feature-flags";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import { useModeAwareScreen } from "@/contexts/AppModeContext";
+import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import GlassView from "@/components/GlassView";
 import {
   healthLogStorage,
@@ -48,6 +50,7 @@ import { getToday, formatDate, formatTime12h, formatTimestamp } from "@/lib/date
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
 import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
 import { buildRecoveryInsights } from "@/lib/recovery-insights";
+import { buildTodayAtAGlance } from "@/lib/today-at-a-glance";
 
 // Gradient pairs: [top (darker), bottom (lighter)]. Soft, desaturated, top-to-bottom.
 const PRIORITY_GRADIENTS: Record<string, [string, string]> = {
@@ -140,6 +143,11 @@ function getTenPointLabel(value?: number): string {
   if (value <= 7) return "Good";
   if (value <= 9) return "High";
   return "Excellent";
+}
+
+function parseAppointmentDateTime(appointment: Pick<Appointment, "date" | "time">) {
+  const parsed = new Date(`${appointment.date}T${appointment.time || "09:00"}:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 interface DashboardScreenProps {
@@ -386,7 +394,9 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { colors: C, themeId } = useTheme();
-  const styles = useMemo(() => makeStyles(C), [C]);
+  const { textScale } = useDisplaySettings();
+  const styles = useMemo(() => makeStyles(C, textScale), [C, textScale]);
+  const modeUI = useModeAwareScreen("dashboard");
   const isWide = width >= 768;
   const today = getToday();
   const walkthrough = useWalkthroughTargets();
@@ -440,7 +450,11 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     setMedications(meds.filter((m) => m.active));
     setMedLogs(ml.filter((log) => log.date === today));
     setAllMedLogs(ml);
-    setAppointments(apts.filter((a) => a.date >= today).sort((a, b) => a.date.localeCompare(b.date)));
+    setAppointments(apts.sort((a, b) => {
+      const aTime = parseAppointmentDateTime(a)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      const bTime = parseAppointmentDateTime(b)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      return aTime - bTime;
+    }));
     setFastingLog(fl);
     setSettings(sett);
     setProfile(profileInfo);
@@ -470,7 +484,11 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     }
     return s + t;
   }, 0);
-  const nextApt = appointments[0];
+  const upcomingAppointments = useMemo(
+    () => appointments.filter((appointment) => !appointment.status && (parseAppointmentDateTime(appointment)?.getTime() ?? -1) >= Date.now()),
+    [appointments]
+  );
+  const nextApt = upcomingAppointments[0] ?? null;
 
   const dateObj = new Date();
   const settingsFirstName = settings.firstName?.trim() || (settings.name?.trim() ? settings.name.trim().split(/\s+/)[0] : "");
@@ -580,6 +598,38 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   };
 
   const nextMedication = getNextMedicationInfo();
+  const todayAppointments = upcomingAppointments.filter((appointment) => appointment.date === today);
+  const dueDoseCount = Math.max(totalDoses - takenDoses, 0);
+  const simpleTaskItems = [
+    dueDoseCount > 0
+      ? dueDoseCount === 1
+        ? "Take your medication"
+        : `Take ${dueDoseCount} doses`
+      : "No medications due right now",
+    todayAppointments.length > 0
+      ? todayAppointments.length === 1
+        ? "You have 1 appointment today"
+        : `You have ${todayAppointments.length} appointments today`
+      : "No appointments today",
+  ];
+  const simpleTaskCount = Number(dueDoseCount > 0) + Number(todayAppointments.length > 0);
+  const simpleGreeting = (() => {
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    if (hour < 22) return "Good evening";
+    return "Good night";
+  })();
+  const simpleDashboardCta = dueDoseCount > 0
+    ? { label: "Take Medication", target: "medications" }
+    : nextApt
+      ? { label: "View Appointment", target: "appointments" }
+      : { label: "Open Medications", target: "medications" };
+  const simpleMedicationSummary = nextMedication
+    ? nextMedication.lines[0] ?? "Medication due today"
+    : "None due right now";
+  const simpleAppointmentSummary = nextApt
+    ? `${nextApt.date === today ? "Today" : formatDate(nextApt.date)} · ${formatTime12h(nextApt.time)}`
+    : "None scheduled";
   const recoverySummary = useMemo(() => buildRecoveryInsights({
     logs: allLogs,
     vitals,
@@ -611,6 +661,12 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       ? formatDate(recoverySummary.latestCheckIn.date)
       : "No check-in yet";
   const hasRecoveryTracking = !!profile.recoveryTrackingEnabled && !!profile.recoveryFocus?.trim();
+  const todayAtAGlance = useMemo(() => buildTodayAtAGlance({
+    medications,
+    medicationLogs: medLogs,
+    symptoms: symptoms.filter((symptom) => symptom.date === today),
+    vitals: vitals.filter((vital) => vital.date === today),
+  }), [medications, medLogs, symptoms, vitals, today]);
 
   const openRecoverySetup = () => {
     setRecoveryFocusInput(profile.recoveryFocus?.trim() ?? "");
@@ -777,6 +833,27 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     </GlassView>
   );
 
+  const renderTodayAtAGlanceCard = () => (
+    <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.glanceCardGlass, themeId === "light" && styles.glanceCardLight]}>
+      <View style={styles.glanceCardInner}>
+        <View style={styles.glanceCardHeader}>
+          <View style={styles.glanceCardTitleWrap}>
+            <Text style={styles.glanceCardTitle}>Today at a glance</Text>
+            <Text style={styles.glanceCardSubtitle}>A quick reflection based on what you logged today.</Text>
+          </View>
+        </View>
+
+        <View style={styles.glanceLines}>
+          <Text style={styles.glanceLine}>{todayAtAGlance.medicationLine}</Text>
+          {todayAtAGlance.symptomsLine ? (
+            <Text style={styles.glanceLine}>{todayAtAGlance.symptomsLine}</Text>
+          ) : null}
+          <Text style={styles.glanceInsight}>{todayAtAGlance.insightLine}</Text>
+        </View>
+      </View>
+    </GlassView>
+  );
+
   const renderMedicationsCard = () => (
     <PriorityCard colors={isSickMode ? PRIORITY_GRADIENTS.medicationsStress : PRIORITY_GRADIENTS.medications} icon="medical" label={isSickMode ? "Stress Dosing" : "Medications Today"} onPress={() => onNavigate("medications")}>
       {totalDoses > 0 ? (
@@ -883,9 +960,24 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   );
 
   const contentPadding = {
-    paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : 12),
+    paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + (modeUI.isSimpleMode ? 18 : 12)),
     paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
   };
+  const fabBottom = Platform.OS === "web"
+    ? 100
+    : isWide ? insets.bottom + 8 : insets.bottom + 8;
+  const fab = (
+    <Pressable
+      style={({ pressed }) => [styles.fab, { bottom: fabBottom, opacity: pressed ? 0.85 : 1 }]}
+      onPress={() => { Haptics.selectionAsync(); onNavigate("emergency"); }}
+      accessibilityRole="button"
+      accessibilityLabel="Emergency Protocol"
+      accessibilityHint="View critical medical information"
+    >
+      <Ionicons name="medkit" size={28} color="#fff" />
+    </Pressable>
+  );
+  const isLightTheme = themeId === "light";
 
   if (!loaded) {
     return (
@@ -894,6 +986,182 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         <Text style={[styles.dateText, { marginTop: 12 }]}>Loading…</Text>
       </View>
     );
+  }
+
+  if (modeUI.isSimpleMode) {
+    const simpleContent = (
+      <View style={[styles.container, { backgroundColor: isLightTheme ? "transparent" : C.background }]}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            contentPadding,
+            styles.scrollViewContent,
+            styles.simpleDashboardContent,
+            { paddingHorizontal: isWide ? 28 : 18 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces={true}
+          alwaysBounceVertical={true}
+        >
+          <View style={styles.simpleDashboardHeader}>
+            <Text style={styles.simpleDashboardGreeting}>
+              {simpleGreeting}
+              {displayFirstName ? `, ${displayFirstName}` : ""}
+            </Text>
+            <Text style={styles.simpleDashboardSubtext}>
+              {simpleTaskCount > 0
+                ? `You have ${simpleTaskCount} thing${simpleTaskCount === 1 ? "" : "s"} to do`
+                : "Nothing urgent right now"}
+            </Text>
+          </View>
+
+          <View style={styles.simpleDashboardCard}>
+            <Text style={styles.simpleDashboardCardTitle}>Today</Text>
+            <Text style={styles.simpleDashboardLead}>
+              {simpleTaskCount > 0
+                ? `You have ${simpleTaskCount} thing${simpleTaskCount === 1 ? "" : "s"} to do`
+                : "You’re all caught up for now"}
+            </Text>
+            <View style={styles.simpleDashboardList}>
+              {simpleTaskItems.map((item) => (
+                <View key={item} style={styles.simpleDashboardListRow}>
+                  <View style={styles.simpleDashboardBullet} />
+                  <Text style={styles.simpleDashboardListText}>{item}</Text>
+                </View>
+              ))}
+            </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.simpleDashboardPrimaryButton,
+                pressed && styles.simpleDashboardPrimaryButtonPressed,
+              ]}
+              onPress={() => onNavigate(simpleDashboardCta.target)}
+              accessibilityRole="button"
+              accessibilityLabel={simpleDashboardCta.label}
+            >
+              <Text style={styles.simpleDashboardPrimaryButtonText}>{simpleDashboardCta.label}</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.simpleDashboardCard}>
+            <Text style={styles.simpleDashboardCardTitle}>Medications</Text>
+            {nextMedication ? (
+              <>
+                <View style={styles.simpleDashboardAppointmentRow}>
+                  <View style={styles.simpleDashboardAvatar}>
+                    <Ionicons name="medical" size={28} color={C.tint} />
+                  </View>
+                  <View style={styles.simpleDashboardAppointmentTextWrap}>
+                    <Text style={styles.simpleDashboardAppointmentName}>{nextMedication.name}</Text>
+                    <Text style={styles.simpleDashboardAppointmentMeta}>{simpleMedicationSummary}</Text>
+                    {nextMedication.lines.length > 1 ? (
+                      <Text style={styles.simpleDashboardAppointmentSubtle}>
+                        {nextMedication.lines.slice(1).join(" • ")}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.simpleDashboardPrimaryButton,
+                    pressed && styles.simpleDashboardPrimaryButtonPressed,
+                  ]}
+                  onPress={() => onNavigate("medications")}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open medications"
+                >
+                  <Text style={styles.simpleDashboardPrimaryButtonText}>Open Medications</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={styles.simpleDashboardEmptyTitle}>No medications due</Text>
+                <Text style={styles.simpleDashboardEmptyBody}>Open medications to check your schedule and log doses.</Text>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.simpleDashboardPrimaryButton,
+                    pressed && styles.simpleDashboardPrimaryButtonPressed,
+                  ]}
+                  onPress={() => onNavigate("medications")}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open medications"
+                >
+                  <Text style={styles.simpleDashboardPrimaryButtonText}>Open Medications</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+
+          <View style={styles.simpleDashboardCard}>
+            <Text style={styles.simpleDashboardCardTitle}>Appointments</Text>
+            {nextApt ? (
+              <>
+                {nextApt.date === today ? (
+                  <View style={styles.simpleDashboardTodayBadge}>
+                    <Text style={styles.simpleDashboardTodayBadgeText}>Today</Text>
+                  </View>
+                ) : null}
+                <View style={styles.simpleDashboardAppointmentRow}>
+                  <View style={styles.simpleDashboardAvatar}>
+                    <Ionicons name="person" size={28} color={C.tint} />
+                  </View>
+                  <View style={styles.simpleDashboardAppointmentTextWrap}>
+                    <Text style={styles.simpleDashboardAppointmentName}>{nextApt.doctorName}</Text>
+                    <Text style={styles.simpleDashboardAppointmentMeta}>{simpleAppointmentSummary}</Text>
+                    {nextApt.specialty ? (
+                      <Text style={styles.simpleDashboardAppointmentSubtle}>{nextApt.specialty}</Text>
+                    ) : null}
+                  </View>
+                </View>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.simpleDashboardPrimaryButton,
+                    pressed && styles.simpleDashboardPrimaryButtonPressed,
+                  ]}
+                  onPress={() => onNavigate("appointments")}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open appointments"
+                >
+                  <Text style={styles.simpleDashboardPrimaryButtonText}>Open Appointments</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={styles.simpleDashboardEmptyTitle}>No appointments scheduled</Text>
+                <Text style={styles.simpleDashboardEmptyBody}>Open appointments to add your next visit.</Text>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.simpleDashboardPrimaryButton,
+                    pressed && styles.simpleDashboardPrimaryButtonPressed,
+                  ]}
+                  onPress={() => onNavigate("appointments")}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open appointments"
+                >
+                  <Text style={styles.simpleDashboardPrimaryButtonText}>Open Appointments</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </ScrollView>
+        {fab}
+      </View>
+    );
+
+    if (isLightTheme) {
+      return (
+        <LinearGradient
+          colors={["#d7ddff", "#c8d6fb", "#d7ebff"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradientContainer}
+        >
+          {simpleContent}
+        </LinearGradient>
+      );
+    }
+
+    return simpleContent;
   }
 
   const cardStackPadding = isWide ? 0 : 16;
@@ -1006,6 +1274,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
       {hasRecoveryTracking ? renderRecoverySummaryCard() : renderRecoverySetupCard()}
 
+      {renderTodayAtAGlanceCard()}
+
       <View style={[styles.grid, isWide && styles.gridWide]}>
         {featureFlags.documentScannerEnabled && (
           <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.cardGlass, isWide && styles.cardWide]}>
@@ -1046,24 +1316,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
     </View>
   );
-
-  const fabBottom = Platform.OS === "web"
-    ? 100
-    : isWide ? insets.bottom + 8 : insets.bottom + 8;
-
-  const fab = (
-    <Pressable
-      style={({ pressed }) => [styles.fab, { bottom: fabBottom, opacity: pressed ? 0.85 : 1 }]}
-      onPress={() => { Haptics.selectionAsync(); onNavigate("emergency"); }}
-      accessibilityRole="button"
-      accessibilityLabel="Emergency Protocol"
-      accessibilityHint="View critical medical information"
-    >
-      <Ionicons name="medkit" size={28} color="#fff" />
-    </Pressable>
-  );
-
-  const isLightTheme = themeId === "light";
 
   if (isWide) {
     const content = (
@@ -1259,13 +1511,196 @@ function makeHeroStyles(C: Theme) {
   });
 }
 
-function makeStyles(C: Theme) {
+function makeStyles(C: Theme, textScale: number) {
+  const size = (base: number) => Math.round(base * textScale * 100) / 100;
   return StyleSheet.create({
     gradientContainer: { flex: 1, width: "100%", height: "100%" },
     container: { flex: 1, minHeight: 1, backgroundColor: C.background },
     scrollView: { flex: 1, minHeight: 1 },
     scrollViewContent: { flexGrow: 1 },
     content: { paddingHorizontal: 0 },
+    simpleDashboardContent: {
+      gap: 16,
+      width: "100%",
+      maxWidth: 720,
+      alignSelf: "center",
+    },
+    simpleDashboardHeader: {
+      paddingTop: 6,
+      marginBottom: 4,
+    },
+    simpleDashboardGreeting: {
+      fontWeight: "800",
+      fontSize: size(26),
+      lineHeight: size(34),
+      color: C.text,
+      letterSpacing: -0.8,
+    },
+    simpleDashboardSubtext: {
+      fontWeight: "500",
+      fontSize: size(18),
+      lineHeight: size(24),
+      color: C.textSecondary,
+    },
+    simpleDashboardCard: {
+      borderRadius: 28,
+      paddingHorizontal: 18,
+      paddingTop: 20,
+      paddingBottom: 18,
+      backgroundColor: "rgba(255,255,255,0.82)",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.72)",
+      shadowColor: "#6A7BB4",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.12,
+      shadowRadius: 22,
+      elevation: 6,
+      gap: 14,
+    },
+    simpleDashboardCardTitle: {
+      fontWeight: "800",
+      fontSize: size(22),
+      lineHeight: size(28),
+      color: C.text,
+      letterSpacing: -0.5,
+    },
+    simpleDashboardLead: {
+      fontWeight: "500",
+      fontSize: size(18),
+      lineHeight: size(25),
+      color: C.text,
+    },
+    simpleDashboardList: {
+      gap: 8,
+    },
+    simpleDashboardListRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 10,
+    },
+    simpleDashboardBullet: {
+      width: 7,
+      height: 7,
+      borderRadius: 999,
+      backgroundColor: C.textSecondary,
+      marginTop: 9,
+      opacity: 0.7,
+    },
+    simpleDashboardListText: {
+      flex: 1,
+      fontWeight: "500",
+      fontSize: size(17),
+      lineHeight: size(24),
+      color: C.text,
+    },
+    simpleDashboardPrimaryButton: {
+      minHeight: 58,
+      borderRadius: 18,
+      backgroundColor: "#3F6EE8",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 18,
+      shadowColor: "#3F6EE8",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.2,
+      shadowRadius: 16,
+      elevation: 4,
+    },
+    simpleDashboardPrimaryButtonPressed: {
+      opacity: 0.94,
+      transform: [{ scale: 0.99 }],
+    },
+    simpleDashboardPrimaryButtonText: {
+      fontWeight: "800",
+      fontSize: size(18),
+      color: "#fff",
+      letterSpacing: -0.2,
+    },
+    simpleDashboardButtonRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    simpleDashboardSecondaryButton: {
+      minHeight: 58,
+      borderRadius: 18,
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.border,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 18,
+      flex: 1,
+    },
+    simpleDashboardSecondaryButtonText: {
+      fontWeight: "800",
+      fontSize: size(18),
+      color: C.text,
+      letterSpacing: -0.2,
+    },
+    simpleDashboardTodayBadge: {
+      alignSelf: "flex-start",
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: 999,
+      backgroundColor: "#3F6EE8",
+    },
+    simpleDashboardTodayBadgeText: {
+      fontWeight: "800",
+      fontSize: size(12),
+      color: "#fff",
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
+    },
+    simpleDashboardAppointmentRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
+    },
+    simpleDashboardAvatar: {
+      width: 60,
+      height: 60,
+      borderRadius: 18,
+      backgroundColor: "#E9F0FF",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: "#D5E1FF",
+    },
+    simpleDashboardAppointmentTextWrap: {
+      flex: 1,
+      gap: 2,
+    },
+    simpleDashboardAppointmentName: {
+      fontWeight: "800",
+      fontSize: size(20),
+      lineHeight: size(25),
+      color: C.text,
+      letterSpacing: -0.4,
+    },
+    simpleDashboardAppointmentMeta: {
+      fontWeight: "500",
+      fontSize: size(18),
+      lineHeight: size(24),
+      color: C.textSecondary,
+    },
+    simpleDashboardAppointmentSubtle: {
+      fontWeight: "500",
+      fontSize: size(15),
+      lineHeight: size(20),
+      color: C.textTertiary,
+    },
+    simpleDashboardEmptyTitle: {
+      fontWeight: "800",
+      fontSize: size(20),
+      lineHeight: size(26),
+      color: C.text,
+    },
+    simpleDashboardEmptyBody: {
+      fontWeight: "500",
+      fontSize: size(16),
+      lineHeight: size(23),
+      color: C.textSecondary,
+    },
     welcome: { marginBottom: 4 },
     greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
     dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
@@ -1470,6 +1905,26 @@ function makeStyles(C: Theme) {
     recoveryModalButtonPrimary: { flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: "center", justifyContent: "center", backgroundColor: C.tint },
     recoveryModalButtonPrimaryText: { fontWeight: "700", fontSize: 14, color: "#fff" },
     recoveryModalButtonDisabled: { opacity: 0.5 },
+    glanceCardGlass: {
+      borderRadius: 20,
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      elevation: 6,
+      overflow: "hidden",
+    },
+    glanceCardLight: {},
+    glanceCardInner: {},
+    glanceCardHeader: { marginBottom: 12 },
+    glanceCardTitleWrap: { gap: 4 },
+    glanceCardTitle: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3 },
+    glanceCardSubtitle: { fontWeight: "400", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
+    glanceLines: { gap: 8 },
+    glanceLine: { fontWeight: "500", fontSize: 13, color: C.text, lineHeight: 18 },
+    glanceInsight: { fontWeight: "600", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
     feelingTitle: { fontWeight: "600", fontSize: 14, color: C.text },
     feelingSubtitle: { marginTop: 4, fontWeight: "400", fontSize: 12, color: C.textSecondary },
     sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },

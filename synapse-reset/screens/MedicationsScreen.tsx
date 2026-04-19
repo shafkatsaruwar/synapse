@@ -7,6 +7,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import { useModeAwareScreen } from "@/contexts/AppModeContext";
+import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import { getSickModePalette, type SickModePalette } from "@/constants/sick-mode-colors";
 import ReadAloudButton from "@/components/ReadAloudButton";
 import * as Crypto from "expo-crypto";
@@ -216,6 +218,18 @@ function formatReminderTimeDisplay(hhmm: string): string {
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
+function formatLoggedTime(recordedAt?: string): string {
+  if (!recordedAt) return "";
+  const date = new Date(recordedAt);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("en-US", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 function reminderTimeToMinutes(hhmm?: string): number | null {
   if (!hhmm) return null;
   const [hour, minute] = hhmm.split(":").map((part) => parseInt(part, 10));
@@ -260,9 +274,11 @@ export default function MedicationsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const modeUI = useModeAwareScreen("medications");
+  const { textScale } = useDisplaySettings();
   const { colors: C, themeId } = useTheme();
   const sickPalette = useMemo(() => getSickModePalette(themeId), [themeId]);
-  const styles = useMemo(() => makeStyles(C, sickPalette), [C, sickPalette]);
+  const styles = useMemo(() => makeStyles(C, sickPalette, textScale), [C, sickPalette, textScale]);
   const TAG_COLORS = useMemo(() => makeTagColors(C), [C]);
   const today = getToday();
 
@@ -272,11 +288,17 @@ export default function MedicationsScreen() {
   const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", backupCriticalMedications: [] });
   const [sickData, setSickData] = useState<SickModeData | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showSimpleAddModal, setShowSimpleAddModal] = useState(false);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
   const [nudgeMedId, setNudgeMedId] = useState<string | null>(null);
 
   const [formName, setFormName] = useState("");
   const [formMedicationType, setFormMedicationType] = useState<"scheduled" | "prn">("scheduled");
+  const [simpleAddStep, setSimpleAddStep] = useState<1 | 2 | 3>(1);
+  const [simpleAddTypeSelection, setSimpleAddTypeSelection] = useState<"scheduled" | "prn" | null>(null);
+  const [simpleSelectedDoseTimes, setSimpleSelectedDoseTimes] = useState<string[]>(["Morning"]);
+  const [prnFlowStep, setPrnFlowStep] = useState<1 | 2 | 3>(1);
+  const [showPrnOptionalDetails, setShowPrnOptionalDetails] = useState(false);
   const [formDosesArray, setFormDosesArray] = useState<Array<{ id: string; amount: string; unit: string; timeOfDay: string; reminderTime: string; optionalNotes: string }>>([
     { id: "", amount: "", unit: "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" },
   ]);
@@ -309,8 +331,10 @@ export default function MedicationsScreen() {
   const [showTempModal, setShowTempModal] = useState(false);
   const [showPrnLogModal, setShowPrnLogModal] = useState(false);
   const [prnLogMed, setPrnLogMed] = useState<Medication | null>(null);
+  const [prnLogId, setPrnLogId] = useState<string | null>(null);
   const [prnReason, setPrnReason] = useState("");
   const [prnNotes, setPrnNotes] = useState("");
+  const [prnToast, setPrnToast] = useState<{ message: string; med: Medication; logId: string } | null>(null);
 
   const [medListItems, setMedListItems] = useState<MedListItem[]>([]);
   const [editingMedListItem, setEditingMedListItem] = useState<MedListItem | null>(null);
@@ -400,6 +424,11 @@ export default function MedicationsScreen() {
     setEditingMed(null);
     setFormName("");
     setFormMedicationType("scheduled");
+    setSimpleAddStep(1);
+    setSimpleAddTypeSelection(null);
+    setSimpleSelectedDoseTimes(["Morning"]);
+    setPrnFlowStep(1);
+    setShowPrnOptionalDetails(false);
     setFormDosesArray([{ id: Crypto.randomUUID(), amount: "", unit: "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }]);
     setFormRoute("");
     setFormPharmacyId(null);
@@ -427,13 +456,33 @@ export default function MedicationsScreen() {
     setShowDoseTimePickerIndex(null);
     setShowReminderTimePickerIndex(null);
     setShowRefillUnitPicker(false);
-    setShowModal(true);
+    if (modeUI.isSimpleMode) {
+      setShowSimpleAddModal(true);
+    } else {
+      setShowModal(true);
+    }
   };
 
   const openEditModal = (med: Medication) => {
+    const normalizedMed = normalizeMedication(med);
+    const selectedTimes = Array.from(new Set(
+      (Array.isArray(med.doses) && med.doses.length > 0
+        ? med.doses
+        : normalizedMed.doses ?? []
+      ).map((dose) => dose.timeOfDay).filter((time) => TIME_TAGS.includes(time)),
+    ));
     setEditingMed(med);
+    setSimpleAddStep(3);
+    setSimpleAddTypeSelection(med.medicationType ?? "scheduled");
+    setSimpleSelectedDoseTimes(
+      (med.medicationType ?? "scheduled") === "prn"
+        ? []
+        : (selectedTimes.length > 0 ? selectedTimes : ["Morning"]),
+    );
     setFormName(med.name);
     setFormMedicationType(med.medicationType ?? "scheduled");
+    setPrnFlowStep(3);
+    setShowPrnOptionalDetails((med.medicationType ?? "scheduled") === "prn");
     const doses = Array.isArray(med.doses) && med.doses.length > 0
       ? med.doses.map((d) => ({ id: d.id, amount: d.amount, unit: d.unit, timeOfDay: d.timeOfDay, reminderTime: d.reminderTime ?? defaultReminderTimeFor(d.timeOfDay), optionalNotes: d.optionalNotes ?? "" }))
       : [{ id: Crypto.randomUUID(), amount: (med as { dosage?: string }).dosage ?? "", unit: (med as { unit?: string }).unit ?? "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }];
@@ -465,20 +514,298 @@ export default function MedicationsScreen() {
     setShowDoseTimePickerIndex(null);
     setShowReminderTimePickerIndex(null);
     setShowRefillUnitPicker(false);
-    setShowModal(true);
+    if (modeUI.isSimpleMode) {
+      setShowSimpleAddModal(true);
+    } else {
+      setShowModal(true);
+    }
   };
 
   const dosesWithAmount = formDosesArray.filter((d) => d.amount.trim().length > 0);
+  const isPrn = formMedicationType === "prn";
+  const isSimpleAddFlow = modeUI.isSimpleMode && !editingMed;
+  const isNewPrnFlow = !editingMed && isPrn;
+  const prnPrimaryDose = formDosesArray[0] ?? {
+    id: Crypto.randomUUID(),
+    amount: "",
+    unit: "mg",
+    timeOfDay: "As Needed",
+    reminderTime: "",
+    optionalNotes: "",
+  };
+  const updatePrimaryPrnDose = (updates: Partial<typeof prnPrimaryDose>) => {
+    setFormDosesArray((prev) => {
+      const first = prev[0] ?? {
+        id: Crypto.randomUUID(),
+        amount: "",
+        unit: "mg",
+        timeOfDay: "As Needed",
+        reminderTime: "",
+        optionalNotes: "",
+      };
+      return [{
+        ...first,
+        ...updates,
+        timeOfDay: "As Needed",
+        reminderTime: "",
+      }];
+    });
+  };
+  const updatePrimaryDose = (updates: Partial<typeof prnPrimaryDose>) => {
+    setFormDosesArray((prev) => {
+      const first = prev[0] ?? {
+        id: Crypto.randomUUID(),
+        amount: "",
+        unit: "mg",
+        timeOfDay: "Morning",
+        reminderTime: "08:00",
+        optionalNotes: "",
+      };
+      return [{
+        ...first,
+        ...updates,
+      }];
+    });
+  };
+  const simpleTimeOptions = TIME_TAGS.filter((tag) => settings.ramadanMode || (tag !== "Before Fajr" && tag !== "After Iftar"));
+  const toggleSimpleDoseTime = (timeOfDay: string) => {
+    setSimpleSelectedDoseTimes((prev) => {
+      const next = prev.includes(timeOfDay)
+        ? prev.filter((time) => time !== timeOfDay)
+        : [...prev, timeOfDay];
+      return simpleTimeOptions.filter((time) => next.includes(time));
+    });
+  };
   const canSaveMedication =
     formName.trim().length > 0 &&
     dosesWithAmount.length > 0 &&
-    (formMedicationType === "prn" || !dosesWithAmount.some((d) => !d.reminderTime?.trim()));
+    (isPrn || !dosesWithAmount.some((d) => !d.reminderTime?.trim()));
+  const canAdvanceSimpleStepOne = simpleAddTypeSelection !== null;
+  const canAdvanceSimpleStepTwo = !!formName.trim();
+  const canAdvanceSimpleStepThree =
+    !!prnPrimaryDose.amount.trim() &&
+    !!prnPrimaryDose.unit.trim() &&
+    (isPrn || simpleSelectedDoseTimes.length > 0);
+
+  const handleOpenAddMedication = () => {
+    try {
+      void Haptics.selectionAsync().catch(() => {});
+      openAddModal();
+    } catch (error) {
+      console.warn("Failed to open add medication flow", error);
+      Alert.alert("Something went wrong. Try again.");
+    }
+  };
+
+  const renderSimpleAddMedicationFlow = () => (
+    <View style={styles.prnFlowCard}>
+      <View style={styles.prnStepDots}>
+        {[1, 2, 3].map((step) => (
+          <View key={step} style={[styles.prnStepDot, simpleAddStep === step && styles.prnStepDotActive]} />
+        ))}
+      </View>
+      {simpleAddStep === 1 ? (
+        <>
+          <Text style={styles.prnFlowTitle}>Step 1 · Type</Text>
+          <Text style={styles.prnFlowHelper}>What do you want to add?</Text>
+          <View style={styles.simpleTypeChoiceStack}>
+            <Pressable
+              style={[styles.simpleTypeChoiceCard, simpleAddTypeSelection === "scheduled" && styles.simpleTypeChoiceCardActive]}
+              onPress={() => {
+                setSimpleAddTypeSelection("scheduled");
+                setFormMedicationType("scheduled");
+                setSimpleSelectedDoseTimes(["Morning"]);
+                updatePrimaryDose({ timeOfDay: "Morning", reminderTime: "08:00" });
+                Haptics.selectionAsync();
+              }}
+            >
+              <Text style={[styles.simpleTypeChoiceTitle, simpleAddTypeSelection === "scheduled" && styles.simpleTypeChoiceTitleActive]}>Scheduled</Text>
+              <Text style={styles.simpleTypeChoiceBody}>Take at specific times</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.simpleTypeChoiceCard, simpleAddTypeSelection === "prn" && styles.simpleTypeChoiceCardActive]}
+              onPress={() => {
+                setSimpleAddTypeSelection("prn");
+                setFormMedicationType("prn");
+                setSimpleSelectedDoseTimes([]);
+                updatePrimaryDose({ timeOfDay: "As Needed", reminderTime: "" });
+                Haptics.selectionAsync();
+              }}
+            >
+              <Text style={[styles.simpleTypeChoiceTitle, simpleAddTypeSelection === "prn" && styles.simpleTypeChoiceTitleActive]}>As Needed</Text>
+              <Text style={styles.simpleTypeChoiceBody}>Only when you need it</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : simpleAddStep === 2 ? (
+        <>
+          <Text style={styles.prnFlowTitle}>Step 2 · Medication name</Text>
+          <Text style={styles.prnFlowHelper}>What is this medication called?</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
+            <TextInput
+              style={[styles.input, styles.prnPrimaryInput, { flex: 1, marginBottom: 0 }]}
+              placeholder="e.g. Hydrocortisone"
+              placeholderTextColor={C.textTertiary}
+              value={formName}
+              onChangeText={(t) => { setFormName(t); setShowCurrentMedNamePicker(false); }}
+              autoCorrect={false}
+            />
+            {medListItems.length > 0 && (
+              <Pressable onPress={() => setShowCurrentMedNamePicker((v) => !v)} hitSlop={8} style={{ paddingLeft: 8 }}>
+                <Ionicons name="chevron-down" size={20} color={C.textTertiary} />
+              </Pressable>
+            )}
+          </View>
+          {showCurrentMedNamePicker && medListItems.length > 0 && (
+            <View style={styles.dropdown}>
+              {medListItems
+                .map((m) => m.name)
+                .filter((name, i, arr) => arr.indexOf(name) === i)
+                .map((name) => {
+                  const med = medListItems.find((m) => m.name === name);
+                  const doseText = med?.doses?.[0]?.dosage ?? "";
+                  const parts = doseText.trim().split(/\s+/);
+                  return (
+                    <Pressable
+                      key={name}
+                      style={[styles.dropdownRow, formName === name && styles.dropdownRowSelected]}
+                      onPress={() => {
+                        setFormName(name);
+                        setShowCurrentMedNamePicker(false);
+                        updatePrimaryDose({
+                          amount: parts[0] ?? prnPrimaryDose.amount,
+                          unit: parts.slice(1).join(" ") || prnPrimaryDose.unit || "mg",
+                        });
+                        Haptics.selectionAsync();
+                      }}
+                    >
+                      <Text style={styles.dropdownText}>{name}</Text>
+                    </Pressable>
+                  );
+                })}
+            </View>
+          )}
+        </>
+      ) : (
+        <>
+          <Text style={styles.prnFlowTitle}>Step 3 · Dose</Text>
+          <Text style={styles.prnFlowHelper}>
+            {isPrn ? "Add the amount you usually take." : "Add the amount and when you take it."}
+          </Text>
+          <View style={styles.doseRowWrap}>
+            <TextInput
+              style={[styles.input, styles.doseAmountInput, styles.prnPrimaryInput]}
+              placeholder="Amount"
+              placeholderTextColor={C.textTertiary}
+              value={prnPrimaryDose.amount}
+              onChangeText={(t) => updatePrimaryDose({ amount: t })}
+            />
+            <TextInput
+              style={[styles.input, styles.doseUnitInput, styles.prnPrimaryInput]}
+              placeholder="mg"
+              placeholderTextColor={C.textTertiary}
+              value={prnPrimaryDose.unit}
+              onChangeText={(t) => updatePrimaryDose({ unit: t })}
+            />
+          </View>
+          {!isPrn && (
+            <>
+              <Text style={styles.label}>When do you take it?</Text>
+              <View style={styles.frequencyChipRow}>
+                {simpleTimeOptions.map((tag) => {
+                  const isSelected = simpleSelectedDoseTimes.includes(tag);
+                  const tone = TAG_COLORS[tag] ?? { bg: C.surfaceElevated, text: C.textSecondary };
+                  return (
+                    <Pressable
+                      key={tag}
+                      style={[
+                        styles.frequencyChip,
+                        isSelected && styles.frequencyChipActive,
+                        {
+                          backgroundColor: isSelected ? tone.bg : C.surfaceElevated,
+                          borderColor: isSelected ? tone.text : C.border,
+                        },
+                      ]}
+                      onPress={() => {
+                        toggleSimpleDoseTime(tag);
+                        Haptics.selectionAsync();
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.frequencyChipText,
+                          isSelected && styles.frequencyChipTextActive,
+                          { color: isSelected ? tone.text : C.textSecondary },
+                        ]}
+                      >
+                        {tag}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          )}
+          <View style={styles.prnSummaryCard}>
+            <Text style={styles.prnSummaryName}>{formName.trim() || "Medication"}</Text>
+            <Text style={styles.prnSummaryDose}>
+              {(prnPrimaryDose.amount.trim() || "Dose")} {prnPrimaryDose.unit.trim() || "mg"} · {isPrn ? "As Needed" : (simpleSelectedDoseTimes.join(", ") || "Select a time")}
+            </Text>
+          </View>
+        </>
+      )}
+      <View style={styles.modalActions}>
+        <Pressable
+          style={styles.cancelBtn}
+          onPress={() => {
+            if (simpleAddStep === 1) {
+              setShowSimpleAddModal(false);
+              setShowCurrentMedNamePicker(false);
+              setEditingMed(null);
+            } else {
+              setSimpleAddStep((prev) => (prev === 3 ? 2 : 1));
+            }
+          }}
+        >
+          <Text style={styles.cancelText}>{simpleAddStep === 1 ? "Cancel" : "Back"}</Text>
+        </Pressable>
+        {simpleAddStep < 3 ? (
+          <Pressable
+            style={[
+              styles.confirmBtn,
+              ((simpleAddStep === 1 && !canAdvanceSimpleStepOne) || (simpleAddStep === 2 && !canAdvanceSimpleStepTwo)) && { opacity: 0.5 },
+            ]}
+            disabled={(simpleAddStep === 1 && !canAdvanceSimpleStepOne) || (simpleAddStep === 2 && !canAdvanceSimpleStepTwo)}
+            onPress={() => setSimpleAddStep((prev) => (prev === 1 ? 2 : 3))}
+          >
+            <Text style={styles.confirmText}>Next</Text>
+          </Pressable>
+        ) : (
+          <Pressable style={[styles.confirmBtn, !canAdvanceSimpleStepThree && { opacity: 0.5 }]} onPress={handleSave} disabled={!canAdvanceSimpleStepThree}>
+            <Text style={styles.confirmText}>{isPrn && !editingMed ? "Log and Save" : "Save"}</Text>
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
 
   const handleSave = async () => {
     if (!formName.trim()) return;
-    const dosesWithAmount = formDosesArray.filter((d) => d.amount.trim().length > 0);
+    const simpleModeDoses: MedicationDose[] = modeUI.isSimpleMode && formMedicationType === "scheduled"
+      ? simpleSelectedDoseTimes.map((timeOfDay) => ({
+          id: Crypto.randomUUID(),
+          amount: prnPrimaryDose.amount.trim(),
+          unit: prnPrimaryDose.unit.trim() || "mg",
+          timeOfDay,
+          reminderTime: defaultReminderTimeFor(timeOfDay),
+          optionalNotes: prnPrimaryDose.optionalNotes?.trim() || undefined,
+        }))
+      : [];
+    const dosesWithAmount = modeUI.isSimpleMode && formMedicationType === "scheduled"
+      ? simpleModeDoses.filter((d) => d.amount.length > 0)
+      : formDosesArray.filter((d) => d.amount.trim().length > 0);
     if (dosesWithAmount.length === 0) return;
-    const missingReminder = formMedicationType !== "prn" && dosesWithAmount.some((d) => !d.reminderTime?.trim());
+    const missingReminder = !isPrn && dosesWithAmount.some((d) => !d.reminderTime?.trim());
     if (missingReminder) {
       Alert.alert("Reminder time required", "Every dose must have a reminder time. Please set a time for each dose.");
       return;
@@ -488,9 +815,11 @@ export default function MedicationsScreen() {
       Alert.alert("Custom repeat required", "Pick a valid repeat interval for this medication.");
       return;
     }
-    const doses: MedicationDose[] = formDosesArray
-      .map((d) => ({ id: d.id || Crypto.randomUUID(), amount: d.amount.trim(), unit: d.unit.trim() || "mg", timeOfDay: d.timeOfDay, reminderTime: (d.reminderTime?.trim() || defaultReminderTimeFor(d.timeOfDay)), optionalNotes: d.optionalNotes?.trim() || undefined }))
-      .filter((d) => d.amount.length > 0);
+    const doses: MedicationDose[] = modeUI.isSimpleMode && formMedicationType === "scheduled"
+      ? simpleModeDoses
+      : formDosesArray
+          .map((d) => ({ id: d.id || Crypto.randomUUID(), amount: d.amount.trim(), unit: d.unit.trim() || "mg", timeOfDay: d.timeOfDay, reminderTime: (d.reminderTime?.trim() || defaultReminderTimeFor(d.timeOfDay)), optionalNotes: d.optionalNotes?.trim() || undefined }))
+          .filter((d) => d.amount.length > 0);
     const parsedDuration = parseInt(formStressDoseDurationDays, 10);
     const currentSupplyAmount = formCurrentSupplyAmount.trim() ? parseFloat(formCurrentSupplyAmount) : undefined;
     const refillsRemaining = formRefillsRemaining.trim() ? parseInt(formRefillsRemaining, 10) : undefined;
@@ -500,18 +829,17 @@ export default function MedicationsScreen() {
     const concentrationMgPerMl = formConcentrationMgPerMl.trim() ? parseFloat(formConcentrationMgPerMl) : undefined;
     const normalizedFrequency = formatMedicationFrequencyLabel(formReminderCadence, formReminderWeekday, parsedIntervalValue, formReminderIntervalUnit);
     const selectedPharmacy = pharmacies.find((pharmacy) => pharmacy.id === formPharmacyId);
-    const isPrn = formMedicationType === "prn";
     const data: Omit<Medication, "id"> = {
       name: formName.trim(),
       medicationType: formMedicationType,
-      frequency: isPrn ? "As needed" : normalizedFrequency,
-      route: formRoute.trim(),
+      frequency: isPrn ? "As Needed" : normalizedFrequency,
+      route: isPrn ? undefined : formRoute.trim(),
       emoji: formEmoji || "",
-      pharmacyId: selectedPharmacy?.id,
-      pharmacyName: selectedPharmacy?.name ?? (formLegacyPharmacyName.trim() || undefined),
-      pharmacyPhone: selectedPharmacy?.phone ?? undefined,
-      pharmacyAddress: selectedPharmacy?.address ?? undefined,
-      pharmacyHospital: selectedPharmacy?.hospital ?? undefined,
+      pharmacyId: isPrn ? undefined : selectedPharmacy?.id,
+      pharmacyName: isPrn ? undefined : selectedPharmacy?.name ?? (formLegacyPharmacyName.trim() || undefined),
+      pharmacyPhone: isPrn ? undefined : selectedPharmacy?.phone ?? undefined,
+      pharmacyAddress: isPrn ? undefined : selectedPharmacy?.address ?? undefined,
+      pharmacyHospital: isPrn ? undefined : selectedPharmacy?.hospital ?? undefined,
       reminderCadence: isPrn ? undefined : formReminderCadence,
       reminderWeekday: isPrn
         ? undefined
@@ -522,55 +850,91 @@ export default function MedicationsScreen() {
       reminderIntervalUnit: isPrn ? undefined : formReminderCadence === "custom" ? formReminderIntervalUnit : formReminderCadence === "biweekly" ? "weeks" : undefined,
       doses,
       active: true,
-      totalPills: amountPerRefill != null && !isNaN(amountPerRefill) ? amountPerRefill : undefined,
-      pillsRemaining: currentSupplyAmount != null && !isNaN(currentSupplyAmount) ? currentSupplyAmount : undefined,
-      refillUnit: formRefillUnit,
-      inventoryUnit: formRefillUnit,
-      currentSupplyAmount: currentSupplyAmount != null && !isNaN(currentSupplyAmount) ? currentSupplyAmount : undefined,
-      refillsRemaining: refillsRemaining != null && !isNaN(refillsRemaining) ? refillsRemaining : undefined,
-      amountPerRefill: amountPerRefill != null && !isNaN(amountPerRefill) ? amountPerRefill : undefined,
-      supplyPerDose: supplyPerDose != null && !isNaN(supplyPerDose) ? supplyPerDose : undefined,
-      lowSupplyThreshold: lowSupplyThreshold != null && !isNaN(lowSupplyThreshold) ? lowSupplyThreshold : 5,
-      concentrationMgPerMl: concentrationMgPerMl != null && !isNaN(concentrationMgPerMl) ? concentrationMgPerMl : undefined,
+      totalPills: isPrn ? undefined : amountPerRefill != null && !isNaN(amountPerRefill) ? amountPerRefill : undefined,
+      pillsRemaining: isPrn ? undefined : currentSupplyAmount != null && !isNaN(currentSupplyAmount) ? currentSupplyAmount : undefined,
+      refillUnit: isPrn ? undefined : formRefillUnit,
+      inventoryUnit: isPrn ? undefined : formRefillUnit,
+      currentSupplyAmount: isPrn ? undefined : currentSupplyAmount != null && !isNaN(currentSupplyAmount) ? currentSupplyAmount : undefined,
+      refillsRemaining: isPrn ? undefined : refillsRemaining != null && !isNaN(refillsRemaining) ? refillsRemaining : undefined,
+      amountPerRefill: isPrn ? undefined : amountPerRefill != null && !isNaN(amountPerRefill) ? amountPerRefill : undefined,
+      supplyPerDose: isPrn ? undefined : supplyPerDose != null && !isNaN(supplyPerDose) ? supplyPerDose : undefined,
+      lowSupplyThreshold: isPrn ? undefined : lowSupplyThreshold != null && !isNaN(lowSupplyThreshold) ? lowSupplyThreshold : 5,
+      concentrationMgPerMl: isPrn ? undefined : concentrationMgPerMl != null && !isNaN(concentrationMgPerMl) ? concentrationMgPerMl : undefined,
       entryOwner: formEntryOwner,
-      hasStressDose: formHasStressDose,
-      stressDoseAmount: formHasStressDose ? formStressDoseAmount.trim() : undefined,
-      stressDoseFrequency: formHasStressDose ? formStressDoseFrequency.trim() : undefined,
-      stressDoseDurationDays: formHasStressDose && !isNaN(parsedDuration) ? parsedDuration : undefined,
-      stressDoseInstructions: formHasStressDose ? formStressDoseInstructions.trim() : undefined,
+      hasStressDose: isPrn ? false : formHasStressDose,
+      stressDoseAmount: !isPrn && formHasStressDose ? formStressDoseAmount.trim() : undefined,
+      stressDoseFrequency: !isPrn && formHasStressDose ? formStressDoseFrequency.trim() : undefined,
+      stressDoseDurationDays: !isPrn && formHasStressDose && !isNaN(parsedDuration) ? parsedDuration : undefined,
+      stressDoseInstructions: !isPrn && formHasStressDose ? formStressDoseInstructions.trim() : undefined,
     };
+    let savedMedication: Medication;
     if (editingMed) {
       await medicationStorage.update(editingMed.id, data);
+      savedMedication = normalizeMedication({ ...editingMed, ...data, id: editingMed.id });
     } else {
-      await medicationStorage.save(data);
+      savedMedication = normalizeMedication(await medicationStorage.save(data));
+    }
+    const shouldLogNewPrnMedication = isPrn && !editingMed;
+    if (shouldLogNewPrnMedication) {
+      await medicationLogStorage.logPrnDose(savedMedication.id);
     }
     await syncAllFromSettings();
     await syncWidgetSnapshot().catch(() => {});
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setShowModal(false);
+    if (modeUI.isSimpleMode) {
+      setShowSimpleAddModal(false);
+      setSimpleAddStep(1);
+      setSimpleAddTypeSelection(null);
+      setSimpleSelectedDoseTimes(["Morning"]);
+    } else {
+      setShowModal(false);
+    }
+    setEditingMed(null);
+    setShowCurrentMedNamePicker(false);
+    if (shouldLogNewPrnMedication) {
+      setPrnFlowStep(1);
+      loadData();
+      Alert.alert(
+        "Medication saved",
+        `${savedMedication.name} was saved and logged for now.`,
+        [
+          { text: "Done", style: "cancel" },
+          {
+            text: "Add more details",
+            onPress: () => {
+              openEditModal(savedMedication);
+              setShowPrnOptionalDetails(true);
+            },
+          },
+        ],
+      );
+      return;
+    }
     loadData();
   };
 
   const handleDelete = async (med: Medication) => {
-    if (Platform.OS === "web") {
-      await medicationStorage.delete(med.id);
-      await syncAllFromSettings();
-      await syncWidgetSnapshot().catch(() => {});
-      loadData();
-      return;
-    }
-    Alert.alert("Remove", `Remove ${med.name}?`, [
+    Alert.alert("Delete medication?", `${med.name} will be removed.\nThis cannot be undone.`, [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Remove",
+        text: "Delete",
         style: "destructive",
         onPress: async () => {
           await medicationStorage.delete(med.id);
+          await medicationLogStorage.deleteByMedicationId(med.id);
           await syncAllFromSettings();
           await syncWidgetSnapshot().catch(() => {});
           loadData();
         },
       },
+    ]);
+  };
+
+  const openSimpleMedicationActions = (med: Medication) => {
+    Alert.alert(med.name, "Choose an action", [
+      { text: "Edit", onPress: () => openEditModal(med) },
+      { text: "Delete", style: "destructive", onPress: () => { void handleDelete(med); } },
+      { text: "Cancel", style: "cancel" },
     ]);
   };
 
@@ -680,25 +1044,18 @@ export default function MedicationsScreen() {
     setNudgeMedId(medId);
   };
 
-  const openPrnLogModal = (med: Medication) => {
+  const openPrnDetailsModal = (med: Medication, logId: string) => {
     setPrnLogMed(med);
+    setPrnLogId(logId);
     setPrnReason("");
     setPrnNotes("");
     setShowPrnLogModal(true);
   };
 
-  const handleConfirmPrnLog = async () => {
-    if (!prnLogMed) return;
+  const handleQuickPrnLog = async (med: Medication, options?: { silent?: boolean }) => {
     try {
-      await medicationLogStorage.logPrnDose(prnLogMed.id, {
-        reason: prnReason.trim() || undefined,
-        notes: prnNotes.trim() || undefined,
-      });
+      const newLog = await medicationLogStorage.logPrnDose(med.id);
       await refreshMedicationStatus();
-      setShowPrnLogModal(false);
-      setPrnLogMed(null);
-      setPrnReason("");
-      setPrnNotes("");
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       await syncAllFromSettings().catch((error) => {
         console.warn("Medication reminder sync failed after PRN log", error);
@@ -706,9 +1063,40 @@ export default function MedicationsScreen() {
       await syncWidgetSnapshot().catch((error) => {
         console.warn("Medication widget sync failed after PRN log", error);
       });
+      if (options?.silent) {
+        return;
+      }
+      setPrnToast({
+        message: `${med.name} was added to today’s log.`,
+        med,
+        logId: newLog.id,
+      });
+      setTimeout(() => {
+        setPrnToast((current) => (current?.logId === newLog.id ? null : current));
+      }, 2800);
     } catch (error) {
       console.warn("Failed to log PRN dose", error);
       Alert.alert("Couldn’t log dose", "Something got in the way when we tried to log that dose. Please try again.");
+    }
+  };
+
+  const handleConfirmPrnLog = async () => {
+    if (!prnLogMed || !prnLogId) return;
+    try {
+      await medicationLogStorage.update(prnLogId, {
+        reason: prnReason.trim() || undefined,
+        notes: prnNotes.trim() || undefined,
+      });
+      await refreshMedicationStatus();
+      setShowPrnLogModal(false);
+      setPrnLogMed(null);
+      setPrnLogId(null);
+      setPrnReason("");
+      setPrnNotes("");
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch (error) {
+      console.warn("Failed to update PRN log details", error);
+      Alert.alert("Couldn’t save details", "Something got in the way when we tried to save those details. Please try again.");
     }
   };
 
@@ -935,7 +1323,7 @@ export default function MedicationsScreen() {
       const doseDesc = Array.isArray(med.doses) && med.doses.length > 0
         ? med.doses.map((d) => `${d.amount} ${d.unit}`).join(", ")
         : `${(med as { dosage?: string }).dosage ?? ""} ${(med as { unit?: string }).unit ?? ""}`.trim() || "—";
-      parts.push(`${med.name}, as needed, ${doseDesc}, ${prnLogs.length} time${prnLogs.length === 1 ? "" : "s"} today${prnLogs[0]?.recordedAt ? `. Last taken ${formatRelativeTime(prnLogs[0].recordedAt)}` : ""}.`);
+      parts.push(`${med.name}, As Needed, ${doseDesc}, ${prnLogs.length} time${prnLogs.length === 1 ? "" : "s"} today${prnLogs[0]?.recordedAt ? `. Last taken ${formatRelativeTime(prnLogs[0].recordedAt)}` : ""}.`);
     });
     return parts.join(" ");
   }, [scheduledMeds, prnMeds, takenDoses, totalDoses, getPrnLogsForMed]);
@@ -950,7 +1338,7 @@ export default function MedicationsScreen() {
     return Array.from({ length: count }, (_, i) => `Dose ${i + 1}`);
   };
 
-  const topPad = isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16);
+  const topPad = isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + (modeUI.isSimpleMode ? 18 : 16));
   const isCaregiver = profile.userRole === "caregiver" && !!profile.caredForName?.trim();
   const ownerOptions: { value: RecordOwner; label: string }[] = [
     { value: "self", label: "You" },
@@ -960,11 +1348,313 @@ export default function MedicationsScreen() {
   const headerSubtitle = totalDoses > 0
     ? `${takenDoses}/${totalDoses} doses taken today`
     : prnMeds.length > 0
-      ? `${totalPrnLogsToday} PRN dose${totalPrnLogsToday === 1 ? "" : "s"} logged today`
+      ? `${totalPrnLogsToday} As Needed dose${totalPrnLogsToday === 1 ? "" : "s"} logged today`
       : "No doses logged today";
+  const simpleScheduledSummary = totalDoses > 0
+    ? `${takenDoses} of ${totalDoses} doses taken today`
+    : "No scheduled medications yet";
+
+  if (modeUI.isSimpleMode) {
+    const simpleContent = (
+      <View
+        style={[styles.container, styles.simpleScreen, isSickMode && { backgroundColor: sickPalette.background }]}
+        testID={`medications-screen-${modeUI.appMode}`}
+      >
+        <View style={[styles.headerSticky, { paddingTop: topPad }]}>
+          {isSickMode && (
+            <View style={[styles.sickBanner, { backgroundColor: sickPalette.accentLight, borderColor: sickPalette.accentBorder }]}>
+              <View style={styles.sickBannerInner}>
+                <Ionicons name="warning" size={16} color={sickPalette.accent} />
+                <Text style={[styles.sickBannerText, { color: sickPalette.accent }]}>Recovery protocol active</Text>
+              </View>
+            </View>
+          )}
+          <View style={styles.header}>
+            <View>
+              <Text style={[styles.title, styles.simpleTitle, isSickMode && { color: sickPalette.accent }]}>Medications</Text>
+              <Text style={[styles.subtitle, styles.simpleSubtitle, isSickMode && { color: sickPalette.text }]}>
+                {headerSubtitle}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            styles.content,
+            styles.simpleContent,
+            { paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100) },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {scheduledMeds.length === 0 && prnMeds.length === 0 ? (
+            <View style={styles.simpleEmptyCard}>
+              <Text style={styles.simpleEmptyTitle}>No medications yet</Text>
+              <Text style={styles.simpleEmptyBody}>Tap the add button to set up your first medication.</Text>
+              <Pressable style={styles.simpleEmptyActionButton} onPress={handleOpenAddMedication} accessibilityRole="button" accessibilityLabel="Add medication">
+                <Text style={styles.simpleEmptyActionText}>Add one</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <View style={styles.simpleSection}>
+                <Text style={styles.simpleSectionLabel}>Scheduled</Text>
+                <View style={styles.simpleSummaryCard}>
+                  <Text style={styles.simpleSummaryText}>{simpleScheduledSummary}</Text>
+                </View>
+                {scheduledMeds.length === 0 ? (
+                  <View style={styles.simpleEmptyInlineCard}>
+                    <Text style={styles.simpleEmptyInlineText}>No scheduled medications right now.</Text>
+                  </View>
+                ) : (
+                  scheduledMeds.map((med) => {
+                    const normalizedMed = normalizeMedication(med);
+                    const totalForMed = getDoseCount(med);
+                    const takenForMed = Array.from({ length: totalForMed }, (_, i) => isDoseTaken(med.id, i)).filter(Boolean).length;
+                    const dueIndices = Array.from({ length: totalForMed }, (_, i) => i).filter((i) => isDoseDueNow(med, i));
+                    const firstDueIndex = dueIndices[0] ?? null;
+                    const nextUntakenIndex = Array.from({ length: totalForMed }, (_, i) => i).find((i) => !isDoseTaken(med.id, i)) ?? null;
+                    const firstTakenLog = medLogs
+                      .filter((log) => log.medicationId === med.id && log.taken)
+                      .sort((a, b) => (b.recordedAt ?? "").localeCompare(a.recordedAt ?? ""))[0];
+                    const firstDose = normalizedMed.doses?.[0];
+                    const scheduledTimes = Array.from(new Set(normalizedMed.doses?.map((dose) => dose.timeOfDay).filter((time) => TIME_TAGS.includes(time)) ?? []));
+                    const firstDoseText = firstDose?.amount && firstDose?.unit
+                      ? `${firstDose.amount} ${firstDose.unit}${scheduledTimes.length > 0 ? ` · ${scheduledTimes.join(", ")}` : ""}`
+                      : (med as { dosage?: string }).dosage
+                        ? `${(med as { dosage?: string }).dosage}${(med as { unit?: string }).unit ? ` ${(med as { unit?: string }).unit}` : ""}`
+                        : "Dose details";
+                    const nextReminder = firstDueIndex === null
+                      ? normalizedMed.doses?.find((dose, idx) => !isDoseTaken(med.id, idx))?.reminderTime
+                      : normalizedMed.doses?.[firstDueIndex]?.reminderTime;
+                    const loggedTime = formatLoggedTime(firstTakenLog?.recordedAt);
+                    const statusText = takenForMed >= totalForMed
+                      ? `Taken at ${loggedTime || "now"}`
+                      : loggedTime
+                        ? `Last taken at ${loggedTime}`
+                      : firstDueIndex !== null
+                        ? "Not taken yet"
+                        : nextReminder
+                          ? `Next dose: ${formatReminderTimeDisplay(nextReminder)}`
+                          : "Scheduled";
+                    const emoji = getAutoEmoji(med);
+                    const canTakeScheduledDose = nextUntakenIndex !== null;
+
+                    return (
+                      <Pressable
+                        key={med.id}
+                        style={({ pressed }) => [
+                          styles.simpleMedicationCard,
+                          pressed && styles.simpleMedicationCardPressed,
+                        ]}
+                        onPress={() => openEditModal(med)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit ${med.name}`}
+                      >
+                        <View style={styles.simpleMedicationRow}>
+                          <Text style={styles.simpleMedicationEmoji}>{emoji}</Text>
+                          <View style={styles.simpleMedicationTextWrap}>
+                            <Text style={styles.simpleMedicationName}>{med.name}</Text>
+                            <Text style={styles.simpleMedicationDose}>{firstDoseText}</Text>
+                          </View>
+                          <Pressable
+                            style={({ pressed }) => [
+                              styles.simpleMedicationMoreButton,
+                              pressed && styles.simpleMedicationMoreButtonPressed,
+                            ]}
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              openSimpleMedicationActions(med);
+                            }}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel={`More options for ${med.name}`}
+                          >
+                            <Ionicons name="ellipsis-horizontal" size={20} color={C.textSecondary} />
+                          </Pressable>
+                        </View>
+                        <View style={styles.simpleMedicationDivider} />
+                        <Text style={styles.simpleMedicationStatus}>{statusText}</Text>
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.simpleMedicationPrimaryButton,
+                            takenForMed >= totalForMed && styles.simpleMedicationPrimaryButtonDone,
+                            !canTakeScheduledDose && styles.simpleMedicationPrimaryButtonDisabled,
+                            pressed && styles.simpleMedicationPrimaryButtonPressed,
+                          ]}
+                          disabled={!canTakeScheduledDose}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            if (nextUntakenIndex !== null) {
+                              handleDoseToggle(med.id, nextUntakenIndex);
+                            }
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={takenForMed >= totalForMed ? `${med.name} taken` : `Take ${med.name} now`}
+                        >
+                          <Text
+                            style={[
+                              styles.simpleMedicationPrimaryButtonText,
+                              takenForMed >= totalForMed && styles.simpleMedicationPrimaryButtonTextDone,
+                            ]}
+                          >
+                            {takenForMed >= totalForMed ? "Taken ✔" : "Take now"}
+                          </Text>
+                        </Pressable>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </View>
+
+              <View style={styles.simpleSection}>
+                <Text style={styles.simpleSectionLabel}>As Needed</Text>
+                {prnMeds.length === 0 ? (
+                  <View style={styles.simpleEmptyInlineCard}>
+                    <Text style={styles.simpleEmptyInlineText}>No As Needed medications set up yet.</Text>
+                  </View>
+                ) : (
+                  prnMeds.map((med) => {
+                    const prnLogs = getPrnLogsForMed(med.id);
+                    const firstDose = normalizeMedication(med).doses?.[0];
+                    const doseText = firstDose?.amount && firstDose?.unit
+                      ? `${firstDose.amount} ${firstDose.unit}`
+                      : (med as { dosage?: string }).dosage
+                        ? `${(med as { dosage?: string }).dosage}${(med as { unit?: string }).unit ? ` ${(med as { unit?: string }).unit}` : ""}`
+                        : "Dose details";
+                    const emoji = getAutoEmoji(med);
+
+                    return (
+                      <Pressable
+                        key={med.id}
+                        style={({ pressed }) => [
+                          styles.simpleMedicationCard,
+                          pressed && styles.simpleMedicationCardPressed,
+                        ]}
+                        onPress={() => openEditModal(med)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit ${med.name}`}
+                      >
+                        <View style={styles.simpleMedicationRow}>
+                          <Text style={styles.simpleMedicationEmoji}>{emoji}</Text>
+                          <View style={styles.simpleMedicationTextWrap}>
+                            <Text style={styles.simpleMedicationName}>{med.name}</Text>
+                            <Text style={styles.simpleMedicationDose}>{doseText} · As Needed</Text>
+                          </View>
+                          <Pressable
+                            style={({ pressed }) => [
+                              styles.simpleMedicationMoreButton,
+                              pressed && styles.simpleMedicationMoreButtonPressed,
+                            ]}
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              openSimpleMedicationActions(med);
+                            }}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel={`More options for ${med.name}`}
+                          >
+                            <Ionicons name="ellipsis-horizontal" size={20} color={C.textSecondary} />
+                          </Pressable>
+                        </View>
+                        <View style={styles.simpleMedicationDivider} />
+                        <Text style={styles.simpleMedicationStatus}>
+                          {prnLogs.length > 0
+                            ? `Taken ${prnLogs.length} time${prnLogs.length === 1 ? "" : "s"} today`
+                            : "Not taken yet today"}
+                        </Text>
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.simpleMedicationPrimaryButton,
+                            pressed && styles.simpleMedicationPrimaryButtonPressed,
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            handleQuickPrnLog(med);
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Log dose for ${med.name}`}
+                        >
+                          <Text style={styles.simpleMedicationPrimaryButtonText}>Take Dose</Text>
+                        </Pressable>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </View>
+            </>
+          )}
+        </ScrollView>
+
+        {prnToast ? (
+          <View style={[styles.toastWrap, { bottom: isWide ? 28 : (Platform.OS === "web" ? 28 : insets.bottom + 92) }]}>
+            <View style={styles.toastCard}>
+              <View style={styles.toastTextWrap}>
+                <Text style={styles.toastTitle}>Dose logged</Text>
+                <Text style={styles.toastBody}>{prnToast.message}</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.toastAction, pressed && styles.toastActionPressed]}
+                onPress={() => {
+                  const { med, logId } = prnToast;
+                  setPrnToast(null);
+                  openPrnDetailsModal(med, logId);
+                }}
+              >
+                <Text style={styles.toastActionText}>Add details</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        <Pressable
+          testID="add-medication"
+          style={({ pressed }) => [
+            styles.fab,
+            {
+              right: isWide ? 24 : 20,
+              bottom: Platform.OS === "web" ? 76 : insets.bottom + 42,
+              opacity: pressed ? 0.92 : 1,
+            },
+          ]}
+          onPress={handleOpenAddMedication}
+          accessibilityRole="button"
+          accessibilityLabel="Add medication"
+        >
+          <Ionicons name="add" size={28} color="#fff" />
+        </Pressable>
+
+        <Modal visible={showSimpleAddModal} transparent animationType="fade">
+          <View style={styles.overlay}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => {
+                setShowSimpleAddModal(false);
+                setShowCurrentMedNamePicker(false);
+                setEditingMed(null);
+              }}
+              accessibilityLabel="Close add medication"
+            />
+            <View style={styles.modal}>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
+                <Text style={styles.modalTitle}>{editingMed ? "Edit Medication" : "Add Medication"}</Text>
+                {renderSimpleAddMedicationFlow()}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    );
+
+    return simpleContent;
+  }
 
   return (
-    <View style={[styles.container, isSickMode && { backgroundColor: sickPalette.background }]}>
+    <View
+      style={[styles.container, isSickMode && { backgroundColor: sickPalette.background }]}
+      testID={`medications-screen-${modeUI.appMode}`}
+    >
       <View style={[styles.headerSticky, { paddingTop: topPad }]}>
         {isSickMode && (
           <View style={[styles.sickBanner, { backgroundColor: sickPalette.accentLight, borderColor: sickPalette.accentBorder }]}>
@@ -1254,7 +1944,7 @@ export default function MedicationsScreen() {
                         </Text>
                       ) : null}
                       <View style={styles.medMetaRow}>
-                        <Text style={styles.medFreq}>As needed</Text>
+                        <Text style={styles.medFreq}>As Needed</Text>
                         {!!med.pharmacyName && (
                           <Text style={[styles.medFreq, styles.medMetaInline]}>{med.pharmacyName}</Text>
                         )}
@@ -1301,13 +1991,22 @@ export default function MedicationsScreen() {
 
                   <View style={styles.actionRow}>
                     <Pressable
-                      style={styles.prnLogBtn}
+                      style={({ pressed }) => [
+                        styles.prnLogBtn,
+                        pressed && styles.prnLogBtnPressed,
+                      ]}
                       onPress={(event) => {
                         event.stopPropagation();
-                        openPrnLogModal(med);
+                        handleQuickPrnLog(med);
                       }}
+                      onLongPress={(event) => {
+                        event.stopPropagation();
+                        handleQuickPrnLog(med, { silent: true });
+                      }}
+                      delayLongPress={220}
                       accessibilityRole="button"
                       accessibilityLabel={`Log dose for ${med.name}`}
+                      accessibilityHint="Long press to log instantly without opening follow-up details"
                     >
                       <Ionicons name="add" size={16} color="#fff" />
                       <Text style={styles.prnLogBtnText}>Log Dose</Text>
@@ -1444,6 +2143,27 @@ export default function MedicationsScreen() {
         )}
       </ScrollView>
 
+      {prnToast ? (
+        <View style={[styles.toastWrap, { bottom: isWide ? 28 : (Platform.OS === "web" ? 28 : insets.bottom + 92) }]}>
+          <View style={styles.toastCard}>
+            <View style={styles.toastTextWrap}>
+              <Text style={styles.toastTitle}>Dose logged</Text>
+              <Text style={styles.toastBody}>{prnToast.message}</Text>
+            </View>
+            <Pressable
+              style={({ pressed }) => [styles.toastAction, pressed && styles.toastActionPressed]}
+              onPress={() => {
+                const { med, logId } = prnToast;
+                setPrnToast(null);
+                openPrnDetailsModal(med, logId);
+              }}
+            >
+              <Text style={styles.toastActionText}>Add details</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
       <Pressable
         testID="add-medication"
         style={({ pressed }) => [
@@ -1454,7 +2174,7 @@ export default function MedicationsScreen() {
             opacity: pressed ? 0.92 : 1,
           },
         ]}
-        onPress={openAddModal}
+        onPress={handleOpenAddMedication}
         accessibilityRole="button"
         accessibilityLabel="Add medication"
       >
@@ -1646,6 +2366,176 @@ export default function MedicationsScreen() {
           <View style={styles.modal}>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
               <Text style={styles.modalTitle}>{editingMed ? "Edit Medication" : "Add Medication"}</Text>
+              {isSimpleAddFlow ? (
+                <View style={styles.prnFlowCard}>
+                  <View style={styles.prnStepDots}>
+                    {[1, 2, 3].map((step) => (
+                      <View key={step} style={[styles.prnStepDot, simpleAddStep === step && styles.prnStepDotActive]} />
+                    ))}
+                  </View>
+                  {simpleAddStep === 1 ? (
+                    <>
+                      <Text style={styles.prnFlowTitle}>Step 1 · Medication name</Text>
+                      <Text style={styles.prnFlowHelper}>Keep it quick. What is this medication called?</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
+                        <TextInput
+                          style={[styles.input, styles.prnPrimaryInput, { flex: 1, marginBottom: 0 }]}
+                          placeholder="e.g. Hydrocortisone"
+                          placeholderTextColor={C.textTertiary}
+                          value={formName}
+                          onChangeText={(t) => { setFormName(t); setShowCurrentMedNamePicker(false); }}
+                          autoCorrect={false}
+                        />
+                        {medListItems.length > 0 && (
+                          <Pressable onPress={() => setShowCurrentMedNamePicker((v) => !v)} hitSlop={8} style={{ paddingLeft: 8 }}>
+                            <Ionicons name="chevron-down" size={20} color={C.textTertiary} />
+                          </Pressable>
+                        )}
+                      </View>
+                      {showCurrentMedNamePicker && medListItems.length > 0 && (
+                        <View style={styles.dropdown}>
+                          {medListItems
+                            .map((m) => m.name)
+                            .filter((name, i, arr) => arr.indexOf(name) === i)
+                            .map((name) => {
+                              const med = medListItems.find((m) => m.name === name);
+                              const doseText = med?.doses?.[0]?.dosage ?? "";
+                              const parts = doseText.trim().split(/\s+/);
+                              return (
+                                <Pressable
+                                  key={name}
+                                  style={[styles.dropdownRow, formName === name && styles.dropdownRowSelected]}
+                                  onPress={() => {
+                                    setFormName(name);
+                                    setShowCurrentMedNamePicker(false);
+                                    updatePrimaryDose({
+                                      amount: parts[0] ?? prnPrimaryDose.amount,
+                                      unit: parts.slice(1).join(" ") || prnPrimaryDose.unit || "mg",
+                                    });
+                                    Haptics.selectionAsync();
+                                  }}
+                                >
+                                  <Text style={styles.dropdownText}>{name}</Text>
+                                </Pressable>
+                              );
+                            })}
+                        </View>
+                      )}
+                    </>
+                  ) : simpleAddStep === 2 ? (
+                    <>
+                      <Text style={styles.prnFlowTitle}>Step 2 · Dose</Text>
+                      <Text style={styles.prnFlowHelper}>Add the amount, unit, and when you take it.</Text>
+                      <View style={styles.doseRowWrap}>
+                        <TextInput
+                          style={[styles.input, styles.doseAmountInput, styles.prnPrimaryInput]}
+                          placeholder="Amount"
+                          placeholderTextColor={C.textTertiary}
+                          value={prnPrimaryDose.amount}
+                          onChangeText={(t) => updatePrimaryDose({ amount: t })}
+                        />
+                        <TextInput
+                          style={[styles.input, styles.doseUnitInput, styles.prnPrimaryInput]}
+                          placeholder="mg"
+                          placeholderTextColor={C.textTertiary}
+                          value={prnPrimaryDose.unit}
+                          onChangeText={(t) => updatePrimaryDose({ unit: t })}
+                        />
+                      </View>
+                      <Text style={styles.label}>Type</Text>
+                      <View style={styles.frequencyChipRow}>
+                        {MEDICATION_TYPE_OPTIONS.map((option) => (
+                          <Pressable
+                            key={option.value}
+                            style={[styles.frequencyChip, formMedicationType === option.value && styles.frequencyChipActive]}
+                            onPress={() => {
+                              setFormMedicationType(option.value);
+                              if (option.value === "prn") {
+                                updatePrimaryDose({ timeOfDay: "As Needed", reminderTime: "" });
+                              } else {
+                                updatePrimaryDose({
+                                  timeOfDay: prnPrimaryDose.timeOfDay === "As Needed" ? "Morning" : (prnPrimaryDose.timeOfDay || "Morning"),
+                                  reminderTime: defaultReminderTimeFor(prnPrimaryDose.timeOfDay === "As Needed" ? "Morning" : (prnPrimaryDose.timeOfDay || "Morning")),
+                                });
+                              }
+                              Haptics.selectionAsync();
+                            }}
+                          >
+                            <Text style={[styles.frequencyChipText, formMedicationType === option.value && styles.frequencyChipTextActive]}>
+                              {option.label}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                      {!isPrn && (
+                        <>
+                          <Text style={styles.label}>When do you take it?</Text>
+                          <View style={styles.frequencyChipRow}>
+                            {TIME_TAGS.filter((tag) => settings.ramadanMode || (tag !== "Before Fajr" && tag !== "After Iftar")).map((tag) => (
+                              <Pressable
+                                key={tag}
+                                style={[styles.frequencyChip, prnPrimaryDose.timeOfDay === tag && styles.frequencyChipActive]}
+                                onPress={() => {
+                                  updatePrimaryDose({
+                                    timeOfDay: tag,
+                                    reminderTime: defaultReminderTimeFor(tag),
+                                  });
+                                  Haptics.selectionAsync();
+                                }}
+                              >
+                                <Text style={[styles.frequencyChipText, prnPrimaryDose.timeOfDay === tag && styles.frequencyChipTextActive]}>{tag}</Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.prnFlowTitle}>Step 3 · Save</Text>
+                      <Text style={styles.prnFlowHelper}>That’s it. Save now and edit later if you need more details.</Text>
+                      <View style={styles.prnSummaryCard}>
+                        <Text style={styles.prnSummaryName}>{formName.trim() || "Medication"}</Text>
+                        <Text style={styles.prnSummaryDose}>
+                          {(prnPrimaryDose.amount.trim() || "Dose")} {prnPrimaryDose.unit.trim() || "mg"} · {isPrn ? "As Needed" : (prnPrimaryDose.timeOfDay || "Morning")}
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                  <View style={styles.modalActions}>
+                    <Pressable
+                      style={styles.cancelBtn}
+                      onPress={() => {
+                        if (simpleAddStep === 1) {
+                          setShowSimpleAddModal(false);
+                          setShowCurrentMedNamePicker(false);
+                        } else {
+                          setSimpleAddStep((prev) => (prev === 3 ? 2 : 1));
+                        }
+                      }}
+                    >
+                      <Text style={styles.cancelText}>{simpleAddStep === 1 ? "Cancel" : "Back"}</Text>
+                    </Pressable>
+                    {simpleAddStep < 3 ? (
+                      <Pressable
+                        style={[
+                          styles.confirmBtn,
+                          ((simpleAddStep === 1 && !canAdvanceSimpleStepTwo) || (simpleAddStep === 2 && !canAdvanceSimpleStepThree)) && { opacity: 0.5 },
+                        ]}
+                        disabled={(simpleAddStep === 1 && !canAdvanceSimpleStepTwo) || (simpleAddStep === 2 && !canAdvanceSimpleStepThree)}
+                        onPress={() => setSimpleAddStep((prev) => (prev === 1 ? 2 : 3))}
+                      >
+                        <Text style={styles.confirmText}>{simpleAddStep === 2 ? "Review" : "Next"}</Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable style={[styles.confirmBtn, !canSaveMedication && { opacity: 0.5 }]} onPress={handleSave} disabled={!canSaveMedication}>
+                        <Text style={styles.confirmText}>Save</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              ) : (
+                <>
               {isCaregiver && (
                 <>
                   <Text style={styles.label}>Who is this medication for?</Text>
@@ -1668,72 +2558,80 @@ export default function MedicationsScreen() {
                 </>
               )}
 
-              <Text style={styles.label}>Emoji</Text>
-              <View style={styles.emojiGrid}>
-                {EMOJI_OPTIONS.map((e) => (
-                  <Pressable key={e} style={[styles.emojiOpt, formEmoji === e && styles.emojiOptActive]} onPress={() => { setFormEmoji(e); Haptics.selectionAsync(); }}>
-                    <Text style={{ fontSize: 22 }}>{e}</Text>
-                  </Pressable>
-                ))}
-              </View>
+              {!isNewPrnFlow && (
+                <>
+                  <Text style={styles.label}>Emoji</Text>
+                  <View style={styles.emojiGrid}>
+                    {EMOJI_OPTIONS.map((e) => (
+                      <Pressable key={e} style={[styles.emojiOpt, formEmoji === e && styles.emojiOptActive]} onPress={() => { setFormEmoji(e); Haptics.selectionAsync(); }}>
+                        <Text style={{ fontSize: 22 }}>{e}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              )}
 
-              <Text style={styles.label}>Name</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
-                <TextInput
-                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                  placeholder="e.g. Hydrocortisone"
-                  placeholderTextColor={C.textTertiary}
-                  value={formName}
-                  onChangeText={(t) => { setFormName(t); setShowCurrentMedNamePicker(false); }}
-                  autoCorrect={false}
-                />
-                {medListItems.length > 0 && (
-                  <Pressable onPress={() => setShowCurrentMedNamePicker((v) => !v)} hitSlop={8} style={{ paddingLeft: 8 }}>
-                    <Ionicons name="chevron-down" size={20} color={C.textTertiary} />
-                  </Pressable>
-                )}
-              </View>
-              {showCurrentMedNamePicker && medListItems.length > 0 && (
-                <View style={styles.dropdown}>
-                  {(editingMed && !medListItems.some((m) => m.name === editingMed.name) ? [editingMed.name, ...medListItems.map((m) => m.name)] : medListItems.map((m) => m.name))
-                    .filter((name, i, arr) => arr.indexOf(name) === i)
-                    .map((name) => {
-                      const med = medListItems.find((m) => m.name === name);
-                      const listDoses = med?.doses?.length ? med.doses : (med ? [{ dosage: (med as unknown as { dosage?: string }).dosage ?? "", time: "Morning" as MedListDoseTime }] : []);
-                      return (
-                        <Pressable
-                          key={name}
-                          style={[styles.dropdownRow, formName === name && styles.dropdownRowSelected]}
-                          onPress={() => {
-                            setFormName(name);
-                            setShowCurrentMedNamePicker(false);
-                            const newDoses = listDoses.map((d) => {
-                              const parts = d.dosage.trim().split(/\s+/);
-                              return {
-                                id: Crypto.randomUUID(),
-                                amount: parts[0] ?? "",
-                                unit: parts.slice(1).join(" ") || "mg",
-                                timeOfDay: d.time,
-                                reminderTime: defaultReminderTimeFor(d.time),
-                                optionalNotes: "",
-                              };
-                            });
-                            setFormDosesArray(newDoses.length > 0 ? newDoses : [{
-                              id: Crypto.randomUUID(),
-                              amount: "",
-                              unit: "mg",
-                              timeOfDay: "Morning",
-                              reminderTime: "08:00",
-                              optionalNotes: "",
-                            }]);
-                            Haptics.selectionAsync();
-                          }}
-                        >
-                          <Text style={styles.dropdownText}>{name}</Text>
-                        </Pressable>
-                      );
-                    })}
-                </View>
+              {!isNewPrnFlow && (
+                <>
+                  <Text style={styles.label}>Name</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
+                    <TextInput
+                      style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                      placeholder="e.g. Hydrocortisone"
+                      placeholderTextColor={C.textTertiary}
+                      value={formName}
+                      onChangeText={(t) => { setFormName(t); setShowCurrentMedNamePicker(false); }}
+                      autoCorrect={false}
+                    />
+                    {medListItems.length > 0 && (
+                      <Pressable onPress={() => setShowCurrentMedNamePicker((v) => !v)} hitSlop={8} style={{ paddingLeft: 8 }}>
+                        <Ionicons name="chevron-down" size={20} color={C.textTertiary} />
+                      </Pressable>
+                    )}
+                  </View>
+                  {showCurrentMedNamePicker && medListItems.length > 0 && (
+                    <View style={styles.dropdown}>
+                      {(editingMed && !medListItems.some((m) => m.name === editingMed.name) ? [editingMed.name, ...medListItems.map((m) => m.name)] : medListItems.map((m) => m.name))
+                        .filter((name, i, arr) => arr.indexOf(name) === i)
+                        .map((name) => {
+                          const med = medListItems.find((m) => m.name === name);
+                          const listDoses = med?.doses?.length ? med.doses : (med ? [{ dosage: (med as unknown as { dosage?: string }).dosage ?? "", time: "Morning" as MedListDoseTime }] : []);
+                          return (
+                            <Pressable
+                              key={name}
+                              style={[styles.dropdownRow, formName === name && styles.dropdownRowSelected]}
+                              onPress={() => {
+                                setFormName(name);
+                                setShowCurrentMedNamePicker(false);
+                                const newDoses = listDoses.map((d) => {
+                                  const parts = d.dosage.trim().split(/\s+/);
+                                  return {
+                                    id: Crypto.randomUUID(),
+                                    amount: parts[0] ?? "",
+                                    unit: parts.slice(1).join(" ") || "mg",
+                                    timeOfDay: d.time,
+                                    reminderTime: defaultReminderTimeFor(d.time),
+                                    optionalNotes: "",
+                                  };
+                                });
+                                setFormDosesArray(newDoses.length > 0 ? newDoses : [{
+                                  id: Crypto.randomUUID(),
+                                  amount: "",
+                                  unit: "mg",
+                                  timeOfDay: "Morning",
+                                  reminderTime: "08:00",
+                                  optionalNotes: "",
+                                }]);
+                                Haptics.selectionAsync();
+                              }}
+                            >
+                              <Text style={styles.dropdownText}>{name}</Text>
+                            </Pressable>
+                          );
+                        })}
+                    </View>
+                  )}
+                </>
               )}
               <Text style={styles.label}>Type</Text>
               <View style={styles.frequencyChipRow}>
@@ -1743,6 +2641,17 @@ export default function MedicationsScreen() {
                     style={[styles.frequencyChip, formMedicationType === option.value && styles.frequencyChipActive]}
                     onPress={() => {
                       setFormMedicationType(option.value);
+                      if (option.value === "prn") {
+                        setPrnFlowStep(1);
+                        setShowPrnOptionalDetails(false);
+                        updatePrimaryPrnDose({
+                          amount: formDosesArray[0]?.amount ?? "",
+                          unit: formDosesArray[0]?.unit ?? "mg",
+                          optionalNotes: formDosesArray[0]?.optionalNotes ?? "",
+                        });
+                      } else {
+                        setPrnFlowStep(1);
+                      }
                       Haptics.selectionAsync();
                     }}
                   >
@@ -1752,112 +2661,246 @@ export default function MedicationsScreen() {
                   </Pressable>
                 ))}
               </View>
-              <Text style={styles.label}>Doses</Text>
-              <Text style={[styles.medFreq, { marginBottom: 8 }]}>
-                {formMedicationType === "prn"
-                  ? "Each logged dose is recorded with a timestamp for later review."
-                  : "Each dose is tracked independently for reminders and logging."}
-              </Text>
-              {formDosesArray.map((dose, idx) => (
-                <View key={dose.id || idx} style={styles.doseCard}>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <Text style={styles.doseCardTitle}>Dose {idx + 1}</Text>
-                    {formDosesArray.length > 1 && (
-                      <Pressable style={styles.doseRemoveBtn} onPress={() => setFormDosesArray((prev) => prev.filter((_, i) => i !== idx))} accessibilityRole="button" accessibilityLabel="Remove dose">
-                        <Ionicons name="close-circle" size={22} color={C.textTertiary} />
+              {isNewPrnFlow ? (
+                <View style={styles.prnFlowCard}>
+                  <View style={styles.prnStepDots}>
+                    {[1, 2, 3].map((step) => (
+                      <View key={step} style={[styles.prnStepDot, prnFlowStep === step && styles.prnStepDotActive]} />
+                    ))}
+                  </View>
+                  {prnFlowStep === 1 ? (
+                    <>
+                      <Text style={styles.prnFlowTitle}>Step 1 · Medication name</Text>
+                      <Text style={styles.prnFlowHelper}>Keep it quick. Just tell Synapse what this medication is called.</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
+                        <TextInput
+                          style={[styles.input, styles.prnPrimaryInput, { flex: 1, marginBottom: 0 }]}
+                          placeholder="e.g. Tylenol"
+                          placeholderTextColor={C.textTertiary}
+                          value={formName}
+                          onChangeText={(t) => { setFormName(t); setShowCurrentMedNamePicker(false); }}
+                          autoCorrect={false}
+                        />
+                        {medListItems.length > 0 && (
+                          <Pressable onPress={() => setShowCurrentMedNamePicker((v) => !v)} hitSlop={8} style={{ paddingLeft: 8 }}>
+                            <Ionicons name="chevron-down" size={20} color={C.textTertiary} />
+                          </Pressable>
+                        )}
+                      </View>
+                      {showCurrentMedNamePicker && medListItems.length > 0 && (
+                        <View style={styles.dropdown}>
+                          {medListItems
+                            .map((m) => m.name)
+                            .filter((name, i, arr) => arr.indexOf(name) === i)
+                            .map((name) => {
+                              const med = medListItems.find((m) => m.name === name);
+                              const doseText = med?.doses?.[0]?.dosage ?? "";
+                              const parts = doseText.trim().split(/\s+/);
+                              return (
+                                <Pressable
+                                  key={name}
+                                  style={[styles.dropdownRow, formName === name && styles.dropdownRowSelected]}
+                                  onPress={() => {
+                                    setFormName(name);
+                                    setShowCurrentMedNamePicker(false);
+                                    updatePrimaryPrnDose({
+                                      amount: parts[0] ?? prnPrimaryDose.amount,
+                                      unit: parts.slice(1).join(" ") || prnPrimaryDose.unit || "mg",
+                                    });
+                                    Haptics.selectionAsync();
+                                  }}
+                                >
+                                  <Text style={styles.dropdownText}>{name}</Text>
+                                </Pressable>
+                              );
+                            })}
+                        </View>
+                      )}
+                    </>
+                  ) : prnFlowStep === 2 ? (
+                    <>
+                      <Text style={styles.prnFlowTitle}>Step 2 · Dose</Text>
+                      <Text style={styles.prnFlowHelper}>Add the amount and unit you usually take when you need it.</Text>
+                      <View style={styles.doseRowWrap}>
+                        <TextInput
+                          style={[styles.input, styles.doseAmountInput, styles.prnPrimaryInput]}
+                          placeholder="Amount"
+                          placeholderTextColor={C.textTertiary}
+                          value={prnPrimaryDose.amount}
+                          onChangeText={(t) => updatePrimaryPrnDose({ amount: t })}
+                        />
+                        <TextInput
+                          style={[styles.input, styles.doseUnitInput, styles.prnPrimaryInput]}
+                          placeholder="mg"
+                          placeholderTextColor={C.textTertiary}
+                          value={prnPrimaryDose.unit}
+                          onChangeText={(t) => updatePrimaryPrnDose({ unit: t })}
+                        />
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.prnFlowTitle}>Step 3 · Save</Text>
+                      <Text style={styles.prnFlowHelper}>That’s it. Save now, then add notes later only if you want them.</Text>
+                      <View style={styles.prnSummaryCard}>
+                        <Text style={styles.prnSummaryName}>{formName.trim() || "As Needed medication"}</Text>
+                        <Text style={styles.prnSummaryDose}>
+                          {(prnPrimaryDose.amount.trim() || "Dose")} {prnPrimaryDose.unit.trim() || "mg"} · As Needed
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                  <View style={styles.modalActions}>
+                    <Pressable
+                      style={styles.cancelBtn}
+                      onPress={() => {
+                        if (prnFlowStep === 1) {
+                          setShowModal(false);
+                          setShowCurrentMedNamePicker(false);
+                        } else {
+                          setPrnFlowStep((prev) => (prev === 3 ? 2 : 1));
+                        }
+                      }}
+                    >
+                      <Text style={styles.cancelText}>{prnFlowStep === 1 ? "Cancel" : "Back"}</Text>
+                    </Pressable>
+                    {prnFlowStep < 3 ? (
+                      <Pressable
+                        style={[
+                          styles.confirmBtn,
+                          ((prnFlowStep === 1 && !formName.trim()) || (prnFlowStep === 2 && (!prnPrimaryDose.amount.trim() || !prnPrimaryDose.unit.trim())))
+                            && { opacity: 0.5 },
+                        ]}
+                        disabled={(prnFlowStep === 1 && !formName.trim()) || (prnFlowStep === 2 && (!prnPrimaryDose.amount.trim() || !prnPrimaryDose.unit.trim()))}
+                        onPress={() => setPrnFlowStep((prev) => (prev === 1 ? 2 : 3))}
+                      >
+                        <Text style={styles.confirmText}>{prnFlowStep === 2 ? "Review" : "Next"}</Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable style={[styles.confirmBtn, !canSaveMedication && { opacity: 0.5 }]} onPress={handleSave} disabled={!canSaveMedication}>
+                        <Text style={styles.confirmText}>Save</Text>
                       </Pressable>
                     )}
                   </View>
-                  <View style={styles.doseRowWrap}>
-                    <TextInput
-                      style={[styles.input, styles.doseAmountInput]}
-                      placeholder="Amount (e.g. 15)"
-                      placeholderTextColor={C.textTertiary}
-                      value={dose.amount}
-                      onChangeText={(t) => setFormDosesArray((prev) => prev.map((d, i) => (i === idx ? { ...d, amount: t } : d)))}
-                    />
-                    <TextInput
-                      style={[styles.input, styles.doseUnitInput]}
-                      placeholder="mg"
-                      placeholderTextColor={C.textTertiary}
-                      value={dose.unit}
-                      onChangeText={(t) => setFormDosesArray((prev) => prev.map((d, i) => (i === idx ? { ...d, unit: t } : d)))}
-                    />
-                  </View>
-                  {formMedicationType !== "prn" && (
-                    <View style={styles.doseTimePickerWrap}>
-                      <Pressable
-                        style={styles.doseTimeBtn}
-                        onPress={() => setShowDoseTimePickerIndex((v) => (v === idx ? null : idx))}
-                      >
-                        <Text style={styles.doseTimeBtnText} numberOfLines={1}>{dose.timeOfDay}</Text>
-                        <Ionicons name="chevron-down" size={14} color={C.textSecondary} />
-                      </Pressable>
-                      {showDoseTimePickerIndex === idx && (
-                        <View style={styles.doseTimeDropdown}>
-                          {TIME_TAGS.filter((tag) => settings.ramadanMode || (tag !== "Before Fajr" && tag !== "After Iftar")).map((tag) => (
-                            <Pressable
-                              key={tag}
-                              style={[styles.dropdownRow, dose.timeOfDay === tag && styles.dropdownRowSelected]}
-                              onPress={() => {
-                                setFormDosesArray((prev) => prev.map((d, i) => (i === idx ? { ...d, timeOfDay: tag } : d)));
-                                setShowDoseTimePickerIndex(null);
-                                Haptics.selectionAsync();
-                              }}
-                            >
-                              <Text style={styles.dropdownText}>{tag}</Text>
-                            </Pressable>
-                          ))}
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.label}>Doses</Text>
+                  <Text style={[styles.medFreq, { marginBottom: 8 }]}>
+                    {isPrn
+                      ? "Each logged dose is recorded with a timestamp for later review."
+                      : "Each dose is tracked independently for reminders and logging."}
+                  </Text>
+                  {formDosesArray.map((dose, idx) => (
+                    <View key={dose.id || idx} style={styles.doseCard}>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <Text style={styles.doseCardTitle}>Dose {idx + 1}</Text>
+                        {formDosesArray.length > 1 && !isPrn && (
+                          <Pressable style={styles.doseRemoveBtn} onPress={() => setFormDosesArray((prev) => prev.filter((_, i) => i !== idx))} accessibilityRole="button" accessibilityLabel="Remove dose">
+                            <Ionicons name="close-circle" size={22} color={C.textTertiary} />
+                          </Pressable>
+                        )}
+                      </View>
+                      <View style={styles.doseRowWrap}>
+                        <TextInput
+                          style={[styles.input, styles.doseAmountInput]}
+                          placeholder="Amount (e.g. 15)"
+                          placeholderTextColor={C.textTertiary}
+                          value={dose.amount}
+                          onChangeText={(t) => setFormDosesArray((prev) => prev.map((d, i) => (i === idx ? { ...d, amount: t } : d)))}
+                        />
+                        <TextInput
+                          style={[styles.input, styles.doseUnitInput]}
+                          placeholder="mg"
+                          placeholderTextColor={C.textTertiary}
+                          value={dose.unit}
+                          onChangeText={(t) => setFormDosesArray((prev) => prev.map((d, i) => (i === idx ? { ...d, unit: t } : d)))}
+                        />
+                      </View>
+                      {!isPrn && (
+                        <View style={styles.doseTimePickerWrap}>
+                          <Pressable
+                            style={styles.doseTimeBtn}
+                            onPress={() => setShowDoseTimePickerIndex((v) => (v === idx ? null : idx))}
+                          >
+                            <Text style={styles.doseTimeBtnText} numberOfLines={1}>{dose.timeOfDay}</Text>
+                            <Ionicons name="chevron-down" size={14} color={C.textSecondary} />
+                          </Pressable>
+                          {showDoseTimePickerIndex === idx && (
+                            <View style={styles.doseTimeDropdown}>
+                              {TIME_TAGS.filter((tag) => settings.ramadanMode || (tag !== "Before Fajr" && tag !== "After Iftar")).map((tag) => (
+                                <Pressable
+                                  key={tag}
+                                  style={[styles.dropdownRow, dose.timeOfDay === tag && styles.dropdownRowSelected]}
+                                  onPress={() => {
+                                    setFormDosesArray((prev) => prev.map((d, i) => (i === idx ? { ...d, timeOfDay: tag } : d)));
+                                    setShowDoseTimePickerIndex(null);
+                                    Haptics.selectionAsync();
+                                  }}
+                                >
+                                  <Text style={styles.dropdownText}>{tag}</Text>
+                                </Pressable>
+                              ))}
+                            </View>
+                          )}
                         </View>
                       )}
+                      {(showPrnOptionalDetails || !isPrn) && (
+                        <TextInput
+                          style={[styles.input, { marginTop: 6 }]}
+                          placeholder="Optional notes"
+                          placeholderTextColor={C.textTertiary}
+                          value={dose.optionalNotes}
+                          onChangeText={(t) => setFormDosesArray((prev) => prev.map((d, i) => (i === idx ? { ...d, optionalNotes: t } : d)))}
+                        />
+                      )}
                     </View>
+                  ))}
+                  {!isPrn && (
+                    <Pressable style={styles.addDoseBtn} onPress={() => setFormDosesArray((prev) => [...prev, { id: Crypto.randomUUID(), amount: "", unit: "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }])} accessibilityRole="button" accessibilityLabel="Add dose">
+                      <Ionicons name="add" size={18} color={C.tint} />
+                      <Text style={styles.addDoseBtnText}>+ Add Dose</Text>
+                    </Pressable>
                   )}
-                  <TextInput
-                    style={[styles.input, { marginTop: 6 }]}
-                    placeholder="Optional notes"
-                    placeholderTextColor={C.textTertiary}
-                    value={dose.optionalNotes}
-                    onChangeText={(t) => setFormDosesArray((prev) => prev.map((d, i) => (i === idx ? { ...d, optionalNotes: t } : d)))}
-                  />
-                </View>
-              ))}
-              <Pressable style={styles.addDoseBtn} onPress={() => setFormDosesArray((prev) => [...prev, { id: Crypto.randomUUID(), amount: "", unit: "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }])} accessibilityRole="button" accessibilityLabel="Add dose">
-                <Ionicons name="add" size={18} color={C.tint} />
-                <Text style={styles.addDoseBtnText}>+ Add Dose</Text>
-              </Pressable>
 
-              <Text style={styles.label}>Route</Text>
-              <TextInput style={styles.input} placeholder="e.g. tablet, injection, inhaler" placeholderTextColor={C.textTertiary} value={formRoute} onChangeText={setFormRoute} />
+                  {!isPrn && (
+                    <>
+                      <Text style={styles.label}>Route</Text>
+                      <TextInput style={styles.input} placeholder="e.g. tablet, injection, inhaler" placeholderTextColor={C.textTertiary} value={formRoute} onChangeText={setFormRoute} />
 
-              <Text style={styles.label}>Pharmacy</Text>
-              <Pressable style={styles.input} onPress={() => setShowMedicationPharmacyPicker((v) => !v)}>
-                <Text style={[styles.pickerPlaceholder, (formPharmacyId || formLegacyPharmacyName) && { color: C.text }]}>
-                  {pharmacies.find((p) => p.id === formPharmacyId)?.name
-                    || formLegacyPharmacyName
-                    || (pharmacies.length === 0 ? "No pharmacies found. Add pharmacies in Account." : "Select pharmacy")}
-                </Text>
-                <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />
-              </Pressable>
-              {showMedicationPharmacyPicker && pharmacies.length > 0 && (
-                <View style={styles.dropdown}>
-                  <ScrollView style={styles.dropdownScroll} nestedScrollEnabled showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
-                    {pharmacies.map((pharmacy) => (
-                      <Pressable
-                        key={pharmacy.id}
-                        style={[styles.dropdownRow, formPharmacyId === pharmacy.id && styles.dropdownRowSelected]}
-                        onPress={() => {
-                          setFormPharmacyId(pharmacy.id);
-                          setFormLegacyPharmacyName(pharmacy.name);
-                          setShowMedicationPharmacyPicker(false);
-                          Haptics.selectionAsync();
-                        }}
-                      >
-                        <Text style={styles.dropdownText}>{pharmacy.name}</Text>
-                        {pharmacy.hospital ? <Text style={styles.dropdownSub}>{pharmacy.hospital}</Text> : null}
+                      <Text style={styles.label}>Pharmacy</Text>
+                      <Pressable style={styles.input} onPress={() => setShowMedicationPharmacyPicker((v) => !v)}>
+                        <Text style={[styles.pickerPlaceholder, (formPharmacyId || formLegacyPharmacyName) && { color: C.text }]}>
+                          {pharmacies.find((p) => p.id === formPharmacyId)?.name
+                            || formLegacyPharmacyName
+                            || (pharmacies.length === 0 ? "No pharmacies found. Add pharmacies in Account." : "Select pharmacy")}
+                        </Text>
+                        <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />
                       </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
+                      {showMedicationPharmacyPicker && pharmacies.length > 0 && (
+                        <View style={styles.dropdown}>
+                          <ScrollView style={styles.dropdownScroll} nestedScrollEnabled showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
+                            {pharmacies.map((pharmacy) => (
+                              <Pressable
+                                key={pharmacy.id}
+                                style={[styles.dropdownRow, formPharmacyId === pharmacy.id && styles.dropdownRowSelected]}
+                                onPress={() => {
+                                  setFormPharmacyId(pharmacy.id);
+                                  setFormLegacyPharmacyName(pharmacy.name);
+                                  setShowMedicationPharmacyPicker(false);
+                                  Haptics.selectionAsync();
+                                }}
+                              >
+                                <Text style={styles.dropdownText}>{pharmacy.name}</Text>
+                                {pharmacy.hospital ? <Text style={styles.dropdownSub}>{pharmacy.hospital}</Text> : null}
+                              </Pressable>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
+                    </>
+                  )}
+                </>
               )}
               {formMedicationType !== "prn" && (
                 <>
@@ -1985,105 +3028,113 @@ export default function MedicationsScreen() {
                 </>
               )}
 
-              <Text style={[styles.label, { marginTop: 12 }]}>Refill reminder (optional)</Text>
-              <Text style={[styles.label, { fontSize: 11, color: C.textTertiary, marginBottom: 6 }]}>Tell Synapse what you have right now, how much comes in each refill, and how much you use each time.</Text>
-              <Text style={[styles.label, { fontSize: 12 }]}>What are you tracking?</Text>
-              <Pressable style={styles.input} onPress={() => setShowRefillUnitPicker((v) => !v)}>
-                <Text style={[styles.pickerPlaceholder, { color: C.text }]}>{formRefillUnit}</Text>
-                <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />
-              </Pressable>
-              {showRefillUnitPicker && (
-                <View style={styles.dropdown}>
-                  <ScrollView style={styles.dropdownScroll} nestedScrollEnabled showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
-                    {REFILL_UNITS.map((unit) => (
-                      <Pressable
-                        key={unit}
-                        style={[styles.dropdownRow, formRefillUnit === unit && styles.dropdownRowSelected]}
-                        onPress={() => {
-                          setFormRefillUnit(unit);
-                          setShowRefillUnitPicker(false);
-                          Haptics.selectionAsync();
-                        }}
-                      >
-                        <Text style={styles.dropdownText}>{unit}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
+              {!isPrn && (
+                <>
+                  <Text style={[styles.label, { marginTop: 12 }]}>Refill reminder (optional)</Text>
+                  <Text style={[styles.label, { fontSize: 11, color: C.textTertiary, marginBottom: 6 }]}>Tell Synapse what you have right now, how much comes in each refill, and how much you use each time.</Text>
+                  <Text style={[styles.label, { fontSize: 12 }]}>What are you tracking?</Text>
+                  <Pressable style={styles.input} onPress={() => setShowRefillUnitPicker((v) => !v)}>
+                    <Text style={[styles.pickerPlaceholder, { color: C.text }]}>{formRefillUnit}</Text>
+                    <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />
+                  </Pressable>
+                  {showRefillUnitPicker && (
+                    <View style={styles.dropdown}>
+                      <ScrollView style={styles.dropdownScroll} nestedScrollEnabled showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
+                        {REFILL_UNITS.map((unit) => (
+                          <Pressable
+                            key={unit}
+                            style={[styles.dropdownRow, formRefillUnit === unit && styles.dropdownRowSelected]}
+                            onPress={() => {
+                              setFormRefillUnit(unit);
+                              setShowRefillUnitPicker(false);
+                              Haptics.selectionAsync();
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>{unit}</Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                  <View style={{ flexDirection: "row", gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.label, { fontSize: 12 }]}>How many do you have right now?</Text>
+                      <TextInput style={styles.input} placeholder={formRefillUnit === "mL" ? "e.g. 1.5" : "e.g. 30"} placeholderTextColor={C.textTertiary} value={formCurrentSupplyAmount} onChangeText={setFormCurrentSupplyAmount} keyboardType="decimal-pad" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.label, { fontSize: 12 }]}>How many refills are left?</Text>
+                      <TextInput style={styles.input} placeholder="e.g. 4" placeholderTextColor={C.textTertiary} value={formRefillsRemaining} onChangeText={setFormRefillsRemaining} keyboardType="number-pad" />
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.label, { fontSize: 12 }]}>How much comes in each refill?</Text>
+                      <TextInput style={styles.input} placeholder={formRefillUnit === "mL" ? "e.g. 1.5" : "e.g. 30"} placeholderTextColor={C.textTertiary} value={formAmountPerRefill} onChangeText={setFormAmountPerRefill} keyboardType="decimal-pad" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.label, { fontSize: 12 }]}>How much do you use each time?</Text>
+                      <TextInput style={styles.input} placeholder={formRefillUnit === "mL" ? "e.g. 0.22" : "e.g. 2"} placeholderTextColor={C.textTertiary} value={formSupplyPerDose} onChangeText={setFormSupplyPerDose} keyboardType="decimal-pad" />
+                    </View>
+                  </View>
+                  {formRefillUnit === "mL" && (
+                    <View>
+                      <Text style={[styles.label, { fontSize: 12 }]}>Concentration in mg/mL (optional)</Text>
+                      <TextInput style={styles.input} placeholder="e.g. 6.7" placeholderTextColor={C.textTertiary} value={formConcentrationMgPerMl} onChangeText={setFormConcentrationMgPerMl} keyboardType="decimal-pad" />
+                      <Text style={[styles.label, { fontSize: 11, color: C.textTertiary, marginTop: -6, marginBottom: 8 }]}>If your dose is entered in mg, Synapse can convert it to mL automatically.</Text>
+                    </View>
+                  )}
+                  <Text style={[styles.label, { fontSize: 12 }]}>Warn me when only this much is left</Text>
+                  <TextInput style={styles.input} placeholder={formRefillUnit === "mL" ? "e.g. 0.5" : "e.g. 5"} placeholderTextColor={C.textTertiary} value={formLowSupplyThreshold} onChangeText={setFormLowSupplyThreshold} keyboardType="decimal-pad" />
+
+                  <View style={styles.stressDoseSection}>
+                    <Text style={[styles.label, { fontSize: 13, fontWeight: "600" as const, marginBottom: 10 }]}>Sick Day / Stress Dose</Text>
+                    <Pressable
+                      style={styles.stressDoseToggle}
+                      onPress={() => { setFormHasStressDose(!formHasStressDose); Haptics.selectionAsync(); }}
+                      accessibilityRole="switch"
+                      accessibilityState={{ checked: formHasStressDose }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.stressDoseToggleText}>Do you take a different dose of this medication when you are sick?</Text>
+                      </View>
+                      <View style={[styles.toggleTrack, formHasStressDose && styles.toggleTrackActive]}>
+                        <View style={[styles.toggleThumb, formHasStressDose && styles.toggleThumbActive]} />
+                      </View>
+                    </Pressable>
+
+                    {formHasStressDose && (
+                      <View style={{ marginTop: 12 }}>
+                        <Text style={styles.label}>Stress dose amount</Text>
+                        <TextInput style={styles.input} placeholder="e.g. 15 mg" placeholderTextColor={C.textTertiary} value={formStressDoseAmount} onChangeText={setFormStressDoseAmount} />
+
+                        <Text style={styles.label}>How often?</Text>
+                        <TextInput style={styles.input} placeholder="e.g. every 6 hours" placeholderTextColor={C.textTertiary} value={formStressDoseFrequency} onChangeText={setFormStressDoseFrequency} />
+
+                        <Text style={styles.label}>For how many days? (optional)</Text>
+                        <TextInput style={styles.input} placeholder="e.g. 3" placeholderTextColor={C.textTertiary} value={formStressDoseDurationDays} onChangeText={setFormStressDoseDurationDays} keyboardType="number-pad" />
+
+                        <Text style={styles.label}>Special instructions (optional)</Text>
+                        <TextInput style={[styles.input, { minHeight: 60, textAlignVertical: "top" }]} placeholder="e.g. take with food, call doctor if vomiting" placeholderTextColor={C.textTertiary} value={formStressDoseInstructions} onChangeText={setFormStressDoseInstructions} multiline />
+                      </View>
+                    )}
+                  </View>
+                </>
+              )}
+
+              {!isNewPrnFlow && (
+                <View style={styles.modalActions}>
+                  <Pressable style={styles.cancelBtn} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); setShowReminderTimePickerIndex(null); setShowRefillUnitPicker(false); setShowMedicationPharmacyPicker(false); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+                  <Pressable
+                    style={[styles.confirmBtn, !canSaveMedication && { opacity: 0.5 }]}
+                    onPress={handleSave}
+                    disabled={!canSaveMedication}
+                  >
+                    <Text style={styles.confirmText}>{editingMed ? "Save" : "Add"}</Text>
+                  </Pressable>
                 </View>
               )}
-              <View style={{ flexDirection: "row", gap: 12 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.label, { fontSize: 12 }]}>How many do you have right now?</Text>
-                  <TextInput style={styles.input} placeholder={formRefillUnit === "mL" ? "e.g. 1.5" : "e.g. 30"} placeholderTextColor={C.textTertiary} value={formCurrentSupplyAmount} onChangeText={setFormCurrentSupplyAmount} keyboardType="decimal-pad" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.label, { fontSize: 12 }]}>How many refills are left?</Text>
-                  <TextInput style={styles.input} placeholder="e.g. 4" placeholderTextColor={C.textTertiary} value={formRefillsRemaining} onChangeText={setFormRefillsRemaining} keyboardType="number-pad" />
-                </View>
-              </View>
-              <View style={{ flexDirection: "row", gap: 12 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.label, { fontSize: 12 }]}>How much comes in each refill?</Text>
-                  <TextInput style={styles.input} placeholder={formRefillUnit === "mL" ? "e.g. 1.5" : "e.g. 30"} placeholderTextColor={C.textTertiary} value={formAmountPerRefill} onChangeText={setFormAmountPerRefill} keyboardType="decimal-pad" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.label, { fontSize: 12 }]}>How much do you use each time?</Text>
-                  <TextInput style={styles.input} placeholder={formRefillUnit === "mL" ? "e.g. 0.22" : "e.g. 2"} placeholderTextColor={C.textTertiary} value={formSupplyPerDose} onChangeText={setFormSupplyPerDose} keyboardType="decimal-pad" />
-                </View>
-              </View>
-              {formRefillUnit === "mL" && (
-                <View>
-                  <Text style={[styles.label, { fontSize: 12 }]}>Concentration in mg/mL (optional)</Text>
-                  <TextInput style={styles.input} placeholder="e.g. 6.7" placeholderTextColor={C.textTertiary} value={formConcentrationMgPerMl} onChangeText={setFormConcentrationMgPerMl} keyboardType="decimal-pad" />
-                  <Text style={[styles.label, { fontSize: 11, color: C.textTertiary, marginTop: -6, marginBottom: 8 }]}>If your dose is entered in mg, Synapse can convert it to mL automatically.</Text>
-                </View>
+                </>
               )}
-              <Text style={[styles.label, { fontSize: 12 }]}>Warn me when only this much is left</Text>
-              <TextInput style={styles.input} placeholder={formRefillUnit === "mL" ? "e.g. 0.5" : "e.g. 5"} placeholderTextColor={C.textTertiary} value={formLowSupplyThreshold} onChangeText={setFormLowSupplyThreshold} keyboardType="decimal-pad" />
-
-              <View style={styles.stressDoseSection}>
-                <Text style={[styles.label, { fontSize: 13, fontWeight: "600" as const, marginBottom: 10 }]}>Sick Day / Stress Dose</Text>
-                <Pressable
-                  style={styles.stressDoseToggle}
-                  onPress={() => { setFormHasStressDose(!formHasStressDose); Haptics.selectionAsync(); }}
-                  accessibilityRole="switch"
-                  accessibilityState={{ checked: formHasStressDose }}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.stressDoseToggleText}>Do you take a different dose of this medication when you are sick?</Text>
-                  </View>
-                  <View style={[styles.toggleTrack, formHasStressDose && styles.toggleTrackActive]}>
-                    <View style={[styles.toggleThumb, formHasStressDose && styles.toggleThumbActive]} />
-                  </View>
-                </Pressable>
-
-                {formHasStressDose && (
-                  <View style={{ marginTop: 12 }}>
-                    <Text style={styles.label}>Stress dose amount</Text>
-                    <TextInput style={styles.input} placeholder="e.g. 15 mg" placeholderTextColor={C.textTertiary} value={formStressDoseAmount} onChangeText={setFormStressDoseAmount} />
-
-                    <Text style={styles.label}>How often?</Text>
-                    <TextInput style={styles.input} placeholder="e.g. every 6 hours" placeholderTextColor={C.textTertiary} value={formStressDoseFrequency} onChangeText={setFormStressDoseFrequency} />
-
-                    <Text style={styles.label}>For how many days? (optional)</Text>
-                    <TextInput style={styles.input} placeholder="e.g. 3" placeholderTextColor={C.textTertiary} value={formStressDoseDurationDays} onChangeText={setFormStressDoseDurationDays} keyboardType="number-pad" />
-
-                    <Text style={styles.label}>Special instructions (optional)</Text>
-                    <TextInput style={[styles.input, { minHeight: 60, textAlignVertical: "top" }]} placeholder="e.g. take with food, call doctor if vomiting" placeholderTextColor={C.textTertiary} value={formStressDoseInstructions} onChangeText={setFormStressDoseInstructions} multiline />
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.modalActions}>
-                <Pressable style={styles.cancelBtn} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); setShowReminderTimePickerIndex(null); setShowRefillUnitPicker(false); setShowMedicationPharmacyPicker(false); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
-                <Pressable
-                  style={[styles.confirmBtn, !canSaveMedication && { opacity: 0.5 }]}
-                  onPress={handleSave}
-                  disabled={!canSaveMedication}
-                >
-                  <Text style={styles.confirmText}>{editingMed ? "Save" : "Add"}</Text>
-                </Pressable>
-              </View>
             </ScrollView>
           </View>
         </View>
@@ -2117,11 +3168,20 @@ export default function MedicationsScreen() {
 
       <Modal visible={showPrnLogModal} transparent animationType="fade">
         <View style={styles.overlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowPrnLogModal(false)} accessibilityLabel="Close PRN log" />
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              setShowPrnLogModal(false);
+              setPrnLogMed(null);
+              setPrnLogId(null);
+            }}
+            accessibilityLabel="Close as needed medication details"
+          />
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Log Dose</Text>
-            <Text style={styles.prnModalSubtitle}>{prnLogMed?.name ?? "As needed medication"}</Text>
-            <Text style={styles.label}>Reason (optional)</Text>
+            <Text style={styles.modalTitle}>Add Details</Text>
+            <Text style={styles.prnModalSubtitle}>{prnLogMed?.name ?? "As Needed medication"}</Text>
+            <Text style={styles.prnFlowHelper}>The dose is already logged. Add a quick reason or note only if it helps later.</Text>
+            <Text style={styles.label}>Why are you taking this? (optional)</Text>
             <View style={styles.prnReasonWrap}>
               {PRN_REASON_OPTIONS.map((option) => {
                 const active = prnReason === option;
@@ -2154,12 +3214,13 @@ export default function MedicationsScreen() {
                 onPress={() => {
                   setShowPrnLogModal(false);
                   setPrnLogMed(null);
+                  setPrnLogId(null);
                 }}
               >
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>Skip</Text>
               </Pressable>
               <Pressable style={styles.confirmBtn} onPress={handleConfirmPrnLog}>
-                <Text style={styles.confirmText}>Log</Text>
+                <Text style={styles.confirmText}>Save details</Text>
               </Pressable>
             </View>
           </View>
@@ -2187,10 +3248,13 @@ export default function MedicationsScreen() {
   );
 }
 
-function makeStyles(C: Theme, S: SickModePalette) {
+function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
+  const size = (base: number) => Math.round(base * textScale * 100) / 100;
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
+  simpleScreen: { backgroundColor: "transparent" },
+  simpleContent: { paddingTop: 8, gap: 18 },
   headerSticky: { paddingHorizontal: 24 },
   sickBanner: { marginBottom: 16, borderRadius: 12, padding: 12, borderWidth: 1 },
   sickBannerInner: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -2198,6 +3262,214 @@ function makeStyles(C: Theme, S: SickModePalette) {
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
+  simpleTitle: { fontSize: size(34), lineHeight: size(38), letterSpacing: -0.9 },
+  simpleSubtitle: { fontSize: size(18), lineHeight: size(24) },
+  simpleSection: { gap: 12 },
+  simpleSectionLabel: {
+    fontWeight: "700",
+    fontSize: size(18),
+    color: C.textSecondary,
+    marginLeft: 6,
+  },
+  simpleSummaryCard: {
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: C.surfaceElevated,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  simpleSummaryText: {
+    fontWeight: "600",
+    fontSize: size(16),
+    lineHeight: size(22),
+    color: C.text,
+  },
+  simpleMedicationCard: {
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 16,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
+    gap: 12,
+  },
+  simpleMedicationCardPressed: {
+    opacity: 0.97,
+    transform: [{ scale: 0.995 }],
+  },
+  simpleMedicationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  simpleMedicationEmoji: { fontSize: 34 },
+  simpleMedicationTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  simpleMedicationName: {
+    fontWeight: "800",
+    fontSize: size(20),
+    lineHeight: size(25),
+    color: C.text,
+    letterSpacing: -0.4,
+  },
+  simpleMedicationDose: {
+    fontWeight: "500",
+    fontSize: size(16),
+    lineHeight: size(22),
+    color: C.textSecondary,
+  },
+  simpleMedicationDivider: {
+    height: 1,
+    backgroundColor: C.borderLight,
+  },
+  simpleMedicationStatus: {
+    fontWeight: "600",
+    fontSize: size(16),
+    lineHeight: size(22),
+    color: C.text,
+  },
+  simpleMedicationMoreButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.surfaceElevated,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  simpleMedicationMoreButtonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.97 }],
+  },
+  simpleMedicationPrimaryButton: {
+    minHeight: 54,
+    borderRadius: 18,
+    backgroundColor: C.tint,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    shadowColor: C.tint,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  simpleMedicationPrimaryButtonDone: {
+    backgroundColor: C.surfaceElevated,
+    borderWidth: 1,
+    borderColor: C.border,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  simpleMedicationPrimaryButtonDisabled: {
+    opacity: 1,
+  },
+  simpleMedicationPrimaryButtonPressed: {
+    opacity: 0.94,
+    transform: [{ scale: 0.99 }],
+  },
+  simpleMedicationPrimaryButtonText: {
+    fontWeight: "800",
+    fontSize: size(18),
+    color: "#fff",
+    letterSpacing: -0.2,
+  },
+  simpleMedicationPrimaryButtonTextDone: {
+    color: C.text,
+  },
+  simpleEmptyCard: {
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 24,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+    gap: 8,
+    alignItems: "center",
+  },
+  simpleEmptyTitle: {
+    fontWeight: "800",
+    fontSize: size(22),
+    color: C.text,
+    textAlign: "center",
+  },
+  simpleEmptyBody: {
+    fontWeight: "500",
+    fontSize: size(16),
+    lineHeight: size(22),
+    color: C.textSecondary,
+    textAlign: "center",
+  },
+  simpleEmptyActionButton: {
+    minHeight: 52,
+    minWidth: 160,
+    paddingHorizontal: 22,
+    borderRadius: 16,
+    backgroundColor: C.tint,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+  },
+  simpleEmptyActionText: {
+    fontWeight: "800",
+    fontSize: size(17),
+    color: "#fff",
+    letterSpacing: -0.2,
+  },
+  simpleEmptyInlineCard: {
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: C.surfaceElevated,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  simpleEmptyInlineText: {
+    fontWeight: "500",
+    fontSize: size(16),
+    lineHeight: size(22),
+    color: C.textSecondary,
+  },
+  simpleTypeChoiceStack: {
+    gap: 12,
+  },
+  simpleTypeChoiceCard: {
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: C.surfaceElevated,
+    borderWidth: 1,
+    borderColor: C.border,
+    gap: 4,
+  },
+  simpleTypeChoiceCardActive: {
+    backgroundColor: C.tintLight,
+    borderColor: C.tint,
+  },
+  simpleTypeChoiceTitle: {
+    fontWeight: "800",
+    fontSize: 18,
+    color: C.text,
+  },
+  simpleTypeChoiceTitleActive: {
+    color: C.tint,
+  },
+  simpleTypeChoiceBody: {
+    fontWeight: "500",
+    fontSize: 14,
+    lineHeight: 20,
+    color: C.textSecondary,
+  },
   addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
   progressBar: { height: 3, borderRadius: 999, backgroundColor: C.green + "1F", marginBottom: 24, overflow: "hidden" },
   progressFill: { height: 3, borderRadius: 999, backgroundColor: C.green },
@@ -2284,6 +3556,51 @@ function makeStyles(C: Theme, S: SickModePalette) {
   medFreq: { fontWeight: "400", fontSize: 11, color: C.textSecondary, opacity: 0.72 },
   medMetaInline: { marginTop: 0, marginLeft: 0 },
   actionRow: { flexDirection: "row", gap: 8, marginLeft: 26, marginTop: 6 },
+  prnInlineStatus: {
+    marginLeft: 26,
+    marginBottom: 4,
+    gap: 2,
+  },
+  prnSummary: {
+    fontWeight: "700",
+    fontSize: 13,
+    color: C.text,
+  },
+  prnSummaryMeta: {
+    fontWeight: "500",
+    fontSize: 12,
+    color: C.textSecondary,
+    opacity: 0.82,
+  },
+  prnLogBtn: {
+    flex: 1,
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: C.tint,
+    borderWidth: 1,
+    borderColor: C.tint,
+    shadowColor: C.tint,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  prnLogBtnPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.985 }],
+  },
+  prnLogBtnText: {
+    fontWeight: "700",
+    fontSize: 15,
+    color: "#fff",
+    letterSpacing: 0.1,
+  },
   yesBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: C.green },
   yesBtnText: { fontWeight: "600", fontSize: 13, color: "#fff" },
   notYetBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "12" },
@@ -2314,6 +3631,55 @@ function makeStyles(C: Theme, S: SickModePalette) {
     fontWeight: "500",
     opacity: 0.8,
   },
+  toastWrap: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+  },
+  toastCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: C.text,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  toastTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  toastTitle: {
+    fontWeight: "700",
+    fontSize: 14,
+    color: "#fff",
+  },
+  toastBody: {
+    fontWeight: "500",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.82)",
+  },
+  toastAction: {
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.14)",
+  },
+  toastActionPressed: {
+    opacity: 0.9,
+  },
+  toastActionText: {
+    fontWeight: "700",
+    fontSize: 13,
+    color: "#fff",
+  },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
   bottomSheetOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   bottomSheet: { backgroundColor: C.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 32 },
@@ -2326,6 +3692,24 @@ function makeStyles(C: Theme, S: SickModePalette) {
   emojiGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 16 },
   emojiOpt: { width: 40, height: 40, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.textTertiary + "1A" },
   emojiOptActive: { borderColor: C.tint, backgroundColor: C.tintLight },
+  prnSummaryCard: {
+    backgroundColor: C.surfaceElevated,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.textTertiary + "14",
+    padding: 14,
+  },
+  prnSummaryName: {
+    fontWeight: "700",
+    fontSize: 16,
+    color: C.text,
+    marginBottom: 4,
+  },
+  prnSummaryDose: {
+    fontWeight: "500",
+    fontSize: 13,
+    color: C.textSecondary,
+  },
   doseCountRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
   doseCountBtn: { minWidth: 44, paddingHorizontal: 14, alignItems: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "1A" },
   doseCountActive: { backgroundColor: C.tintLight, borderColor: C.tint },

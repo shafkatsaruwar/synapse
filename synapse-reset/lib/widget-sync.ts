@@ -75,13 +75,13 @@ function buildMedicationWindow(sortedDoses: MedicationDose[], index: number, due
 
 function getNextMedicationSnapshot(medications: Medication[], logs: { medicationId: string; doseIndex?: number; taken: boolean }[]) {
   const now = new Date();
-  let pendingWinner: null | {
+  const pendingCandidates: Array<{
     dueAt: Date;
     windowStart: Date;
     med: Medication;
     dose: MedicationDose;
     doseIndex: number;
-  } = null;
+  }> = [];
   let takenWinner: null | {
     dueAt: Date;
     windowStart: Date;
@@ -108,9 +108,7 @@ function getNextMedicationSnapshot(medications: Medication[], logs: { medication
         const dueAt = new Date(now);
         dueAt.setHours(safeHour, safeMinute, 0, 0);
         const windowStart = buildMedicationWindow(doses, index, dueAt);
-        if (!pendingWinner || dueAt < pendingWinner.dueAt) {
-          pendingWinner = { dueAt, windowStart, med, dose, doseIndex: index };
-        }
+        pendingCandidates.push({ dueAt, windowStart, med, dose, doseIndex: index });
       } else {
         const dueAt = tomorrowAt(safeHour, safeMinute);
         const windowStart = buildMedicationWindow(doses, index, dueAt);
@@ -120,6 +118,13 @@ function getNextMedicationSnapshot(medications: Medication[], logs: { medication
       }
     }
   }
+
+  const pendingWinner =
+    pendingCandidates
+      .filter((candidate) => candidate.dueAt.getTime() <= now.getTime())
+      .sort((a, b) => b.dueAt.getTime() - a.dueAt.getTime())[0] ??
+    pendingCandidates.sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())[0] ??
+    null;
 
   if (pendingWinner) {
     return {

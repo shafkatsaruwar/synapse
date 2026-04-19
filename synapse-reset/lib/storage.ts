@@ -401,6 +401,7 @@ export interface UserSettings {
   lastName?: string;
   conditions: string[];
   appMode?: AppMode;
+  textSize?: "normal" | "large" | "extra_large";
   ramadanMode: boolean;
   sickMode: boolean;
   highContrast?: boolean;
@@ -543,13 +544,15 @@ export const medicationStorage = {
   },
   save: async (med: Omit<Medication, "id">) => {
     const meds = await getItem<Medication>(KEYS.MEDICATIONS);
-    meds.push({
+    const savedMedication: Medication = {
       ...med,
       medicationType: med.medicationType ?? "scheduled",
       id: Crypto.randomUUID(),
       entryOwner: med.entryOwner ?? "self",
-    });
+    };
+    meds.push(savedMedication);
     await setItem(KEYS.MEDICATIONS, meds);
+    return savedMedication;
   },
   update: async (id: string, updates: Partial<Medication>) => {
     const meds = await getItem<Medication>(KEYS.MEDICATIONS);
@@ -617,6 +620,23 @@ export const medicationLogStorage = {
     logs.push(nextLog);
     await setItem(KEYS.MEDICATION_LOGS, logs);
     return nextLog;
+  },
+  update: async (id: string, updates: Partial<Pick<MedicationLog, "notes" | "reason" | "recordedAt">>) => {
+    const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+    const index = logs.findIndex((log) => log.id === id);
+    if (index === -1) return null;
+    logs[index] = {
+      ...logs[index],
+      notes: updates.notes?.trim() || undefined,
+      reason: updates.reason?.trim() || undefined,
+      recordedAt: updates.recordedAt ?? logs[index].recordedAt,
+    };
+    await setItem(KEYS.MEDICATION_LOGS, logs);
+    return logs[index];
+  },
+  deleteByMedicationId: async (medicationId: string) => {
+    const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+    await setItem(KEYS.MEDICATION_LOGS, logs.filter((log) => log.medicationId !== medicationId));
   },
 };
 

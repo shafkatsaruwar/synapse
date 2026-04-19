@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import { useModeAwareScreen } from "@/contexts/AppModeContext";
 import { symptomStorage, settingsStorage, sickModeStorage, enableRecoveryTracking, type Symptom } from "@/lib/storage";
 import { formatTimestamp, getToday, getRelativeDay, getDaysAgo } from "@/lib/date-utils";
 
@@ -31,6 +32,23 @@ const QUICK_TRIGGERS = [
   "Custom",
 ] as const;
 
+const SIMPLE_SYMPTOM_OPTIONS = [
+  "Dizziness",
+  "Pain",
+  "Fatigue",
+  "Fever",
+  "Heart",
+  "Nausea",
+  "Breathing",
+  "Other",
+] as const;
+
+const SIMPLE_TRIGGER_OPTIONS = [
+  "Resting",
+  "Activity",
+  "After medication",
+] as const;
+
 interface SymptomsScreenProps {
   onActivateSickMode?: () => void;
 }
@@ -38,6 +56,7 @@ interface SymptomsScreenProps {
 export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const modeUI = useModeAwareScreen("symptoms");
   const colorScheme = useColorScheme();
   const { colors: themeColors, themeId } = useTheme();
   const isDarkUi = themeId === "dark" || (themeId !== "light" && colorScheme === "dark");
@@ -70,6 +89,13 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
   const [notes, setNotes] = useState("");
   const [feverTemp, setFeverTemp] = useState("");
   const [showFeverAlert, setShowFeverAlert] = useState(false);
+  const [showSimpleModal, setShowSimpleModal] = useState(false);
+  const [simpleStep, setSimpleStep] = useState<1 | 2 | 3>(1);
+  const [simpleSeverity, setSimpleSeverity] = useState<3 | 7 | 9>(3);
+  const [simpleTrigger, setSimpleTrigger] = useState("");
+  const [simpleNotes, setSimpleNotes] = useState("");
+  const [simpleDetailSymptom, setSimpleDetailSymptom] = useState<Symptom | null>(null);
+  const [toastMessage, setToastMessage] = useState("");
 
   const isFeverSelected = selectedSymptom === "Fever";
 
@@ -130,6 +156,7 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
 
   const sevColor = (sev: number) => sev >= 8 ? C.red : sev >= 5 ? C.orange : sev >= 2 ? C.yellow : C.green;
   const sevLabel = (sev: number) => sev >= 8 ? "Severe" : sev >= 5 ? "Moderate" : sev >= 2 ? "Mild" : "Minimal";
+  const simpleSevLabel = (sev: number) => sev >= 9 ? "Severe" : sev >= 7 ? "Moderate" : "Mild";
 
   const todaySymptoms = symptoms.filter((s) => s.date === today);
   const recentSymptoms = symptoms.filter((s) => s.date !== today && s.date >= getDaysAgo(7));
@@ -137,6 +164,337 @@ export default function SymptomsScreen({ onActivateSickMode }: SymptomsScreenPro
   const frequencyMap: Record<string, number> = {};
   symptoms.filter(s => s.date >= getDaysAgo(30)).forEach(s => { frequencyMap[s.name] = (frequencyMap[s.name] || 0) + 1; });
   const topFrequent = Object.entries(frequencyMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+    setTimeout(() => {
+      setToastMessage((current) => (current === message ? "" : current));
+    }, 1800);
+  }, []);
+
+  const resetSimpleFlow = useCallback(() => {
+    setShowSimpleModal(false);
+    setSimpleStep(1);
+    setSelectedSymptom("");
+    setCustomSymptom("");
+    setSimpleSeverity(3);
+    setSimpleTrigger("");
+    setSimpleNotes("");
+    setFeverTemp("");
+  }, []);
+
+  const openSimpleLogFlow = useCallback(() => {
+    resetSimpleFlow();
+    setShowSimpleModal(true);
+  }, [resetSimpleFlow]);
+
+  const handleSimpleSeveritySelect = useCallback((value: 3 | 7 | 9) => {
+    setSimpleSeverity(value);
+    void Haptics.selectionAsync().catch(() => {});
+    setSimpleStep(3);
+  }, []);
+
+  const handleSimpleSave = useCallback(async () => {
+    const name = selectedSymptom === "Other" ? customSymptom.trim() : selectedSymptom.trim();
+    if (!name) return;
+    const temp = selectedSymptom === "Fever" && feverTemp.trim() ? parseFloat(feverTemp) : undefined;
+    await symptomStorage.save({
+      date: today,
+      recordedAt: new Date().toISOString(),
+      name,
+      severity: simpleSeverity,
+      notes: simpleNotes.trim(),
+      temperature: temp,
+      trigger: simpleTrigger || undefined,
+    });
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+
+    if (selectedSymptom === "Fever" && temp && temp >= 100) {
+      const settings = await settingsStorage.get();
+      if (!settings.sickMode) {
+        setShowFeverAlert(true);
+      }
+    }
+
+    await loadData();
+    resetSimpleFlow();
+    showToast("Saved");
+  }, [customSymptom, feverTemp, loadData, resetSimpleFlow, selectedSymptom, showToast, simpleNotes, simpleSeverity, simpleTrigger, today]);
+
+  const handleSimpleDelete = useCallback((symptom: Symptom) => {
+    Alert.alert("Delete symptom?", `${symptom.name} will be removed.`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          await symptomStorage.delete(symptom.id);
+          setSimpleDetailSymptom(null);
+          await loadData();
+        },
+      },
+    ]);
+  }, [loadData]);
+
+  if (modeUI.isSimpleMode) {
+    return (
+      <View style={styles.container}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.content, styles.simpleContent, {
+            paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 18),
+            paddingBottom: isWide ? 56 : (Platform.OS === "web" ? 148 : insets.bottom + 140),
+          }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.simpleHeader}>
+            <Text style={styles.simpleTitle}>Symptoms</Text>
+            <Text style={styles.simpleSubtitle}>
+              {todaySymptoms.length === 1 ? "1 today" : `${todaySymptoms.length} today`}
+            </Text>
+          </View>
+
+          {todaySymptoms.length === 0 ? (
+            <View style={styles.simpleEmptyCard}>
+              <View style={styles.simpleEmptyIcon}>
+                <Ionicons name="pulse-outline" size={34} color={C.textTertiary} />
+              </View>
+              <Text style={styles.simpleEmptyTitle}>No symptoms today</Text>
+              <Text style={styles.simpleEmptyBody}>Tap below to log how you&apos;re feeling</Text>
+              <Pressable style={styles.simplePrimaryButton} onPress={openSimpleLogFlow}>
+                <Text style={styles.simplePrimaryButtonText}>Log symptom</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.simpleSection}>
+              {todaySymptoms.map((symptom) => (
+                <Pressable
+                  key={symptom.id}
+                  style={({ pressed }) => [styles.simpleSymptomCard, pressed && styles.simpleSymptomCardPressed]}
+                  onPress={() => setSimpleDetailSymptom(symptom)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open symptom details for ${symptom.name}`}
+                >
+                  <Text style={styles.simpleSymptomName}>{symptom.name}</Text>
+                  <Text style={styles.simpleSymptomSeverity}>
+                    {simpleSevLabel(symptom.severity)} • {symptom.severity}/10
+                  </Text>
+                  <Text style={styles.simpleSymptomTime}>
+                    {symptom.date === today ? "Today" : getRelativeDay(symptom.date)} • {formatTimestamp(symptom.recordedAt)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+
+        <View style={[styles.simpleFooterAction, { bottom: Platform.OS === "web" ? 20 : insets.bottom + 16 }]}>
+          <Pressable style={styles.simpleFooterButton} onPress={openSimpleLogFlow}>
+            <Text style={styles.simpleFooterButtonText}>Log symptom</Text>
+          </Pressable>
+        </View>
+
+        <Modal visible={showSimpleModal} transparent animationType="fade">
+          <View style={styles.overlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={resetSimpleFlow} accessibilityLabel="Close symptom flow" />
+            <View style={styles.simpleModal}>
+              <Text style={styles.simpleModalTitle}>Log symptom</Text>
+              <View style={styles.simpleStepDots}>
+                {[1, 2, 3].map((step) => (
+                  <View key={step} style={[styles.simpleStepDot, simpleStep === step && styles.simpleStepDotActive]} />
+                ))}
+              </View>
+
+              {simpleStep === 1 ? (
+                <View>
+                  <Text style={styles.simpleStepTitle}>Pick a symptom</Text>
+                  <View style={styles.simpleChoiceGrid}>
+                    {SIMPLE_SYMPTOM_OPTIONS.map((option) => (
+                      <Pressable
+                        key={option}
+                        style={[styles.simpleChoiceButton, selectedSymptom === option && styles.simpleChoiceButtonActive]}
+                        onPress={() => {
+                          setSelectedSymptom(option);
+                          if (option !== "Other") {
+                            setCustomSymptom("");
+                            void Haptics.selectionAsync().catch(() => {});
+                            setSimpleStep(2);
+                          }
+                        }}
+                      >
+                        <Text style={[styles.simpleChoiceButtonText, selectedSymptom === option && styles.simpleChoiceButtonTextActive]}>{option}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <TextInput
+                    style={styles.simpleInput}
+                    placeholder="Type your symptom"
+                    placeholderTextColor={C.textTertiary}
+                    value={customSymptom}
+                    onChangeText={(text) => {
+                      setCustomSymptom(text);
+                      if (text.trim()) setSelectedSymptom("Other");
+                    }}
+                  />
+                  {selectedSymptom === "Other" && customSymptom.trim() ? (
+                    <Pressable style={styles.simplePrimaryButton} onPress={() => setSimpleStep(2)}>
+                      <Text style={styles.simplePrimaryButtonText}>Continue</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : simpleStep === 2 ? (
+                <View>
+                  <Text style={styles.simpleStepTitle}>How strong is it?</Text>
+                  <View style={styles.simpleSeverityStack}>
+                    {[
+                      { value: 3 as const, label: "Mild 🙂" },
+                      { value: 7 as const, label: "Moderate 😐" },
+                      { value: 9 as const, label: "Severe 😟" },
+                    ].map((option) => (
+                      <Pressable
+                        key={option.value}
+                        style={styles.simpleSeverityButton}
+                        onPress={() => handleSimpleSeveritySelect(option.value)}
+                      >
+                        <Text style={styles.simpleSeverityButtonText}>{option.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              ) : (
+                <View>
+                  <Text style={styles.simpleStepTitle}>Add details</Text>
+                  <Text style={styles.simpleOptionalLabel}>Trigger (optional)</Text>
+                  <View style={styles.simpleTriggerStack}>
+                    {SIMPLE_TRIGGER_OPTIONS.map((option) => (
+                      <Pressable
+                        key={option}
+                        style={[styles.simpleTriggerButton, simpleTrigger === option && styles.simpleTriggerButtonActive]}
+                        onPress={() => setSimpleTrigger(simpleTrigger === option ? "" : option)}
+                      >
+                        <Text style={[styles.simpleTriggerButtonText, simpleTrigger === option && styles.simpleTriggerButtonTextActive]}>{option}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  {selectedSymptom === "Fever" ? (
+                    <TextInput
+                      style={styles.simpleInput}
+                      placeholder="Temperature (optional)"
+                      placeholderTextColor={C.textTertiary}
+                      value={feverTemp}
+                      onChangeText={setFeverTemp}
+                      keyboardType="decimal-pad"
+                    />
+                  ) : null}
+                  <TextInput
+                    style={[styles.simpleInput, styles.simpleNotesInput]}
+                    placeholder="Notes (optional)"
+                    placeholderTextColor={C.textTertiary}
+                    value={simpleNotes}
+                    onChangeText={setSimpleNotes}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                </View>
+              )}
+
+              <View style={styles.simpleModalActions}>
+                <Pressable
+                  style={[styles.simpleSecondaryButton, styles.simpleActionFlex]}
+                  onPress={() => {
+                    if (simpleStep === 1) {
+                      resetSimpleFlow();
+                    } else {
+                      setSimpleStep((prev) => (prev - 1) as 1 | 2 | 3);
+                    }
+                  }}
+                >
+                  <Text style={styles.simpleSecondaryButtonText}>{simpleStep === 1 ? "Cancel" : "Back"}</Text>
+                </Pressable>
+                {simpleStep === 3 ? (
+                  <Pressable
+                    style={[
+                      styles.simplePrimaryButton,
+                      styles.simpleActionFlex,
+                      !(selectedSymptom || customSymptom.trim()) && { opacity: 0.5 },
+                    ]}
+                    onPress={handleSimpleSave}
+                    disabled={!(selectedSymptom || customSymptom.trim())}
+                  >
+                    <Text style={styles.simplePrimaryButtonText}>Save symptom</Text>
+                  </Pressable>
+                ) : (
+                  <View style={styles.simpleModalSpacer} />
+                )}
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal visible={!!simpleDetailSymptom} transparent animationType="fade">
+          <View style={styles.overlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setSimpleDetailSymptom(null)} accessibilityLabel="Close symptom details" />
+            <View style={styles.simpleModal}>
+              {simpleDetailSymptom ? (
+                <>
+                  <Text style={styles.simpleModalTitle}>{simpleDetailSymptom.name}</Text>
+                  <View style={styles.simpleDetailCard}>
+                    <Text style={styles.simpleSymptomSeverity}>
+                      {simpleSevLabel(simpleDetailSymptom.severity)} • {simpleDetailSymptom.severity}/10
+                    </Text>
+                    <Text style={styles.simpleSymptomTime}>{formatTimestamp(simpleDetailSymptom.recordedAt)}</Text>
+                    {simpleDetailSymptom.trigger ? (
+                      <Text style={styles.simpleDetailMeta}>
+                        Trigger: {simpleDetailSymptom.trigger === "Custom" ? simpleDetailSymptom.customTrigger : simpleDetailSymptom.trigger}
+                      </Text>
+                    ) : null}
+                    {simpleDetailSymptom.notes ? (
+                      <Text style={styles.simpleDetailMeta}>{simpleDetailSymptom.notes}</Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.simpleDetailActions}>
+                    <Pressable style={[styles.simpleSecondaryButton, styles.simpleActionFlex]} onPress={() => setSimpleDetailSymptom(null)}>
+                      <Text style={styles.simpleSecondaryButtonText}>Done</Text>
+                    </Pressable>
+                    <Pressable style={[styles.simpleDeleteButton, styles.simpleActionFlex]} onPress={() => handleSimpleDelete(simpleDetailSymptom)}>
+                      <Text style={styles.simpleDeleteButtonText}>Delete</Text>
+                    </Pressable>
+                  </View>
+                </>
+              ) : null}
+            </View>
+          </View>
+        </Modal>
+
+        {toastMessage ? (
+          <View style={[styles.simpleToastWrap, { bottom: Platform.OS === "web" ? 96 : insets.bottom + 92 }]}>
+            <View style={styles.simpleToastCard}>
+              <Text style={styles.simpleToastText}>{toastMessage}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        <Modal visible={showFeverAlert} transparent animationType="fade">
+          <View style={styles.overlay}>
+            <View style={styles.feverAlertCard}>
+              <View style={styles.feverAlertIcon}>
+                <Ionicons name="warning" size={28} color={C.red} />
+              </View>
+              <Text style={styles.feverAlertTitle}>Stress dose recommended</Text>
+              <Text style={styles.feverAlertDesc}>A temperature of 100°F or higher was recorded. Activating Sick Mode will triple your Hydrocortisone dose and start the recovery protocol.</Text>
+              <Pressable style={styles.feverAlertBtn} onPress={handleActivateSickMode} accessibilityRole="button" accessibilityLabel="Activate Sick Mode" accessibilityHint="Triples Hydrocortisone dose and starts recovery protocol">
+                <Ionicons name="shield" size={18} color="#fff" />
+                <Text style={styles.feverAlertBtnText}>Activate Sick Mode</Text>
+              </Pressable>
+              <Pressable style={styles.feverAlertDismiss} onPress={() => setShowFeverAlert(false)} accessibilityRole="button" accessibilityLabel="Dismiss fever alert">
+                <Text style={styles.feverAlertDismissText}>Not now</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -347,6 +705,60 @@ function makeStyles(C: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 24 },
+    simpleContent: { gap: 16 },
+    simpleHeader: { gap: 4, marginBottom: 4 },
+    simpleTitle: { fontWeight: "800", fontSize: 32, color: C.text, letterSpacing: -0.8 },
+    simpleSubtitle: { fontWeight: "500", fontSize: 18, color: C.textSecondary },
+    simpleSection: { gap: 10 },
+    simpleSymptomCard: { backgroundColor: C.surface, borderRadius: 22, padding: 18, borderWidth: 1, borderColor: C.border, gap: 6 },
+    simpleSymptomCardPressed: { opacity: 0.96, transform: [{ scale: 0.995 }] },
+    simpleSymptomName: { fontWeight: "800", fontSize: 22, color: C.text, letterSpacing: -0.4 },
+    simpleSymptomSeverity: { fontWeight: "600", fontSize: 17, color: C.textSecondary },
+    simpleSymptomTime: { fontWeight: "500", fontSize: 15, color: C.textTertiary },
+    simpleEmptyCard: { alignItems: "center", gap: 10, backgroundColor: C.surface, borderRadius: 24, paddingHorizontal: 22, paddingVertical: 28, borderWidth: 1, borderColor: C.border },
+    simpleEmptyIcon: { width: 72, height: 72, borderRadius: 24, backgroundColor: C.surfaceElevated, alignItems: "center", justifyContent: "center" },
+    simpleEmptyTitle: { fontWeight: "800", fontSize: 22, color: C.text, textAlign: "center" },
+    simpleEmptyBody: { fontWeight: "500", fontSize: 16, color: C.textSecondary, textAlign: "center", lineHeight: 22 },
+    simplePrimaryButton: { minHeight: 56, borderRadius: 18, backgroundColor: C.orange, alignItems: "center", justifyContent: "center", paddingHorizontal: 22 },
+    simplePrimaryButtonText: { fontWeight: "800", fontSize: 18, color: "#fff" },
+    simpleSecondaryButton: { minHeight: 56, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", paddingHorizontal: 22 },
+    simpleSecondaryButtonText: { fontWeight: "700", fontSize: 17, color: C.text },
+    simpleDeleteButton: { minHeight: 56, borderRadius: 18, backgroundColor: C.redLight, borderWidth: 1, borderColor: C.red, alignItems: "center", justifyContent: "center", paddingHorizontal: 22 },
+    simpleDeleteButtonText: { fontWeight: "800", fontSize: 17, color: C.red },
+    simpleActionFlex: { flex: 1 },
+    simpleFooterAction: { position: "absolute", left: 16, right: 16 },
+    simpleFooterButton: { minHeight: 60, borderRadius: 20, backgroundColor: C.orange, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.14, shadowRadius: 16, elevation: 5 },
+    simpleFooterButtonText: { fontWeight: "800", fontSize: 20, color: "#fff" },
+    simpleModal: { backgroundColor: C.surface, borderRadius: 24, padding: 24, width: "100%", maxWidth: 420, borderWidth: 1, borderColor: C.border, maxHeight: "88%" },
+    simpleModalTitle: { fontWeight: "800", fontSize: 24, color: C.text, marginBottom: 14, letterSpacing: -0.4 },
+    simpleStepDots: { flexDirection: "row", gap: 8, marginBottom: 18 },
+    simpleStepDot: { width: 10, height: 10, borderRadius: 999, backgroundColor: C.border },
+    simpleStepDotActive: { width: 24, backgroundColor: C.orange },
+    simpleStepTitle: { fontWeight: "800", fontSize: 22, color: C.text, marginBottom: 14, letterSpacing: -0.4 },
+    simpleChoiceGrid: { gap: 10, marginBottom: 14 },
+    simpleChoiceButton: { minHeight: 56, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, justifyContent: "center", paddingHorizontal: 18 },
+    simpleChoiceButtonActive: { backgroundColor: C.orangeLight, borderColor: C.orange },
+    simpleChoiceButtonText: { fontWeight: "700", fontSize: 18, color: C.text },
+    simpleChoiceButtonTextActive: { color: C.orange },
+    simpleInput: { fontWeight: "500", fontSize: 17, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
+    simpleSeverityStack: { gap: 10 },
+    simpleSeverityButton: { minHeight: 58, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },
+    simpleSeverityButtonText: { fontWeight: "700", fontSize: 18, color: C.text },
+    simpleOptionalLabel: { fontWeight: "600", fontSize: 14, color: C.textSecondary, marginBottom: 8 },
+    simpleTriggerStack: { gap: 10, marginBottom: 14 },
+    simpleTriggerButton: { minHeight: 52, borderRadius: 16, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, justifyContent: "center", paddingHorizontal: 16 },
+    simpleTriggerButtonActive: { backgroundColor: C.orangeLight, borderColor: C.orange },
+    simpleTriggerButtonText: { fontWeight: "700", fontSize: 16, color: C.textSecondary },
+    simpleTriggerButtonTextActive: { color: C.orange },
+    simpleNotesInput: { minHeight: 92 },
+    simpleModalActions: { flexDirection: "row", gap: 10, marginTop: 4 },
+    simpleModalSpacer: { flex: 1 },
+    simpleDetailCard: { backgroundColor: C.surfaceElevated, borderRadius: 18, padding: 18, gap: 8, marginBottom: 16, borderWidth: 1, borderColor: C.border },
+    simpleDetailMeta: { fontWeight: "500", fontSize: 15, color: C.textSecondary, lineHeight: 21 },
+    simpleDetailActions: { flexDirection: "row", gap: 10 },
+    simpleToastWrap: { position: "absolute", left: 16, right: 16 },
+    simpleToastCard: { backgroundColor: C.text, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, alignItems: "center" },
+    simpleToastText: { fontWeight: "700", fontSize: 15, color: "#fff" },
     header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
     title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
     subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
