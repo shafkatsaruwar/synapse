@@ -1,45 +1,65 @@
-Synapse
-📌 Overview
-Synapse is a health management app built with Expo and React Native. It is designed to help users track medications, appointments, symptoms, recovery, and personal health details in one place.
+# 🧠 Synapse
 
-This repo contains the active mobile app, supporting backend and web infrastructure, and an archived legacy Expo app kept only for reference.
+> A cross-platform health management app built with Expo and React Native.
 
-With Synapse, you can:
+Synapse is designed to help users manage medications, appointments, symptoms, recovery progress, and personal health information in one place through a clean, accessible, and widget-focused experience.
 
-Track medications, including repeat schedules and PRN meds
-Log symptoms, recovery progress, and daily health activity
-Manage appointments, doctor notes, and health records
-Use iPhone home screen widgets for quick health info
-Run the app on iOS, Android, and web through Expo
-The current source of truth for product work is the synapse-reset app.
+Built with a strong focus on usability and real-world healthcare workflows, Synapse combines mobile accessibility, automation, and modern cross-platform development into a single ecosystem.
 
-⚙️ Features
-Medication Management
+---
 
-Scheduled and PRN medications
-Dose logging and reminder flows
-Repeat rules, refill-related data, and pharmacy info
-Health Tracking
+## 📱 App Availability
 
-Symptoms, daily logs, and recovery tracking
-Health profile and emergency-related information
-Exact timestamps for important entries
-Appointments
+### iOS
+https://apps.apple.com/us/app/synapse-health-companion/id6759972036
 
-Appointment scheduling and status tracking
-Doctor notes and visit prep
-Better picker and calendar flows
-Widgets and Native iOS Support
+### Android
+Android support is currently in development and coming soon.
 
-iPhone home screen widgets
-Native iOS project files committed for build stability
-EAS build and CocoaPods setup already wired in
-Cross-Platform App
+---
 
-Expo Router based app structure
-iOS, Android, and web support
-Local config with production-safe fallbacks
-📁 Project Structure
+# ✨ Features
+
+## 💊 Medication Management
+- Scheduled and PRN medication support
+- Dose logging and medication reminders
+- Repeat schedules and refill tracking
+- Pharmacy and prescription-related information
+
+---
+
+## 🩺 Health Tracking
+- Symptom and recovery logging
+- Daily health activity tracking
+- Health profile and emergency information
+- Timestamped health entries
+
+---
+
+## 📅 Appointments
+- Appointment scheduling and tracking
+- Doctor notes and visit preparation
+- Improved picker and calendar flows
+
+---
+
+## 📲 Widgets & Native iOS Support
+- iPhone home screen widgets
+- Native iOS project support for build stability
+- EAS Build and CocoaPods integration already configured
+
+---
+
+## 🌐 Cross-Platform Support
+- Built using Expo Router
+- Supports iOS, Android, and Web
+- Production-safe local configuration fallbacks
+
+---
+
+# 🏗️ Project Structure
+
+```bash
 Synapse/
 ├── README.md                   # GitHub project overview
 ├── package.json                # Root scripts and shared tooling
@@ -58,53 +78,125 @@ Synapse/
 │   ├── android/                # Native Android project
 │   ├── app.config.js           # Expo app configuration
 │   └── package.json            # App-specific scripts and deps
-└── legacy/root-expo-app/       # Archived legacy app, not for active work
-🚀 Getting Started
-Prerequisites
-Node.js and npm
-Xcode for iOS development
-Android Studio for Android development
-Expo CLI tooling through npx expo
-Installation
-Clone this repository
-Install dependencies at the repo root:
+└── legacy/root-expo-app/       # Archived legacy app
+```
+
+---
+
+# 🚀 Getting Started
+
+## Prerequisites
+
+Before running the project, make sure you have:
+
+- Node.js
+- npm
+- Xcode (for iOS development)
+- Android Studio (for Android development)
+- Expo CLI tooling through `npx expo`
+
+---
+
+## Installation
+
+Clone the repository:
+
+```bash
+git clone YOUR_REPO_URL
+```
+
+Install dependencies at the repository root:
+
+```bash
 npm install
+```
+
 Install dependencies for the active app if needed:
+
+```bash
 cd synapse-reset
 npm install
-Usage
-Run the active app from the repository root:
+```
 
+---
+
+# ▶️ Running the App
+
+From the repository root:
+
+```bash
 npm start
-Or launch specific platforms:
+```
 
+Run specific platforms:
+
+```bash
 npm run ios
 npm run android
 npm run web
-If you want to work directly inside the active app:
+```
 
+Or work directly inside the active app:
+
+```bash
 cd synapse-reset
 npm run start
-🧪 Development Notes
-The active app lives in synapse-reset/. That is the folder you should treat as the real app.
-The legacy/root-expo-app/ directory is archived. Don’t build new product work there.
-Root-level scripts still help with shared tooling, web export, and infrastructure.
-App config loads environment values from synapse-reset/.env first, then falls back to the repo root .env.
-🛠️ Tech Stack
-Expo 54
-React Native 0.81
-React 19
-Expo Router
-Supabase
-TypeScript
-EAS Build
-🌱 Current State
-Active mobile app version target in config: 1.11
-Primary app package: synapse-reset
-Archived legacy app kept for reference only
-Native iOS and Android folders are present for platform-specific work
-🔮 Future Improvements
-Tighten repo docs so setup is even more obvious for new contributors
-Add screenshots or product GIFs to show the app properly
-Document environment variables and release flow in one place
-Add a contributor guide for app structure and feature ownership
+```
+
+---
+
+# 🧪 Development Notes
+
+- The active application lives inside `synapse-reset/`
+- `legacy/root-expo-app/` is archived and no longer used for active development
+- Root-level scripts help manage shared tooling and infrastructure
+- Environment values load from `synapse-reset/.env` first, then fall back to the root `.env`
+
+---
+
+# 🛠️ Tech Stack
+
+- Expo SDK 54
+- React Native 0.81
+- React 19
+- Expo Router
+- Supabase
+- TypeScript
+- EAS Build
+
+---
+
+# 🌱 Current State
+
+- Active app version target: `1.11`
+- Main product package: `synapse-reset`
+- Native iOS and Android folders included
+- Android version currently under active development
+- Legacy Expo app archived for reference only
+
+---
+
+# 🔮 Future Improvements
+
+- Improve contributor onboarding documentation
+- Add screenshots and product GIFs
+- Document environment variables and deployment flow
+- Add contributor and architecture guides
+- Expand Android-specific functionality
+- Continue improving accessibility and health workflow features
+
+---
+
+# 👨‍💻 About the Project
+
+Synapse started as a personal project focused on simplifying healthcare management and improving accessibility through technology.
+
+The app continues to evolve around one core idea:
+
+> Health information should feel accessible, organized, and human.
+
+---
+
+# 📬 Contact
+
+- GitHub: https://github.com/shafkatsaruwar
