@@ -90,6 +90,8 @@ private struct SynapseWidgetSnapshot: Codable {
     let energy: Int?
     let mood: Int?
     let sleep: Int?
+    let overallFeeling: Int?
+    let detailHighlights: [String]
     let summaryText: String
     let secondaryText: String
     let symptomCountToday: Int
@@ -126,6 +128,8 @@ private struct SynapseWidgetSnapshot: Codable {
       energy: nil,
       mood: nil,
       sleep: nil,
+      overallFeeling: nil,
+      detailHighlights: [],
       summaryText: "Check in today",
       secondaryText: "Log energy, mood, and sleep",
       symptomCountToday: 0,
@@ -278,6 +282,30 @@ private func wellnessAccent(_ value: Int?, palette: SynapseWidgetPalette) -> Col
   return palette.red
 }
 
+private func overallWellnessLabel(_ value: Int?) -> String {
+  guard let value else { return "Ready for today" }
+  if value >= 8 { return "Strong day" }
+  if value >= 6 { return "Doing okay" }
+  if value >= 4 { return "Take it easy" }
+  return "Needs support"
+}
+
+private struct WellnessDetailChip: View {
+  let text: String
+  let palette: SynapseWidgetPalette
+
+  var body: some View {
+    Text(text)
+      .font(.system(size: 12, weight: .semibold))
+      .foregroundStyle(palette.ink)
+      .lineLimit(1)
+      .padding(.vertical, 8)
+      .padding(.horizontal, 10)
+      .background(palette.track)
+      .clipShape(Capsule())
+  }
+}
+
 private struct WellnessMetricPill: View {
   let label: String
   let shortLabel: String
@@ -314,48 +342,106 @@ private struct WellnessWidgetView: View {
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
     let wellness = entry.snapshot.wellness
+    let compact = family == .systemSmall
     WidgetCard(palette: palette) {
-      VStack(alignment: .leading, spacing: family == .systemSmall ? 10 : 12) {
+      VStack(alignment: .leading, spacing: compact ? 8 : 10) {
         Text("Daily Check-In")
-          .font(smallTitleFont())
+          .font(.system(size: compact ? 12 : 13, weight: .semibold))
           .foregroundStyle(palette.muted)
+          .lineLimit(1)
 
         Text(wellness.summaryText)
-          .font(mainFont(compact: family == .systemSmall))
+          .font(.system(size: compact ? 18 : 19, weight: .bold))
           .foregroundStyle(palette.ink)
-          .lineLimit(2)
+          .lineLimit(1)
+          .minimumScaleFactor(0.9)
 
         if wellness.hasTodayLog {
-          HStack(spacing: family == .systemSmall ? 6 : 8) {
-            WellnessMetricPill(label: "Energy", shortLabel: "EN", value: wellness.energy, palette: palette, compact: family == .systemSmall)
-            WellnessMetricPill(label: "Mood", shortLabel: "MO", value: wellness.mood, palette: palette, compact: family == .systemSmall)
-            WellnessMetricPill(label: "Sleep", shortLabel: "SL", value: wellness.sleep, palette: palette, compact: family == .systemSmall)
+          if compact {
+            VStack(alignment: .leading, spacing: 6) {
+              Text("Overall today")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(palette.muted)
+              HStack(alignment: .lastTextBaseline, spacing: 4) {
+                Text(wellness.overallFeeling.map { "\($0)/10" } ?? "--")
+                  .font(.system(size: 26, weight: .bold))
+                  .foregroundStyle(wellnessAccent(wellness.overallFeeling, palette: palette))
+                  .lineLimit(1)
+                  .minimumScaleFactor(0.85)
+                Text(overallWellnessLabel(wellness.overallFeeling))
+                  .font(.system(size: 11, weight: .semibold))
+                  .foregroundStyle(palette.muted)
+                  .lineLimit(1)
+                  .minimumScaleFactor(0.8)
+              }
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(palette.track)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+          } else {
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(alignment: .lastTextBaseline, spacing: 8) {
+                Text(wellness.overallFeeling.map { "\($0)/10" } ?? "--")
+                  .font(.system(size: 32, weight: .bold))
+                  .foregroundStyle(wellnessAccent(wellness.overallFeeling, palette: palette))
+                  .lineLimit(1)
+                  .minimumScaleFactor(0.85)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text("Overall today")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(palette.muted)
+                  Text(overallWellnessLabel(wellness.overallFeeling))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(palette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                }
+              }
+
+              if !wellness.detailHighlights.isEmpty {
+                HStack(spacing: 6) {
+                  ForEach(Array(wellness.detailHighlights.prefix(3).enumerated()), id: \.offset) { _, item in
+                    WellnessDetailChip(text: item, palette: palette)
+                  }
+                }
+              }
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(palette.track)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
           }
         }
 
         Text(wellness.secondaryText)
-          .font(secondaryFont(compact: family == .systemSmall))
+          .font(.system(size: compact ? 11 : 13, weight: .regular))
           .foregroundStyle(palette.muted)
-          .lineLimit(family == .systemSmall ? 2 : 1)
+          .lineLimit(1)
+          .minimumScaleFactor(0.85)
 
-        HStack(spacing: 8) {
-          if wellness.symptomCountToday > 0 {
-            Label(
-              wellness.symptomCountToday == 1 ? "1 symptom" : "\(wellness.symptomCountToday) symptoms",
-              systemImage: "waveform.path.ecg"
-            )
-            .font(metaFont())
-            .foregroundStyle(palette.red)
-          }
+        if wellness.symptomCountToday > 0 || wellness.isFastingToday {
+          HStack(spacing: 8) {
+            if wellness.symptomCountToday > 0 {
+              Label(
+                wellness.symptomCountToday == 1 ? "1 symptom" : "\(wellness.symptomCountToday) symptoms",
+                systemImage: "waveform.path.ecg"
+              )
+              .font(.system(size: 11, weight: .regular))
+              .foregroundStyle(palette.red)
+              .lineLimit(1)
+            }
 
-          if wellness.isFastingToday {
-            Label("Fasting", systemImage: "moon.stars.fill")
-              .font(metaFont())
-              .foregroundStyle(palette.blue)
+            if wellness.isFastingToday {
+              Label("Fasting", systemImage: "moon.stars.fill")
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(palette.blue)
+                .lineLimit(1)
+            }
           }
         }
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
   }
 }
@@ -444,52 +530,61 @@ private struct PrnMedicationBlock: View {
   let palette: SynapseWidgetPalette
 
   var body: some View {
-    VStack(alignment: .leading, spacing: compact ? 10 : 12) {
+    VStack(alignment: .leading, spacing: compact ? 8 : 10) {
       if showHeader {
-        Text("As Needed Medication")
+        Text(compact ? "As Needed" : "As Needed Medication")
           .font(smallTitleFont())
           .foregroundStyle(palette.muted)
+          .lineLimit(1)
+          .minimumScaleFactor(0.85)
       }
 
       if let prnMedication {
-        Link(destination: SynapseWidgetDestination.url(for: "medications")) {
-          VStack(alignment: .leading, spacing: compact ? 6 : 8) {
-            Text(prnMedication.name)
-              .font(mainFont(compact: compact))
-              .foregroundStyle(palette.ink)
-              .lineLimit(2)
-              .minimumScaleFactor(0.8)
-            Text(prnMedication.detail)
-              .font(secondaryFont(compact: compact))
-              .foregroundStyle(palette.muted)
-              .lineLimit(1)
-            Text(prnMedication.statusText)
-              .font(secondaryFont(compact: compact).weight(.semibold))
-              .foregroundStyle(palette.green)
-              .lineLimit(1)
-            Text(prnMedication.countText)
-              .font(metaFont())
-              .foregroundStyle(palette.muted)
-              .lineLimit(1)
+        VStack(alignment: .leading, spacing: compact ? 8 : 10) {
+          Link(destination: SynapseWidgetDestination.url(for: "medications")) {
+            VStack(alignment: .leading, spacing: compact ? 4 : 6) {
+              Text(prnMedication.name)
+                .font(mainFont(compact: compact))
+                .foregroundStyle(palette.ink)
+                .lineLimit(2)
+                .minimumScaleFactor(0.82)
+              Text(prnMedication.detail)
+                .font(secondaryFont(compact: compact))
+                .foregroundStyle(palette.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+              Text(prnMedication.statusText)
+                .font(secondaryFont(compact: compact).weight(.semibold))
+                .foregroundStyle(palette.green)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+              Text(prnMedication.countText)
+                .font(.system(size: compact ? 11 : 12, weight: .regular))
+                .foregroundStyle(palette.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
           }
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+          .buttonStyle(.plain)
 
-        Link(destination: SynapseWidgetDestination.prnLogURL(for: prnMedication.id)) {
-          HStack(spacing: 6) {
-            Image(systemName: "plus.circle.fill")
-            Text("Log")
+          Link(destination: SynapseWidgetDestination.prnLogURL(for: prnMedication.id)) {
+            HStack(spacing: compact ? 5 : 6) {
+              Image(systemName: "plus.circle.fill")
+                .font(.system(size: compact ? 15 : 16, weight: .semibold))
+              Text("Log")
+            }
+            .font(.system(size: compact ? 12 : 14, weight: .semibold))
+            .foregroundStyle(Color.white)
+            .frame(maxWidth: compact ? .infinity : 220)
+            .padding(.vertical, compact ? 8 : 10)
+            .background(palette.blue)
+            .clipShape(Capsule())
           }
-          .font(.system(size: compact ? 13 : 14, weight: .semibold))
-          .foregroundStyle(Color.white)
-          .frame(maxWidth: .infinity)
-          .padding(.vertical, compact ? 10 : 12)
-          .background(palette.blue)
-          .clipShape(Capsule())
+          .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       } else {
         Text("No As Needed meds")
           .font(mainFont(compact: compact))
@@ -498,10 +593,8 @@ private struct PrnMedicationBlock: View {
           .font(secondaryFont(compact: compact))
           .foregroundStyle(palette.muted)
       }
-
-      Spacer(minLength: 0)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 

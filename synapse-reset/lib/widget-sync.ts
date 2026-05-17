@@ -46,6 +46,8 @@ type WidgetSnapshot = {
     energy: number | null;
     mood: number | null;
     sleep: number | null;
+    overallFeeling: number | null;
+    detailHighlights: string[];
     summaryText: string;
     secondaryText: string;
     symptomCountToday: number;
@@ -338,6 +340,40 @@ function normalizeLegacyFivePoint(value?: number): number {
   return value <= 5 ? Math.max(0, Math.min(10, value * 2)) : Math.max(0, Math.min(10, value));
 }
 
+function normalizeOverallFeeling(todayLog: HealthLog | undefined) {
+  if (!todayLog) return null;
+  if (typeof todayLog.overallFeeling === "number" && !Number.isNaN(todayLog.overallFeeling)) {
+    return Math.max(0, Math.min(10, todayLog.overallFeeling));
+  }
+  const values = [todayLog.energy, todayLog.mood, todayLog.sleep].filter(
+    (value): value is number => typeof value === "number" && !Number.isNaN(value),
+  );
+  if (!values.length) return null;
+  return Math.round(values.reduce((sum, value) => sum + normalizeLegacyFivePoint(value), 0) / values.length);
+}
+
+function buildWellnessDetailHighlights(todayLog: HealthLog | undefined) {
+  if (!todayLog) return [] as string[];
+
+  const symptomHighlights = [
+    { label: "Shortness of breath", value: todayLog.shortnessOfBreath ?? 0 },
+    { label: "Chest pain", value: todayLog.chestPain ?? 0 },
+    { label: "Dizziness", value: todayLog.dizziness ?? 0 },
+    { label: "Fatigue", value: todayLog.fatigue ?? 0 },
+  ]
+    .filter((item) => item.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .map((item) => `${item.label} ${item.value}`);
+
+  const baselineHighlights = [
+    { label: "Energy", value: normalizeLegacyFivePoint(todayLog.energy) },
+    { label: "Mood", value: normalizeLegacyFivePoint(todayLog.mood) },
+    { label: "Sleep", value: normalizeLegacyFivePoint(todayLog.sleep) },
+  ].map((item) => `${item.label} ${item.value}`);
+
+  return [...symptomHighlights, ...baselineHighlights].slice(0, 3);
+}
+
 function summarizeSymptomCount(count: number) {
   if (count <= 0) return "No symptoms logged today";
   if (count === 1) return "1 symptom logged today";
@@ -355,6 +391,8 @@ function buildWellnessSnapshot(todayLog: HealthLog | undefined, symptoms: Sympto
   const topSymptom = pickTopSymptom(symptoms);
   const symptomCountToday = symptoms.length;
   const isFastingToday = !!todayLog?.fasting;
+  const overallFeeling = normalizeOverallFeeling(todayLog);
+  const detailHighlights = buildWellnessDetailHighlights(todayLog);
 
   if (!todayLog) {
     return {
@@ -362,6 +400,8 @@ function buildWellnessSnapshot(todayLog: HealthLog | undefined, symptoms: Sympto
       energy: null,
       mood: null,
       sleep: null,
+      overallFeeling: null,
+      detailHighlights: [],
       summaryText: "Check in today",
       secondaryText: topSymptom
         ? `Latest symptom: ${topSymptom.name}`
@@ -379,6 +419,8 @@ function buildWellnessSnapshot(todayLog: HealthLog | undefined, symptoms: Sympto
     energy: normalizeLegacyFivePoint(todayLog.energy),
     mood: normalizeLegacyFivePoint(todayLog.mood),
     sleep: normalizeLegacyFivePoint(todayLog.sleep),
+    overallFeeling,
+    detailHighlights,
     summaryText: "Logged today",
     secondaryText: topSymptom
       ? `${summarizeSymptomCount(symptomCountToday)} • ${topSymptom.name}`
