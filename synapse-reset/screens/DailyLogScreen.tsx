@@ -17,6 +17,7 @@ import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { healthLogStorage, settingsStorage, healthProfileStorage, type UserSettings, type HealthProfileInfo, type RecordOwner } from "@/lib/storage";
 import { formatTimestamp, getToday } from "@/lib/date-utils";
+import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import RAMADAN_2026 from "@/constants/ramadan-timetable";
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -352,6 +353,7 @@ export default function DailyLogScreen({ openTodayOnLaunch = false }: DailyLogSc
     setRecordedAt(nextRecordedAt);
     setSaved(true);
     setLoggedDates((prev) => new Set([...prev, `${selectedDate}:${logEntryOwner}`]));
+    await syncWidgetSnapshot().catch(() => {});
   };
 
   const closeModal = () => {

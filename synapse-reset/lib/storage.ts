@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
+import { getToday } from "@/lib/date-utils";
 
 export interface HealthLog {
   id: string;
@@ -249,6 +250,8 @@ export interface Appointment {
   repeat_end_date?: string | null;
   parent_recurring_id?: string | null;
   status?: AppointmentStatus;
+  monthlyReviewOccurred?: boolean;
+  monthlyReviewOccurredAt?: string;
   entryOwner?: RecordOwner;
 }
 
@@ -256,6 +259,12 @@ export interface DoctorNote {
   id: string;
   text: string;
   appointmentId?: string;
+  doctorId?: string;
+  doctorName?: string;
+  appointmentDate?: string;
+  appointmentTime?: string;
+  talkedAbout?: boolean;
+  talkedAboutAt?: string;
   createdAt: string;
 }
 
@@ -296,6 +305,9 @@ export interface MonthlyCheckIn {
   heartRate?: string;
   ecgNotes?: string;
   mentalHealthNotes?: string;
+  reviewedAppointmentCount?: number;
+  talkedAboutCount?: number;
+  notTalkedAboutCount?: number;
 }
 
 export type CycleFlow = "light" | "medium" | "heavy";
@@ -607,11 +619,12 @@ export const medicationLogStorage = {
   ) => {
     const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
     const recordedAt = metadata?.timestamp ?? new Date().toISOString();
+    const recordedDate = metadata?.timestamp ? getLocalDateKey(recordedAt) : getToday();
     const nextLog: MedicationLog = {
       id: Crypto.randomUUID(),
       medicationId,
       doseIndex: -1,
-      date: recordedAt.slice(0, 10),
+      date: recordedDate,
       taken: true,
       recordedAt,
       notes: metadata?.notes?.trim() || undefined,
@@ -625,11 +638,13 @@ export const medicationLogStorage = {
     const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
     const index = logs.findIndex((log) => log.id === id);
     if (index === -1) return null;
+    const nextRecordedAt = updates.recordedAt ?? logs[index].recordedAt;
     logs[index] = {
       ...logs[index],
+      date: nextRecordedAt ? getLocalDateKey(nextRecordedAt) : logs[index].date,
       notes: updates.notes?.trim() || undefined,
       reason: updates.reason?.trim() || undefined,
-      recordedAt: updates.recordedAt ?? logs[index].recordedAt,
+      recordedAt: nextRecordedAt,
     };
     await setItem(KEYS.MEDICATION_LOGS, logs);
     return logs[index];
@@ -639,6 +654,14 @@ export const medicationLogStorage = {
     await setItem(KEYS.MEDICATION_LOGS, logs.filter((log) => log.medicationId !== medicationId));
   },
 };
+
+function getLocalDateKey(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value.slice(0, 10);
+  }
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
 
 export const doctorsStorage = {
   getAll: () => getItem<Doctor>(KEYS.DOCTORS),
@@ -831,8 +854,22 @@ export const doctorNoteStorage = {
   getAll: () => getItem<DoctorNote>(KEYS.DOCTOR_NOTES),
   save: async (note: Omit<DoctorNote, "id" | "createdAt">) => {
     const notes = await getItem<DoctorNote>(KEYS.DOCTOR_NOTES);
-    notes.push({ ...note, id: Crypto.randomUUID(), createdAt: new Date().toISOString() });
+    const nextNote = { ...note, id: Crypto.randomUUID(), createdAt: new Date().toISOString() };
+    notes.push(nextNote);
     await setItem(KEYS.DOCTOR_NOTES, notes);
+    return nextNote;
+  },
+  update: async (id: string, updates: Partial<Omit<DoctorNote, "id" | "createdAt">>) => {
+    const notes = await getItem<DoctorNote>(KEYS.DOCTOR_NOTES);
+    const index = notes.findIndex((note) => note.id === id);
+    if (index === -1) return null;
+    notes[index] = {
+      ...notes[index],
+      ...updates,
+      text: updates.text?.trim() || notes[index].text,
+    };
+    await setItem(KEYS.DOCTOR_NOTES, notes);
+    return notes[index];
   },
   delete: async (id: string) => {
     const notes = await getItem<DoctorNote>(KEYS.DOCTOR_NOTES);

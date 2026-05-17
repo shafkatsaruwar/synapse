@@ -854,7 +854,7 @@ export default function SettingsScreen({
             })}
           </View>
           <Text style={[styles.desc, { marginTop: 12 }]}>
-            Simple Mode is being rolled out in phases, so only those key areas are simplified right now.
+            Simple Mode keeps those main areas easier to reach with larger controls and less clutter.
           </Text>
         </View>
 

@@ -7,5 +7,7 @@ struct SynapseWidgetsBundle: WidgetBundle {
     SynapseOverviewWidget()
     SynapseMedicationWidget()
     SynapseAppointmentWidget()
+    SynapseWellnessWidget()
+    SynapsePrnMedicationWidget()
   }
 }

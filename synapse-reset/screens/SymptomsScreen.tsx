@@ -133,6 +133,7 @@ export default function SymptomsScreen({ onActivateSickMode, simpleOpenAddToken 
 
     setSelectedSymptom(""); setCustomSymptom(""); setSeverity(5); setSelectedTrigger("Unknown"); setCustomTrigger(""); setDurationMinutes(""); setNotes(""); setFeverTemp("");
     setShowModal(false);
+    await syncWidgetSnapshot().catch(() => {});
     loadData();
   };
 
@@ -148,10 +149,10 @@ export default function SymptomsScreen({ onActivateSickMode, simpleOpenAddToken 
   };
 
   const handleDelete = async (s: Symptom) => {
-    if (Platform.OS === "web") { await symptomStorage.delete(s.id); loadData(); return; }
+    if (Platform.OS === "web") { await symptomStorage.delete(s.id); await syncWidgetSnapshot().catch(() => {}); loadData(); return; }
     Alert.alert("Remove", `Remove ${s.name}?`, [
       { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: async () => { await symptomStorage.delete(s.id); loadData(); } },
+      { text: "Remove", style: "destructive", onPress: async () => { await symptomStorage.delete(s.id); await syncWidgetSnapshot().catch(() => {}); loadData(); } },
     ]);
   };
 
@@ -223,6 +224,7 @@ export default function SymptomsScreen({ onActivateSickMode, simpleOpenAddToken 
     }
 
     await loadData();
+    await syncWidgetSnapshot().catch(() => {});
     resetSimpleFlow();
     showToast("Saved");
   }, [customSymptom, feverTemp, loadData, resetSimpleFlow, selectedSymptom, showToast, simpleNotes, simpleSeverity, simpleTrigger, today]);
@@ -237,6 +239,7 @@ export default function SymptomsScreen({ onActivateSickMode, simpleOpenAddToken 
           await symptomStorage.delete(symptom.id);
           setSimpleDetailSymptom(null);
           await loadData();
+          await syncWidgetSnapshot().catch(() => {});
         },
       },
     ]);

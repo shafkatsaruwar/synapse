@@ -36,6 +36,8 @@ interface NavItem {
 
 const SIMPLE_NAV_ITEMS: NavItem[] = [
   { key: "dashboard", label: "Home", icon: "home-outline", iconActive: "home" },
+  { key: "medications", label: "Meds", icon: "medical-outline", iconActive: "medical" },
+  { key: "appointments", label: "Visits", icon: "calendar-outline", iconActive: "calendar" },
   { key: "symptoms", label: "Symptoms", icon: "pulse-outline", iconActive: "pulse" },
   { key: "settings", label: "Account", icon: "person-circle-outline", iconActive: "person-circle" },
 ];
@@ -654,22 +656,23 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     mobileNavContent: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-around",
+      justifyContent: "space-between",
       flex: 1,
     },
     mobileNavItem: {
       alignItems: "center",
       justifyContent: "center",
       paddingVertical: 8,
-      paddingHorizontal: 20,
+      paddingHorizontal: 14,
+      flex: 1,
     },
     mobileNavItemSimple: {
-      minWidth: 88,
+      minWidth: 0,
       gap: 4,
     },
     mobileNavLabel: {
       fontWeight: "600",
-      fontSize: 12,
+      fontSize: 11,
       color: "#8E8E93",
       textAlign: "center",
     },

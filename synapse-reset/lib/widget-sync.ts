@@ -1,15 +1,20 @@
 import { NativeModules, Platform } from "react-native";
 import {
   appointmentStorage,
+  healthLogStorage,
   healthProfileStorage,
   medicationLogStorage,
   medicationStorage,
   normalizeMedication,
+  symptomStorage,
   type Appointment,
+  type HealthLog,
   type Medication,
   type MedicationDose,
+  type Symptom,
   type WidgetAppearancePreference,
 } from "@/lib/storage";
+import { getToday } from "@/lib/date-utils";
 
 type WidgetSnapshot = {
   appearance: WidgetAppearancePreference;
@@ -27,6 +32,25 @@ type WidgetSnapshot = {
     detail: string;
     startsAt: string | null;
     whenText: string;
+  };
+  prnMedication: null | {
+    id: string;
+    name: string;
+    detail: string;
+    lastLoggedAt: string | null;
+    statusText: string;
+    countText: string;
+  };
+  wellness: {
+    hasTodayLog: boolean;
+    energy: number | null;
+    mood: number | null;
+    sleep: number | null;
+    summaryText: string;
+    secondaryText: string;
+    symptomCountToday: number;
+    topSymptomName: string | null;
+    isFastingToday: boolean;
   };
   updatedAt: string;
 };
@@ -57,6 +81,27 @@ function doseDetail(dose: MedicationDose) {
   return dose.timeOfDay;
 }
 
+function formatTakenTime(recordedAt?: string) {
+  if (!recordedAt) return "Taken";
+  const parsed = new Date(recordedAt);
+  if (Number.isNaN(parsed.getTime())) return "Taken";
+  return `Taken at ${new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed)}`;
+}
+
+function formatRelativeLogTime(recordedAt?: string) {
+  if (!recordedAt) return "just now";
+  const diffMs = Date.now() - new Date(recordedAt).getTime();
+  const mins = Math.max(1, Math.floor(diffMs / 60000));
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 function tomorrowAt(hour: number, minute: number) {
   const date = new Date();
   date.setDate(date.getDate() + 1);
@@ -73,7 +118,10 @@ function buildMedicationWindow(sortedDoses: MedicationDose[], index: number, due
   return previousDate;
 }
 
-function getNextMedicationSnapshot(medications: Medication[], logs: { medicationId: string; doseIndex?: number; taken: boolean }[]) {
+function getNextMedicationSnapshot(
+  medications: Medication[],
+  logs: { medicationId: string; doseIndex?: number; taken: boolean; recordedAt?: string }[],
+) {
   const now = new Date();
   const pendingCandidates: Array<{
     dueAt: Date;
@@ -81,6 +129,11 @@ function getNextMedicationSnapshot(medications: Medication[], logs: { medication
     med: Medication;
     dose: MedicationDose;
     doseIndex: number;
+  }> = [];
+  const prnTakenCandidates: Array<{
+    med: Medication;
+    detail: string;
+    recordedAt: string;
   }> = [];
   let takenWinner: null | {
     dueAt: Date;
@@ -92,6 +145,22 @@ function getNextMedicationSnapshot(medications: Medication[], logs: { medication
   for (const rawMed of medications) {
     const med = normalizeMedication(rawMed);
     if (!med.active) continue;
+
+    if (med.medicationType === "prn") {
+      const latestPrnLog = logs
+        .filter((log) => log.medicationId === med.id && (log.doseIndex ?? -1) === -1 && log.taken && !!log.recordedAt)
+        .sort((a, b) => (b.recordedAt ?? "").localeCompare(a.recordedAt ?? ""))[0];
+
+      if (latestPrnLog?.recordedAt) {
+        prnTakenCandidates.push({
+          med,
+          detail: doseDetail(med.doses?.[0] ?? { id: `prn-${med.id}`, timeOfDay: "As Needed" }),
+          recordedAt: latestPrnLog.recordedAt,
+        });
+      }
+      continue;
+    }
+
     const doses = (med.doses || [])
       .filter((dose) => !!dose.reminderTime)
       .sort((a, b) => getDoseSortMinutes(a) - getDoseSortMinutes(b));
@@ -150,7 +219,61 @@ function getNextMedicationSnapshot(medications: Medication[], logs: { medication
     };
   }
 
+  const latestPrnWinner = prnTakenCandidates.sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))[0] ?? null;
+  if (latestPrnWinner) {
+    return {
+      name: latestPrnWinner.med.name,
+      detail: latestPrnWinner.detail,
+      dueAt: null,
+      windowStart: null,
+      dueText: formatTakenTime(latestPrnWinner.recordedAt),
+      isTaken: true,
+      nextText: null,
+    };
+  }
+
   return null;
+}
+
+function getPrnMedicationSnapshot(
+  medications: Medication[],
+  logs: { medicationId: string; doseIndex?: number; taken: boolean; recordedAt?: string }[],
+) {
+  const prnMeds = medications
+    .map((med) => normalizeMedication(med))
+    .filter((med) => med.active && med.medicationType === "prn");
+
+  if (!prnMeds.length) return null;
+
+  const primaryPrnMed = prnMeds.reduce((winner, med) => {
+    const winnerLatest = logs
+      .filter((log) => log.medicationId === winner.id && (log.doseIndex ?? -1) === -1 && log.taken && !!log.recordedAt)
+      .sort((a, b) => (b.recordedAt ?? "").localeCompare(a.recordedAt ?? ""))[0]?.recordedAt;
+    const medLatest = logs
+      .filter((log) => log.medicationId === med.id && (log.doseIndex ?? -1) === -1 && log.taken && !!log.recordedAt)
+      .sort((a, b) => (b.recordedAt ?? "").localeCompare(a.recordedAt ?? ""))[0]?.recordedAt;
+
+    if (!winnerLatest && medLatest) return med;
+    if (winnerLatest && medLatest && medLatest > winnerLatest) return med;
+    return winner;
+  });
+
+  const todayLogs = logs
+    .filter((log) => log.medicationId === primaryPrnMed.id && (log.doseIndex ?? -1) === -1 && log.taken)
+    .sort((a, b) => (b.recordedAt ?? "").localeCompare(a.recordedAt ?? ""));
+  const latestLog = todayLogs[0];
+  const logCountToday = todayLogs.length;
+
+  return {
+    id: primaryPrnMed.id,
+    name: primaryPrnMed.name,
+    detail: doseDetail(primaryPrnMed.doses?.[0] ?? { id: `prn-${primaryPrnMed.id}`, timeOfDay: "As Needed" }),
+    lastLoggedAt: latestLog?.recordedAt ?? null,
+    statusText: latestLog?.recordedAt ? `Logged ${formatRelativeLogTime(latestLog.recordedAt)}` : "Not logged yet today",
+    countText: logCountToday > 0
+      ? `Logged ${logCountToday} time${logCountToday === 1 ? "" : "s"} today`
+      : "Tap Log when you take it",
+  };
 }
 
 function parseAppointmentDateTime(appointment: Appointment) {
@@ -193,10 +316,10 @@ function simplifyAppointmentDetail(detail?: string) {
   const raw = detail?.trim();
   if (!raw) return "Visit";
   let normalized = raw
-    .replace(/\bphysician\b/gi, "")
-    .replace(/\bdoctor\b/gi, "")
-    .replace(/\bprovider\b/gi, "")
-    .replace(/\bclinic\b/gi, "")
+    .replace(/physician/gi, "")
+    .replace(/doctor/gi, "")
+    .replace(/provider/gi, "")
+    .replace(/clinic/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -208,6 +331,64 @@ function simplifyAppointmentDetail(detail?: string) {
   }
 
   return normalized;
+}
+
+function normalizeLegacyFivePoint(value?: number): number {
+  if (typeof value !== "number" || Number.isNaN(value)) return 5;
+  return value <= 5 ? Math.max(0, Math.min(10, value * 2)) : Math.max(0, Math.min(10, value));
+}
+
+function summarizeSymptomCount(count: number) {
+  if (count <= 0) return "No symptoms logged today";
+  if (count === 1) return "1 symptom logged today";
+  return `${count} symptoms logged today`;
+}
+
+function pickTopSymptom(symptoms: Symptom[]) {
+  return symptoms.slice().sort((a, b) => {
+    if (b.severity !== a.severity) return b.severity - a.severity;
+    return (b.recordedAt ?? "").localeCompare(a.recordedAt ?? "");
+  })[0] ?? null;
+}
+
+function buildWellnessSnapshot(todayLog: HealthLog | undefined, symptoms: Symptom[]) {
+  const topSymptom = pickTopSymptom(symptoms);
+  const symptomCountToday = symptoms.length;
+  const isFastingToday = !!todayLog?.fasting;
+
+  if (!todayLog) {
+    return {
+      hasTodayLog: false,
+      energy: null,
+      mood: null,
+      sleep: null,
+      summaryText: "Check in today",
+      secondaryText: topSymptom
+        ? `Latest symptom: ${topSymptom.name}`
+        : isFastingToday
+          ? "Fasting today"
+          : "Log energy, mood, and sleep",
+      symptomCountToday,
+      topSymptomName: topSymptom?.name ?? null,
+      isFastingToday,
+    };
+  }
+
+  return {
+    hasTodayLog: true,
+    energy: normalizeLegacyFivePoint(todayLog.energy),
+    mood: normalizeLegacyFivePoint(todayLog.mood),
+    sleep: normalizeLegacyFivePoint(todayLog.sleep),
+    summaryText: "Logged today",
+    secondaryText: topSymptom
+      ? `${summarizeSymptomCount(symptomCountToday)} • ${topSymptom.name}`
+      : isFastingToday
+        ? "Fasting today"
+        : "No symptoms logged today",
+    symptomCountToday,
+    topSymptomName: topSymptom?.name ?? null,
+    isFastingToday,
+  };
 }
 
 function getNextAppointmentSnapshot(appointments: Appointment[]) {
@@ -235,17 +416,22 @@ function getNextAppointmentSnapshot(appointments: Appointment[]) {
 export async function syncWidgetSnapshot() {
   if (Platform.OS !== "ios" || !APP_WIDGET_BRIDGE?.saveSnapshot) return;
 
-  const [medications, appointments, profile] = await Promise.all([
+  const today = getToday();
+  const [medications, appointments, profile, todayLog, todaySymptoms] = await Promise.all([
     medicationStorage.getAll(),
     appointmentStorage.getAll(),
     healthProfileStorage.get(),
+    healthLogStorage.getByDate(today),
+    symptomStorage.getByDate(today),
   ]);
-  const logs = await medicationLogStorage.getByDate(new Date().toISOString().slice(0, 10));
+  const logs = await medicationLogStorage.getByDate(today);
 
   const snapshot: WidgetSnapshot = {
     appearance: profile.widgetAppearance ?? "system",
     medication: getNextMedicationSnapshot(medications, logs),
     appointment: getNextAppointmentSnapshot(appointments),
+    prnMedication: getPrnMedicationSnapshot(medications, logs),
+    wellness: buildWellnessSnapshot(todayLog, todaySymptoms),
     updatedAt: new Date().toISOString(),
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { View, StyleSheet, Alert, Platform, AppState, Linking, Modal, Pressable, Text } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import Constants from "expo-constants";
@@ -37,7 +37,7 @@ import EmergencyProtocolScreen from "@/screens/EmergencyProtocolScreen";
 import EmergencyCardScreen from "@/screens/EmergencyCardScreen";
 import MeetFounderScreen from "@/screens/MeetFounderScreen";
 import FeedbackScreen from "@/screens/FeedbackScreen";
-import { settingsStorage } from "@/lib/storage";
+import { medicationLogStorage, medicationStorage, normalizeMedication, settingsStorage } from "@/lib/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   requestPermission,
@@ -61,11 +61,12 @@ import {
 } from "@/lib/feedback-service";
 import type { FeedbackSentiment } from "@/lib/storage";
 import { useAppMode } from "@/contexts/AppModeContext";
+import { syncWidgetSnapshot } from "@/lib/widget-sync";
 
 export default function MainScreen() {
   const isTablet = useIsTablet();
   const { isSimpleMode } = useAppMode();
-  const { widgetTarget } = useLocalSearchParams<{ widgetTarget?: string | string[] }>();
+  const { widgetTarget, medId } = useLocalSearchParams<{ widgetTarget?: string | string[]; medId?: string | string[] }>();
   const [activeScreen, setActiveScreen] = useState("dashboard");
   const [refreshKey, setRefreshKey] = useState(0);
   const [sickMode, setSickMode] = useState(false);
@@ -84,6 +85,32 @@ export default function MainScreen() {
   const [simpleAddMedicationToken, setSimpleAddMedicationToken] = useState(0);
   const [simpleAddAppointmentToken, setSimpleAddAppointmentToken] = useState(0);
   const [simpleAddSymptomToken, setSimpleAddSymptomToken] = useState(0);
+  const lastHandledWidgetUrlRef = useRef<{ url: string; at: number } | null>(null);
+
+  const handlePrnWidgetLog = useCallback(async (prnMedId: string) => {
+    setActiveScreen("medications");
+
+    try {
+      const medications = await medicationStorage.getAll();
+      const prnMed = medications
+        .map((med) => normalizeMedication(med))
+        .find((med) => med.id === prnMedId && med.active && med.medicationType === "prn");
+
+      if (!prnMed) {
+        setRefreshKey((k) => k + 1);
+        return;
+      }
+
+      await medicationLogStorage.logPrnDose(prnMedId);
+      await syncAllFromSettings().catch(() => {});
+      await syncWidgetSnapshot().catch(() => {});
+    } catch (error) {
+      console.warn("Failed to log PRN dose from widget", error);
+    } finally {
+      setRefreshKey((k) => k + 1);
+      trackFeedbackWidgetLaunch().catch(() => {});
+    }
+  }, []);
 
   const navigateToWidgetTarget = useCallback((url: string | null | undefined) => {
     if (!url) return false;
@@ -92,10 +119,24 @@ export default function MainScreen() {
       const parsed = new URL(url);
       const queryTarget = parsed.searchParams.get("widgetTarget");
       const pathParts = parsed.pathname.split("/").filter(Boolean);
-      const route = queryTarget || (parsed.host === "widget" ? pathParts[0] : parsed.host);
+      const route = (queryTarget || (parsed.host === "widget" ? pathParts[0] : parsed.host) || "").toLowerCase();
+      const normalizedRoute = route === "prn-log" ? "prnlog" : route;
 
-      if (route === "medications" || route === "appointments") {
-        setActiveScreen(route);
+      if (normalizedRoute === "prnlog") {
+        const prnMedId = parsed.searchParams.get("medId");
+        if (!prnMedId) return false;
+        const lastHandled = lastHandledWidgetUrlRef.current;
+        const now = Date.now();
+        if (lastHandled && lastHandled.url === url && now - lastHandled.at < 1500) {
+          return true;
+        }
+        lastHandledWidgetUrlRef.current = { url, at: now };
+        void handlePrnWidgetLog(prnMedId);
+        return true;
+      }
+
+      if (normalizedRoute === "medications" || normalizedRoute === "appointments" || normalizedRoute === "logtoday") {
+        setActiveScreen(normalizedRoute);
         setRefreshKey((k) => k + 1);
         trackFeedbackWidgetLaunch().catch(() => {});
         return true;
@@ -105,7 +146,9 @@ export default function MainScreen() {
     }
 
     return false;
-  }, []);
+  }, [handlePrnWidgetLog]);
+
+
 
   const checkInitialState = useCallback(async () => {
     try {
@@ -295,12 +338,20 @@ export default function MainScreen() {
 
   useEffect(() => {
     const target = Array.isArray(widgetTarget) ? widgetTarget[0] : widgetTarget;
-    if (target === "medications" || target === "appointments") {
-      setActiveScreen(target);
+    const resolvedMedId = Array.isArray(medId) ? medId[0] : medId;
+    const normalizedTarget = target === "prn-log" ? "prnlog" : target;
+
+    if (normalizedTarget === "prnlog" && resolvedMedId) {
+      void handlePrnWidgetLog(resolvedMedId);
+      return;
+    }
+
+    if (normalizedTarget === "medications" || normalizedTarget === "appointments" || normalizedTarget === "logtoday") {
+      setActiveScreen(normalizedTarget);
       setRefreshKey((k) => k + 1);
       trackFeedbackWidgetLaunch().catch(() => {});
     }
-  }, [widgetTarget]);
+  }, [handlePrnWidgetLog, medId, widgetTarget]);
 
   const handleActivateSickMode = () => {
     setSickMode(true);

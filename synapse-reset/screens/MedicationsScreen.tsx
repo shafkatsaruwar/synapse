@@ -2573,7 +2573,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                       </Pressable>
                     ) : (
                       <Pressable style={[styles.confirmBtn, !canSaveMedication && { opacity: 0.5 }]} onPress={handleSave} disabled={!canSaveMedication}>
-                        <Text style={styles.confirmText}>Save</Text>
+                        <Text style={styles.confirmText}>{!editingMed ? "Log and Save" : "Save"}</Text>
                       </Pressable>
                     )}
                   </View>
@@ -2822,7 +2822,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                       </Pressable>
                     ) : (
                       <Pressable style={[styles.confirmBtn, !canSaveMedication && { opacity: 0.5 }]} onPress={handleSave} disabled={!canSaveMedication}>
-                        <Text style={styles.confirmText}>Save</Text>
+                        <Text style={styles.confirmText}>{!editingMed ? "Log and Save" : "Save"}</Text>
                       </Pressable>
                     )}
                   </View>
@@ -3173,7 +3173,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                     onPress={handleSave}
                     disabled={!canSaveMedication}
                   >
-                    <Text style={styles.confirmText}>{editingMed ? "Save" : "Add"}</Text>
+                    <Text style={styles.confirmText}>{formMedicationType === "prn" && !editingMed ? "Log and Save" : editingMed ? "Save" : "Add"}</Text>
                   </Pressable>
                 </View>
               )}

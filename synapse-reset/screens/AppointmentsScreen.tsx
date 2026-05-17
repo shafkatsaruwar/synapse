@@ -307,6 +307,10 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
   const [customInterval, setCustomInterval] = useState("1");
   const [customUnit, setCustomUnit] = useState<RepeatUnit>("week");
   const [noteText, setNoteText] = useState("");
+  const [selectedNoteAppointmentId, setSelectedNoteAppointmentId] = useState<string | null>(null);
+  const [selectedNoteDoctorId, setSelectedNoteDoctorId] = useState<string | null>(null);
+  const [showNoteTargetPicker, setShowNoteTargetPicker] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [rescheduleApt, setRescheduleApt] = useState<Appointment | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState("");
@@ -331,7 +335,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
     setAppointments(apts.sort((a, b) => a.date.localeCompare(b.date)));
     setDoctors(docs);
     setProfile(profileInfo);
-    setNotes(n.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+    setNotes((n ?? []).filter((note): note is DoctorNote => !!note && typeof note.text === "string").sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
   }, []);
 
   useEffect(() => {
@@ -381,6 +385,23 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
   }, [today]);
 
   const selectedDoctor = selectedDoctorId ? doctors.find((d) => d.id === selectedDoctorId) : null;
+  const noteAppointmentOptions = useMemo(
+    () => appointments
+      .filter((appointment) => !appointment.status)
+      .sort((a, b) => {
+        const aTime = parseAppointmentDateTime(a)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const bTime = parseAppointmentDateTime(b)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        return aTime - bTime;
+      }),
+    [appointments]
+  );
+  const noteDoctorOptions = useMemo(() => doctors, [doctors]);
+  const selectedNoteAppointment = selectedNoteAppointmentId
+    ? appointments.find((appointment) => appointment.id === selectedNoteAppointmentId) ?? null
+    : null;
+  const selectedNoteDoctor = selectedNoteDoctorId
+    ? doctors.find((doctor) => doctor.id === selectedNoteDoctorId) ?? null
+    : null;
   const simpleUpcomingAppointments = useMemo(
     () => appointments
       .filter(isUpcomingAppointment)
@@ -620,22 +641,95 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
     ]);
   };
 
+  const resetNoteForm = useCallback(() => {
+    setNoteText("");
+    setSelectedNoteAppointmentId(null);
+    setSelectedNoteDoctorId(null);
+    setShowNoteTargetPicker(false);
+    setEditingNoteId(null);
+  }, []);
+
+  const openNoteModal = useCallback(() => {
+    resetNoteForm();
+    setShowNoteModal(true);
+  }, [resetNoteForm]);
+
+  const openEditNoteModal = useCallback((note: DoctorNote) => {
+    setEditingNoteId(note.id);
+    setNoteText(note.text);
+    setSelectedNoteAppointmentId(note.appointmentId ?? null);
+    setSelectedNoteDoctorId(note.appointmentId ? null : (note.doctorId ?? null));
+    setShowNoteTargetPicker(false);
+    setShowNoteModal(true);
+  }, []);
+
   const handleAddNote = async () => {
     if (!noteText.trim()) return;
-    await doctorNoteStorage.save({ text: noteText.trim() });
+    if (!selectedNoteAppointment && !selectedNoteDoctor) return;
+    const payload = {
+      text: noteText.trim(),
+      appointmentId: selectedNoteAppointment?.id,
+      doctorId: selectedNoteAppointment?.doctor_id ?? selectedNoteDoctor?.id,
+      doctorName: selectedNoteAppointment?.doctorName || selectedNoteDoctor?.name,
+      appointmentDate: selectedNoteAppointment?.date,
+      appointmentTime: selectedNoteAppointment?.time,
+    };
+    const savedNote = editingNoteId
+      ? await doctorNoteStorage.update(editingNoteId, payload)
+      : await doctorNoteStorage.save(payload);
+    if (!savedNote) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setNoteText("");
+    setNotes((prev) => {
+      if (editingNoteId) {
+        return prev.map((note) => note.id === savedNote.id ? savedNote : note);
+      }
+      return [savedNote, ...prev];
+    });
+    resetNoteForm();
     setShowNoteModal(false);
-    loadData();
+  };
+
+  const handleToggleTalkedAbout = async (note: DoctorNote) => {
+    const talkedAbout = !note.talkedAbout;
+    const updatedNote = await doctorNoteStorage.update(note.id, {
+      talkedAbout,
+      talkedAboutAt: talkedAbout ? new Date().toISOString() : undefined,
+    });
+    if (!updatedNote) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setNotes((prev) => prev.map((item) => item.id === note.id ? updatedNote : item));
   };
 
   const handleDeleteNote = async (note: DoctorNote) => {
-    if (Platform.OS === "web") { await doctorNoteStorage.delete(note.id); loadData(); return; }
+    if (Platform.OS === "web") {
+      await doctorNoteStorage.delete(note.id);
+      setNotes((prev) => prev.filter((item) => item.id !== note.id));
+      return;
+    }
     Alert.alert("Delete", "Remove this note?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: async () => { await doctorNoteStorage.delete(note.id); loadData(); } },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          await doctorNoteStorage.delete(note.id);
+          setNotes((prev) => prev.filter((item) => item.id !== note.id));
+        },
+      },
     ]);
   };
+
+  // Isolate badge counting so we can later switch from total notes to unread notes
+  // or appointment-specific notes without touching the tab UI.
+  const getDoctorNotesBadgeCount = useCallback(() => notes.filter((note) => !note.talkedAbout).length, [notes]);
+  const doctorNotesBadgeCount = getDoctorNotesBadgeCount();
+  const doctorNotesBadgeLabel = doctorNotesBadgeCount > 9 ? "9+" : String(doctorNotesBadgeCount);
+  const selectedNoteTargetLabel = selectedNoteAppointment
+    ? `${selectedNoteAppointment.doctorName} • ${formatSimpleAppointmentWhen(selectedNoteAppointment, today)}`
+    : selectedNoteDoctor
+      ? `${selectedNoteDoctor.name}${selectedNoteDoctor.specialty ? ` • ${selectedNoteDoctor.specialty}` : ""}`
+      : "Choose appointment or doctor";
+  const canSaveDoctorNote = !!noteText.trim() && (!!selectedNoteAppointment || !!selectedNoteDoctor);
 
   const selectedApts = appointments.filter((a) => a.date === selectedDate);
   const todayApts = appointments.filter((a) => a.date === today && (a.status === undefined || a.status === "completed"));
@@ -988,7 +1082,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
                 setAptTime("09:00");
                 setShowAptModal(true);
               } else {
-                setShowNoteModal(true);
+                openNoteModal();
               }
             }}
             accessibilityRole="button"
@@ -1005,6 +1099,11 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
           </Pressable>
           <Pressable style={[styles.tabBtn, tab === "notes" && styles.tabBtnActive]} onPress={() => setTab("notes")} accessibilityRole="button" accessibilityLabel="Doctor Notes" accessibilityState={{ selected: tab === "notes" }}>
             <Text style={[styles.tabText, tab === "notes" && styles.tabTextActive]}>Doctor Notes</Text>
+            {doctorNotesBadgeCount > 0 ? (
+              <View style={styles.tabBadge}>
+                <Text style={styles.tabBadgeText}>{doctorNotesBadgeLabel}</Text>
+              </View>
+            ) : null}
           </Pressable>
         </View>
 
@@ -1125,10 +1224,31 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
                 <Text style={styles.emptyDesc}>Write questions for your next visit</Text>
               </View>
             )}
-            {notes.map((note, i) => (
+            {notes.filter((note): note is DoctorNote => !!note && typeof note.text === "string").map((note, i) => (
               <View key={note.id} style={styles.noteCard}>
                 <View style={styles.noteBullet}><Text style={styles.noteBulletNum}>{i + 1}</Text></View>
-                <Text style={styles.noteText}>{note.text}</Text>
+                <View style={styles.noteContent}>
+                  <Text style={styles.noteTargetText}>
+                    {note.doctorName || "Doctor note"}
+                    {note.appointmentDate ? ` • ${formatDate(note.appointmentDate)}` : ""}
+                    {note.appointmentTime ? ` • ${formatTime12h(note.appointmentTime)}` : ""}
+                  </Text>
+                  {note.talkedAbout ? <Text style={styles.noteStatus}>Discussed</Text> : null}
+                  <Text style={[styles.noteText, note.talkedAbout && styles.noteTextDone]}>{note.text}</Text>
+                  <Pressable
+                    style={[styles.noteActionButton, note.talkedAbout && styles.noteActionButtonDone]}
+                    onPress={() => handleToggleTalkedAbout(note)}
+                    accessibilityRole="button"
+                    accessibilityLabel={note.talkedAbout ? "Mark note as not discussed" : "Mark note as talked about"}
+                  >
+                    <Text style={[styles.noteActionButtonText, note.talkedAbout && styles.noteActionButtonTextDone]}>
+                      {note.talkedAbout ? "Talked About" : "Talked About This"}
+                    </Text>
+                  </Pressable>
+                </View>
+                <Pressable onPress={() => openEditNoteModal(note)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Edit note">
+                  <Ionicons name="pencil-outline" size={16} color={C.textSecondary} />
+                </Pressable>
                 <Pressable onPress={() => handleDeleteNote(note)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Delete note"><Ionicons name="close-circle-outline" size={16} color={C.textTertiary} /></Pressable>
               </View>
             ))}
@@ -1481,13 +1601,91 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
       </Modal>
 
       <Modal visible={showNoteModal} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setShowNoteModal(false)}>
+        <Pressable style={styles.overlay} onPress={() => { setShowNoteModal(false); resetNoteForm(); }}>
           <Pressable style={styles.modal} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Doctor Note</Text>
-            <TextInput style={[styles.input, { minHeight: 80 }]} placeholder="Question for your doctor..." placeholderTextColor={C.textTertiary} value={noteText} onChangeText={setNoteText} multiline textAlignVertical="top" />
+            <Text style={styles.modalTitle}>{editingNoteId ? "Edit Visit Prep Note" : "Visit Prep Note"}</Text>
+            <Text style={styles.label}>For appointment or doctor *</Text>
+            <Pressable
+              style={styles.inputButton}
+              onPress={() => setShowNoteTargetPicker((prev) => !prev)}
+              accessibilityRole="button"
+              accessibilityLabel={selectedNoteTargetLabel}
+            >
+              <Text style={[styles.inputButtonText, !selectedNoteAppointment && !selectedNoteDoctor && { color: C.textTertiary }]}>
+                {selectedNoteTargetLabel}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color={C.textSecondary} />
+            </Pressable>
+            {showNoteTargetPicker && (
+              <View style={styles.dropdown}>
+                <ScrollView style={styles.pickerScroll} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                  {noteAppointmentOptions.length > 0 ? (
+                    <>
+                      <Text style={styles.dropdownSectionLabel}>Appointments</Text>
+                      {noteAppointmentOptions.map((appointment) => {
+                        const isSelected = selectedNoteAppointmentId === appointment.id;
+                        return (
+                          <Pressable
+                            key={appointment.id}
+                            style={[styles.dropdownRow, isSelected && styles.dropdownRowSelected]}
+                            onPress={() => {
+                              setSelectedNoteAppointmentId(appointment.id);
+                              setSelectedNoteDoctorId(null);
+                              setShowNoteTargetPicker(false);
+                              Haptics.selectionAsync();
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>{appointment.doctorName}</Text>
+                            <Text style={styles.dropdownSub}>{formatSimpleAppointmentWhen(appointment, today)}</Text>
+                            {!!appointment.specialty && <Text style={styles.dropdownSub}>{appointment.specialty}</Text>}
+                          </Pressable>
+                        );
+                      })}
+                    </>
+                  ) : null}
+                  {noteDoctorOptions.length > 0 ? (
+                    <>
+                      <Text style={styles.dropdownSectionLabel}>Doctors</Text>
+                      {noteDoctorOptions.map((doctor) => {
+                        const isSelected = selectedNoteDoctorId === doctor.id;
+                        return (
+                          <Pressable
+                            key={doctor.id}
+                            style={[styles.dropdownRow, isSelected && styles.dropdownRowSelected]}
+                            onPress={() => {
+                              setSelectedNoteDoctorId(doctor.id);
+                              setSelectedNoteAppointmentId(null);
+                              setShowNoteTargetPicker(false);
+                              Haptics.selectionAsync();
+                            }}
+                          >
+                            <Text style={styles.dropdownText}>{doctor.name}</Text>
+                            {doctor.specialty ? <Text style={styles.dropdownSub}>{doctor.specialty}</Text> : null}
+                            {doctor.hospital ? <Text style={styles.dropdownSub}>{doctor.hospital}</Text> : null}
+                          </Pressable>
+                        );
+                      })}
+                    </>
+                  ) : null}
+                  {noteAppointmentOptions.length === 0 && noteDoctorOptions.length === 0 ? (
+                    <Text style={styles.emptyPickerText}>Add a doctor or appointment first so this note has somewhere real to live.</Text>
+                  ) : null}
+                </ScrollView>
+              </View>
+            )}
+            <Text style={styles.label}>Prep note *</Text>
+            <TextInput
+              style={[styles.input, styles.noteEditor]}
+              placeholder="Dump everything here: questions, symptoms, meds to mention, follow-ups, literally all of it."
+              placeholderTextColor={C.textTertiary}
+              value={noteText}
+              onChangeText={setNoteText}
+              multiline
+              textAlignVertical="top"
+            />
             <View style={styles.modalActions}>
-              <Pressable style={styles.cancelBtn} onPress={() => setShowNoteModal(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
-              <Pressable style={[styles.confirmBtn, !noteText.trim() && { opacity: 0.5 }]} onPress={handleAddNote} disabled={!noteText.trim()}><Text style={styles.confirmText}>Add</Text></Pressable>
+              <Pressable style={styles.cancelBtn} onPress={() => { setShowNoteModal(false); resetNoteForm(); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+              <Pressable style={[styles.confirmBtn, !canSaveDoctorNote && { opacity: 0.5 }]} onPress={handleAddNote} disabled={!canSaveDoctorNote}><Text style={styles.confirmText}>{editingNoteId ? "Save Changes" : "Save Note"}</Text></Pressable>
             </View>
           </Pressable>
         </Pressable>
@@ -1537,10 +1735,28 @@ function makeStyles(C: Theme, textScale: number) {
   title: { fontWeight: "700", fontSize: size(28), color: C.text, letterSpacing: -0.5 },
   addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.purple, alignItems: "center", justifyContent: "center" },
   tabRow: { flexDirection: "row", backgroundColor: C.surface, borderRadius: 10, padding: 3, marginBottom: 16, borderWidth: 1, borderColor: C.border },
-  tabBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center" },
+  tabBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", position: "relative" },
   tabBtnActive: { backgroundColor: C.surfaceElevated },
   tabText: { fontWeight: "500", fontSize: 13, color: C.textSecondary },
   tabTextActive: { color: C.text },
+  tabBadge: {
+    position: "absolute",
+    top: 4,
+    right: 18,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: 999,
+    backgroundColor: C.red,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabBadgeText: {
+    fontWeight: "800",
+    fontSize: 10,
+    lineHeight: 12,
+    color: "#fff",
+  },
   calLayout: { flexDirection: "row" },
   sectionLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
   aptCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 12, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border, gap: 12 },
@@ -1565,7 +1781,15 @@ function makeStyles(C: Theme, textScale: number) {
   noteCard: { flexDirection: "row", alignItems: "flex-start", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 6, borderWidth: 1, borderColor: C.border, gap: 10 },
   noteBullet: { width: 24, height: 24, borderRadius: 7, backgroundColor: C.greenLight, alignItems: "center", justifyContent: "center" },
   noteBulletNum: { fontWeight: "600", fontSize: 12, color: C.text },
+  noteContent: { flex: 1, gap: 6 },
+  noteTargetText: { fontWeight: "700", fontSize: 12, color: C.purple, lineHeight: 16 },
+  noteStatus: { alignSelf: "flex-start", fontWeight: "700", fontSize: 10, color: C.green, backgroundColor: C.greenLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, textTransform: "uppercase", letterSpacing: 0.4 },
   noteText: { fontWeight: "400", fontSize: 13, color: C.text, flex: 1, lineHeight: 19 },
+  noteTextDone: { color: C.textSecondary },
+  noteActionButton: { alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  noteActionButtonDone: { backgroundColor: C.greenLight, borderColor: C.green },
+  noteActionButtonText: { fontWeight: "700", fontSize: 12, color: C.textSecondary },
+  noteActionButtonTextDone: { color: C.green },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
   modal: { backgroundColor: C.surface, borderRadius: 18, paddingTop: 24, paddingHorizontal: 24, paddingBottom: 60, width: "100%", maxWidth: 400, maxHeight: "88%", borderWidth: 1, borderColor: C.border },
   pickerModal: { maxWidth: 360 },
@@ -1613,8 +1837,10 @@ function makeStyles(C: Theme, textScale: number) {
   dropdownRowSelected: { backgroundColor: C.tintLight },
   dropdownText: { fontWeight: "500", fontSize: 14, color: C.text },
   dropdownSub: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
+  dropdownSectionLabel: { fontWeight: "700", fontSize: 11, color: C.textSecondary, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 },
   pickerScroll: { maxHeight: 280, marginBottom: 14 },
   emptyPickerText: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginBottom: 16, lineHeight: 20 },
+  noteEditor: { minHeight: 160 },
   timePicker: { alignSelf: "center", marginBottom: 12, width: Platform.OS === "ios" ? 320 : undefined },
   inlineAddDoctorBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderTopWidth: 1, borderTopColor: C.border },
   inlineAddDoctorText: { fontWeight: "600", fontSize: 13, color: C.purple },
