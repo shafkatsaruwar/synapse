@@ -3,14 +3,22 @@ import {
   appointmentStorage,
   healthLogStorage,
   healthProfileStorage,
+  hydrationStorage,
   medicationLogStorage,
   medicationStorage,
+  mentalHealthModeStorage,
   normalizeMedication,
+  sickModeStorage,
   symptomStorage,
+  convertHydrationToMl,
+  formatHydrationAmount,
   type Appointment,
   type HealthLog,
+  type HydrationEntry,
   type Medication,
   type MedicationDose,
+  type MentalHealthModeData,
+  type SickModeData,
   type Symptom,
   type WidgetAppearancePreference,
 } from "@/lib/storage";
@@ -54,6 +62,30 @@ type WidgetSnapshot = {
     topSymptomName: string | null;
     isFastingToday: boolean;
   };
+  hydration: {
+    presetLabel: string;
+    sipAmountText: string;
+    totalTodayMl: number;
+    totalTodayText: string;
+    hasEntriesToday: boolean;
+    launchHint: string;
+  };
+  sickMode: {
+    active: boolean;
+    recoveryMode: boolean;
+    latestTemperature: number | null;
+    latestTemperatureText: string;
+    statusText: string;
+    needsStressDose: boolean;
+    stressDoseText: string;
+    checkInTimer: string | null;
+  };
+  mentalHealth: {
+    active: boolean;
+    statusText: string;
+    nextCheckInText: string;
+    checkInTimer: string | null;
+  };
   updatedAt: string;
 };
 
@@ -81,6 +113,15 @@ function doseDetail(dose: MedicationDose) {
     return `${dose.amount.trim()} ${dose.unit?.trim() || ""} • ${dose.timeOfDay}`.trim();
   }
   return dose.timeOfDay;
+}
+
+function fallbackDose(id: string, timeOfDay: string): MedicationDose {
+  return {
+    id,
+    amount: "",
+    unit: "",
+    timeOfDay,
+  };
 }
 
 function formatTakenTime(recordedAt?: string) {
@@ -156,7 +197,7 @@ function getNextMedicationSnapshot(
       if (latestPrnLog?.recordedAt) {
         prnTakenCandidates.push({
           med,
-          detail: doseDetail(med.doses?.[0] ?? { id: `prn-${med.id}`, timeOfDay: "As Needed" }),
+          detail: doseDetail(med.doses?.[0] ?? fallbackDose(`prn-${med.id}`, "As Needed")),
           recordedAt: latestPrnLog.recordedAt,
         });
       }
@@ -269,7 +310,7 @@ function getPrnMedicationSnapshot(
   return {
     id: primaryPrnMed.id,
     name: primaryPrnMed.name,
-    detail: doseDetail(primaryPrnMed.doses?.[0] ?? { id: `prn-${primaryPrnMed.id}`, timeOfDay: "As Needed" }),
+    detail: doseDetail(primaryPrnMed.doses?.[0] ?? fallbackDose(`prn-${primaryPrnMed.id}`, "As Needed")),
     lastLoggedAt: latestLog?.recordedAt ?? null,
     statusText: latestLog?.recordedAt ? `Logged ${formatRelativeLogTime(latestLog.recordedAt)}` : "Not logged yet today",
     countText: logCountToday > 0
@@ -433,6 +474,73 @@ function buildWellnessSnapshot(todayLog: HealthLog | undefined, symptoms: Sympto
   };
 }
 
+function formatTimerText(isoString?: string | null) {
+  if (!isoString) return "No timer";
+  const target = new Date(isoString).getTime();
+  if (Number.isNaN(target)) return "No timer";
+  const remainingMs = target - Date.now();
+  if (remainingMs <= 0) return "Due now";
+  const totalMinutes = Math.ceil(remainingMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function buildHydrationSnapshot(todayHydration: HydrationEntry[]) {
+  return hydrationStorage.getPreset().then((preset) => {
+    const totalTodayMl = Math.round(todayHydration.reduce((sum, entry) => sum + convertHydrationToMl(entry.amount, entry.unit), 0));
+    return {
+      presetLabel: preset.what,
+      sipAmountText: formatHydrationAmount(preset.amount, preset.unit),
+      totalTodayMl,
+      totalTodayText: totalTodayMl > 0 ? `${totalTodayMl} mL today` : "Nothing logged yet",
+      hasEntriesToday: todayHydration.length > 0,
+      launchHint: "Take a Sip",
+    };
+  });
+}
+
+function buildSickModeSnapshot(
+  sickMode: SickModeData,
+  medications: Medication[],
+  logs: { medicationId: string; doseIndex?: number; taken: boolean }[],
+) {
+  const activeStressMeds = medications
+    .map((med) => normalizeMedication(med))
+    .filter((med) => med.active && med.hasStressDose);
+  const needsStressDose =
+    sickMode.active &&
+    activeStressMeds.length > 0 &&
+    activeStressMeds.some((med) => !logs.some((log) => log.medicationId === med.id && log.taken));
+  const latestTemperature = sickMode.temperatures.length > 0
+    ? sickMode.temperatures[sickMode.temperatures.length - 1]?.value ?? null
+    : null;
+  return {
+    active: sickMode.active,
+    recoveryMode: sickMode.recoveryMode === true,
+    latestTemperature,
+    latestTemperatureText: latestTemperature != null ? `${latestTemperature}°F` : "No temp logged",
+    statusText: !sickMode.active ? "Tap to start sick mode" : sickMode.recoveryMode ? "Recovery mode" : "Sick mode active",
+    needsStressDose,
+    stressDoseText: activeStressMeds.length === 0
+      ? "No stress-dose meds"
+      : needsStressDose
+        ? "Stress dose may be needed"
+        : "Stress dose logged",
+    checkInTimer: sickMode.active && !sickMode.recoveryMode ? formatTimerText(sickMode.checkInTimer) : null,
+  };
+}
+
+function buildMentalHealthSnapshot(mentalHealthMode: MentalHealthModeData) {
+  return {
+    active: mentalHealthMode.active,
+    statusText: mentalHealthMode.active ? "Mental health day active" : "Tap to start mental health day",
+    nextCheckInText: mentalHealthMode.active ? formatTimerText(mentalHealthMode.hourlyCheckInTimer) : "No check-in scheduled",
+    checkInTimer: mentalHealthMode.active ? mentalHealthMode.hourlyCheckInTimer ?? null : null,
+  };
+}
+
 function getNextAppointmentSnapshot(appointments: Appointment[]) {
   const now = new Date();
   const graceWindowMs = 1000 * 60 * 60 * 2;
@@ -459,14 +567,18 @@ export async function syncWidgetSnapshot() {
   if (Platform.OS !== "ios" || !APP_WIDGET_BRIDGE?.saveSnapshot) return;
 
   const today = getToday();
-  const [medications, appointments, profile, todayLog, todaySymptoms] = await Promise.all([
+  const [medications, appointments, profile, todayLog, todaySymptoms, todayHydration, sickMode, mentalHealthMode] = await Promise.all([
     medicationStorage.getAll(),
     appointmentStorage.getAll(),
     healthProfileStorage.get(),
     healthLogStorage.getByDate(today),
     symptomStorage.getByDate(today),
+    hydrationStorage.getByDateRange(today, today),
+    sickModeStorage.get(),
+    mentalHealthModeStorage.get(),
   ]);
   const logs = await medicationLogStorage.getByDate(today);
+  const hydration = await buildHydrationSnapshot(todayHydration);
 
   const snapshot: WidgetSnapshot = {
     appearance: profile.widgetAppearance ?? "system",
@@ -474,6 +586,9 @@ export async function syncWidgetSnapshot() {
     appointment: getNextAppointmentSnapshot(appointments),
     prnMedication: getPrnMedicationSnapshot(medications, logs),
     wellness: buildWellnessSnapshot(todayLog, todaySymptoms),
+    hydration,
+    sickMode: buildSickModeSnapshot(sickMode, medications, logs),
+    mentalHealth: buildMentalHealthSnapshot(mentalHealthMode),
     updatedAt: new Date().toISOString(),
   };
 

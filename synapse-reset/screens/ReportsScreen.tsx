@@ -10,8 +10,8 @@ import ViewShot, { captureRef } from "react-native-view-shot";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import {
   healthLogStorage, medicationStorage, medicationLogStorage, appointmentStorage,
-  doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage, eatingStorage, monthlyCheckInStorage, vitalStorage, healthProfileStorage,
-  type HealthLog, type Medication, type MedicationLog, type Appointment, type DoctorNote, type Symptom, type UserSettings, type SickModeData, type HealthCondition, type EatingEntry, type MonthlyCheckIn, type Vital, type HealthProfileInfo,
+  doctorNoteStorage, symptomStorage, settingsStorage, sickModeStorage, conditionStorage, eatingStorage, hydrationStorage, monthlyCheckInStorage, vitalStorage, healthProfileStorage,
+  type HealthLog, type Medication, type MedicationLog, type Appointment, type DoctorNote, type Symptom, type UserSettings, type SickModeData, type HealthCondition, type EatingEntry, type HydrationEntry, type MonthlyCheckIn, type Vital, type HealthProfileInfo, convertHydrationToMl, formatHydrationAmount,
 } from "@/lib/storage";
 import { getMedList, type MedListItem } from "@/lib/med-list-storage";
 import { getDaysAgo, formatDate, formatDateWithYear, getToday } from "@/lib/date-utils";
@@ -49,17 +49,18 @@ export default function ReportsScreen() {
   const [healthConditions, setHealthConditions] = useState<HealthCondition[]>([]);
   const [sickMode, setSickMode] = useState<SickModeData | null>(null);
   const [eatingEntries, setEatingEntries] = useState<EatingEntry[]>([]);
+  const [hydrationEntries, setHydrationEntries] = useState<HydrationEntry[]>([]);
   const [monthlyCheckIns, setMonthlyCheckIns] = useState<MonthlyCheckIn[]>([]);
   const [medListItems, setMedListItems] = useState<MedListItem[]>([]);
   const [range, setRange] = useState<7 | 30>(7);
   const [exporting, setExporting] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [l, m, ml, a, n, s, st, profileInfo, sm, conds, eating, checkIns, medList, vitalsData] = await Promise.all([
+    const [l, m, ml, a, n, s, st, profileInfo, sm, conds, eating, hydration, checkIns, medList, vitalsData] = await Promise.all([
       healthLogStorage.getAll(), medicationStorage.getAll(), medicationLogStorage.getAll(),
-      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), healthProfileStorage.get(), sickModeStorage.get(), conditionStorage.getAll(), eatingStorage.getAll(), monthlyCheckInStorage.getAll(), getMedList(), vitalStorage.getAll(),
+      appointmentStorage.getAll(), doctorNoteStorage.getAll(), symptomStorage.getAll(), settingsStorage.get(), healthProfileStorage.get(), sickModeStorage.get(), conditionStorage.getAll(), eatingStorage.getAll(), hydrationStorage.getAll(), monthlyCheckInStorage.getAll(), getMedList(), vitalStorage.getAll(),
     ]);
-    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setProfile(profileInfo); setSickMode(sm); setHealthConditions(conds); setEatingEntries(eating); setMonthlyCheckIns(checkIns); setMedListItems(medList); setVitals(vitalsData);
+    setLogs(l); setMedications(m); setMedLogs(ml); setAppointments(a); setNotes(n); setSymptoms(s); setSettings(st); setProfile(profileInfo); setSickMode(sm); setHealthConditions(conds); setEatingEntries(eating); setHydrationEntries(hydration); setMonthlyCheckIns(checkIns); setMedListItems(medList); setVitals(vitalsData);
   }, []);
 
   React.useEffect(() => { loadData(); }, [loadData]);
@@ -103,6 +104,8 @@ export default function ReportsScreen() {
   const feverEvents = recentSymptoms.filter((s) => s.temperature && s.temperature >= 99);
   const recentAppointments = appointments.filter((a) => a.date >= cutoff && a.date <= today);
   const recentEating = eatingEntries.filter((e) => e.date >= cutoff && e.date <= today).sort((a, b) => b.date.localeCompare(a.date));
+  const recentHydration = hydrationEntries.filter((entry) => entry.date >= cutoff && entry.date <= today).sort((a, b) => b.date.localeCompare(a.date));
+  const hydrationTotalMl = recentHydration.reduce((sum, entry) => sum + convertHydrationToMl(entry.amount, entry.unit), 0);
   const recentMonthlyCheckIns = monthlyCheckIns.filter((c) => c.date >= cutoff && c.date <= today).sort((a, b) => a.date.localeCompare(b.date));
   const recoverySummary = useMemo(() => buildRecoveryInsights({
     logs,
@@ -202,6 +205,11 @@ export default function ReportsScreen() {
     r += `\nEATING (${recentEating.length} entries)\n`;
     if (recentEating.length > 0) recentEating.slice(0, 30).forEach((e) => { r += `  ${formatDate(e.date)}${e.time ? ` ${e.time}` : ""}: ${e.what} (${e.amount})\n`; });
     else r += `  None logged\n`;
+    r += `\nHYDRATION (${recentHydration.length} entries)\n`;
+    if (recentHydration.length > 0) {
+      r += `  Total: ${Math.round(hydrationTotalMl)} mL\n`;
+      recentHydration.slice(0, 30).forEach((entry) => { r += `  ${formatDate(entry.date)}: ${entry.what} (${formatHydrationAmount(entry.amount, entry.unit)})\n`; });
+    } else r += `  None logged\n`;
     r += `\nMONTHLY CHECK-IN (${recentMonthlyCheckIns.length} in period)\n`;
     if (recentMonthlyCheckIns.length > 0) {
       recentMonthlyCheckIns.forEach((c) => {
@@ -507,6 +515,14 @@ export default function ReportsScreen() {
           <Text style={styles.summaryBlockTitle}>Eating ({recentEating.length} entries)</Text>
           {recentEating.length > 0 ? recentEating.slice(0, 15).map((e) => (
             <Text key={e.id} style={styles.summaryItem}>{formatDate(e.date)}: {e.what} ({e.amount})</Text>
+          )) : <Text style={styles.summaryItemEmpty}>None logged</Text>}
+        </View>
+
+        <View style={styles.summaryBlock}>
+          <Text style={styles.summaryBlockTitle}>Hydration ({recentHydration.length} entries)</Text>
+          <Text style={styles.summaryItem}>Total: {Math.round(hydrationTotalMl)} mL</Text>
+          {recentHydration.length > 0 ? recentHydration.slice(0, 15).map((entry) => (
+            <Text key={entry.id} style={styles.summaryItem}>{formatDate(entry.date)}: {entry.what} ({formatHydrationAmount(entry.amount, entry.unit)})</Text>
           )) : <Text style={styles.summaryItemEmpty}>None logged</Text>}
         </View>
 

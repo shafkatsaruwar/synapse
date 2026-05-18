@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { mentalHealthModeStorage, comfortStorage, type MentalHealthModeData, type ComfortItem } from "@/lib/storage";
+import { syncWidgetSnapshot } from "@/lib/widget-sync";
 const HOURLY_CHECK_IN_MS = 60 * 60 * 1000;
 const COMFORT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -50,6 +51,7 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
       const updated = { ...data, hourlyCheckInTimer: next };
       await mentalHealthModeStorage.save(updated);
       setMhData(updated);
+      await syncWidgetSnapshot().catch(() => {});
     }
   }, []);
 
@@ -80,6 +82,7 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
     const updated = { ...mhData, whatsHappening: whatsHappening.trim() || undefined };
     await mentalHealthModeStorage.save(updated);
     setMhData(updated);
+    await syncWidgetSnapshot().catch(() => {});
   };
 
   const handleStart = async () => {
@@ -90,6 +93,7 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
     };
     await mentalHealthModeStorage.save(updated);
     setMhData(updated);
+    await syncWidgetSnapshot().catch(() => {});
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   };
 
@@ -103,6 +107,7 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
     };
     await mentalHealthModeStorage.save(updated);
     setMhData(updated);
+    await syncWidgetSnapshot().catch(() => {});
     setShowCheckInModal(false);
     setMedsOnTimeModal(null);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -119,6 +124,7 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
           onPress: async () => {
             await mentalHealthModeStorage.reset();
             setMhData(await mentalHealthModeStorage.get());
+            await syncWidgetSnapshot().catch(() => {});
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             onDeactivate?.();
           },
@@ -142,7 +148,7 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
           <Ionicons name="heart-outline" size={48} color={C.purple} />
           <Text style={styles.inactiveTitle}>Mental health day</Text>
           <Text style={styles.inactiveSubtitle}>
-            When you need extra support, start a mental health day. We'll check in with you hourly and ask how you're doing and if your meds are on time.
+            When you need extra support, start a mental health day. We&apos;ll check in with you hourly and ask how you&apos;re doing and if your meds are on time.
           </Text>
           <Pressable
             style={({ pressed }) => [styles.startBtn, pressed && { opacity: 0.9 }]}
@@ -199,7 +205,7 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>What's happening?</Text>
+          <Text style={styles.sectionTitle}>What&apos;s happening?</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
             placeholder="Optional: note how you're feeling or what's going on"
@@ -220,6 +226,7 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
                 if (!mhData) return;
                 await mentalHealthModeStorage.save({ ...mhData, medsOnTime: true });
                 setMhData(await mentalHealthModeStorage.get());
+                await syncWidgetSnapshot().catch(() => {});
                 Haptics.selectionAsync();
               }}
             >
@@ -231,6 +238,7 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
                 if (!mhData) return;
                 await mentalHealthModeStorage.save({ ...mhData, medsOnTime: false });
                 setMhData(await mentalHealthModeStorage.get());
+                await syncWidgetSnapshot().catch(() => {});
                 Haptics.selectionAsync();
               }}
             >
@@ -240,7 +248,7 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
         </View>
 
         <Pressable style={styles.betterBtn} onPress={handleFeelingBetter} accessibilityRole="button" accessibilityLabel="I'm feeling better">
-          <Text style={styles.betterBtnText}>I'm feeling better</Text>
+          <Text style={styles.betterBtnText}>I&apos;m feeling better</Text>
         </Pressable>
       </ScrollView>
 

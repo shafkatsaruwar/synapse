@@ -14,6 +14,7 @@ import { getToday } from "@/lib/date-utils";
 import { useAccessibility } from "@/lib/accessibility";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { getSickModePalette } from "@/constants/sick-mode-colors";
+import { syncWidgetSnapshot } from "@/lib/widget-sync";
 const HYDRATION_GOAL = 2000;
 const CHECK_IN_INTERVAL_MS = 2 * 60 * 60 * 1000;
 const COMFORT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -72,6 +73,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
       const updated = { ...sd, checkInTimer: checkInTime };
       await sickModeStorage.save(updated);
       setSickData(updated);
+      await syncWidgetSnapshot().catch(() => {});
     } else {
       setSickData(sd);
     }
@@ -138,6 +140,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
       };
       await sickModeStorage.save(updated);
       setSickData(updated);
+      await syncWidgetSnapshot().catch(() => {});
       setShowCheckInModal(false);
       setCheckInTemp("");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -155,6 +158,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
       };
       await sickModeStorage.save(updated);
       setSickData(updated);
+      await syncWidgetSnapshot().catch(() => {});
       setShowCheckInModal(false);
       setCheckInTemp("");
       Alert.alert(
@@ -171,6 +175,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
       };
       await sickModeStorage.save(updated);
       setSickData(updated);
+      await syncWidgetSnapshot().catch(() => {});
       setShowCheckInModal(false);
       setCheckInTemp("");
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -185,6 +190,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
   const handleStressDoseLog = async (med: Medication) => {
     const takenCount = getStressDosesTakenToday(med.id);
     await medicationLogStorage.toggle(med.id, today, takenCount);
+    await syncWidgetSnapshot().catch(() => {});
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     loadData();
   };
@@ -194,6 +200,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
     const updated = { ...sickData, hydrationMl: sickData.hydrationMl + ml };
     await sickModeStorage.save(updated);
     setSickData(updated);
+    await syncWidgetSnapshot().catch(() => {});
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
@@ -202,6 +209,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
     const updated = { ...sickData, foodChecklist: { ...sickData.foodChecklist, lightMeal: !sickData.foodChecklist.lightMeal } };
     await sickModeStorage.save(updated);
     setSickData(updated);
+    await syncWidgetSnapshot().catch(() => {});
     Haptics.selectionAsync();
   };
 
@@ -210,6 +218,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
     const updated = { ...sickData, restChecklist: { ...sickData.restChecklist, lying: !sickData.restChecklist.lying } };
     await sickModeStorage.save(updated);
     setSickData(updated);
+    await syncWidgetSnapshot().catch(() => {});
     Haptics.selectionAsync();
   };
 
@@ -220,6 +229,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
     const updated = { ...sickData, temperatures: [...(sickData.temperatures || []), { time, value: val }] };
     await sickModeStorage.save(updated);
     setSickData(updated);
+    await syncWidgetSnapshot().catch(() => {});
     setTempInput("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
@@ -228,6 +238,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
     const settings = await settingsStorage.get();
     await settingsStorage.save({ ...settings, sickMode: false });
     await sickModeStorage.reset();
+    await syncWidgetSnapshot().catch(() => {});
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onDeactivate();
   };
@@ -293,7 +304,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
               <Text style={styles.checkInCountdownLabel}>Next Check-in</Text>
             </View>
             <Text style={styles.checkInCountdownTime}>{formatCountdown(checkInCountdown)}</Text>
-            <Text style={styles.checkInCountdownHint}>We'll ask how you're feeling</Text>
+            <Text style={styles.checkInCountdownHint}>We&apos;ll ask how you&apos;re feeling</Text>
           </View>
         )}
 

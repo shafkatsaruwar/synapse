@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { View, StyleSheet, Alert, Platform, AppState, Linking, Modal, Pressable, Text } from "react-native";
+import { View, StyleSheet, Alert, Platform, AppState, Linking, Modal, Pressable, Text, Animated, useWindowDimensions } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import Constants from "expo-constants";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import SidebarLayout from "@/components/SidebarLayout";
 import TabletSidebar from "@/components/TabletSidebar";
 import { useIsTablet } from "@/lib/device";
@@ -37,7 +38,14 @@ import EmergencyProtocolScreen from "@/screens/EmergencyProtocolScreen";
 import EmergencyCardScreen from "@/screens/EmergencyCardScreen";
 import MeetFounderScreen from "@/screens/MeetFounderScreen";
 import FeedbackScreen from "@/screens/FeedbackScreen";
-import { medicationLogStorage, medicationStorage, normalizeMedication, settingsStorage } from "@/lib/storage";
+import {
+  medicationLogStorage,
+  medicationStorage,
+  mentalHealthModeStorage,
+  normalizeMedication,
+  settingsStorage,
+  sickModeStorage,
+} from "@/lib/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   requestPermission,
@@ -51,7 +59,7 @@ import AppBackground from "@/components/AppBackground";
 import BiometricGate from "@/components/BiometricGate";
 import AppWalkthrough from "@/components/AppWalkthrough";
 import { getHasSeenWalkthrough, setHasSeenWalkthrough } from "@/lib/walkthrough-storage";
-import { WalkthroughProvider } from "@/contexts/WalkthroughContext";
+import { WalkthroughProvider, useWalkthroughTargets } from "@/contexts/WalkthroughContext";
 import {
   markFeedbackPromptCompleted,
   markFeedbackPromptDismissed,
@@ -62,6 +70,232 @@ import {
 import type { FeedbackSentiment } from "@/lib/storage";
 import { useAppMode } from "@/contexts/AppModeContext";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
+
+const WHATS_NEW_TITLE = "Simpler when you need it. Smarter when it counts.";
+const WHATS_NEW_BODY =
+  "This update gives Synapse a calmer Simple Mode, more helpful widgets, and better visit prep so staying on top of your health takes less work.";
+const WHATS_NEW_BULLETS = [
+  "New Simple Mode with clear access to Home, Meds, Visits, Symptoms, and Account",
+  "New widgets for Daily Check-In, medications, visits, and As Needed meds",
+  "Doctor Notes now attach to a visit and can be marked as talked about",
+  "Monthly check-ins now review appointments and what actually got discussed",
+  "Faster medication logging and smoother appointments across the app",
+] as const;
+const WHATS_NEW_FOOTER =
+  "We also polished navigation, onboarding, and everyday tracking so Synapse feels cleaner, calmer, and easier to keep up with.";
+
+const SIMPLE_TOUR_GAP = 14;
+const SIMPLE_TOUR_ARROW_SIZE = 11;
+const SIMPLE_TOUR_SPOTLIGHT_PADDING = 10;
+const SIMPLE_TOUR_SPOTLIGHT_RADIUS = 14;
+
+type SimpleTourStep = {
+  title: string;
+  body: string;
+  targetIds: readonly string[];
+};
+
+function SimpleModeTourOverlay({
+  visible,
+  steps,
+  step,
+  onSkip,
+  onNext,
+  isLast,
+  styles,
+}: {
+  visible: boolean;
+  steps: readonly SimpleTourStep[];
+  step: number;
+  onSkip: () => void;
+  onNext: () => void;
+  isLast: boolean;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const insets = useSafeAreaInsets();
+  const { width: winWidth, height: winHeight } = useWindowDimensions();
+  const targets = useWalkthroughTargets();
+  const getTarget = targets?.getTarget;
+  const walkthroughVersion = targets?.version;
+  const [targetRect, setTargetRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const tooltipOpacity = useRef(new Animated.Value(0)).current;
+  const tooltipSlide = useRef(new Animated.Value(12)).current;
+  const current = steps[step];
+
+  useEffect(() => {
+    if (!visible) {
+      setTargetRect(null);
+      tooltipOpacity.setValue(0);
+      tooltipSlide.setValue(12);
+      return;
+    }
+
+    let cancelled = false;
+    tooltipOpacity.setValue(0);
+    tooltipSlide.setValue(12);
+
+    const wait = (ms: number) => new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, ms);
+      if (cancelled) {
+        clearTimeout(timer);
+        resolve();
+      }
+    });
+
+    const animateIn = () => {
+      Animated.parallel([
+        Animated.timing(tooltipOpacity, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+        Animated.timing(tooltipSlide, {
+          toValue: 0,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    };
+
+    const measure = async () => {
+      const deadline = Date.now() + 600;
+      while (!cancelled && Date.now() <= deadline) {
+        for (const targetId of current.targetIds) {
+          const getter = getTarget?.(targetId);
+          if (!getter) continue;
+          const measured = await getter();
+          if (measured && measured.width > 0 && measured.height > 0) {
+            setTargetRect(measured);
+            animateIn();
+            return;
+          }
+        }
+        await wait(100);
+      }
+      if (!cancelled) {
+        setTargetRect(null);
+        animateIn();
+      }
+    };
+
+    void measure();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, step, current, getTarget, walkthroughVersion, tooltipOpacity, tooltipSlide]);
+
+  const tooltipWidth = Math.min(winWidth - 32, 340);
+  const tooltipHeight = 220;
+  const spot = useMemo(
+    () =>
+      targetRect
+        ? {
+            x: targetRect.x - SIMPLE_TOUR_SPOTLIGHT_PADDING,
+            y: targetRect.y - SIMPLE_TOUR_SPOTLIGHT_PADDING,
+            w: targetRect.width + SIMPLE_TOUR_SPOTLIGHT_PADDING * 2,
+            h: targetRect.height + SIMPLE_TOUR_SPOTLIGHT_PADDING * 2,
+          }
+        : null,
+    [targetRect]
+  );
+
+  const placement = useMemo(() => {
+    if (!spot) {
+      return {
+        tooltipX: (winWidth - tooltipWidth) / 2,
+        tooltipY: winHeight / 2 - tooltipHeight / 2,
+        arrow: "none" as const,
+        arrowX: 0,
+      };
+    }
+    const spaceAbove = spot.y - insets.top;
+    const spaceBelow = winHeight - (spot.y + spot.h) - insets.bottom;
+    const centerX = spot.x + spot.w / 2;
+    const tooltipX = Math.max(16, Math.min(winWidth - 16 - tooltipWidth, centerX - tooltipWidth / 2));
+    const arrowX = centerX - tooltipX;
+
+    if (spaceAbove >= tooltipHeight + SIMPLE_TOUR_GAP + SIMPLE_TOUR_ARROW_SIZE) {
+      return { tooltipX, tooltipY: spot.y - SIMPLE_TOUR_GAP - tooltipHeight, arrow: "down" as const, arrowX };
+    }
+    if (spaceBelow >= tooltipHeight + SIMPLE_TOUR_GAP + SIMPLE_TOUR_ARROW_SIZE) {
+      return { tooltipX, tooltipY: spot.y + spot.h + SIMPLE_TOUR_GAP, arrow: "up" as const, arrowX };
+    }
+    return {
+      tooltipX,
+      tooltipY: Math.max(insets.top + 16, Math.min(winHeight - tooltipHeight - insets.bottom - 16, spot.y + spot.h + SIMPLE_TOUR_GAP)),
+      arrow: "none" as const,
+      arrowX,
+    };
+  }, [spot, winWidth, winHeight, tooltipWidth, tooltipHeight, insets.top, insets.bottom]);
+
+  if (!visible) return null;
+
+  return (
+    <Modal animationType="none" transparent visible={visible} onRequestClose={onSkip} statusBarTranslucent>
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <View style={[styles.simpleTourDim, StyleSheet.absoluteFillObject]} />
+        {spot ? (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.simpleTourSpotlight,
+              {
+                left: spot.x,
+                top: spot.y,
+                width: spot.w,
+                height: spot.h,
+                borderRadius: SIMPLE_TOUR_SPOTLIGHT_RADIUS,
+              },
+            ]}
+          />
+        ) : null}
+
+        <Pressable style={StyleSheet.absoluteFill} onPress={onSkip} accessibilityRole="button" accessibilityLabel="Skip tour" />
+
+        <Animated.View
+          style={[
+            styles.simpleTourCard,
+            {
+              position: "absolute",
+              left: placement.tooltipX,
+              top: placement.tooltipY,
+              width: tooltipWidth,
+              opacity: tooltipOpacity,
+              transform: [{ translateY: tooltipSlide }],
+            },
+          ]}
+        >
+          {placement.arrow !== "none" ? (
+            <View
+              style={[
+                styles.simpleTourArrow,
+                placement.arrow === "up" ? styles.simpleTourArrowUp : styles.simpleTourArrowDown,
+                {
+                  left: Math.max(18, Math.min(tooltipWidth - 2 * SIMPLE_TOUR_ARROW_SIZE - 6, placement.arrowX - SIMPLE_TOUR_ARROW_SIZE)),
+                },
+              ]}
+            />
+          ) : null}
+          <View style={styles.simpleTourDots}>
+            {steps.map((_, index) => (
+              <View key={index} style={[styles.simpleTourDot, index === step && styles.simpleTourDotActive]} />
+            ))}
+          </View>
+          <Text style={styles.simpleTourTitle}>{current.title}</Text>
+          <Text style={styles.simpleTourBody}>{current.body}</Text>
+          <View style={styles.simpleTourActions}>
+            <Pressable onPress={onSkip} style={({ pressed }) => [styles.simpleTourSecondaryButton, pressed && styles.whatsNewButtonPressed]}>
+              <Text style={styles.simpleTourSecondaryText}>Skip</Text>
+            </Pressable>
+            <Pressable onPress={onNext} style={({ pressed }) => [styles.simpleTourPrimaryButton, pressed && styles.whatsNewButtonPressed]}>
+              <Text style={styles.simpleTourPrimaryText}>{isLast ? "Get Started" : "Next"}</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
 
 export default function MainScreen() {
   const isTablet = useIsTablet();
@@ -77,6 +311,7 @@ export default function MainScreen() {
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [showSimpleModeTour, setShowSimpleModeTour] = useState(false);
   const [simpleModeTourStep, setSimpleModeTourStep] = useState(0);
+  const [pendingSimpleModeTourAfterWhatsNew, setPendingSimpleModeTourAfterWhatsNew] = useState(false);
   const [openAppearanceModalToken, setOpenAppearanceModalToken] = useState(0);
   const [showFeedbackPrompt, setShowFeedbackPrompt] = useState(false);
   const [suppressPostOnboardingPrompts, setSuppressPostOnboardingPrompts] = useState(false);
@@ -85,6 +320,8 @@ export default function MainScreen() {
   const [simpleAddMedicationToken, setSimpleAddMedicationToken] = useState(0);
   const [simpleAddAppointmentToken, setSimpleAddAppointmentToken] = useState(0);
   const [simpleAddSymptomToken, setSimpleAddSymptomToken] = useState(0);
+  const [hydrationLaunchToken, setHydrationLaunchToken] = useState(0);
+  const [pendingHydrationLaunch, setPendingHydrationLaunch] = useState(false);
   const lastHandledWidgetUrlRef = useRef<{ url: string; at: number } | null>(null);
 
   const handlePrnWidgetLog = useCallback(async (prnMedId: string) => {
@@ -139,6 +376,57 @@ export default function MainScreen() {
         setActiveScreen(normalizedRoute);
         setRefreshKey((k) => k + 1);
         trackFeedbackWidgetLaunch().catch(() => {});
+        return true;
+      }
+
+      if (normalizedRoute === "hydration") {
+        setActiveScreen("eating");
+        setPendingHydrationLaunch(true);
+        setHydrationLaunchToken((value) => value + 1);
+        setRefreshKey((k) => k + 1);
+        trackFeedbackWidgetLaunch().catch(() => {});
+        return true;
+      }
+
+      if (normalizedRoute === "sickmode") {
+        void (async () => {
+          const settings = await settingsStorage.get();
+          const existing = await sickModeStorage.get();
+          if (!settings.sickMode) {
+            await settingsStorage.save({ ...settings, sickMode: true });
+          }
+          if (!existing.active) {
+            await sickModeStorage.save({
+              ...existing,
+              active: true,
+              startedAt: new Date().toISOString(),
+              checkInTimer: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+            });
+          }
+          setSickMode(true);
+          setActiveScreen("sickmode");
+          setRefreshKey((k) => k + 1);
+          await syncWidgetSnapshot().catch(() => {});
+          trackFeedbackWidgetLaunch().catch(() => {});
+        })();
+        return true;
+      }
+
+      if (normalizedRoute === "mentalhealth") {
+        void (async () => {
+          const current = await mentalHealthModeStorage.get();
+          if (!current.active) {
+            await mentalHealthModeStorage.save({
+              active: true,
+              startedAt: new Date().toISOString(),
+              hourlyCheckInTimer: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+            });
+            await syncWidgetSnapshot().catch(() => {});
+          }
+          setActiveScreen("mentalhealth");
+          setRefreshKey((k) => k + 1);
+          trackFeedbackWidgetLaunch().catch(() => {});
+        })();
         return true;
       }
     } catch {
@@ -350,27 +638,42 @@ export default function MainScreen() {
       setActiveScreen(normalizedTarget);
       setRefreshKey((k) => k + 1);
       trackFeedbackWidgetLaunch().catch(() => {});
+      return;
     }
-  }, [handlePrnWidgetLog, medId, widgetTarget]);
+
+    if (normalizedTarget === "hydration") {
+      setActiveScreen("eating");
+      setPendingHydrationLaunch(true);
+      setHydrationLaunchToken((value) => value + 1);
+      setRefreshKey((k) => k + 1);
+      trackFeedbackWidgetLaunch().catch(() => {});
+      return;
+    }
+
+    if (normalizedTarget === "sickmode" || normalizedTarget === "mentalhealth") {
+      void navigateToWidgetTarget(`myapp://widget/${normalizedTarget}`);
+    }
+  }, [handlePrnWidgetLog, medId, navigateToWidgetTarget, widgetTarget]);
 
   const handleActivateSickMode = () => {
     setSickMode(true);
     setActiveScreen("sickmode");
     setRefreshKey((k) => k + 1);
+    syncWidgetSnapshot().catch(() => {});
   };
 
   const handleDeactivateSickMode = () => {
     setSickMode(false);
     setActiveScreen("dashboard");
     setRefreshKey((k) => k + 1);
+    syncWidgetSnapshot().catch(() => {});
   };
 
   const handleOnboardingComplete = async (options?: { openMedications?: boolean; appMode?: "simple" | "full" }) => {
     const completedAppMode = options?.appMode ?? "full";
     if (completedAppMode === "simple") {
       await setHasSeenWalkthrough(true);
-      setShowSimpleModeTour(true);
-      setSimpleModeTourStep(0);
+      setPendingSimpleModeTourAfterWhatsNew(true);
       setSuppressPostOnboardingPrompts(true);
       try {
         await AsyncStorage.setItem(WHATS_NEW_SEEN_KEY, "true");
@@ -398,24 +701,42 @@ export default function MainScreen() {
   const SIMPLE_MODE_TOUR_CARDS = [
     {
       title: "Everything in one place",
-      body: "Track meds, appointments, and symptoms simply.",
+      body: "Your main tabs are right here, so the basics are always easy to reach.",
+      targetIds: ["simple-nav"],
     },
     {
       title: "Tap + to add anything",
-      body: "Add medications, appointments, or symptoms quickly.",
+      body: "Use the + button to add meds, visits, or symptoms fast.",
+      targetIds: ["simple-add"],
     },
     {
       title: "Stay on track",
-      body: "See what’s due and log how you feel daily.",
+      body: "This card shows what matters today and what you may need to do next.",
+      targetIds: ["simple-today"],
     },
   ] as const;
 
   const handleCloseSimpleModeTour = useCallback(() => {
     setShowSimpleModeTour(false);
     setSimpleModeTourStep(0);
+    setPendingSimpleModeTourAfterWhatsNew(false);
     setActiveScreen("dashboard");
     setRefreshKey((k) => k + 1);
   }, []);
+
+  useEffect(() => {
+    if (!showWhatsNew || !showSimpleModeTour) return;
+    setShowSimpleModeTour(false);
+    setSimpleModeTourStep(0);
+    setPendingSimpleModeTourAfterWhatsNew(true);
+  }, [showSimpleModeTour, showWhatsNew]);
+
+  useEffect(() => {
+    if (showWhatsNew || !pendingSimpleModeTourAfterWhatsNew) return;
+    setShowSimpleModeTour(true);
+    setSimpleModeTourStep(0);
+    setPendingSimpleModeTourAfterWhatsNew(false);
+  }, [pendingSimpleModeTourAfterWhatsNew, showWhatsNew]);
 
   const markWhatsNewSeen = useCallback(async () => {
     try {
@@ -430,6 +751,7 @@ export default function MainScreen() {
 
   const handleExploreWhatsNew = useCallback(async () => {
     await markWhatsNewSeen();
+    setPendingSimpleModeTourAfterWhatsNew(false);
     setShowWhatsNew(false);
     setActiveScreen("settings");
     setOpenAppearanceModalToken((value) => value + 1);
@@ -479,8 +801,24 @@ export default function MainScreen() {
 
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
-  const simpleTourCard = SIMPLE_MODE_TOUR_CARDS[simpleModeTourStep];
   const isLastSimpleTourStep = simpleModeTourStep === SIMPLE_MODE_TOUR_CARDS.length - 1;
+  const simpleModeTourOverlay = (
+    <SimpleModeTourOverlay
+      visible={showSimpleModeTour}
+      steps={SIMPLE_MODE_TOUR_CARDS}
+      step={simpleModeTourStep}
+      onSkip={handleCloseSimpleModeTour}
+      onNext={() => {
+        if (isLastSimpleTourStep) {
+          handleCloseSimpleModeTour();
+          return;
+        }
+        setSimpleModeTourStep((current) => current + 1);
+      }}
+      isLast={isLastSimpleTourStep}
+      styles={styles}
+    />
+  );
 
   // When storage hasn't loaded yet, show main app so the content area is never blank (avoids stuck splash-like screen).
   if (showOnboarding === true) {
@@ -519,9 +857,15 @@ export default function MainScreen() {
       case "monthlycheckin":
         return <MonthlyCheckInScreen />;
       case "eating":
-        return <EatingScreen />;
+        return (
+          <EatingScreen
+            initialTab={pendingHydrationLaunch ? "hydration" : "food"}
+            hydrationLaunchToken={hydrationLaunchToken}
+            onHydrationLaunchHandled={() => setPendingHydrationLaunch(false)}
+          />
+        );
       case "mentalhealth":
-        return <MentalHealthModeScreen />;
+        return <MentalHealthModeScreen onRefreshKey={refreshKey} />;
       case "comfort":
         return <ComfortScreen />;
       case "goals":
@@ -630,36 +974,7 @@ export default function MainScreen() {
               setShowWalkthrough(false);
             }}
           />
-          <Modal animationType="fade" transparent visible={showSimpleModeTour} onRequestClose={handleCloseSimpleModeTour}>
-            <View style={styles.modalBackdrop}>
-              <View style={styles.simpleTourCard}>
-                <View style={styles.simpleTourDots}>
-                  {SIMPLE_MODE_TOUR_CARDS.map((_, index) => (
-                    <View key={index} style={[styles.simpleTourDot, index === simpleModeTourStep && styles.simpleTourDotActive]} />
-                  ))}
-                </View>
-                <Text style={styles.simpleTourTitle}>{simpleTourCard.title}</Text>
-                <Text style={styles.simpleTourBody}>{simpleTourCard.body}</Text>
-                <View style={styles.simpleTourActions}>
-                  <Pressable onPress={handleCloseSimpleModeTour} style={({ pressed }) => [styles.simpleTourSecondaryButton, pressed && styles.whatsNewButtonPressed]}>
-                    <Text style={styles.simpleTourSecondaryText}>Skip</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      if (isLastSimpleTourStep) {
-                        handleCloseSimpleModeTour();
-                        return;
-                      }
-                      setSimpleModeTourStep((current) => current + 1);
-                    }}
-                    style={({ pressed }) => [styles.simpleTourPrimaryButton, pressed && styles.whatsNewButtonPressed]}
-                  >
-                    <Text style={styles.simpleTourPrimaryText}>{isLastSimpleTourStep ? "Get Started" : "Next"}</Text>
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          </Modal>
+          {simpleModeTourOverlay}
           <Modal
             animationType="fade"
             transparent
@@ -699,20 +1014,14 @@ export default function MainScreen() {
             <View style={styles.modalBackdrop}>
               <View style={styles.whatsNewCard}>
                 <Text style={styles.whatsNewEyebrow}>What’s New in Synapse</Text>
-                <Text style={styles.whatsNewTitle}>A little more thoughtful. A lot easier to live with.</Text>
-                <Text style={styles.whatsNewBody}>
-                  This update makes Synapse feel more personal, more supportive, and way easier to stay on top of.
-                </Text>
+                <Text style={styles.whatsNewTitle}>{WHATS_NEW_TITLE}</Text>
+                <Text style={styles.whatsNewBody}>{WHATS_NEW_BODY}</Text>
                 <View style={styles.whatsNewList}>
-                  <Text style={styles.whatsNewBullet}>• New widgets for quick, at-a-glance updates</Text>
-                  <Text style={styles.whatsNewBullet}>• Recovery tracking to follow your progress over time</Text>
-                  <Text style={styles.whatsNewBullet}>• Smarter symptom and vitals logging</Text>
-                  <Text style={styles.whatsNewBullet}>• Improved medications, appointments, and dashboard</Text>
-                  <Text style={styles.whatsNewBullet}>• Expanded health profile with vaccines, surgeries, and more</Text>
+                  {WHATS_NEW_BULLETS.map((item) => (
+                    <Text key={item} style={styles.whatsNewBullet}>• {item}</Text>
+                  ))}
                 </View>
-                <Text style={styles.whatsNewFooter}>
-                  We also polished onboarding, navigation, and dark mode so everything feels smoother, cleaner, and more intentional.
-                </Text>
+                <Text style={styles.whatsNewFooter}>{WHATS_NEW_FOOTER}</Text>
                 <View style={styles.whatsNewActions}>
                   <Pressable onPress={handleDismissWhatsNew} style={({ pressed }) => [styles.whatsNewSecondaryButton, pressed && styles.whatsNewButtonPressed]}>
                     <Text style={styles.whatsNewSecondaryText}>Got it</Text>
@@ -746,36 +1055,7 @@ export default function MainScreen() {
             setShowWalkthrough(false);
           }}
         />
-        <Modal animationType="fade" transparent visible={showSimpleModeTour} onRequestClose={handleCloseSimpleModeTour}>
-          <View style={styles.modalBackdrop}>
-            <View style={styles.simpleTourCard}>
-              <View style={styles.simpleTourDots}>
-                {SIMPLE_MODE_TOUR_CARDS.map((_, index) => (
-                  <View key={index} style={[styles.simpleTourDot, index === simpleModeTourStep && styles.simpleTourDotActive]} />
-                ))}
-              </View>
-              <Text style={styles.simpleTourTitle}>{simpleTourCard.title}</Text>
-              <Text style={styles.simpleTourBody}>{simpleTourCard.body}</Text>
-              <View style={styles.simpleTourActions}>
-                <Pressable onPress={handleCloseSimpleModeTour} style={({ pressed }) => [styles.simpleTourSecondaryButton, pressed && styles.whatsNewButtonPressed]}>
-                  <Text style={styles.simpleTourSecondaryText}>Skip</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    if (isLastSimpleTourStep) {
-                      handleCloseSimpleModeTour();
-                      return;
-                    }
-                    setSimpleModeTourStep((current) => current + 1);
-                  }}
-                  style={({ pressed }) => [styles.simpleTourPrimaryButton, pressed && styles.whatsNewButtonPressed]}
-                >
-                  <Text style={styles.simpleTourPrimaryText}>{isLastSimpleTourStep ? "Get Started" : "Next"}</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </Modal>
+        {simpleModeTourOverlay}
         <Modal
           animationType="fade"
           transparent
@@ -815,20 +1095,14 @@ export default function MainScreen() {
           <View style={styles.modalBackdrop}>
             <View style={styles.whatsNewCard}>
               <Text style={styles.whatsNewEyebrow}>What’s New in Synapse</Text>
-              <Text style={styles.whatsNewTitle}>A little more thoughtful. A lot easier to live with.</Text>
-              <Text style={styles.whatsNewBody}>
-                This update makes Synapse feel more personal, more supportive, and way easier to stay on top of.
-              </Text>
+              <Text style={styles.whatsNewTitle}>{WHATS_NEW_TITLE}</Text>
+              <Text style={styles.whatsNewBody}>{WHATS_NEW_BODY}</Text>
               <View style={styles.whatsNewList}>
-                <Text style={styles.whatsNewBullet}>• New widgets for quick, at-a-glance updates</Text>
-                <Text style={styles.whatsNewBullet}>• Recovery tracking to follow your progress over time</Text>
-                <Text style={styles.whatsNewBullet}>• Smarter symptom and vitals logging</Text>
-                <Text style={styles.whatsNewBullet}>• Improved medications, appointments, and dashboard</Text>
-                <Text style={styles.whatsNewBullet}>• Expanded health profile with vaccines, surgeries, and more</Text>
+                {WHATS_NEW_BULLETS.map((item) => (
+                  <Text key={item} style={styles.whatsNewBullet}>• {item}</Text>
+                ))}
               </View>
-              <Text style={styles.whatsNewFooter}>
-                We also polished onboarding, navigation, and dark mode so everything feels smoother, cleaner, and more intentional.
-              </Text>
+              <Text style={styles.whatsNewFooter}>{WHATS_NEW_FOOTER}</Text>
               <View style={styles.whatsNewActions}>
                 <Pressable onPress={handleDismissWhatsNew} style={({ pressed }) => [styles.whatsNewSecondaryButton, pressed && styles.whatsNewButtonPressed]}>
                   <Text style={styles.whatsNewSecondaryText}>Got it</Text>
@@ -878,6 +1152,38 @@ function makeStyles(C: Theme) {
       shadowRadius: 18,
       shadowOffset: { width: 0, height: 10 },
       elevation: 8,
+    },
+    simpleTourDim: {
+      backgroundColor: "rgba(0,0,0,0.30)",
+    },
+    simpleTourSpotlight: {
+      position: "absolute",
+      backgroundColor: "transparent",
+      borderWidth: 2,
+      borderColor: "rgba(255,255,255,0.88)",
+      shadowColor: "#000",
+      shadowOpacity: 0.18,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 8 },
+    },
+    simpleTourArrow: {
+      position: "absolute",
+      width: 0,
+      height: 0,
+      borderLeftWidth: SIMPLE_TOUR_ARROW_SIZE,
+      borderRightWidth: SIMPLE_TOUR_ARROW_SIZE,
+      borderLeftColor: "transparent",
+      borderRightColor: "transparent",
+    },
+    simpleTourArrowUp: {
+      top: -SIMPLE_TOUR_ARROW_SIZE,
+      borderBottomWidth: SIMPLE_TOUR_ARROW_SIZE,
+      borderBottomColor: C.surface,
+    },
+    simpleTourArrowDown: {
+      bottom: -SIMPLE_TOUR_ARROW_SIZE,
+      borderTopWidth: SIMPLE_TOUR_ARROW_SIZE,
+      borderTopColor: C.surface,
     },
     simpleTourDots: {
       flexDirection: "row",

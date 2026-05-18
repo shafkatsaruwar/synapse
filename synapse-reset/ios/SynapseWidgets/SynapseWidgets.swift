@@ -99,10 +99,40 @@ private struct SynapseWidgetSnapshot: Codable {
     let isFastingToday: Bool
   }
 
+  struct Hydration: Codable {
+    let presetLabel: String
+    let sipAmountText: String
+    let totalTodayMl: Int
+    let totalTodayText: String
+    let hasEntriesToday: Bool
+    let launchHint: String
+  }
+
+  struct SickMode: Codable {
+    let active: Bool
+    let recoveryMode: Bool
+    let latestTemperature: Double?
+    let latestTemperatureText: String
+    let statusText: String
+    let needsStressDose: Bool
+    let stressDoseText: String
+    let checkInTimer: String?
+  }
+
+  struct MentalHealth: Codable {
+    let active: Bool
+    let statusText: String
+    let nextCheckInText: String
+    let checkInTimer: String?
+  }
+
   let medication: Medication?
   let appointment: Appointment?
   let prnMedication: PrnMedication?
   let wellness: Wellness
+  let hydration: Hydration
+  let sickMode: SickMode
+  let mentalHealth: MentalHealth
   let updatedAt: Date
 
   static let placeholder = SynapseWidgetSnapshot(
@@ -135,6 +165,30 @@ private struct SynapseWidgetSnapshot: Codable {
       symptomCountToday: 0,
       topSymptomName: nil,
       isFastingToday: false
+    ),
+    hydration: Hydration(
+      presetLabel: "Water",
+      sipAmountText: "8 oz",
+      totalTodayMl: 0,
+      totalTodayText: "Nothing logged yet",
+      hasEntriesToday: false,
+      launchHint: "Take a Sip"
+    ),
+    sickMode: SickMode(
+      active: false,
+      recoveryMode: false,
+      latestTemperature: nil,
+      latestTemperatureText: "No temp logged",
+      statusText: "Tap to start sick mode",
+      needsStressDose: false,
+      stressDoseText: "No stress-dose meds",
+      checkInTimer: nil
+    ),
+    mentalHealth: MentalHealth(
+      active: false,
+      statusText: "Tap to start mental health day",
+      nextCheckInText: "No check-in scheduled",
+      checkInTimer: nil
     ),
     updatedAt: Date()
   )
@@ -169,6 +223,9 @@ private struct SynapseProvider: TimelineProvider {
       return min(Date().addingTimeInterval(60 * 30), startsAt.addingTimeInterval(1))
     }
     if snapshot.prnMedication?.lastLoggedAt != nil {
+      return Date().addingTimeInterval(60)
+    }
+    if snapshot.sickMode.active || snapshot.mentalHealth.active {
       return Date().addingTimeInterval(60)
     }
     return Date().addingTimeInterval(60 * 30)
@@ -344,97 +401,71 @@ private struct WellnessWidgetView: View {
     let wellness = entry.snapshot.wellness
     let compact = family == .systemSmall
     WidgetCard(palette: palette) {
-      VStack(alignment: .leading, spacing: compact ? 8 : 10) {
-        Text("Daily Check-In")
-          .font(.system(size: compact ? 12 : 13, weight: .semibold))
-          .foregroundStyle(palette.muted)
-          .lineLimit(1)
-
-        Text(wellness.summaryText)
-          .font(.system(size: compact ? 18 : 19, weight: .bold))
-          .foregroundStyle(palette.ink)
-          .lineLimit(1)
-          .minimumScaleFactor(0.9)
-
-        if wellness.hasTodayLog {
-          if compact {
-            VStack(alignment: .leading, spacing: 6) {
-              Text("Overall today")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(palette.muted)
-              HStack(alignment: .lastTextBaseline, spacing: 4) {
-                Text(wellness.overallFeeling.map { "\($0)/10" } ?? "--")
-                  .font(.system(size: 26, weight: .bold))
-                  .foregroundStyle(wellnessAccent(wellness.overallFeeling, palette: palette))
-                  .lineLimit(1)
-                  .minimumScaleFactor(0.85)
-                Text(overallWellnessLabel(wellness.overallFeeling))
-                  .font(.system(size: 11, weight: .semibold))
-                  .foregroundStyle(palette.muted)
-                  .lineLimit(1)
-                  .minimumScaleFactor(0.8)
-              }
-            }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(palette.track)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-          } else {
-            VStack(alignment: .leading, spacing: 8) {
-              HStack(alignment: .lastTextBaseline, spacing: 8) {
-                Text(wellness.overallFeeling.map { "\($0)/10" } ?? "--")
-                  .font(.system(size: 32, weight: .bold))
-                  .foregroundStyle(wellnessAccent(wellness.overallFeeling, palette: palette))
-                  .lineLimit(1)
-                  .minimumScaleFactor(0.85)
-                VStack(alignment: .leading, spacing: 2) {
-                  Text("Overall today")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(palette.muted)
-                  Text(overallWellnessLabel(wellness.overallFeeling))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(palette.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.9)
-                }
-              }
-
-              if !wellness.detailHighlights.isEmpty {
-                HStack(spacing: 6) {
-                  ForEach(Array(wellness.detailHighlights.prefix(3).enumerated()), id: \.offset) { _, item in
-                    WellnessDetailChip(text: item, palette: palette)
-                  }
-                }
-              }
-            }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(palette.track)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-          }
+      VStack(alignment: .leading, spacing: compact ? 6 : 10) {
+        if !compact {
+          Text("Daily Check-In")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(palette.muted)
+            .lineLimit(1)
         }
 
-        Text(wellness.secondaryText)
-          .font(.system(size: compact ? 11 : 13, weight: .regular))
-          .foregroundStyle(palette.muted)
+        Text(wellness.summaryText)
+          .font(.system(size: compact ? 15 : 18, weight: .bold))
+          .foregroundStyle(palette.ink)
           .lineLimit(1)
-          .minimumScaleFactor(0.85)
+          .minimumScaleFactor(0.86)
 
-        if wellness.symptomCountToday > 0 || wellness.isFastingToday {
+        if wellness.hasTodayLog {
+          VStack(alignment: .leading, spacing: compact ? 6 : 8) {
+            Text("Overall today")
+              .font(.system(size: compact ? 10 : 11, weight: .semibold))
+              .foregroundStyle(palette.muted)
+              .lineLimit(1)
+
+            Text(wellness.overallFeeling.map(String.init) ?? "--")
+              .font(.system(size: compact ? 42 : 34, weight: .bold))
+              .foregroundStyle(palette.red)
+              .lineLimit(1)
+              .minimumScaleFactor(0.82)
+
+            if !compact && !wellness.detailHighlights.isEmpty {
+              HStack(spacing: 6) {
+                ForEach(Array(wellness.detailHighlights.prefix(3).enumerated()), id: \.offset) { _, item in
+                  WellnessDetailChip(text: item, palette: palette)
+                }
+              }
+            }
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.vertical, compact ? 12 : 10)
+          .padding(.horizontal, compact ? 12 : 12)
+          .background(palette.track)
+          .clipShape(RoundedRectangle(cornerRadius: compact ? 18 : 16, style: .continuous))
+        }
+
+        if !compact || !wellness.hasTodayLog {
+          Text(wellness.secondaryText)
+            .font(.system(size: compact ? 10 : 12, weight: .regular))
+            .foregroundStyle(palette.muted)
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+        }
+
+        if !compact && (wellness.symptomCountToday > 0 || wellness.isFastingToday) {
           HStack(spacing: 8) {
             if wellness.symptomCountToday > 0 {
               Label(
                 wellness.symptomCountToday == 1 ? "1 symptom" : "\(wellness.symptomCountToday) symptoms",
                 systemImage: "waveform.path.ecg"
               )
-              .font(.system(size: 11, weight: .regular))
+              .font(.system(size: 10, weight: .regular))
               .foregroundStyle(palette.red)
               .lineLimit(1)
             }
 
             if wellness.isFastingToday {
               Label("Fasting", systemImage: "moon.stars.fill")
-                .font(.system(size: 11, weight: .regular))
+                .font(.system(size: 10, weight: .regular))
                 .foregroundStyle(palette.blue)
                 .lineLimit(1)
             }
@@ -447,19 +478,19 @@ private struct WellnessWidgetView: View {
 }
 
 private func smallTitleFont() -> Font {
-  .system(size: 13, weight: .semibold)
+  .system(size: 12, weight: .semibold)
 }
 
 private func mainFont(compact: Bool) -> Font {
-  .system(size: compact ? 18 : 19, weight: .bold)
+  .system(size: compact ? 16 : 18, weight: .bold)
 }
 
 private func secondaryFont(compact: Bool) -> Font {
-  .system(size: compact ? 13 : 14, weight: .regular)
+  .system(size: compact ? 12 : 13, weight: .regular)
 }
 
 private func metaFont() -> Font {
-  .system(size: 12, weight: .regular)
+  .system(size: 11, weight: .regular)
 }
 
 private struct MedBlock: View {
@@ -530,9 +561,9 @@ private struct PrnMedicationBlock: View {
   let palette: SynapseWidgetPalette
 
   var body: some View {
-    VStack(alignment: .leading, spacing: compact ? 8 : 10) {
-      if showHeader {
-        Text(compact ? "As Needed" : "As Needed Medication")
+    VStack(alignment: .leading, spacing: compact ? 7 : 8) {
+      if showHeader && !compact {
+        Text("As Needed")
           .font(smallTitleFont())
           .foregroundStyle(palette.muted)
           .lineLimit(1)
@@ -540,29 +571,29 @@ private struct PrnMedicationBlock: View {
       }
 
       if let prnMedication {
-        VStack(alignment: .leading, spacing: compact ? 8 : 10) {
+        VStack(alignment: .leading, spacing: compact ? 7 : 8) {
           Link(destination: SynapseWidgetDestination.url(for: "medications")) {
-            VStack(alignment: .leading, spacing: compact ? 4 : 6) {
+            VStack(alignment: .leading, spacing: compact ? 3 : 5) {
               Text(prnMedication.name)
                 .font(mainFont(compact: compact))
                 .foregroundStyle(palette.ink)
-                .lineLimit(2)
+                .lineLimit(1)
                 .minimumScaleFactor(0.82)
               Text(prnMedication.detail)
                 .font(secondaryFont(compact: compact))
                 .foregroundStyle(palette.muted)
                 .lineLimit(1)
-                .minimumScaleFactor(0.9)
+                .minimumScaleFactor(0.82)
               Text(prnMedication.statusText)
-                .font(secondaryFont(compact: compact).weight(.semibold))
+                .font(.system(size: compact ? 11 : 13, weight: .semibold))
                 .foregroundStyle(palette.green)
                 .lineLimit(1)
-                .minimumScaleFactor(0.9)
+                .minimumScaleFactor(0.82)
               Text(prnMedication.countText)
-                .font(.system(size: compact ? 11 : 12, weight: .regular))
+                .font(.system(size: compact ? 10 : 11, weight: .regular))
                 .foregroundStyle(palette.muted)
                 .lineLimit(1)
-                .minimumScaleFactor(0.9)
+                .minimumScaleFactor(0.82)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
@@ -570,16 +601,16 @@ private struct PrnMedicationBlock: View {
           .buttonStyle(.plain)
 
           Link(destination: SynapseWidgetDestination.prnLogURL(for: prnMedication.id)) {
-            HStack(spacing: compact ? 5 : 6) {
+            HStack(spacing: compact ? 4 : 5) {
               Image(systemName: "plus.circle.fill")
-                .font(.system(size: compact ? 15 : 16, weight: .semibold))
+                .font(.system(size: compact ? 14 : 15, weight: .semibold))
               Text("Log")
             }
-            .font(.system(size: compact ? 12 : 14, weight: .semibold))
+            .font(.system(size: compact ? 11 : 13, weight: .semibold))
             .foregroundStyle(Color.white)
-            .frame(maxWidth: compact ? .infinity : 220)
-            .padding(.vertical, compact ? 8 : 10)
-            .background(palette.blue)
+            .frame(maxWidth: compact ? .infinity : 152)
+            .padding(.vertical, compact ? 7 : 8)
+            .background(palette.red)
             .clipShape(Capsule())
           }
           .buttonStyle(.plain)
@@ -658,7 +689,7 @@ private struct WidgetCard<Content: View>: View {
       palette.background
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       content
-        .padding(16)
+        .padding(14)
     }
 
     if #available(iOSApplicationExtension 17.0, *) {
@@ -761,6 +792,138 @@ private struct PrnMedicationWidgetView: View {
   }
 }
 
+private struct HydrationWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let hydration = entry.snapshot.hydration
+    WidgetCard(palette: palette) {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Hydration")
+          .font(smallTitleFont())
+          .foregroundStyle(palette.muted)
+        Text(hydration.presetLabel)
+          .font(.system(size: 18, weight: .bold))
+          .foregroundStyle(palette.ink)
+          .lineLimit(1)
+        Text(hydration.sipAmountText)
+          .font(.system(size: 13, weight: .semibold))
+          .foregroundStyle(palette.red)
+          .lineLimit(1)
+        Text(hydration.totalTodayText)
+          .font(.system(size: 12, weight: .regular))
+          .foregroundStyle(palette.muted)
+          .lineLimit(1)
+        Spacer(minLength: 0)
+        HStack(spacing: 6) {
+          Image(systemName: "drop.fill")
+            .font(.system(size: 13, weight: .semibold))
+          Text(hydration.launchHint)
+        }
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundStyle(Color.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(palette.red)
+        .clipShape(Capsule())
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+}
+
+private struct SickModeWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let sickMode = entry.snapshot.sickMode
+    WidgetCard(palette: palette) {
+      VStack(alignment: .leading, spacing: 10) {
+        HStack {
+          Text("I am Sick")
+            .font(smallTitleFont())
+            .foregroundStyle(palette.muted)
+          Spacer()
+          Text(sickMode.recoveryMode ? "Recovery" : "Active")
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(sickMode.recoveryMode ? palette.green : palette.red)
+        }
+
+        Text(sickMode.latestTemperatureText)
+          .font(.system(size: 24, weight: .bold))
+          .foregroundStyle(palette.ink)
+          .lineLimit(1)
+
+        Text(sickMode.statusText)
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(sickMode.recoveryMode ? palette.green : palette.red)
+          .lineLimit(1)
+
+        HStack(spacing: 10) {
+          VStack(alignment: .leading, spacing: 3) {
+            Text("Stress dose")
+              .font(.system(size: 10, weight: .semibold))
+              .foregroundStyle(palette.muted)
+            Text(sickMode.stressDoseText)
+              .font(.system(size: 12, weight: .semibold))
+              .foregroundStyle(sickMode.needsStressDose ? palette.red : palette.green)
+              .lineLimit(2)
+          }
+          Spacer()
+          VStack(alignment: .trailing, spacing: 3) {
+            Text("Check-in")
+              .font(.system(size: 10, weight: .semibold))
+              .foregroundStyle(palette.muted)
+            Text(sickMode.checkInTimer ?? "No timer")
+              .font(.system(size: 12, weight: .semibold))
+              .foregroundStyle(palette.ink)
+              .lineLimit(1)
+          }
+        }
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+}
+
+private struct MentalHealthWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let mentalHealth = entry.snapshot.mentalHealth
+    WidgetCard(palette: palette) {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("I'm not okay")
+          .font(smallTitleFont())
+          .foregroundStyle(palette.muted)
+        Text(mentalHealth.active ? "Mental health day" : "Start support")
+          .font(.system(size: 18, weight: .bold))
+          .foregroundStyle(palette.ink)
+          .lineLimit(2)
+        Text(mentalHealth.statusText)
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(palette.red)
+          .lineLimit(2)
+        Spacer(minLength: 0)
+        Text("Next check-in")
+          .font(.system(size: 10, weight: .semibold))
+          .foregroundStyle(palette.muted)
+        Text(mentalHealth.nextCheckInText)
+          .font(.system(size: 16, weight: .bold))
+          .foregroundStyle(palette.ink)
+          .lineLimit(1)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+}
+
 struct SynapseOverviewWidget: Widget {
   let kind = "SynapseOverviewWidget"
 
@@ -785,7 +948,7 @@ struct SynapseMedicationWidget: Widget {
     }
     .configurationDisplayName("Next Medication")
     .description("Track your next dose with a live countdown.")
-    .supportedFamilies([.systemSmall, .systemMedium])
+    .supportedFamilies([.systemSmall])
     .contentMarginsDisabled()
   }
 }
@@ -829,7 +992,52 @@ struct SynapsePrnMedicationWidget: Widget {
     }
     .configurationDisplayName("As Needed Medication")
     .description("Log an As Needed medication and see how many times you’ve taken it today.")
-    .supportedFamilies([.systemSmall, .systemMedium])
+    .supportedFamilies([.systemSmall])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapseHydrationWidget: Widget {
+  let kind = "SynapseHydrationWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      HydrationWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "hydration"))
+    }
+    .configurationDisplayName("Hydration")
+    .description("Take a quick sip and jump into your hydration log.")
+    .supportedFamilies([.systemSmall])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapseSickModeWidget: Widget {
+  let kind = "SynapseSickModeWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      SickModeWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "sickmode"))
+    }
+    .configurationDisplayName("I am Sick")
+    .description("See stress-dose status, your latest temperature, and the next check-in.")
+    .supportedFamilies([.systemMedium])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapseMentalHealthWidget: Widget {
+  let kind = "SynapseMentalHealthWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      MentalHealthWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "mentalhealth"))
+    }
+    .configurationDisplayName("I'm not okay")
+    .description("Start or check your mental health day and the next hourly check-in.")
+    .supportedFamilies([.systemSmall])
     .contentMarginsDisabled()
   }
 }

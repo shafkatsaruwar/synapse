@@ -10,6 +10,7 @@ import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useModeAwareScreen } from "@/contexts/AppModeContext";
 import { symptomStorage, settingsStorage, sickModeStorage, enableRecoveryTracking, type Symptom } from "@/lib/storage";
 import { formatTimestamp, getToday, getRelativeDay, getDaysAgo } from "@/lib/date-utils";
+import { syncWidgetSnapshot } from "@/lib/widget-sync";
 
 const COMMON_SYMPTOMS = [
   "Chest pain",
@@ -143,6 +144,7 @@ export default function SymptomsScreen({ onActivateSickMode, simpleOpenAddToken 
     await enableRecoveryTracking();
     const sd = await sickModeStorage.get();
     await sickModeStorage.save({ ...sd, active: true, startedAt: new Date().toISOString() });
+    await syncWidgetSnapshot().catch(() => {});
     setShowFeverAlert(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     onActivateSickMode?.();

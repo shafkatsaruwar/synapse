@@ -9,5 +9,8 @@ struct SynapseWidgetsBundle: WidgetBundle {
     SynapseAppointmentWidget()
     SynapseWellnessWidget()
     SynapsePrnMedicationWidget()
+    SynapseHydrationWidget()
+    SynapseSickModeWidget()
+    SynapseMentalHealthWidget()
   }
 }

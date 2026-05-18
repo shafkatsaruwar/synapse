@@ -330,6 +330,23 @@ export interface EatingEntry {
   amount: EatingAmount;
 }
 
+export type HydrationUnit = "oz" | "ml" | "L" | "glasses";
+
+export interface HydrationEntry {
+  id: string;
+  date: string;
+  time?: string;
+  what: string;
+  amount: number;
+  unit: HydrationUnit;
+}
+
+export interface HydrationQuickActionPreset {
+  what: string;
+  amount: number;
+  unit: HydrationUnit;
+}
+
 export interface MentalHealthModeData {
   active: boolean;
   startedAt?: string;
@@ -451,6 +468,8 @@ const KEYS = {
   HEALTH_PROFILE_INFO: "fir_health_profile_info",
   MONTHLY_CHECK_INS: "fir_monthly_check_ins",
   EATING_LOGS: "fir_eating_logs",
+  HYDRATION_LOGS: "fir_hydration_logs",
+  HYDRATION_PRESET: "fir_hydration_preset",
   MENTAL_HEALTH_MODE: "fir_mental_health_mode",
   COMFORT_ITEMS: "fir_comfort_items",
   GOALS: "fir_goals",
@@ -1244,6 +1263,84 @@ export const eatingStorage = {
   },
 };
 
+const DEFAULT_HYDRATION_PRESET: HydrationQuickActionPreset = {
+  what: "Water",
+  amount: 8,
+  unit: "oz",
+};
+
+export function convertHydrationToMl(amount: number, unit: HydrationUnit): number {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  switch (unit) {
+    case "ml":
+      return amount;
+    case "L":
+      return amount * 1000;
+    case "glasses":
+      return amount * 240;
+    case "oz":
+    default:
+      return amount * 29.5735;
+  }
+}
+
+export function formatHydrationAmount(amount: number, unit: HydrationUnit): string {
+  const rounded = Number.isInteger(amount) ? String(amount) : amount.toFixed(1).replace(/\.0$/, "");
+  return `${rounded} ${unit}`;
+}
+
+export const hydrationStorage = {
+  getAll: () => getItem<HydrationEntry>(KEYS.HYDRATION_LOGS),
+  getByDateRange: async (from: string, to: string) => {
+    const all = await getItem<HydrationEntry>(KEYS.HYDRATION_LOGS);
+    return all
+      .filter((entry) => entry.date >= from && entry.date <= to)
+      .sort((a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || ""));
+  },
+  save: async (data: Omit<HydrationEntry, "id">) => {
+    const all = await getItem<HydrationEntry>(KEYS.HYDRATION_LOGS);
+    const newItem = { ...data, id: Crypto.randomUUID() };
+    all.push(newItem);
+    await setItem(KEYS.HYDRATION_LOGS, all);
+    return newItem;
+  },
+  delete: async (id: string) => {
+    const all = await getItem<HydrationEntry>(KEYS.HYDRATION_LOGS);
+    await setItem(KEYS.HYDRATION_LOGS, all.filter((entry) => entry.id !== id));
+  },
+  getPreset: async (): Promise<HydrationQuickActionPreset> => {
+    try {
+      const raw = await AsyncStorage.getItem(KEYS.HYDRATION_PRESET);
+      if (!raw) return { ...DEFAULT_HYDRATION_PRESET };
+      const parsed = JSON.parse(raw) as Partial<HydrationQuickActionPreset>;
+      const amount = typeof parsed.amount === "number" && parsed.amount > 0 ? parsed.amount : DEFAULT_HYDRATION_PRESET.amount;
+      const unit = parsed.unit === "oz" || parsed.unit === "ml" || parsed.unit === "L" || parsed.unit === "glasses"
+        ? parsed.unit
+        : DEFAULT_HYDRATION_PRESET.unit;
+      return {
+        what: parsed.what?.trim() || DEFAULT_HYDRATION_PRESET.what,
+        amount,
+        unit,
+      };
+    } catch (e) {
+      console.warn("AsyncStorage hydrationPreset get failed", e);
+      return { ...DEFAULT_HYDRATION_PRESET };
+    }
+  },
+  savePreset: async (preset: HydrationQuickActionPreset) => {
+    try {
+      const safePreset: HydrationQuickActionPreset = {
+        what: preset.what.trim() || DEFAULT_HYDRATION_PRESET.what,
+        amount: Number.isFinite(preset.amount) && preset.amount > 0 ? preset.amount : DEFAULT_HYDRATION_PRESET.amount,
+        unit: preset.unit,
+      };
+      await AsyncStorage.setItem(KEYS.HYDRATION_PRESET, JSON.stringify(safePreset));
+    } catch (e) {
+      console.warn("AsyncStorage hydrationPreset save failed", e);
+    }
+  },
+};
+
 const DEFAULT_MENTAL_HEALTH_MODE: MentalHealthModeData = {
   active: false,
 };
@@ -1335,6 +1432,8 @@ export type ExportPayload = {
   medComparisons?: MedComparison[];
   monthlyCheckIns?: MonthlyCheckIn[];
   eatingLogs?: EatingEntry[];
+  hydrationLogs?: HydrationEntry[];
+  hydrationPreset?: HydrationQuickActionPreset;
   mentalHealthMode?: MentalHealthModeData;
   comfortItems?: ComfortItem[];
   goals?: Goal[];
@@ -1380,10 +1479,12 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     sickModeStorage.get(),
     healthProfileStorage.get(),
   ]);
-  const [medComparisons, monthlyCheckIns, eatingLogs, mentalHealthMode, comfortItems, goals, cycleEntries, feedback] = await Promise.all([
+  const [medComparisons, monthlyCheckIns, eatingLogs, hydrationLogs, hydrationPreset, mentalHealthMode, comfortItems, goals, cycleEntries, feedback] = await Promise.all([
     medComparisonStorage.getAll(),
     monthlyCheckInStorage.getAll(),
     eatingStorage.getAll(),
+    hydrationStorage.getAll(),
+    hydrationStorage.getPreset(),
     mentalHealthModeStorage.get(),
     comfortStorage.getAll(),
     goalStorage.getAll(),
@@ -1413,6 +1514,8 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     medComparisons,
     monthlyCheckIns,
     eatingLogs,
+    hydrationLogs,
+    hydrationPreset,
     mentalHealthMode,
     comfortItems,
     goals,
@@ -1443,6 +1546,8 @@ export const importAllData = async (payload: ExportPayload): Promise<void> => {
   await setItem(KEYS.CONDITIONS, payload.conditions ?? []);
   await setItem(KEYS.MONTHLY_CHECK_INS, payload.monthlyCheckIns ?? []);
   await setItem(KEYS.EATING_LOGS, payload.eatingLogs ?? []);
+  await setItem(KEYS.HYDRATION_LOGS, payload.hydrationLogs ?? []);
+  await hydrationStorage.savePreset(payload.hydrationPreset ?? { ...DEFAULT_HYDRATION_PRESET });
   await mentalHealthModeStorage.save(payload.mentalHealthMode ?? { ...DEFAULT_MENTAL_HEALTH_MODE });
   await setItem(KEYS.COMFORT_ITEMS, payload.comfortItems ?? []);
   await setItem(KEYS.GOALS, payload.goals ?? []);
