@@ -52,8 +52,7 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     id: "emergencycard",
     title: "Emergency Card",
-    body: "Your emergency info, ready when it matters most.",
-    targetIds: ["emergencycard"],
+    body: "Your emergency info is easy to reach whenever it matters most.",
     enterDelayMs: 260,
   },
   { id: "final", title: "Simple. Private. Built for you.", body: "", enterDelayMs: 120 },

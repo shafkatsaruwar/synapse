@@ -64,6 +64,7 @@ export type MedicationType = "scheduled" | "prn";
 export interface Medication {
   id: string;
   name: string;
+  imageUri?: string;
   /** @deprecated Use doses[].amount + unit. Kept for migration. */
   dosage?: string;
   frequency: string;
@@ -416,7 +417,7 @@ export interface HealthCondition {
 
 /** Section keys that can be enabled/disabled by user (v1.3). If undefined, all sections are shown. */
 /** Sections the user cannot turn off — always shown. */
-export const REQUIRED_SECTION_KEYS: readonly string[] = ["medications", "appointments", "healthdata"];
+export const REQUIRED_SECTION_KEYS: readonly string[] = ["medications", "appointments", "healthdata", "privacy"];
 
 export const ALL_SECTION_KEYS = [
   "log", "healthdata", "medications", "symptoms", "monthlycheckin",
@@ -433,7 +434,6 @@ export interface UserSettings {
   textSize?: "normal" | "large" | "extra_large";
   ramadanMode: boolean;
   sickMode: boolean;
-  highContrast?: boolean;
   onboardingCompleted?: true;
   /** Sections the user chose in onboarding (v1.3). Undefined = show all. */
   enabledSections?: string[];
@@ -441,6 +441,7 @@ export interface UserSettings {
   notificationsMedications?: boolean;
   notificationsAppointments?: boolean;
   notificationsDailyCheckIn?: boolean;
+  notificationsHydration?: boolean;
   notificationsMonthly?: boolean;
   notificationsDailySummary?: boolean;
   notificationsWeeklySummary?: boolean;
