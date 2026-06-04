@@ -32,7 +32,7 @@ export const NOTIFICATION_IDS = {
   prefixMedSnooze: "med-snooze",
   prefixRefill: "refill",
   prefixApt1day: "apt-1d",
-  prefixApt1hr: "apt-1h",
+  prefixApt2hr: "apt-2h",
   dailyCheckIn: "daily-checkin",
   monthlyCheckIn: "monthly-checkin",
   screening: "screening-reminder",
@@ -394,42 +394,47 @@ function inferMedicationReminderCadence(med: {
   return { cadence: "daily" as const, weekday: undefined, intervalValue: undefined, intervalUnit: undefined };
 }
 
-/** Schedule appointment reminder (1 day before or 1 hour before). */
+/** Schedule appointment reminder (24 hours before or 2 hours before). */
 export async function scheduleAppointmentReminder(params: {
   appointmentId: string;
   doctorName: string;
   date: string;
   time: string;
-  when: "1day" | "1hr";
+  when: "24hr" | "2hr";
 }): Promise<string | null> {
   if (!isNative()) return null;
   const { appointmentId, doctorName, date, time, when } = params;
-  const identifier = when === "1day"
+  const identifier = when === "24hr"
     ? `${NOTIFICATION_IDS.prefixApt1day}-${appointmentId}`
-    : `${NOTIFICATION_IDS.prefixApt1hr}-${appointmentId}`;
+    : `${NOTIFICATION_IDS.prefixApt2hr}-${appointmentId}`;
   try {
     const [y, m, d] = date.split("-").map(Number);
     const timeMatch = time.match(/(\d+):(\d+)/);
     const hour = timeMatch ? parseInt(timeMatch[1], 10) : 9;
     const minute = timeMatch ? parseInt(timeMatch[2], 10) : 0;
     const triggerDate = new Date(y, m - 1, d, hour, minute, 0);
-    if (when === "1day") {
+    if (when === "24hr") {
       triggerDate.setDate(triggerDate.getDate() - 1);
     } else {
-      triggerDate.setHours(triggerDate.getHours() - 1);
+      triggerDate.setHours(triggerDate.getHours() - 2);
     }
     if (triggerDate.getTime() <= Date.now()) return null;
     await Notifications.cancelScheduledNotificationAsync(identifier);
-    const body =
-      when === "1day"
-        ? `Appointment with ${doctorName} tomorrow at ${time}.`
-        : `Appointment with ${doctorName} in 1 hour at ${time}.`;
+    const timeFormatted = (() => {
+      const h = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+      const ampm = hour >= 12 ? "PM" : "AM";
+      return `${h}:${String(minute).padStart(2, "0")} ${ampm}`;
+    })();
+    const title = when === "24hr" ? "Appointment Tomorrow" : "Appointment Soon";
+    const body = when === "24hr"
+      ? `You have an appointment with ${doctorName} tomorrow at ${timeFormatted}.`
+      : `Your appointment with ${doctorName} starts in 2 hours.`;
     const id = await Notifications.scheduleNotificationAsync({
       identifier,
       content: {
-        title: "Upcoming Appointment",
+        title,
         body,
-        data: { appointmentId },
+        data: { appointmentId, appointmentDate: date },
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -591,7 +596,9 @@ export async function cancelMedicationReminders(medicationId: string): Promise<v
 export async function cancelAppointmentReminders(appointmentId: string): Promise<void> {
   if (!isNative()) return;
   await Notifications.cancelScheduledNotificationAsync(`${NOTIFICATION_IDS.prefixApt1day}-${appointmentId}`);
-  await Notifications.cancelScheduledNotificationAsync(`${NOTIFICATION_IDS.prefixApt1hr}-${appointmentId}`);
+  await Notifications.cancelScheduledNotificationAsync(`${NOTIFICATION_IDS.prefixApt2hr}-${appointmentId}`);
+  // Cancel legacy 1-hour identifier in case it was scheduled before the 2-hour update
+  await Notifications.cancelScheduledNotificationAsync(`apt-1h-${appointmentId}`);
 }
 
 /** Map a notification identifier to an app screen key. */
@@ -765,8 +772,8 @@ export async function syncAllFromSettings(): Promise<void> {
         if (apt.status === "cancelled" || apt.status === "completed" || apt.status === "rescheduled") continue;
         if (apt.date < today) continue;
         const time = apt.time || "09:00";
-        await scheduleAppointmentReminder({ appointmentId: apt.id, doctorName: apt.doctorName, date: apt.date, time, when: "1day" });
-        await scheduleAppointmentReminder({ appointmentId: apt.id, doctorName: apt.doctorName, date: apt.date, time, when: "1hr" });
+        await scheduleAppointmentReminder({ appointmentId: apt.id, doctorName: apt.doctorName, date: apt.date, time, when: "24hr" });
+        await scheduleAppointmentReminder({ appointmentId: apt.id, doctorName: apt.doctorName, date: apt.date, time, when: "2hr" });
       }
     }
 

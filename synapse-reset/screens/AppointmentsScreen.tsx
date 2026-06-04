@@ -1,12 +1,13 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
-  StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, Alert, useWindowDimensions, KeyboardAvoidingView,
+  StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, Alert, Linking, useWindowDimensions, KeyboardAvoidingView,
 } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { File } from "expo-file-system";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useModeAwareScreen } from "@/contexts/AppModeContext";
 import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
@@ -24,6 +25,12 @@ import {
 } from "@/lib/storage";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
+import { parseICS, type ParsedICSEvent } from "@/lib/ics-parser";
+import { subscribeICSImport } from "@/lib/ics-import-event";
+import {
+  scheduleAppointmentReminder,
+  cancelAppointmentReminders,
+} from "@/lib/notification-manager";
 
 const REPEAT_OPTIONS: { value: "none" | "week" | "2weeks" | "month" | "custom"; label: string; interval?: number; unit?: RepeatUnit }[] = [
   { value: "none", label: "Does not repeat" },
@@ -311,6 +318,11 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
   const [selectedNoteDoctorId, setSelectedNoteDoctorId] = useState<string | null>(null);
   const [showNoteTargetPicker, setShowNoteTargetPicker] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [pendingImport, setPendingImport] = useState<ParsedICSEvent | null>(null);
+  const [importDuplicate, setImportDuplicate] = useState<Appointment | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [rescheduleApt, setRescheduleApt] = useState<Appointment | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState("");
@@ -342,6 +354,86 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
     loadData();
     syncWidgetSnapshot().catch(() => {});
   }, [loadData]);
+
+  useEffect(() => {
+    return subscribeICSImport(async (event) => {
+      const existingApts = await appointmentStorage.getAll();
+      const dup = existingApts.find(
+        (a) => a.doctorName.toLowerCase() === event.title.toLowerCase() && a.date === event.date,
+      ) ?? null;
+      setImportDuplicate(dup);
+      setPendingImport(event);
+      setShowImportModal(true);
+    });
+  }, []);
+
+  const handlePickICSFile = useCallback(async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const selected = await (File as any).pickFileAsync(undefined, "text/calendar");
+      const file = Array.isArray(selected) ? selected[0] : selected;
+      if (!file) return;
+      const content: string = await file.text();
+      const parsed = parseICS(content);
+      if (!parsed || !parsed.date) {
+        Alert.alert("Import failed", "That file doesn't look like a valid calendar event.");
+        return;
+      }
+      const existingApts = await appointmentStorage.getAll();
+      const dup = existingApts.find(
+        (a) => a.doctorName.toLowerCase() === parsed.title.toLowerCase() && a.date === parsed.date,
+      ) ?? null;
+      setImportDuplicate(dup);
+      setPendingImport(parsed);
+      setShowImportModal(true);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message.toLowerCase() : String(e).toLowerCase();
+      if (!msg.includes("cancel")) {
+        Alert.alert("Import failed", "Could not read the calendar file.");
+      }
+    }
+  }, []);
+
+  const handleImportICS = useCallback(async (updateExisting = false) => {
+    if (!pendingImport) return;
+    setImportLoading(true);
+    try {
+      const aptPayload: Omit<Appointment, "id"> = {
+        doctorName: pendingImport.title,
+        specialty: "",
+        date: pendingImport.date,
+        time: pendingImport.startTime,
+        endTime: pendingImport.endTime || undefined,
+        location: pendingImport.location,
+        notes: pendingImport.notes,
+        phoneNumber: pendingImport.phoneNumber || undefined,
+        source: "calendar_import",
+        entryOwner: "self",
+      };
+
+      if (updateExisting && importDuplicate) {
+        await appointmentStorage.update(importDuplicate.id, aptPayload);
+        await cancelAppointmentReminders(importDuplicate.id);
+        await scheduleAppointmentReminder({ appointmentId: importDuplicate.id, doctorName: aptPayload.doctorName, date: aptPayload.date, time: aptPayload.time, when: "24hr" });
+        await scheduleAppointmentReminder({ appointmentId: importDuplicate.id, doctorName: aptPayload.doctorName, date: aptPayload.date, time: aptPayload.time, when: "2hr" });
+      } else {
+        const saved = await appointmentStorage.save(aptPayload);
+        await scheduleAppointmentReminder({ appointmentId: saved.id, doctorName: aptPayload.doctorName, date: aptPayload.date, time: aptPayload.time, when: "24hr" });
+        await scheduleAppointmentReminder({ appointmentId: saved.id, doctorName: aptPayload.doctorName, date: aptPayload.date, time: aptPayload.time, when: "2hr" });
+      }
+
+      await syncWidgetSnapshot().catch(() => {});
+      setShowImportModal(false);
+      setPendingImport(null);
+      setImportDuplicate(null);
+      await loadData();
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch {
+      Alert.alert("Import failed", "Could not save the appointment.");
+    } finally {
+      setImportLoading(false);
+    }
+  }, [pendingImport, importDuplicate, loadData]);
 
   const isCaregiver = profile.userRole === "caregiver" && !!profile.caredForName?.trim();
   const ownerOptions: { value: RecordOwner; label: string }[] = [
@@ -432,8 +524,13 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
     };
     if (editingApt) {
       await appointmentStorage.update(editingApt.id, payload);
+      await cancelAppointmentReminders(editingApt.id);
+      await scheduleAppointmentReminder({ appointmentId: editingApt.id, doctorName: payload.doctorName, date: payload.date, time: payload.time, when: "24hr" });
+      await scheduleAppointmentReminder({ appointmentId: editingApt.id, doctorName: payload.doctorName, date: payload.date, time: payload.time, when: "2hr" });
     } else {
-      await appointmentStorage.save(payload);
+      const saved = await appointmentStorage.save(payload);
+      await scheduleAppointmentReminder({ appointmentId: saved.id, doctorName: payload.doctorName, date: payload.date, time: payload.time, when: "24hr" });
+      await scheduleAppointmentReminder({ appointmentId: saved.id, doctorName: payload.doctorName, date: payload.date, time: payload.time, when: "2hr" });
     }
     await syncWidgetSnapshot().catch(() => {});
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -446,6 +543,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
   }, [editingApt, loadData, onSimpleSaveComplete, resetSimpleAppointmentForm, simpleDate, simpleDoctorName, simpleEntryOwner, simpleTime]);
 
   const handleSimpleMarkDone = useCallback(async (appointment: Appointment) => {
+    await cancelAppointmentReminders(appointment.id);
     await appointmentStorage.update(appointment.id, { status: "completed" });
     await syncWidgetSnapshot().catch(() => {});
     setSimpleViewingApt(null);
@@ -460,6 +558,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
         text: "Delete",
         style: "destructive",
         onPress: async () => {
+          await cancelAppointmentReminders(appointment.id);
           await appointmentStorage.delete(appointment.id);
           await syncWidgetSnapshot().catch(() => {});
           setSimpleViewingApt(null);
@@ -516,7 +615,9 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
       }
     }
 
-    await appointmentStorage.save(base);
+    const saved = await appointmentStorage.save(base);
+    await scheduleAppointmentReminder({ appointmentId: saved.id, doctorName: base.doctorName, date: base.date, time: base.time || "09:00", when: "24hr" });
+    await scheduleAppointmentReminder({ appointmentId: saved.id, doctorName: base.doctorName, date: base.date, time: base.time || "09:00", when: "2hr" });
     await syncWidgetSnapshot().catch(() => {});
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     resetAptForm();
@@ -614,11 +715,19 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
     };
     if (editMode === "one") {
       await appointmentStorage.update(editingApt.id, updates);
+      await cancelAppointmentReminders(editingApt.id);
+      if (!updates.status) {
+        await scheduleAppointmentReminder({ appointmentId: editingApt.id, doctorName: updates.doctorName ?? "", date: updates.date ?? aptDate, time: updates.time || "09:00", when: "24hr" });
+        await scheduleAppointmentReminder({ appointmentId: editingApt.id, doctorName: updates.doctorName ?? "", date: updates.date ?? aptDate, time: updates.time || "09:00", when: "2hr" });
+      }
     } else {
       const parentId = editingApt.parent_recurring_id ?? editingApt.id;
       const toUpdate = appointments.filter((a) => a.id === editingApt.id || (a.parent_recurring_id === parentId && a.date >= editingApt.date));
       for (const a of toUpdate) {
         await appointmentStorage.update(a.id, { ...updates, date: a.date });
+        await cancelAppointmentReminders(a.id);
+        await scheduleAppointmentReminder({ appointmentId: a.id, doctorName: updates.doctorName ?? "", date: a.date, time: updates.time || "09:00", when: "24hr" });
+        await scheduleAppointmentReminder({ appointmentId: a.id, doctorName: updates.doctorName ?? "", date: a.date, time: updates.time || "09:00", when: "2hr" });
       }
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -630,6 +739,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
 
   const handleDeleteApt = async (apt: Appointment) => {
     const doDelete = async () => {
+      await cancelAppointmentReminders(apt.id);
       await appointmentStorage.delete(apt.id);
       await syncWidgetSnapshot().catch(() => {});
       loadData();
@@ -1029,8 +1139,43 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
                   <View style={styles.simpleAppointmentsReviewCard}>
                     <Text style={styles.simpleAppointmentsReviewDoctor}>{simpleViewingApt.doctorName}</Text>
                     <Text style={styles.simpleAppointmentsReviewWhen}>{formatSimpleAppointmentWhen(simpleViewingApt, today)}</Text>
+                    {!!simpleViewingApt.endTime && (
+                      <Text style={styles.simpleAppointmentsReviewWhen}>Until {formatTime12h(simpleViewingApt.endTime)}</Text>
+                    )}
                     <Text style={styles.simpleAppointmentsReviewPerson}>For {getOwnerLabel(simpleViewingApt.entryOwner)}</Text>
+                    {!!simpleViewingApt.location && (
+                      <Text style={styles.simpleAppointmentsReviewPerson}>{simpleViewingApt.location}</Text>
+                    )}
+                    {!!simpleViewingApt.notes && (
+                      <Text style={styles.simpleAppointmentsReviewPerson} numberOfLines={4}>{simpleViewingApt.notes}</Text>
+                    )}
                   </View>
+                  {(!!simpleViewingApt.phoneNumber || !!simpleViewingApt.location) && (
+                    <View style={styles.aptQuickActions}>
+                      {!!simpleViewingApt.phoneNumber && (
+                        <Pressable
+                          style={({ pressed }) => [styles.aptQuickActionBtn, pressed && { opacity: 0.7 }]}
+                          onPress={() => Linking.openURL(`tel:${simpleViewingApt.phoneNumber}`)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Call ${simpleViewingApt.phoneNumber}`}
+                        >
+                          <Ionicons name="call-outline" size={16} color={C.tint} />
+                          <Text style={styles.aptQuickActionText}>Call Clinic</Text>
+                        </Pressable>
+                      )}
+                      {!!simpleViewingApt.location && (
+                        <Pressable
+                          style={({ pressed }) => [styles.aptQuickActionBtn, pressed && { opacity: 0.7 }]}
+                          onPress={() => Linking.openURL(`maps:?q=${encodeURIComponent(simpleViewingApt.location)}`)}
+                          accessibilityRole="button"
+                          accessibilityLabel="Open in Maps"
+                        >
+                          <Ionicons name="map-outline" size={16} color={C.tint} />
+                          <Text style={styles.aptQuickActionText}>Open in Maps</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  )}
                   <View style={styles.simpleActionStack}>
                     <Pressable style={styles.simpleAppointmentsPrimaryButton} onPress={() => { void handleSimpleMarkDone(simpleViewingApt); }}>
                       <Text style={styles.simpleAppointmentsPrimaryButtonText}>Mark as done</Text>
@@ -1074,23 +1219,37 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
       }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Appointments</Text>
-          <Pressable
-            style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]}
-            onPress={() => {
-              resetAptForm();
-              if (tab === "calendar") {
-                setAptTime("09:00");
-                setShowAptModal(true);
-              } else {
-                openNoteModal();
-              }
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={tab === "calendar" ? "Add appointment" : "Add doctor note"}
-            hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
-          >
-            <Ionicons name="add" size={20} color="#fff" />
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {tab === "calendar" && (
+              <Pressable
+                style={({ pressed }) => [styles.importBtn, { opacity: pressed ? 0.7 : 1 }]}
+                onPress={handlePickICSFile}
+                accessibilityRole="button"
+                accessibilityLabel="Import appointment from .ics file"
+                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+              >
+                <Ionicons name="calendar-outline" size={17} color={C.tint} />
+                <Text style={styles.importBtnText}>Import</Text>
+              </Pressable>
+            )}
+            <Pressable
+              style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]}
+              onPress={() => {
+                resetAptForm();
+                if (tab === "calendar") {
+                  setAptTime("09:00");
+                  setShowAptModal(true);
+                } else {
+                  openNoteModal();
+                }
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={tab === "calendar" ? "Add appointment" : "Add doctor note"}
+              hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+            >
+              <Ionicons name="add" size={20} color="#fff" />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.tabRow}>
@@ -1137,12 +1296,19 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
                         <Text style={styles.aptDateDay}>{new Date(apt.date + "T00:00:00").getDate()}</Text>
                       </View>
                       <View style={styles.aptCardContent}>
-                        <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{apt.doctorName}</Text>
+                        <View style={styles.aptTitleRow}>
+                          <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{apt.doctorName}</Text>
+                          {apt.source && apt.source !== "manual" && (
+                            <View style={styles.importedBadge}>
+                              <Text style={styles.importedBadgeText}>Imported</Text>
+                            </View>
+                          )}
+                        </View>
                         {isCaregiver && <Text style={styles.ownerMeta}>{getOwnerLabel(apt.entryOwner)}</Text>}
                         {!!apt.specialty && <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{apt.specialty}</Text>}
                         <View style={styles.aptMeta}>
                           <Ionicons name="time-outline" size={12} color={C.textSecondary} />
-                          <Text style={styles.aptMetaText}>{formatTime12h(apt.time)}</Text>
+                          <Text style={styles.aptMetaText}>{formatTime12h(apt.time)}{apt.endTime ? ` – ${formatTime12h(apt.endTime)}` : ""}</Text>
                           {!!apt.location && (
                             <>
                               <Ionicons name="location-outline" size={12} color={C.textSecondary} />
@@ -1150,6 +1316,14 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
                             </>
                           )}
                         </View>
+                        {!!apt.phoneNumber && (
+                          <Pressable onPress={() => Linking.openURL(`tel:${apt.phoneNumber}`)} accessibilityRole="button" accessibilityLabel={`Call ${apt.phoneNumber}`}>
+                            <View style={styles.aptPhoneRow}>
+                              <Ionicons name="call-outline" size={12} color={C.tint} />
+                              <Text style={styles.aptPhoneText}>{apt.phoneNumber}</Text>
+                            </View>
+                          </Pressable>
+                        )}
                       </View>
                       <Pressable onPress={() => handleEditApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Edit appointment with ${apt.doctorName}`}><Ionicons name="pencil-outline" size={16} color={C.textSecondary} /></Pressable>
                       <Pressable onPress={() => handleDeleteApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Delete appointment with ${apt.doctorName}`}><Ionicons name="trash-outline" size={16} color={C.textTertiary} /></Pressable>
@@ -1168,13 +1342,20 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
                         <Text style={styles.aptDateDay}>{new Date(apt.date + "T00:00:00").getDate()}</Text>
                       </View>
                       <View style={styles.aptCardContent}>
-                        <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{apt.doctorName}</Text>
+                        <View style={styles.aptTitleRow}>
+                          <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{apt.doctorName}</Text>
+                          {apt.source && apt.source !== "manual" && (
+                            <View style={styles.importedBadge}>
+                              <Text style={styles.importedBadgeText}>Imported</Text>
+                            </View>
+                          )}
+                        </View>
                         {isCaregiver && <Text style={styles.ownerMeta}>{getOwnerLabel(apt.entryOwner)}</Text>}
                         {!!apt.specialty && <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{apt.specialty}</Text>}
                         {getRecurrenceLabel(apt, appointments) && <Text style={styles.aptRecurrence}>{getRecurrenceLabel(apt, appointments)}</Text>}
                         <View style={styles.aptMeta}>
                           <Ionicons name="time-outline" size={12} color={C.textSecondary} />
-                          <Text style={styles.aptMetaText}>{formatTime12h(apt.time)}</Text>
+                          <Text style={styles.aptMetaText}>{formatTime12h(apt.time)}{apt.endTime ? ` – ${formatTime12h(apt.endTime)}` : ""}</Text>
                           {!!apt.location && (
                             <>
                               <Ionicons name="location-outline" size={12} color={C.textSecondary} />
@@ -1182,6 +1363,14 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
                             </>
                           )}
                         </View>
+                        {!!apt.phoneNumber && (
+                          <Pressable onPress={() => Linking.openURL(`tel:${apt.phoneNumber}`)} accessibilityRole="button" accessibilityLabel={`Call ${apt.phoneNumber}`}>
+                            <View style={styles.aptPhoneRow}>
+                              <Ionicons name="call-outline" size={12} color={C.tint} />
+                              <Text style={styles.aptPhoneText}>{apt.phoneNumber}</Text>
+                            </View>
+                          </Pressable>
+                        )}
                       </View>
                       <Pressable onPress={() => handleEditApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Edit appointment with ${apt.doctorName}`}><Ionicons name="pencil-outline" size={16} color={C.textSecondary} /></Pressable>
                       <Pressable onPress={() => handleDeleteApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Delete appointment with ${apt.doctorName}`}><Ionicons name="trash-outline" size={16} color={C.textTertiary} /></Pressable>
@@ -1600,6 +1789,98 @@ export default function AppointmentsScreen({ simpleOpenAddToken, onSimpleSaveCom
         </Pressable>
       </Modal>
 
+      <Modal visible={showImportModal} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => { if (!importLoading) { setShowImportModal(false); setPendingImport(null); setImportDuplicate(null); } }}>
+          <Pressable style={styles.modal} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Import Appointment</Text>
+            {importDuplicate && (
+              <View style={styles.dupWarning}>
+                <Ionicons name="warning-outline" size={15} color="#B45309" />
+                <Text style={styles.dupWarningText}>Looks like this appointment already exists.</Text>
+              </View>
+            )}
+            {pendingImport && (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 280 }}>
+                <View style={styles.importPreviewCard}>
+                  <Text style={styles.importPreviewTitle}>{pendingImport.title || "Appointment"}</Text>
+                  <View style={styles.importPreviewRow}>
+                    <Ionicons name="calendar-outline" size={14} color={C.textSecondary} />
+                    <Text style={styles.importPreviewText}>{formatDate(pendingImport.date)}</Text>
+                  </View>
+                  <View style={styles.importPreviewRow}>
+                    <Ionicons name="time-outline" size={14} color={C.textSecondary} />
+                    <Text style={styles.importPreviewText}>
+                      {formatTime12h(pendingImport.startTime)}
+                      {pendingImport.endTime ? ` – ${formatTime12h(pendingImport.endTime)}` : ""}
+                    </Text>
+                  </View>
+                  {!!pendingImport.location && (
+                    <View style={styles.importPreviewRow}>
+                      <Ionicons name="location-outline" size={14} color={C.textSecondary} />
+                      <Text style={styles.importPreviewText} numberOfLines={2}>{pendingImport.location}</Text>
+                    </View>
+                  )}
+                  {!!pendingImport.phoneNumber && (
+                    <View style={styles.importPreviewRow}>
+                      <Ionicons name="call-outline" size={14} color={C.textSecondary} />
+                      <Text style={styles.importPreviewText}>{pendingImport.phoneNumber}</Text>
+                    </View>
+                  )}
+                  {!!pendingImport.notes && (
+                    <View style={styles.importPreviewRow}>
+                      <Ionicons name="document-text-outline" size={14} color={C.textSecondary} />
+                      <Text style={styles.importPreviewText} numberOfLines={4}>{pendingImport.notes}</Text>
+                    </View>
+                  )}
+                </View>
+              </ScrollView>
+            )}
+            {importDuplicate ? (
+              <View style={{ gap: 10, marginTop: 4 }}>
+                <Pressable
+                  style={[styles.confirmBtn, importLoading && { opacity: 0.5 }]}
+                  onPress={() => handleImportICS(true)}
+                  disabled={importLoading}
+                >
+                  <Text style={styles.confirmText}>Update Existing</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.confirmBtn, { backgroundColor: C.tint }, importLoading && { opacity: 0.5 }]}
+                  onPress={() => handleImportICS(false)}
+                  disabled={importLoading}
+                >
+                  <Text style={styles.confirmText}>Import Anyway</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.cancelBtn}
+                  onPress={() => { setShowImportModal(false); setPendingImport(null); setImportDuplicate(null); }}
+                  disabled={importLoading}
+                >
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={[styles.modalActions, { marginTop: 4 }]}>
+                <Pressable
+                  style={styles.cancelBtn}
+                  onPress={() => { setShowImportModal(false); setPendingImport(null); }}
+                  disabled={importLoading}
+                >
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.confirmBtn, importLoading && { opacity: 0.5 }]}
+                  onPress={() => handleImportICS(false)}
+                  disabled={importLoading}
+                >
+                  <Text style={styles.confirmText}>Import Appointment</Text>
+                </Pressable>
+              </View>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <Modal visible={showNoteModal} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => { setShowNoteModal(false); resetNoteForm(); }}>
           <Pressable style={styles.modal} onPress={() => {}}>
@@ -1861,5 +2142,21 @@ function makeStyles(C: Theme, textScale: number) {
   cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.purple, alignItems: "center" },
   confirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
+  importBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 10, backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.tint },
+  importBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
+  aptTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
+  importedBadge: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 4, backgroundColor: C.tintLight },
+  importedBadgeText: { fontWeight: "600", fontSize: 10, color: C.tint, textTransform: "uppercase", letterSpacing: 0.3 },
+  aptPhoneRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 },
+  aptPhoneText: { fontWeight: "500", fontSize: 12, color: C.tint },
+  dupWarning: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEF3C7", borderRadius: 8, padding: 10, marginBottom: 12 },
+  dupWarningText: { fontWeight: "500", fontSize: 13, color: "#92400E", flex: 1 },
+  importPreviewCard: { backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border, marginBottom: 14, gap: 8 },
+  importPreviewTitle: { fontWeight: "700", fontSize: size(17), color: C.text, marginBottom: 4 },
+  importPreviewRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  importPreviewText: { fontWeight: "400", fontSize: 13, color: C.textSecondary, flex: 1, lineHeight: 18 },
+  aptQuickActions: { flexDirection: "row", gap: 10, marginTop: 12, marginBottom: 4 },
+  aptQuickActionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.tint },
+  aptQuickActionText: { fontWeight: "600", fontSize: 14, color: C.tint },
   });
 }

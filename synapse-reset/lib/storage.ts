@@ -236,6 +236,8 @@ export interface Pharmacy {
 
 export type AppointmentStatus = "completed" | "rescheduled" | "cancelled";
 
+export type AppointmentSource = "manual" | "mychart_import" | "calendar_import";
+
 export interface Appointment {
   id: string;
   doctor_id?: string;
@@ -243,8 +245,12 @@ export interface Appointment {
   specialty: string;
   date: string;
   time: string;
+  endTime?: string;
   location: string;
   notes: string;
+  phoneNumber?: string;
+  arrivalInstructions?: string;
+  source?: AppointmentSource;
   is_recurring?: boolean;
   repeat_interval?: number;
   repeat_unit?: RepeatUnit;
