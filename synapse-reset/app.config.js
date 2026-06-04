@@ -38,6 +38,15 @@ module.exports = {
         NSFaceIDUsageDescription: "Unlock Synapse with Face ID to keep your health data private.",
         NSPhotoLibraryUsageDescription: "Synapse allows users to select photos from their library to personalize their profile and attach images to health records. Photos are only accessed when the user explicitly chooses to add one.",
         NSPhotoLibraryAddUsageDescription: "Synapse saves images only when the user chooses to export or save content.",
+        LSSupportsOpeningDocumentsInPlace: false,
+        CFBundleDocumentTypes: [
+          {
+            CFBundleTypeName: "iCalendar",
+            CFBundleTypeRole: "Viewer",
+            LSHandlerRank: "Alternate",
+            LSItemContentTypes: ["com.apple.ical.ics", "public.calendar-event"],
+          },
+        ],
         NSAppTransportSecurity: {
           NSAllowsArbitraryLoads: false,
           NSExceptionDomains: {
