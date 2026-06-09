@@ -26,11 +26,14 @@ import {
 import {
   allergyStorage,
   doctorsStorage,
+  healthProfileStorage,
   medicationStorage,
   primaryDoctorStorage,
   type AllergyInfo,
   type Doctor,
+  type HealthProfileInfo,
   type Medication,
+  type RecordOwner,
 } from "@/lib/storage";
 import { getMedList, type MedListItem } from "@/lib/med-list-storage";
 
@@ -67,6 +70,7 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
   const [medListItems, setMedListItems] = useState<MedListItem[]>([]);
   const [currentMedications, setCurrentMedications] = useState<Medication[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [profile, setProfile] = useState<HealthProfileInfo>({});
   const [primaryDoctorId, setPrimaryDoctorId] = useState<string | null>(null);
   const [saved, setSaved] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -74,12 +78,13 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
   const [fullscreen, setFullscreen] = useState(false);
 
   const load = useCallback(async () => {
-    const [stored, allergy, medList, medicationList, doctorList, doctorId] = await Promise.all([
+    const [stored, allergy, medList, medicationList, doctorList, profileInfo, doctorId] = await Promise.all([
       getEmergencyCard(),
       allergyStorage.get(),
       getMedList(),
       medicationStorage.getAll(),
       doctorsStorage.getAll(),
+      healthProfileStorage.get(),
       primaryDoctorStorage.getDocId(),
     ]);
     setData(stored);
@@ -87,6 +92,7 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
     setMedListItems(medList);
     setCurrentMedications(medicationList);
     setDoctors(doctorList);
+    setProfile(profileInfo);
     setPrimaryDoctorId(doctorId);
   }, []);
 
@@ -105,7 +111,9 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
   const currentMedicationsDisplay = medicationNames.length > 0
     ? medicationNames.join(", ")
     : "No medications found yet";
-  const primaryDoctor = doctors.find((doc) => doc.id === primaryDoctorId) ?? doctors[0] ?? null;
+  const activeDoctorOwner: RecordOwner = profile.userRole === "caregiver" && profile.caredForName?.trim() ? "care_recipient" : "self";
+  const ownerDoctors = doctors.filter((doctor) => (doctor.entryOwner ?? "self") === activeDoctorOwner);
+  const primaryDoctor = ownerDoctors.find((doc) => doc.isPrimary) ?? doctors.find((doc) => doc.id === primaryDoctorId) ?? ownerDoctors[0] ?? null;
   const primaryDoctorDisplay = primaryDoctor?.name ?? "—";
   const primaryDoctorPhoneDisplay = primaryDoctor?.phone?.trim() || "—";
   const primaryDoctorHospitalDisplay = primaryDoctor?.hospital?.trim() || "—";

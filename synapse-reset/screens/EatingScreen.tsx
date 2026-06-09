@@ -92,20 +92,16 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
     loadHydrationData();
   }, [loadFoodData, loadHydrationData]);
 
-  const openHydrationComposerFromPreset = useCallback(async () => {
+  const focusHydrationTab = useCallback(async () => {
     const preset = await hydrationStorage.getPreset();
     setTab("hydration");
     setHydrationPreset(preset);
-    setHydrationWhat(preset.what);
-    setHydrationAmount(String(preset.amount));
-    setHydrationUnit(preset.unit);
-    setShowHydrationAdd(true);
   }, []);
 
   useEffect(() => {
-    if (hydrationLaunchToken <= 0) return;
-    void openHydrationComposerFromPreset().finally(() => onHydrationLaunchHandled?.());
-  }, [hydrationLaunchToken, onHydrationLaunchHandled, openHydrationComposerFromPreset]);
+    if (hydrationLaunchToken <= 0 && initialTab !== "hydration") return;
+    void focusHydrationTab().finally(() => onHydrationLaunchHandled?.());
+  }, [focusHydrationTab, hydrationLaunchToken, initialTab, onHydrationLaunchHandled]);
 
   const handleAddFood = async () => {
     if (!addWhat.trim()) return;

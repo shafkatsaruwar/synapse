@@ -69,6 +69,12 @@
     </dict>
     <key>NSCameraUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your camera</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Synapse uses read-only calendar access so you can import selected events as appointments.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Synapse uses read-only calendar access so you can import selected events as appointments.</string>
+    <key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+    <string>Synapse can add appointment events to Calendar when you choose to export them.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>Unlock Synapse with Face ID to keep your health data private.</string>
     <key>NSMicrophoneUsageDescription</key>

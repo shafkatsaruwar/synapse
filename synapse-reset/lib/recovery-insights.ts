@@ -25,7 +25,7 @@ export interface RecoveryInsightSummary {
   todayMedicationTaken: number;
   todayMedicationExpected: number;
   todayVitals: {
-    heartRate: number | null;
+    heartRate: string | null;
     bloodPressure: string | null;
     temperature: string | null;
     oxygenSaturation: string | null;

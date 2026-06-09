@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
-  StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, Alert, useWindowDimensions,
+  StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, Alert, useWindowDimensions, Image,
 } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,15 +12,17 @@ import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import { getSickModePalette, type SickModePalette } from "@/constants/sick-mode-colors";
 import ReadAloudButton from "@/components/ReadAloudButton";
 import * as Crypto from "expo-crypto";
+import * as ImagePicker from "expo-image-picker";
 import {
   medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage, doctorsStorage, pharmacyStorage, healthProfileStorage, normalizeMedication,
   type Medication, type MedicationDose, type MedicationLog, type UserSettings, type SickModeData, type Doctor, type Pharmacy, type HealthProfileInfo, type RecordOwner,
 } from "@/lib/storage";
 import { getMedList, addMedListItem, removeMedListItem, updateMedListItem, type MedListItem, type MedListDose, type MedListDoseTime } from "@/lib/med-list-storage";
 import { getToday } from "@/lib/date-utils";
-import { DEFAULT_REMINDER_TIMES, syncAllFromSettings } from "@/lib/notification-manager";
+import { cancelMedicationReminders, DEFAULT_REMINDER_TIMES, syncAllFromSettings } from "@/lib/notification-manager";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
+import VisualScanImportModal from "@/screens/VisualScanImportModal";
 
 const TIME_TAGS: string[] = ["Morning", "Afternoon", "Night", "Before Fajr", "After Iftar"];
 const MED_LIST_DOSE_TIMES: MedListDoseTime[] = ["Morning", "Afternoon", "Evening", "Night", "As Needed"];
@@ -295,10 +297,12 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
   const [sickData, setSickData] = useState<SickModeData | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showSimpleAddModal, setShowSimpleAddModal] = useState(false);
+  const [showVisualScanModal, setShowVisualScanModal] = useState(false);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
   const [nudgeMedId, setNudgeMedId] = useState<string | null>(null);
 
   const [formName, setFormName] = useState("");
+  const [formMedicationImageUri, setFormMedicationImageUri] = useState("");
   const [formMedicationType, setFormMedicationType] = useState<"scheduled" | "prn">("scheduled");
   const [simpleAddStep, setSimpleAddStep] = useState<0 | 1 | 2 | 3>(1);
   const [simpleAddTypeSelection, setSimpleAddTypeSelection] = useState<"scheduled" | "prn" | null>(null);
@@ -310,6 +314,11 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
   ]);
   const [showReminderTimePickerIndex, setShowReminderTimePickerIndex] = useState<number | null>(null);
   const [formRoute, setFormRoute] = useState("");
+  const [formDoctorId, setFormDoctorId] = useState<string | null>(null);
+  const [showMedicationDoctorPicker, setShowMedicationDoctorPicker] = useState(false);
+  const [showMedicationDoctorForm, setShowMedicationDoctorForm] = useState(false);
+  const [newMedicationDoctorName, setNewMedicationDoctorName] = useState("");
+  const [newMedicationDoctorSpecialty, setNewMedicationDoctorSpecialty] = useState("");
   const [formPharmacyId, setFormPharmacyId] = useState<string | null>(null);
   const [formLegacyPharmacyName, setFormLegacyPharmacyName] = useState("");
   const [showMedicationPharmacyPicker, setShowMedicationPharmacyPicker] = useState(false);
@@ -429,6 +438,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
   const openAddModal = () => {
     setEditingMed(null);
     setFormName("");
+    setFormMedicationImageUri("");
     setFormMedicationType("scheduled");
     setSimpleAddStep(ownerOptions.length > 1 ? 0 : 1);
     setSimpleAddTypeSelection(null);
@@ -437,6 +447,11 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
     setShowPrnOptionalDetails(false);
     setFormDosesArray([{ id: Crypto.randomUUID(), amount: "", unit: "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }]);
     setFormRoute("");
+    setFormDoctorId(null);
+    setShowMedicationDoctorPicker(false);
+    setShowMedicationDoctorForm(false);
+    setNewMedicationDoctorName("");
+    setNewMedicationDoctorSpecialty("");
     setFormPharmacyId(null);
     setFormLegacyPharmacyName("");
     setShowMedicationPharmacyPicker(false);
@@ -486,6 +501,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
         : (selectedTimes.length > 0 ? selectedTimes : ["Morning"]),
     );
     setFormName(med.name);
+    setFormMedicationImageUri(med.imageUri || "");
     setFormMedicationType(med.medicationType ?? "scheduled");
     setPrnFlowStep(3);
     setShowPrnOptionalDetails((med.medicationType ?? "scheduled") === "prn");
@@ -494,6 +510,11 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
       : [{ id: Crypto.randomUUID(), amount: (med as { dosage?: string }).dosage ?? "", unit: (med as { unit?: string }).unit ?? "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }];
     setFormDosesArray(doses);
     setFormRoute(med.route || "");
+    setFormDoctorId(med.doctorId ?? null);
+    setShowMedicationDoctorPicker(false);
+    setShowMedicationDoctorForm(false);
+    setNewMedicationDoctorName("");
+    setNewMedicationDoctorSpecialty("");
     const matchedPharmacyId = med.pharmacyId ?? pharmacies.find((pharmacy) => pharmacy.name === med.pharmacyName)?.id ?? null;
     setFormPharmacyId(matchedPharmacyId);
     setFormLegacyPharmacyName(med.pharmacyName ?? "");
@@ -605,6 +626,24 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
       Alert.alert("Something went wrong. Try again.");
     }
   };
+
+  const handlePickMedicationPhoto = useCallback(async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Photo access needed", "Let Synapse access your photos so you can attach the med box or pill photo.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    setFormMedicationImageUri(result.assets[0].uri);
+    void Haptics.selectionAsync().catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!modeUI.isSimpleMode || !simpleOpenAddToken) return;
@@ -886,10 +925,12 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
     const selectedPharmacy = pharmacies.find((pharmacy) => pharmacy.id === formPharmacyId);
     const data: Omit<Medication, "id"> = {
       name: formName.trim(),
+      imageUri: formMedicationImageUri.trim() || undefined,
       medicationType: formMedicationType,
       frequency: isPrn ? "As Needed" : normalizedFrequency,
       route: isPrn ? undefined : formRoute.trim(),
       emoji: formEmoji || "",
+      doctorId: formDoctorId ?? undefined,
       pharmacyId: isPrn ? undefined : selectedPharmacy?.id,
       pharmacyName: isPrn ? undefined : selectedPharmacy?.name ?? (formLegacyPharmacyName.trim() || undefined),
       pharmacyPhone: isPrn ? undefined : selectedPharmacy?.phone ?? undefined,
@@ -982,6 +1023,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
         text: "Delete",
         style: "destructive",
         onPress: async () => {
+          await cancelMedicationReminders(med.id).catch(() => {});
           await medicationStorage.delete(med.id);
           await medicationLogStorage.deleteByMedicationId(med.id);
           await syncAllFromSettings();
@@ -1407,6 +1449,47 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
     ...(isCaregiver ? [{ value: "care_recipient" as const, label: profile.caredForName!.trim() }] : []),
   ];
   const getOwnerLabel = (owner?: RecordOwner) => owner === "care_recipient" && isCaregiver ? profile.caredForName!.trim() : "You";
+  const medicationDoctors = useMemo(
+    () => doctors.filter((doctor) => (doctor.entryOwner ?? "self") === formEntryOwner),
+    [doctors, formEntryOwner]
+  );
+  const selectedMedicationDoctor = useMemo(
+    () => formDoctorId ? medicationDoctors.find((doctor) => doctor.id === formDoctorId) ?? null : null,
+    [formDoctorId, medicationDoctors]
+  );
+  useEffect(() => {
+    if (!formMedListPrescribingDoctor) return;
+    if (!medicationDoctors.some((doctor) => doctor.name === formMedListPrescribingDoctor)) {
+      setFormMedListPrescribingDoctor("");
+    }
+  }, [formMedListPrescribingDoctor, medicationDoctors]);
+  useEffect(() => {
+    if (!formDoctorId) return;
+    if (!medicationDoctors.some((doctor) => doctor.id === formDoctorId)) {
+      setFormDoctorId(null);
+    }
+  }, [formDoctorId, medicationDoctors]);
+
+  const handleAddMedicationDoctor = useCallback(async () => {
+    const name = newMedicationDoctorName.trim();
+    if (!name) return;
+    const doctor = await doctorsStorage.addOrGet({
+      name,
+      specialty: newMedicationDoctorSpecialty.trim() || undefined,
+    }, formEntryOwner);
+    setDoctors((prev) => [...prev.filter((item) => item.id !== doctor.id), doctor].sort((a, b) => a.name.localeCompare(b.name)));
+    setFormDoctorId(doctor.id);
+    setNewMedicationDoctorName("");
+    setNewMedicationDoctorSpecialty("");
+    setShowMedicationDoctorForm(false);
+    setShowMedicationDoctorPicker(false);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  }, [formEntryOwner, newMedicationDoctorName, newMedicationDoctorSpecialty]);
+
+  const getMedicationDoctor = useCallback((med: Medication) => {
+    if (!med.doctorId) return null;
+    return doctors.find((doctor) => doctor.id === med.doctorId) ?? null;
+  }, [doctors]);
   const shouldShowSimpleOwnerStep = ownerOptions.length > 1;
   const simpleStepCount = shouldShowSimpleOwnerStep ? 4 : 3;
   const simpleDisplayedStep = shouldShowSimpleOwnerStep ? simpleAddStep + 1 : simpleAddStep;
@@ -1441,6 +1524,14 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                 {headerSubtitle}
               </Text>
             </View>
+            <Pressable
+              style={styles.headerIconButton}
+              onPress={() => setShowVisualScanModal(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Scan medication"
+            >
+              <Ionicons name="scan-outline" size={20} color={C.text} />
+            </Pressable>
           </View>
         </View>
 
@@ -1502,6 +1593,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                           : "Scheduled";
                     const emoji = getAutoEmoji(med);
                     const canTakeScheduledDose = nextUntakenIndex !== null;
+                    const prescribingDoctor = getMedicationDoctor(med);
 
                     return (
                       <Pressable
@@ -1519,6 +1611,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                           <View style={styles.simpleMedicationTextWrap}>
                             <Text style={styles.simpleMedicationName}>{med.name}</Text>
                             <Text style={styles.simpleMedicationDose}>{firstDoseText}</Text>
+                            {prescribingDoctor ? <Text style={styles.simpleMedicationDoctor}>Prescribed by: {prescribingDoctor.name}</Text> : null}
                           </View>
                           <Pressable
                             style={({ pressed }) => [
@@ -1586,6 +1679,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                         ? `${(med as { dosage?: string }).dosage}${(med as { unit?: string }).unit ? ` ${(med as { unit?: string }).unit}` : ""}`
                         : "Dose details";
                     const emoji = getAutoEmoji(med);
+                    const prescribingDoctor = getMedicationDoctor(med);
 
                     return (
                       <Pressable
@@ -1603,6 +1697,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                           <View style={styles.simpleMedicationTextWrap}>
                             <Text style={styles.simpleMedicationName}>{med.name}</Text>
                             <Text style={styles.simpleMedicationDose}>{doseText} · As Needed</Text>
+                            {prescribingDoctor ? <Text style={styles.simpleMedicationDoctor}>Prescribed by: {prescribingDoctor.name}</Text> : null}
                           </View>
                           <Pressable
                             style={({ pressed }) => [
@@ -1683,6 +1778,22 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
             <View style={styles.modal}>
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
                 <Text style={styles.modalTitle}>{editingMed ? "Edit Medication" : "Add Medication"}</Text>
+                <View style={styles.medicationPhotoSection}>
+                  {formMedicationImageUri ? (
+                    <Image source={{ uri: formMedicationImageUri }} style={styles.medicationPhotoPreview} resizeMode="cover" />
+                  ) : null}
+                  <View style={styles.medicationPhotoActions}>
+                    <Pressable style={styles.medicationPhotoButton} onPress={() => { void handlePickMedicationPhoto(); }}>
+                      <Ionicons name="image-outline" size={18} color={C.tint} />
+                      <Text style={styles.medicationPhotoButtonText}>{formMedicationImageUri ? "Change med photo" : "Add med photo"}</Text>
+                    </Pressable>
+                    {formMedicationImageUri ? (
+                      <Pressable style={styles.medicationPhotoRemove} onPress={() => setFormMedicationImageUri("")}>
+                        <Text style={styles.medicationPhotoRemoveText}>Remove</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
                 {renderSimpleAddMedicationFlow()}
               </ScrollView>
             </View>
@@ -1713,6 +1824,14 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
             <Text style={[styles.title, isSickMode && { color: sickPalette.accent }]}>Medications</Text>
             <Text style={[styles.subtitle, isSickMode && { color: sickPalette.text }]}>{headerSubtitle}</Text>
           </View>
+          <Pressable
+            style={styles.headerIconButton}
+            onPress={() => setShowVisualScanModal(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Scan medication"
+          >
+            <Ionicons name="scan-outline" size={20} color={C.text} />
+          </Pressable>
         </View>
         {totalDoses > 0 && (
           <View style={[styles.progressBar, isSickMode && { backgroundColor: sickPalette.progress }]}>
@@ -1773,6 +1892,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
               const currentSupply = getCurrentSupplyAmount(med);
               const remainingRefills = med.refillsRemaining;
               const showRefill = currentSupply != null || remainingRefills != null;
+              const prescribingDoctor = getMedicationDoctor(med);
 
               return (
                 <Pressable
@@ -1811,6 +1931,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                       ) : null}
                       <View style={styles.medMetaRow}>
                         {!!med.frequency && <Text style={styles.medFreq}>{med.frequency}</Text>}
+                        {prescribingDoctor ? <Text style={[styles.medFreq, styles.medMetaInline]}>Prescribed by: {prescribingDoctor.name}</Text> : null}
                         {!!med.pharmacyName && <Text style={[styles.medFreq, styles.medMetaInline]}>{med.pharmacyName}</Text>}
                         {totalDosesMed > 0 && (
                           <Text style={[styles.medFreq, styles.medMetaInline]}>
@@ -1956,6 +2077,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
               const currentSupply = getCurrentSupplyAmount(med);
               const remainingRefills = med.refillsRemaining;
               const showRefill = currentSupply != null || remainingRefills != null;
+              const prescribingDoctor = getMedicationDoctor(med);
 
               return (
                 <Pressable
@@ -1989,6 +2111,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                       ) : null}
                       <View style={styles.medMetaRow}>
                         <Text style={styles.medFreq}>As Needed</Text>
+                        {prescribingDoctor ? <Text style={[styles.medFreq, styles.medMetaInline]}>Prescribed by: {prescribingDoctor.name}</Text> : null}
                         {!!med.pharmacyName && (
                           <Text style={[styles.medFreq, styles.medMetaInline]}>{med.pharmacyName}</Text>
                         )}
@@ -2311,13 +2434,13 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
               </Pressable>
               <Text style={styles.label}>Prescribing doctor</Text>
               <Pressable style={styles.input} onPress={() => setShowMedListDoctorPicker((v) => !v)}>
-                <Text style={[styles.pickerPlaceholder, formMedListPrescribingDoctor && { color: C.text }]}>{formMedListPrescribingDoctor || (doctors.length === 0 ? "No doctors found. Add doctors in Settings." : "Select doctor")}</Text>
+                <Text style={[styles.pickerPlaceholder, formMedListPrescribingDoctor && { color: C.text }]}>{formMedListPrescribingDoctor || (medicationDoctors.length === 0 ? `No doctors found for ${getOwnerLabel(formEntryOwner)}.` : "Select doctor")}</Text>
                 <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />
               </Pressable>
-              {showMedListDoctorPicker && doctors.length > 0 && (
+              {showMedListDoctorPicker && medicationDoctors.length > 0 && (
                 <View style={styles.dropdown}>
                   <ScrollView style={styles.dropdownScroll} nestedScrollEnabled showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
-                    {doctors.map((d) => (
+                    {medicationDoctors.map((d) => (
                       <Pressable key={d.id} style={[styles.dropdownRow, formMedListPrescribingDoctor === d.name && styles.dropdownRowSelected]} onPress={() => { setFormMedListPrescribingDoctor(d.name); setShowMedListDoctorPicker(false); Haptics.selectionAsync(); }}>
                         <Text style={styles.dropdownText}>{d.name}</Text>
                         {d.specialty ? <Text style={styles.dropdownSub}>{d.specialty}</Text> : null}
@@ -2394,6 +2517,16 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
         </Pressable>
       </Modal>
 
+      <VisualScanImportModal
+        visible={showVisualScanModal}
+        initialType="medication"
+        onClose={() => setShowVisualScanModal(false)}
+        onSaved={() => {
+          setShowVisualScanModal(false);
+          void loadData();
+        }}
+      />
+
       <Modal visible={showModal} transparent animationType="fade">
         <View style={styles.overlay}>
           <Pressable
@@ -2410,6 +2543,22 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
           <View style={styles.modal}>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
               <Text style={styles.modalTitle}>{editingMed ? "Edit Medication" : "Add Medication"}</Text>
+              <View style={styles.medicationPhotoSection}>
+                {formMedicationImageUri ? (
+                  <Image source={{ uri: formMedicationImageUri }} style={styles.medicationPhotoPreview} resizeMode="cover" />
+                ) : null}
+                <View style={styles.medicationPhotoActions}>
+                  <Pressable style={styles.medicationPhotoButton} onPress={() => { void handlePickMedicationPhoto(); }}>
+                    <Ionicons name="image-outline" size={18} color={C.tint} />
+                    <Text style={styles.medicationPhotoButtonText}>{formMedicationImageUri ? "Change med photo" : "Add med photo"}</Text>
+                  </Pressable>
+                  {formMedicationImageUri ? (
+                    <Pressable style={styles.medicationPhotoRemove} onPress={() => setFormMedicationImageUri("")}>
+                      <Text style={styles.medicationPhotoRemoveText}>Remove</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
               {isSimpleAddFlow ? (
                 <View style={styles.prnFlowCard}>
                   <View style={styles.prnStepDots}>
@@ -2907,6 +3056,80 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                     </Pressable>
                   )}
 
+                  <Text style={styles.label}>Prescribed By</Text>
+                  <Pressable
+                    style={styles.input}
+                    onPress={() => {
+                      setShowMedicationDoctorPicker((value) => !value);
+                      setShowMedicationDoctorForm(false);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={selectedMedicationDoctor ? `Prescribed by ${selectedMedicationDoctor.name}` : "Select prescribing doctor"}
+                  >
+                    <Text style={[styles.pickerPlaceholder, selectedMedicationDoctor && { color: C.text }]}>
+                      {selectedMedicationDoctor?.name || (medicationDoctors.length === 0 ? `No doctors for ${getOwnerLabel(formEntryOwner)} yet` : "Select doctor")}
+                    </Text>
+                    <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />
+                  </Pressable>
+                  {showMedicationDoctorPicker && (
+                    <View style={styles.dropdown}>
+                      {formDoctorId ? (
+                        <Pressable
+                          style={styles.dropdownRow}
+                          onPress={() => {
+                            setFormDoctorId(null);
+                            setShowMedicationDoctorPicker(false);
+                            Haptics.selectionAsync();
+                          }}
+                        >
+                          <Text style={styles.dropdownText}>None</Text>
+                          <Text style={styles.dropdownSub}>Do not link a doctor</Text>
+                        </Pressable>
+                      ) : null}
+                      {medicationDoctors.length > 0 ? (
+                        <ScrollView style={styles.dropdownScroll} nestedScrollEnabled showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
+                          {medicationDoctors.map((doctor) => (
+                            <Pressable
+                              key={doctor.id}
+                              style={[styles.dropdownRow, formDoctorId === doctor.id && styles.dropdownRowSelected]}
+                              onPress={() => {
+                                setFormDoctorId(doctor.id);
+                                setShowMedicationDoctorPicker(false);
+                                Haptics.selectionAsync();
+                              }}
+                            >
+                              <Text style={styles.dropdownText}>{doctor.name}</Text>
+                              {doctor.specialty ? <Text style={styles.dropdownSub}>{doctor.specialty}</Text> : null}
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+                      ) : null}
+                      <Pressable
+                        style={styles.inlineAddDoctorBtn}
+                        onPress={() => setShowMedicationDoctorForm((value) => !value)}
+                      >
+                        <Ionicons name={showMedicationDoctorForm ? "remove" : "add"} size={16} color={C.purple} />
+                        <Text style={styles.inlineAddDoctorText}>{showMedicationDoctorForm ? "Hide add doctor" : "Add doctor here"}</Text>
+                      </Pressable>
+                      {showMedicationDoctorForm ? (
+                        <View style={styles.inlineDoctorForm}>
+                          <Text style={styles.label}>Doctor name *</Text>
+                          <TextInput style={styles.input} placeholder="e.g. Dr. Smith" placeholderTextColor={C.textTertiary} value={newMedicationDoctorName} onChangeText={setNewMedicationDoctorName} />
+                          <Text style={styles.label}>Specialty</Text>
+                          <TextInput style={styles.input} placeholder="e.g. Endocrinologist" placeholderTextColor={C.textTertiary} value={newMedicationDoctorSpecialty} onChangeText={setNewMedicationDoctorSpecialty} />
+                          <View style={styles.modalActions}>
+                            <Pressable style={styles.cancelBtn} onPress={() => setShowMedicationDoctorForm(false)}>
+                              <Text style={styles.cancelText}>Cancel</Text>
+                            </Pressable>
+                            <Pressable style={[styles.confirmBtn, !newMedicationDoctorName.trim() && { opacity: 0.5 }]} onPress={handleAddMedicationDoctor} disabled={!newMedicationDoctorName.trim()}>
+                              <Text style={styles.confirmText}>Save Doctor</Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      ) : null}
+                    </View>
+                  )}
+
                   {!isPrn && (
                     <>
                       <Text style={styles.label}>Route</Text>
@@ -3167,7 +3390,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
 
               {!isNewPrnFlow && (
                 <View style={styles.modalActions}>
-                  <Pressable style={styles.cancelBtn} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); setShowReminderTimePickerIndex(null); setShowRefillUnitPicker(false); setShowMedicationPharmacyPicker(false); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+                  <Pressable style={styles.cancelBtn} onPress={() => { setShowModal(false); setShowCurrentMedNamePicker(false); setShowReminderTimePickerIndex(null); setShowRefillUnitPicker(false); setShowMedicationPharmacyPicker(false); setShowMedicationDoctorPicker(false); setShowMedicationDoctorForm(false); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
                   <Pressable
                     style={[styles.confirmBtn, !canSaveMedication && { opacity: 0.5 }]}
                     onPress={handleSave}
@@ -3304,6 +3527,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   sickBannerInner: { flexDirection: "row", alignItems: "center", gap: 8 },
   sickBannerText: { fontWeight: "600", fontSize: 13 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 },
+  headerIconButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
   simpleTitle: { fontSize: size(34), lineHeight: size(38), letterSpacing: -0.9 },
@@ -3395,6 +3619,12 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
     fontSize: size(16),
     lineHeight: size(22),
     color: C.textSecondary,
+  },
+  simpleMedicationDoctor: {
+    fontWeight: "700",
+    fontSize: size(13),
+    lineHeight: size(18),
+    color: C.textTertiary,
   },
   simpleMedicationDivider: {
     height: 1,
@@ -3552,6 +3782,84 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   simpleOwnerButtonActive: { backgroundColor: C.tintLight, borderColor: C.tint },
   simpleOwnerButtonText: { fontWeight: "700", fontSize: size(18), color: C.textSecondary },
   simpleOwnerButtonTextActive: { color: C.tint },
+  prnFlowCard: {
+    borderRadius: 20,
+    padding: 16,
+    backgroundColor: C.surfaceElevated,
+    borderWidth: 1,
+    borderColor: C.border,
+    marginBottom: 16,
+  },
+  prnStepDots: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  prnStepDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 999,
+    backgroundColor: C.border,
+  },
+  prnStepDotActive: {
+    width: 24,
+    backgroundColor: C.tint,
+  },
+  prnFlowTitle: {
+    fontWeight: "800",
+    fontSize: size(20),
+    lineHeight: size(25),
+    color: C.text,
+    letterSpacing: -0.3,
+    marginBottom: 6,
+  },
+  prnFlowHelper: {
+    fontWeight: "500",
+    fontSize: size(14),
+    lineHeight: size(20),
+    color: C.textSecondary,
+    marginBottom: 14,
+  },
+  prnPrimaryInput: {
+    minHeight: 52,
+    borderRadius: 14,
+    fontSize: size(16),
+  },
+  prnModalSubtitle: {
+    fontWeight: "800",
+    fontSize: size(16),
+    color: C.text,
+    marginTop: -8,
+    marginBottom: 8,
+  },
+  prnReasonWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 14,
+  },
+  prnReasonChip: {
+    minHeight: 38,
+    borderRadius: 999,
+    paddingHorizontal: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.surfaceElevated,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  prnReasonChipActive: {
+    backgroundColor: C.tintLight,
+    borderColor: C.tint,
+  },
+  prnReasonChipText: {
+    fontWeight: "700",
+    fontSize: size(13),
+    color: C.textSecondary,
+  },
+  prnReasonChipTextActive: {
+    color: C.tint,
+  },
   addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
   progressBar: { height: 3, borderRadius: 999, backgroundColor: C.green + "1F", marginBottom: 24, overflow: "hidden" },
   progressFill: { height: 3, borderRadius: 999, backgroundColor: C.green },
@@ -3581,6 +3889,9 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   dropdownRowSelected: { backgroundColor: C.tintLight },
   dropdownText: { fontWeight: "500", fontSize: 14, color: C.text },
   dropdownSub: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
+  inlineAddDoctorBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, paddingHorizontal: 12 },
+  inlineAddDoctorText: { fontWeight: "700", fontSize: 13, color: C.purple },
+  inlineDoctorForm: { padding: 12, borderTopWidth: 1, borderTopColor: C.textTertiary + "10" },
   deleteMedListBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, marginTop: 8, marginBottom: 12 },
   deleteMedListBtnText: { fontWeight: "600", fontSize: 15, color: C.red },
   durationRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
@@ -3768,6 +4079,13 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   inlineReminderPicker: { backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 8, borderWidth: 1, borderColor: C.textTertiary + "14", marginTop: -2 },
   modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, maxHeight: "85%", borderWidth: 1, borderColor: C.textTertiary + "14" },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 20 },
+  medicationPhotoSection: { marginBottom: 18, gap: 10 },
+  medicationPhotoPreview: { width: "100%", height: 164, borderRadius: 16, backgroundColor: C.surfaceElevated },
+  medicationPhotoActions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  medicationPhotoButton: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, backgroundColor: C.tintLight },
+  medicationPhotoButtonText: { fontWeight: "600", fontSize: 13, color: C.tint },
+  medicationPhotoRemove: { paddingVertical: 8, paddingHorizontal: 4 },
+  medicationPhotoRemoveText: { fontWeight: "600", fontSize: 13, color: C.red },
   label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
   input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.textTertiary + "14", marginBottom: 14 },
   fieldRow: { flexDirection: "row", gap: 10 },

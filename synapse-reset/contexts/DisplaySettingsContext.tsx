@@ -5,11 +5,9 @@ export type TextSizeSetting = "normal" | "large" | "extra_large";
 
 interface DisplaySettingsContextValue {
   textSize: TextSizeSetting;
-  highContrast: boolean;
   textScale: number;
   size: (base: number) => number;
   setTextSize: (size: TextSizeSetting) => Promise<void>;
-  setHighContrast: (enabled: boolean) => Promise<void>;
 }
 
 const TEXT_SCALE_MAP: Record<TextSizeSetting, number> = {
@@ -22,12 +20,10 @@ const DisplaySettingsContext = createContext<DisplaySettingsContextValue | null>
 
 export function DisplaySettingsProvider({ children }: { children: React.ReactNode }) {
   const [textSize, setTextSizeState] = useState<TextSizeSetting>("normal");
-  const [highContrast, setHighContrastState] = useState(false);
 
   useEffect(() => {
     settingsStorage.get().then((settings) => {
       setTextSizeState(settings.textSize ?? "normal");
-      setHighContrastState(!!settings.highContrast);
     }).catch(() => {});
   }, []);
 
@@ -41,19 +37,12 @@ export function DisplaySettingsProvider({ children }: { children: React.ReactNod
     await saveSettingsPatch({ textSize: size });
   }, [saveSettingsPatch]);
 
-  const setHighContrast = useCallback(async (enabled: boolean) => {
-    setHighContrastState(enabled);
-    await saveSettingsPatch({ highContrast: enabled });
-  }, [saveSettingsPatch]);
-
   const value = useMemo(() => ({
     textSize,
-    highContrast,
     textScale: TEXT_SCALE_MAP[textSize],
     size: (base: number) => Math.round(base * TEXT_SCALE_MAP[textSize] * 100) / 100,
     setTextSize,
-    setHighContrast,
-  }), [highContrast, setHighContrast, setTextSize, textSize]);
+  }), [setTextSize, textSize]);
 
   return (
     <DisplaySettingsContext.Provider value={value}>
@@ -67,11 +56,9 @@ export function useDisplaySettings() {
   if (!context) {
     return {
       textSize: "normal" as TextSizeSetting,
-      highContrast: false,
       textScale: 1,
       size: (base: number) => base,
       setTextSize: async () => {},
-      setHighContrast: async () => {},
     };
   }
   return context;

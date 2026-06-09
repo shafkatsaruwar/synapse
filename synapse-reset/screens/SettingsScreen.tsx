@@ -47,6 +47,8 @@ import { syncWidgetSnapshot } from "@/lib/widget-sync";
 
 const SECTION_LABELS: Record<string, string> = {
   log: "Daily Log", healthdata: "Vitals", medications: "Medications", symptoms: "Symptoms",
+  labwork: "Lab Work", imaging: "Imaging",
+  timeline: "Timeline",
   monthlycheckin: "Monthly check-in", eating: "Eating", mentalhealth: "Mental health day",
   comfort: "Mood lifters", goals: "Goals", appointments: "Appointments", reports: "Reports", privacy: "Privacy", cycletracking: "Cycle tracking",
 };
@@ -61,6 +63,8 @@ interface SettingsScreenProps {
 
 const SECTION_ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
   log: "heart-outline", healthdata: "analytics-outline", medications: "medical-outline", symptoms: "pulse-outline",
+  labwork: "flask-outline", imaging: "scan-outline",
+  timeline: "git-branch-outline",
   monthlycheckin: "fitness-outline", eating: "restaurant-outline", mentalhealth: "heart-outline", comfort: "happy-outline",
   goals: "flag-outline", appointments: "calendar-outline", reports: "document-text-outline", privacy: "shield-outline", cycletracking: "water-outline",
 };
@@ -125,7 +129,7 @@ export default function SettingsScreen({
   const isWide = width >= 768;
   const { user } = useAuth();
   const { appMode, setAppMode } = useAppMode();
-  const { textSize, setTextSize, highContrast, setHighContrast, textScale } = useDisplaySettings();
+  const { textSize, setTextSize, textScale } = useDisplaySettings();
   const { colors: C, preference, setThemeId } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
@@ -262,12 +266,6 @@ export default function SettingsScreen({
     Haptics.selectionAsync();
     await setTextSize(size);
     setSettings((prev) => ({ ...prev, textSize: size }));
-  };
-
-  const handleHighContrastChange = async (enabled: boolean) => {
-    Haptics.selectionAsync();
-    await setHighContrast(enabled);
-    setSettings((prev) => ({ ...prev, highContrast: enabled }));
   };
 
   const openNameModal = () => {
@@ -547,17 +545,6 @@ export default function SettingsScreen({
                 );
               })}
             </View>
-            <Pressable
-              style={styles.simpleSettingsToggleRow}
-              onPress={() => void handleHighContrastChange(!highContrast)}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: highContrast }}
-            >
-              <Text style={[styles.simpleSettingsPrompt, { fontSize: simpleBodySize, marginBottom: 0 }]}>High contrast</Text>
-              <View style={[styles.toggle, highContrast && styles.toggleActive]}>
-                <View style={[styles.toggleThumb, highContrast && styles.toggleThumbActive]} />
-              </View>
-            </Pressable>
           </View>
 
           <View style={styles.simpleSettingsCard}>
@@ -892,28 +879,6 @@ export default function SettingsScreen({
         </Pressable>
 
         <Pressable
-          style={styles.card}
-          testID="high-contrast-toggle"
-          onPress={() => {
-            setSettings((p) => ({ ...p, highContrast: !p.highContrast }));
-            setSaved(false);
-            Haptics.selectionAsync();
-          }}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: !!settings.highContrast }}
-        >
-          <View style={styles.toggleHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sectionTitle}>High Contrast</Text>
-              <Text style={styles.desc}>Increase contrast for better readability</Text>
-            </View>
-            <View style={[styles.toggle, settings.highContrast && styles.toggleActive]}>
-              <View style={[styles.toggleThumb, settings.highContrast && styles.toggleThumbActive]} />
-            </View>
-          </View>
-        </Pressable>
-
-        <Pressable
           style={({ pressed }) => [styles.saveBtn, saved && styles.saveBtnSaved, { opacity: pressed ? 0.85 : 1 }]}
           onPress={handleSave}
           accessibilityRole="button"
@@ -1104,7 +1069,7 @@ export default function SettingsScreen({
             <ScrollView style={{ maxHeight: 420, width: "100%" }} showsVerticalScrollIndicator>
               {[
                 { key: "notificationsMedications" as const, label: "Medication reminders", desc: "Daily reminders to take your medications" },
-                { key: "notificationsAppointments" as const, label: "Appointment reminders", desc: "1 day and 1 hour before appointments" },
+                { key: "notificationsAppointments" as const, label: "Appointment reminders", desc: "Friendly day-before, same-day, and time-to-leave reminders" },
                 { key: "notificationsDailyCheckIn" as const, label: "Daily check-in reminders", desc: "Remind to log mood and symptoms (default 8 PM)" },
                 { key: "notificationsMonthly" as const, label: "Monthly reminders", desc: "Monthly health review reminder" },
               ].map(({ key, label, desc }) => (

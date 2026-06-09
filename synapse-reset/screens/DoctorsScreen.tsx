@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { doctorsStorage, emergencyDoctorStorage, primaryDoctorStorage, type Doctor } from "@/lib/storage";
+import { doctorsStorage, healthProfileStorage, medicationStorage, normalizeMedication, type Doctor, type HealthProfileInfo, type Medication, type RecordOwner } from "@/lib/storage";
 
 interface DoctorsScreenProps {
   onBack: () => void;
@@ -18,40 +18,61 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
+  const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self" });
+  const [activeOwner, setActiveOwner] = useState<RecordOwner>("self");
   const [showAddModal, setShowAddModal] = useState(false);
   const [addName, setAddName] = useState("");
   const [addSpecialty, setAddSpecialty] = useState("");
   const [addPhone, setAddPhone] = useState("");
   const [addAddress, setAddAddress] = useState("");
   const [addHospital, setAddHospital] = useState("");
-  const [emergencyDocId, setEmergencyDocId] = useState<string | null>(null);
-  const [primaryDocId, setPrimaryDocId] = useState<string | null>(null);
   const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
 
   const loadDoctors = useCallback(async () => {
-    const list = await doctorsStorage.getAll();
-    setDoctors(list.sort((a, b) => a.name.localeCompare(b.name)));
-    const [emergencyId, primaryId] = await Promise.all([
-      emergencyDoctorStorage.getDocId(),
-      primaryDoctorStorage.getDocId(),
+    const [profileInfo, list, medicationList] = await Promise.all([
+      healthProfileStorage.get(),
+      doctorsStorage.getAll(activeOwner),
+      medicationStorage.getAll(),
     ]);
-    setEmergencyDocId(emergencyId);
-    setPrimaryDocId(primaryId);
-  }, []);
+    setProfile(profileInfo);
+    setDoctors(list.sort((a, b) => a.name.localeCompare(b.name)));
+    setMedications(medicationList.filter((med) => (med.entryOwner ?? "self") === activeOwner));
+  }, [activeOwner]);
 
   useEffect(() => { loadDoctors(); }, [loadDoctors]);
 
+  useEffect(() => {
+    let mounted = true;
+    healthProfileStorage.get().then((profileInfo) => {
+      if (!mounted) return;
+      setProfile(profileInfo);
+      if (profileInfo.userRole === "caregiver" && profileInfo.caredForName?.trim()) {
+        setActiveOwner("care_recipient");
+      }
+    });
+    return () => { mounted = false; };
+  }, []);
+
+  const isCaregiver = profile.userRole === "caregiver" && !!profile.caredForName?.trim();
+  const ownerOptions: { value: RecordOwner; label: string }[] = [
+    { value: "self", label: "You" },
+    ...(isCaregiver ? [{ value: "care_recipient" as const, label: profile.caredForName!.trim() }] : []),
+  ];
+  const activeOwnerLabel = activeOwner === "care_recipient" && isCaregiver ? profile.caredForName!.trim() : "You";
+  const editingDoctorMedications = editingDoctor
+    ? medications.filter((med) => med.doctorId === editingDoctor.id)
+    : [];
+
   const handleSetEmergencyDoc = async (doc: Doctor) => {
-    const newId = emergencyDocId === doc.id ? null : doc.id;
-    await emergencyDoctorStorage.setDocId(newId);
-    setEmergencyDocId(newId);
+    await doctorsStorage.setEmergency(doc.id, activeOwner);
+    await loadDoctors();
     Haptics.selectionAsync();
   };
 
   const handleSetPrimaryDoc = async (doc: Doctor) => {
-    const newId = primaryDocId === doc.id ? null : doc.id;
-    await primaryDoctorStorage.setDocId(newId);
-    setPrimaryDocId(newId);
+    await doctorsStorage.setPrimary(doc.id, activeOwner);
+    await loadDoctors();
     Haptics.selectionAsync();
   };
 
@@ -95,7 +116,7 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
     if (editingDoctor) {
       await doctorsStorage.update(editingDoctor.id, { name, specialty, phone, address, hospital });
     } else {
-      await doctorsStorage.addOrGet({ name, specialty, phone, address, hospital });
+      await doctorsStorage.addOrGet({ name, specialty, phone, address, hospital }, activeOwner);
     }
 
     await loadDoctors();
@@ -127,7 +148,7 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
         <Pressable onPress={onBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back">
           <Ionicons name="chevron-back" size={24} color={C.text} />
         </Pressable>
-        <Text style={styles.title}>Doctors</Text>
+        <Text style={styles.title} numberOfLines={1}>Doctors – {activeOwnerLabel}</Text>
         <Pressable
           style={styles.addBtn}
           onPress={openAddModal}
@@ -142,8 +163,26 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={true}
       >
-        <Text style={styles.hint}>These doctors appear when you create an appointment. Add or remove names here.</Text>
-        <Text style={styles.emergencyHint}>Tap the shield for your emergency doctor. Tap the person icon for your primary doctor.</Text>
+        {ownerOptions.length > 1 ? (
+          <View style={styles.personSwitcher}>
+            {ownerOptions.map((option) => (
+              <Pressable
+                key={option.value}
+                style={[styles.personChip, activeOwner === option.value && styles.personChipActive]}
+                onPress={() => {
+                  setActiveOwner(option.value);
+                  Haptics.selectionAsync();
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: activeOwner === option.value }}
+              >
+                <Text style={[styles.personChipText, activeOwner === option.value && styles.personChipTextActive]}>{option.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+        <Text style={styles.hint}>These doctors appear when you create an appointment for {activeOwnerLabel}.</Text>
+        <Text style={styles.emergencyHint}>Tap the shield for emergency doctor. Tap the person icon for primary doctor.</Text>
         {doctors.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="medical-outline" size={40} color={C.textTertiary} />
@@ -152,8 +191,8 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
           </View>
         ) : (
           doctors.map((doc) => {
-            const isEmergency = emergencyDocId === doc.id;
-            const isPrimary = primaryDocId === doc.id;
+            const isEmergency = !!doc.isEmergency;
+            const isPrimary = !!doc.isPrimary;
             return (
               <Pressable
                 key={doc.id}
@@ -263,6 +302,28 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
               value={addHospital}
               onChangeText={setAddHospital}
             />
+            {editingDoctor ? (
+              <View style={styles.linkedSection}>
+                <Text style={styles.linkedTitle}>Medications</Text>
+                {editingDoctorMedications.length > 0 ? (
+                  editingDoctorMedications.map((med) => {
+                    const firstDose = normalizeMedication(med).doses?.[0];
+                    const doseText = firstDose?.amount && firstDose?.unit ? `${firstDose.amount} ${firstDose.unit}` : med.frequency || "Medication";
+                    return (
+                      <View key={med.id} style={styles.linkedMedicationRow}>
+                        <Ionicons name="medical-outline" size={16} color={C.textSecondary} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.linkedMedicationName}>{med.name}</Text>
+                          <Text style={styles.linkedMedicationMeta}>{doseText}</Text>
+                        </View>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <Text style={styles.linkedEmpty}>No medications linked to this doctor yet.</Text>
+                )}
+              </View>
+            ) : null}
             <View style={styles.modalActions}>
               <Pressable style={styles.cancelBtn} onPress={closeDoctorModal}>
                 <Text style={styles.cancelText}>Cancel</Text>
@@ -287,6 +348,11 @@ function makeStyles(C: Theme) {
     addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
     scroll: { flex: 1 },
     content: { padding: 24 },
+    personSwitcher: { flexDirection: "row", gap: 8, backgroundColor: C.surface, borderRadius: 14, padding: 4, borderWidth: 1, borderColor: C.border, marginBottom: 16 },
+    personChip: { flex: 1, minHeight: 38, borderRadius: 10, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
+    personChipActive: { backgroundColor: C.tint },
+    personChipText: { fontSize: 13, fontWeight: "700", color: C.textSecondary },
+    personChipTextActive: { color: "#fff" },
     hint: { fontSize: 13, color: C.textTertiary, marginBottom: 20 },
     empty: { alignItems: "center", paddingVertical: 48, gap: 8 },
     emptyText: { fontWeight: "600", fontSize: 16, color: C.text },
@@ -310,6 +376,12 @@ function makeStyles(C: Theme) {
     label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
     input: { fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
     inputMultiline: { minHeight: 74, textAlignVertical: "top" },
+    linkedSection: { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 14, marginTop: 2, marginBottom: 16 },
+    linkedTitle: { fontWeight: "800", fontSize: 13, color: C.text, textTransform: "uppercase", marginBottom: 10 },
+    linkedMedicationRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.border },
+    linkedMedicationName: { fontWeight: "700", fontSize: 14, color: C.text },
+    linkedMedicationMeta: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginTop: 2 },
+    linkedEmpty: { fontWeight: "600", fontSize: 13, color: C.textTertiary, lineHeight: 18 },
     modalActions: { flexDirection: "row", gap: 10 },
     cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center" },
     cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { View, StyleSheet, Alert, Platform, AppState, Linking, Modal, Pressable, Text, Animated, useWindowDimensions } from "react-native";
+import { View, StyleSheet, Alert, Platform, AppState, Linking, Modal, Pressable, Text, Animated, useWindowDimensions, Image } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import Constants from "expo-constants";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,6 +12,9 @@ import DailyLogScreen from "@/screens/DailyLogScreen";
 import MedicationsScreen from "@/screens/MedicationsScreen";
 import SymptomsScreen from "@/screens/SymptomsScreen";
 import AppointmentsScreen from "@/screens/AppointmentsScreen";
+import LabWorkScreen from "@/screens/LabWorkScreen";
+import ImagingScreen from "@/screens/ImagingScreen";
+import TimelineScreen from "@/screens/TimelineScreen";
 import MonthlyCheckInScreen from "@/screens/MonthlyCheckInScreen";
 import EatingScreen from "@/screens/EatingScreen";
 import MentalHealthModeScreen from "@/screens/MentalHealthModeScreen";
@@ -38,19 +41,23 @@ import EmergencyProtocolScreen from "@/screens/EmergencyProtocolScreen";
 import EmergencyCardScreen from "@/screens/EmergencyCardScreen";
 import MeetFounderScreen from "@/screens/MeetFounderScreen";
 import FeedbackScreen from "@/screens/FeedbackScreen";
+import IcsImportPreviewScreen from "@/screens/IcsImportPreviewScreen";
 import {
+  hydrationStorage,
   medicationLogStorage,
   medicationStorage,
   mentalHealthModeStorage,
   normalizeMedication,
   settingsStorage,
   sickModeStorage,
+  type FeedbackSentiment,
 } from "@/lib/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   requestPermission,
   getPermissionStatus,
   syncAllFromSettings,
+  type NotificationNavigationTarget,
   setNotificationNavigateCallback,
   handleLastNotificationResponse,
 } from "@/lib/notification-manager";
@@ -67,9 +74,10 @@ import {
   trackFeedbackAppOpen,
   trackFeedbackWidgetLaunch,
 } from "@/lib/feedback-service";
-import type { FeedbackSentiment } from "@/lib/storage";
 import { useAppMode } from "@/contexts/AppModeContext";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
+import { getPendingIcsImport, type IcsImportPayload } from "@/lib/ics-import";
+import { processPendingAppIntentActions } from "@/lib/app-intents";
 
 const WHATS_NEW_TITLE = "Simpler when you need it. Smarter when it counts.";
 const WHATS_NEW_BODY =
@@ -300,7 +308,7 @@ function SimpleModeTourOverlay({
 export default function MainScreen() {
   const isTablet = useIsTablet();
   const { isSimpleMode } = useAppMode();
-  const { widgetTarget, medId } = useLocalSearchParams<{ widgetTarget?: string | string[]; medId?: string | string[] }>();
+  const { widgetTarget, medId, mode } = useLocalSearchParams<{ widgetTarget?: string | string[]; medId?: string | string[]; mode?: string | string[] }>();
   const [activeScreen, setActiveScreen] = useState("dashboard");
   const [refreshKey, setRefreshKey] = useState(0);
   const [sickMode, setSickMode] = useState(false);
@@ -319,10 +327,59 @@ export default function MainScreen() {
   const [feedbackEntrySource, setFeedbackEntrySource] = useState<"settings" | "prompt">("settings");
   const [simpleAddMedicationToken, setSimpleAddMedicationToken] = useState(0);
   const [simpleAddAppointmentToken, setSimpleAddAppointmentToken] = useState(0);
+  const [calendarImportToken, setCalendarImportToken] = useState(0);
   const [simpleAddSymptomToken, setSimpleAddSymptomToken] = useState(0);
+  const [focusedAppointmentId, setFocusedAppointmentId] = useState<string | null>(null);
   const [hydrationLaunchToken, setHydrationLaunchToken] = useState(0);
   const [pendingHydrationLaunch, setPendingHydrationLaunch] = useState(false);
+  const [icsImportPayload, setIcsImportPayload] = useState<IcsImportPayload | null>(null);
+  const [showIcsImportPreview, setShowIcsImportPreview] = useState(false);
+  const [medicationPrompt, setMedicationPrompt] = useState<null | {
+    medicationId: string;
+    doseIndex: number;
+    name: string;
+    dosage: string;
+    imageUri?: string;
+  }>(null);
   const lastHandledWidgetUrlRef = useRef<{ url: string; at: number } | null>(null);
+
+  const handleQuickSip = useCallback(async () => {
+    try {
+      const preset = await hydrationStorage.getPreset();
+      await hydrationStorage.save({
+        date: new Date().toISOString().slice(0, 10),
+        time: new Date().toISOString(),
+        what: preset.what,
+        amount: preset.amount,
+        unit: preset.unit,
+      });
+      await syncWidgetSnapshot().catch(() => {});
+      await trackFeedbackWidgetLaunch().catch(() => {});
+    } catch (error) {
+      console.warn("Failed to log quick sip from widget", error);
+    }
+  }, []);
+
+  const openMedicationPrompt = useCallback(async (medicationId?: string, doseIndex?: number) => {
+    if (!medicationId) return;
+    try {
+      const medications = await medicationStorage.getAll();
+      const med = medications.find((item) => item.id === medicationId);
+      if (!med) return;
+      const normalized = normalizeMedication(med);
+      const safeDoseIndex = doseIndex ?? 0;
+      const dose = normalized.doses?.[safeDoseIndex];
+      setMedicationPrompt({
+        medicationId,
+        doseIndex: safeDoseIndex,
+        name: med.name,
+        dosage: dose ? `${dose.amount} ${dose.unit}`.trim() : "",
+        imageUri: med.imageUri,
+      });
+    } catch (error) {
+      console.warn("Failed to open medication prompt", error);
+    }
+  }, []);
 
   const handlePrnWidgetLog = useCallback(async (prnMedId: string) => {
     setActiveScreen("medications");
@@ -349,15 +406,55 @@ export default function MainScreen() {
     }
   }, []);
 
+  const processQueuedAppIntentActions = useCallback(async () => {
+    try {
+      const result = await processPendingAppIntentActions();
+      if (result.handledCount === 0) return false;
+
+      if (result.target === "sickmode") {
+        setSickMode(true);
+        setActiveScreen("sickmode");
+      } else if (result.target === "eating") {
+        setActiveScreen("eating");
+        setPendingHydrationLaunch(true);
+        setHydrationLaunchToken((value) => value + 1);
+      } else if (result.target === "appointments") {
+        setActiveScreen("appointments");
+        if (result.appointmentId) setFocusedAppointmentId(result.appointmentId);
+      } else if (result.target === "medications") {
+        setActiveScreen("medications");
+      }
+
+      setRefreshKey((k) => k + 1);
+      return true;
+    } catch (error) {
+      console.warn("Failed to process App Intent actions", error);
+      return false;
+    }
+  }, []);
+
   const navigateToWidgetTarget = useCallback((url: string | null | undefined) => {
     if (!url) return false;
 
     try {
       const parsed = new URL(url);
       const queryTarget = parsed.searchParams.get("widgetTarget");
+      const modeParam = parsed.searchParams.get("mode");
       const pathParts = parsed.pathname.split("/").filter(Boolean);
+      const isAppointmentImportRoute =
+        (parsed.host === "import" && pathParts[0]?.toLowerCase() === "appointment")
+        || (pathParts[0]?.toLowerCase() === "import" && pathParts[1]?.toLowerCase() === "appointment");
       const route = (queryTarget || (parsed.host === "widget" ? pathParts[0] : parsed.host) || "").toLowerCase();
-      const normalizedRoute = route === "prn-log" ? "prnlog" : route;
+      const normalizedRoute = route === "prn-log" ? "prnlog" : route === "daily-log" ? "logtoday" : route;
+
+      if (isAppointmentImportRoute) {
+        void (async () => {
+          const payload = await getPendingIcsImport().catch(() => null);
+          setIcsImportPayload(payload);
+          setShowIcsImportPreview(true);
+        })();
+        return true;
+      }
 
       if (normalizedRoute === "prnlog") {
         const prnMedId = parsed.searchParams.get("medId");
@@ -372,6 +469,11 @@ export default function MainScreen() {
         return true;
       }
 
+      if (normalizedRoute === "intent" || normalizedRoute === "shortcuts") {
+        void processQueuedAppIntentActions();
+        return true;
+      }
+
       if (normalizedRoute === "medications" || normalizedRoute === "appointments" || normalizedRoute === "logtoday") {
         setActiveScreen(normalizedRoute);
         setRefreshKey((k) => k + 1);
@@ -383,6 +485,9 @@ export default function MainScreen() {
         setActiveScreen("eating");
         setPendingHydrationLaunch(true);
         setHydrationLaunchToken((value) => value + 1);
+        if (modeParam === "quick-sip") {
+          void handleQuickSip();
+        }
         setRefreshKey((k) => k + 1);
         trackFeedbackWidgetLaunch().catch(() => {});
         return true;
@@ -434,7 +539,43 @@ export default function MainScreen() {
     }
 
     return false;
-  }, [handlePrnWidgetLog]);
+  }, [handlePrnWidgetLog, handleQuickSip, processQueuedAppIntentActions]);
+
+  const handleIcsImportClose = useCallback(() => {
+    setShowIcsImportPreview(false);
+    setIcsImportPayload(null);
+  }, []);
+
+  const handleIcsImportDone = useCallback(() => {
+    setShowIcsImportPreview(false);
+    setIcsImportPayload(null);
+    setActiveScreen("appointments");
+    setRefreshKey((k) => k + 1);
+  }, []);
+
+  const handleNotificationNavigate = useCallback((target: NotificationNavigationTarget) => {
+    if (target.notificationType === "medication") {
+      setActiveScreen("dashboard");
+      setRefreshKey((k) => k + 1);
+      void openMedicationPrompt(target.medicationId, target.doseIndex);
+      return;
+    }
+    if (target.notificationType === "hydration") {
+      setActiveScreen("eating");
+      setPendingHydrationLaunch(true);
+      setHydrationLaunchToken((value) => value + 1);
+      setRefreshKey((k) => k + 1);
+      return;
+    }
+    if (target.notificationType === "appointment") {
+      setFocusedAppointmentId(target.appointmentId ?? null);
+      setActiveScreen("appointments");
+      setRefreshKey((k) => k + 1);
+      return;
+    }
+    setActiveScreen(target.screen);
+    setRefreshKey((k) => k + 1);
+  }, [openMedicationPrompt]);
 
 
 
@@ -463,7 +604,7 @@ export default function MainScreen() {
   useEffect(() => {
     if (showOnboarding !== false) return;
     trackFeedbackAppOpen().catch(() => {});
-  }, [showOnboarding]);
+  }, [showOnboarding, suppressPostOnboardingPrompts]);
 
   useEffect(() => {
     if (showOnboarding !== false || showWalkthrough || showSimpleModeTour || showWhatsNew || showFeedbackPrompt || suppressPostOnboardingPrompts) return;
@@ -523,7 +664,7 @@ export default function MainScreen() {
       }
     })();
     return () => { mounted = false; };
-  }, [showOnboarding]);
+  }, [showOnboarding, suppressPostOnboardingPrompts]);
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
@@ -575,7 +716,7 @@ export default function MainScreen() {
     settingsStorage.get().then(s => setSickMode(s.sickMode));
   };
 
-  const handleSimpleAddNavigate = useCallback((target: "medication" | "appointment" | "symptom") => {
+  const handleQuickAddNavigate = useCallback((target: "medication" | "appointment" | "symptom" | "calendar" | "labwork" | "imaging") => {
     if (target === "medication") {
       setActiveScreen("medications");
       setSimpleAddMedicationToken((value) => value + 1);
@@ -584,6 +725,15 @@ export default function MainScreen() {
     if (target === "appointment") {
       setActiveScreen("appointments");
       setSimpleAddAppointmentToken((value) => value + 1);
+      return;
+    }
+    if (target === "calendar") {
+      setActiveScreen("appointments");
+      setCalendarImportToken((value) => value + 1);
+      return;
+    }
+    if (target === "labwork" || target === "imaging") {
+      setActiveScreen(target);
       return;
     }
     setActiveScreen("symptoms");
@@ -601,8 +751,8 @@ export default function MainScreen() {
 
   // Register navigate callback for notification tap routing
   useEffect(() => {
-    setNotificationNavigateCallback(handleNavigate);
-  }, []);
+    setNotificationNavigateCallback(handleNotificationNavigate);
+  }, [handleNotificationNavigate]);
 
   // Handle notification that launched the app from a killed state
   useEffect(() => {
@@ -610,6 +760,20 @@ export default function MainScreen() {
       handleLastNotificationResponse();
     }
   }, [showOnboarding]);
+
+  useEffect(() => {
+    if (showOnboarding !== false) return;
+    void processQueuedAppIntentActions();
+  }, [processQueuedAppIntentActions, showOnboarding]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        void processQueuedAppIntentActions();
+      }
+    });
+    return () => subscription.remove();
+  }, [processQueuedAppIntentActions]);
 
   useEffect(() => {
     const handleIncomingUrl = ({ url }: { url: string }) => {
@@ -627,7 +791,8 @@ export default function MainScreen() {
   useEffect(() => {
     const target = Array.isArray(widgetTarget) ? widgetTarget[0] : widgetTarget;
     const resolvedMedId = Array.isArray(medId) ? medId[0] : medId;
-    const normalizedTarget = target === "prn-log" ? "prnlog" : target;
+    const targetMode = Array.isArray(mode) ? mode[0] : mode;
+    const normalizedTarget = target === "prn-log" ? "prnlog" : target === "daily-log" ? "logtoday" : target;
 
     if (normalizedTarget === "prnlog" && resolvedMedId) {
       void handlePrnWidgetLog(resolvedMedId);
@@ -645,6 +810,9 @@ export default function MainScreen() {
       setActiveScreen("eating");
       setPendingHydrationLaunch(true);
       setHydrationLaunchToken((value) => value + 1);
+      if (targetMode === "quick-sip") {
+        void handleQuickSip();
+      }
       setRefreshKey((k) => k + 1);
       trackFeedbackWidgetLaunch().catch(() => {});
       return;
@@ -653,7 +821,28 @@ export default function MainScreen() {
     if (normalizedTarget === "sickmode" || normalizedTarget === "mentalhealth") {
       void navigateToWidgetTarget(`myapp://widget/${normalizedTarget}`);
     }
-  }, [handlePrnWidgetLog, medId, navigateToWidgetTarget, widgetTarget]);
+  }, [handlePrnWidgetLog, handleQuickSip, medId, mode, navigateToWidgetTarget, widgetTarget]);
+
+  const handleMedicationPromptTaken = useCallback(async () => {
+    if (!medicationPrompt) return;
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const existingLogs = await medicationLogStorage.getByDate(today);
+      const alreadyTaken = existingLogs.some(
+        (log) => log.medicationId === medicationPrompt.medicationId && (log.doseIndex ?? 0) === medicationPrompt.doseIndex && log.taken,
+      );
+      if (!alreadyTaken) {
+        await medicationLogStorage.toggle(medicationPrompt.medicationId, today, medicationPrompt.doseIndex);
+      }
+      await syncAllFromSettings().catch(() => {});
+      await syncWidgetSnapshot().catch(() => {});
+    } catch (error) {
+      console.warn("Failed to mark medication as taken from prompt", error);
+    } finally {
+      setMedicationPrompt(null);
+      setRefreshKey((k) => k + 1);
+    }
+  }, [medicationPrompt]);
 
   const handleActivateSickMode = () => {
     setSickMode(true);
@@ -802,6 +991,40 @@ export default function MainScreen() {
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const isLastSimpleTourStep = simpleModeTourStep === SIMPLE_MODE_TOUR_CARDS.length - 1;
+  const medicationReminderModal = (
+    <Modal
+      animationType="fade"
+      transparent
+      visible={!!medicationPrompt}
+      onRequestClose={() => setMedicationPrompt(null)}
+    >
+      <View style={styles.modalBackdrop}>
+        <View style={styles.feedbackPromptCard}>
+          <Text style={styles.feedbackPromptTitle}>Take this exact med</Text>
+          <Text style={styles.feedbackPromptBody}>
+            {medicationPrompt ? `${medicationPrompt.name}${medicationPrompt.dosage ? ` • ${medicationPrompt.dosage}` : ""}` : ""}
+          </Text>
+          {medicationPrompt?.imageUri ? (
+            <Image source={{ uri: medicationPrompt.imageUri }} style={styles.medicationPromptImage} resizeMode="cover" />
+          ) : null}
+          <View style={styles.feedbackPromptActions}>
+            <Pressable
+              onPress={handleMedicationPromptTaken}
+              style={({ pressed }) => [styles.feedbackPromptPrimary, pressed && styles.whatsNewButtonPressed]}
+            >
+              <Text style={styles.feedbackPromptPrimaryText}>Yes, took it</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setMedicationPrompt(null)}
+              style={({ pressed }) => [styles.feedbackPromptSecondary, pressed && styles.whatsNewButtonPressed]}
+            >
+              <Text style={styles.feedbackPromptSecondaryText}>Not yet</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
   const simpleModeTourOverlay = (
     <SimpleModeTourOverlay
       visible={showSimpleModeTour}
@@ -871,7 +1094,21 @@ export default function MainScreen() {
       case "goals":
         return <GoalsScreen />;
       case "appointments":
-        return <AppointmentsScreen simpleOpenAddToken={simpleAddAppointmentToken} onSimpleSaveComplete={handleSimpleSaveReturnToDashboard} />;
+        return (
+          <AppointmentsScreen
+            simpleOpenAddToken={simpleAddAppointmentToken}
+            openCalendarImportToken={calendarImportToken}
+            focusedAppointmentId={focusedAppointmentId}
+            onFocusedAppointmentHandled={() => setFocusedAppointmentId(null)}
+            onSimpleSaveComplete={handleSimpleSaveReturnToDashboard}
+          />
+        );
+      case "labwork":
+        return <LabWorkScreen />;
+      case "imaging":
+        return <ImagingScreen />;
+      case "timeline":
+        return <TimelineScreen />;
       case "reports":
         return <ReportsScreen />;
       case "ramadan":
@@ -938,7 +1175,7 @@ export default function MainScreen() {
     <SidebarLayout
       activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
       onNavigate={handleNavigate}
-      onSimpleAddSelect={handleSimpleAddNavigate}
+      onSimpleAddSelect={handleQuickAddNavigate}
       sickMode={sickMode}
       simpleMode={isSimpleMode}
       headerRight={activeScreen === "dashboard" ? <SickModeHeaderButton onActivate={handleActivateSickMode} onNavigate={handleNavigate} refreshKey={refreshKey} /> : undefined}
@@ -975,6 +1212,7 @@ export default function MainScreen() {
             }}
           />
           {simpleModeTourOverlay}
+          {medicationReminderModal}
           <Modal
             animationType="fade"
             transparent
@@ -1056,6 +1294,13 @@ export default function MainScreen() {
           }}
         />
         {simpleModeTourOverlay}
+        {medicationReminderModal}
+        <IcsImportPreviewScreen
+          visible={showIcsImportPreview}
+          payload={icsImportPayload}
+          onClose={handleIcsImportClose}
+          onImported={handleIcsImportDone}
+        />
         <Modal
           animationType="fade"
           transparent
@@ -1292,6 +1537,12 @@ function makeStyles(C: Theme) {
       fontSize: 17,
       lineHeight: 24,
       color: C.textSecondary,
+    },
+    medicationPromptImage: {
+      width: "100%",
+      height: 180,
+      borderRadius: 20,
+      backgroundColor: C.surfaceElevated,
     },
     feedbackPromptActions: {
       gap: 12,

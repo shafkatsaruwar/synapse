@@ -31,12 +31,20 @@ export const NOTIFICATION_IDS = {
   prefixMed: "med",
   prefixMedSnooze: "med-snooze",
   prefixRefill: "refill",
-  prefixApt1day: "apt-1d",
-  prefixApt2hr: "apt-2h",
+  prefixAppointment: "appt",
   dailyCheckIn: "daily-checkin",
+  prefixHydration: "hydration",
   monthlyCheckIn: "monthly-checkin",
   screening: "screening-reminder",
 } as const;
+
+export type NotificationNavigationTarget =
+  | { screen: "medications"; notificationType: "medication"; medicationId?: string; doseIndex?: number }
+  | { screen: "appointments"; notificationType: "appointment"; appointmentId?: string }
+  | { screen: "logtoday"; notificationType: "daily-checkin" }
+  | { screen: "monthlycheckin"; notificationType: "monthly-checkin" }
+  | { screen: "healthprofile"; notificationType: "screening" }
+  | { screen: "hydration"; notificationType: "hydration" };
 
 function isNative(): boolean {
   return Platform.OS === "ios" || Platform.OS === "android";
@@ -394,47 +402,98 @@ function inferMedicationReminderCadence(med: {
   return { cadence: "daily" as const, weekday: undefined, intervalValue: undefined, intervalUnit: undefined };
 }
 
-/** Schedule appointment reminder (24 hours before or 2 hours before). */
+type AppointmentReminderType = "day_before" | "same_day" | "time_to_leave";
+
+function getAppointmentReminderIdentifier(appointmentId: string, reminderType: AppointmentReminderType): string {
+  return `appt_${appointmentId}_${reminderType}`;
+}
+
+function parseAppointmentDateTime(date: string, time: string): Date | null {
+  const [year, month, day] = date.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const timeMatch = (time || "09:00").match(/(\d{1,2}):(\d{2})/);
+  const hour = timeMatch ? parseInt(timeMatch[1], 10) : 9;
+  const minute = timeMatch ? parseInt(timeMatch[2], 10) : 0;
+  const appointmentDate = new Date(year, month - 1, day, hour, minute, 0, 0);
+  return Number.isNaN(appointmentDate.getTime()) ? null : appointmentDate;
+}
+
+function formatAppointmentReminderTime(time: string): string {
+  const timeMatch = (time || "09:00").match(/(\d{1,2}):(\d{2})/);
+  const hour = timeMatch ? parseInt(timeMatch[1], 10) : 9;
+  const minute = timeMatch ? parseInt(timeMatch[2], 10) : 0;
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
+}
+
+function buildAppointmentReminderBody(params: { doctorName: string; time: string; location?: string; reminderType: AppointmentReminderType }): string {
+  const name = params.doctorName?.trim();
+  const location = params.location?.trim();
+  const displayTime = formatAppointmentReminderTime(params.time);
+  const appointmentName = name ? ` with ${name}` : "";
+  const locationLine = location ? ` ${location}` : "";
+
+  switch (params.reminderType) {
+    case "day_before":
+      return `Hey hey 👀 You’ve got an appointment tomorrow at ${displayTime}${appointmentName}.${locationLine}`;
+    case "same_day":
+      return `Today’s the day 💪 Appointment at ${displayTime}${appointmentName}.${locationLine}`;
+    case "time_to_leave":
+      return `Time to head out 🚗 Leave now to make it on time${location ? ` at ${location}` : ""}.`;
+    default:
+      return `Appointment at ${displayTime}${appointmentName}.${locationLine}`;
+  }
+}
+
+function getAppointmentReminderTriggerDate(appointmentDate: Date, reminderType: AppointmentReminderType): Date {
+  const triggerDate = new Date(appointmentDate);
+  if (reminderType === "day_before") {
+    triggerDate.setHours(triggerDate.getHours() - 24);
+    return triggerDate;
+  }
+  if (reminderType === "same_day") {
+    triggerDate.setHours(9, 0, 0, 0);
+    return triggerDate;
+  }
+  triggerDate.setMinutes(triggerDate.getMinutes() - 30);
+  return triggerDate;
+}
+
+/** Schedule one appointment reminder. Prefer scheduleAppointmentRemindersForAppointment for normal use. */
 export async function scheduleAppointmentReminder(params: {
   appointmentId: string;
   doctorName: string;
   date: string;
   time: string;
-  when: "24hr" | "2hr";
+  location?: string;
+  when: AppointmentReminderType | "24h" | "2h" | "1day" | "1hr";
 }): Promise<string | null> {
   if (!isNative()) return null;
-  const { appointmentId, doctorName, date, time, when } = params;
-  const identifier = when === "24hr"
-    ? `${NOTIFICATION_IDS.prefixApt1day}-${appointmentId}`
-    : `${NOTIFICATION_IDS.prefixApt2hr}-${appointmentId}`;
+  const { appointmentId, doctorName, date, time, location, when } = params;
+  const reminderType: AppointmentReminderType =
+    when === "24h" || when === "1day"
+      ? "day_before"
+      : when === "2h" || when === "1hr"
+        ? "time_to_leave"
+        : when;
+  const identifier = getAppointmentReminderIdentifier(appointmentId, reminderType);
   try {
-    const [y, m, d] = date.split("-").map(Number);
-    const timeMatch = time.match(/(\d+):(\d+)/);
-    const hour = timeMatch ? parseInt(timeMatch[1], 10) : 9;
-    const minute = timeMatch ? parseInt(timeMatch[2], 10) : 0;
-    const triggerDate = new Date(y, m - 1, d, hour, minute, 0);
-    if (when === "24hr") {
-      triggerDate.setDate(triggerDate.getDate() - 1);
-    } else {
-      triggerDate.setHours(triggerDate.getHours() - 2);
-    }
+    const granted = await requestPermission();
+    if (!granted) return null;
+
+    const appointmentDate = parseAppointmentDateTime(date, time);
+    if (!appointmentDate) return null;
+    const triggerDate = getAppointmentReminderTriggerDate(appointmentDate, reminderType);
+    if (triggerDate.getTime() >= appointmentDate.getTime()) return null;
     if (triggerDate.getTime() <= Date.now()) return null;
     await Notifications.cancelScheduledNotificationAsync(identifier);
-    const timeFormatted = (() => {
-      const h = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-      const ampm = hour >= 12 ? "PM" : "AM";
-      return `${h}:${String(minute).padStart(2, "0")} ${ampm}`;
-    })();
-    const title = when === "24hr" ? "Appointment Tomorrow" : "Appointment Soon";
-    const body = when === "24hr"
-      ? `You have an appointment with ${doctorName} tomorrow at ${timeFormatted}.`
-      : `Your appointment with ${doctorName} starts in 2 hours.`;
     const id = await Notifications.scheduleNotificationAsync({
       identifier,
       content: {
-        title,
-        body,
-        data: { appointmentId, appointmentDate: date },
+        title: "Upcoming Appointment",
+        body: buildAppointmentReminderBody({ doctorName, time, location, reminderType }),
+        data: { appointmentId, notificationType: "appointment", reminderType },
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -446,6 +505,26 @@ export async function scheduleAppointmentReminder(params: {
     console.warn("scheduleAppointmentReminder failed", e);
     return null;
   }
+}
+
+export async function scheduleAppointmentRemindersForAppointment(params: {
+  appointmentId: string;
+  doctorName: string;
+  date: string;
+  time: string;
+  location?: string;
+  status?: string;
+}): Promise<void> {
+  if (!isNative()) return;
+  if (params.status === "cancelled" || params.status === "completed" || params.status === "rescheduled") {
+    await cancelAppointmentReminders(params.appointmentId);
+    return;
+  }
+
+  await cancelAppointmentReminders(params.appointmentId);
+  await scheduleAppointmentReminder({ ...params, when: "day_before" });
+  await scheduleAppointmentReminder({ ...params, when: "same_day" });
+  await scheduleAppointmentReminder({ ...params, when: "time_to_leave" });
 }
 
 /** Schedule daily check-in reminder (default 8 PM). */
@@ -470,6 +549,74 @@ export async function scheduleDailyCheckIn(hour: number, minute: number): Promis
   } catch (e) {
     console.warn("scheduleDailyCheckIn failed", e);
     return null;
+  }
+}
+
+function startOfDay(date: Date): Date {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function pseudoRandom(seed: string): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return (hash % 1000) / 1000;
+}
+
+function hydrationReminderDate(dayOffset: number, slotIndex: number): Date {
+  const baseDay = startOfDay(new Date());
+  baseDay.setDate(baseDay.getDate() + dayOffset);
+  const windows = [
+    { startHour: 9, startMinute: 45, spanMinutes: 105 },
+    { startHour: 13, startMinute: 0, spanMinutes: 120 },
+    { startHour: 17, startMinute: 15, spanMinutes: 105 },
+  ];
+  const window = windows[slotIndex] ?? windows[0];
+  const seed = `${baseDay.toISOString().slice(0, 10)}-${slotIndex}`;
+  const randomizedOffset = Math.round(pseudoRandom(seed) * window.spanMinutes);
+  const date = new Date(baseDay);
+  const totalMinutes = window.startHour * 60 + window.startMinute + randomizedOffset;
+  date.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+  if (date.getTime() <= Date.now()) {
+    date.setDate(date.getDate() + 1);
+  }
+  return date;
+}
+
+const HYDRATION_NOTIFICATION_BODIES = [
+  "Take a breath and have a sip.",
+  "Pause for a sec and have a sip.",
+  "Quick reset: water first.",
+  "Take a breath, then take a sip.",
+] as const;
+
+export async function scheduleHydrationReminders(): Promise<void> {
+  if (!isNative()) return;
+  await cancelHydrationReminders();
+  try {
+    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+      for (let slotIndex = 0; slotIndex < 3; slotIndex++) {
+        const date = hydrationReminderDate(dayOffset, slotIndex);
+        const identifier = `${NOTIFICATION_IDS.prefixHydration}-${date.toISOString().slice(0, 10)}-${slotIndex}`;
+        await Notifications.scheduleNotificationAsync({
+          identifier,
+          content: {
+            title: "Hydration",
+            body: HYDRATION_NOTIFICATION_BODIES[slotIndex % HYDRATION_NOTIFICATION_BODIES.length],
+            data: { widgetTarget: "hydration" },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date,
+          },
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("scheduleHydrationReminders failed", e);
   }
 }
 
@@ -581,6 +728,19 @@ export async function cancelAllNotifications(): Promise<void> {
   } catch {}
 }
 
+export async function cancelHydrationReminders(): Promise<void> {
+  if (!isNative()) return;
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const toCancel = scheduled
+      .filter((item) => item.identifier.startsWith(`${NOTIFICATION_IDS.prefixHydration}-`))
+      .map((item) => item.identifier);
+    for (const id of toCancel) {
+      await Notifications.cancelScheduledNotificationAsync(id);
+    }
+  } catch {}
+}
+
 /** Cancel all medication reminders for a medication. */
 export async function cancelMedicationReminders(medicationId: string): Promise<void> {
   if (!isNative()) return;
@@ -595,27 +755,59 @@ export async function cancelMedicationReminders(medicationId: string): Promise<v
 /** Cancel appointment reminders for an appointment. */
 export async function cancelAppointmentReminders(appointmentId: string): Promise<void> {
   if (!isNative()) return;
-  await Notifications.cancelScheduledNotificationAsync(`${NOTIFICATION_IDS.prefixApt1day}-${appointmentId}`);
-  await Notifications.cancelScheduledNotificationAsync(`${NOTIFICATION_IDS.prefixApt2hr}-${appointmentId}`);
-  // Cancel legacy 1-hour identifier in case it was scheduled before the 2-hour update
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const prefix = `appt_${appointmentId}_`;
+    const toCancel = scheduled
+      .filter((item) => item.identifier.startsWith(prefix))
+      .map((item) => item.identifier);
+    for (const id of toCancel) {
+      await Notifications.cancelScheduledNotificationAsync(id);
+    }
+  } catch {}
+  await Notifications.cancelScheduledNotificationAsync(`appt_${appointmentId}_24h`);
+  await Notifications.cancelScheduledNotificationAsync(`appt_${appointmentId}_2h`);
+  await Notifications.cancelScheduledNotificationAsync(`apt-1d-${appointmentId}`);
   await Notifications.cancelScheduledNotificationAsync(`apt-1h-${appointmentId}`);
+  await Notifications.cancelScheduledNotificationAsync(getAppointmentReminderIdentifier(appointmentId, "day_before"));
+  await Notifications.cancelScheduledNotificationAsync(getAppointmentReminderIdentifier(appointmentId, "same_day"));
+  await Notifications.cancelScheduledNotificationAsync(getAppointmentReminderIdentifier(appointmentId, "time_to_leave"));
 }
 
 /** Map a notification identifier to an app screen key. */
-function getScreenForNotificationId(id: string): string | null {
-  if (id.startsWith("med-") || id.startsWith("refill-")) return "medications";
-  if (id.startsWith("apt-")) return "appointments";
-  if (id === NOTIFICATION_IDS.dailyCheckIn) return "log";
-  if (id === NOTIFICATION_IDS.monthlyCheckIn) return "monthlycheckin";
-  if (id.startsWith(`${NOTIFICATION_IDS.screening}-`)) return "healthprofile";
+function getNavigationTarget(
+  id: string,
+  data?: { medicationId?: string; doseIndex?: number; appointmentId?: string; widgetTarget?: string }
+): NotificationNavigationTarget | null {
+  if (id.startsWith("med-") || id.startsWith("refill-")) {
+    return {
+      screen: "medications",
+      notificationType: "medication",
+      medicationId: data?.medicationId,
+      doseIndex: data?.doseIndex,
+    };
+  }
+  if (id.startsWith("apt-") || id.startsWith("appt_")) {
+    return {
+      screen: "appointments",
+      notificationType: "appointment",
+      appointmentId: data?.appointmentId,
+    };
+  }
+  if (id.startsWith(`${NOTIFICATION_IDS.prefixHydration}-`) || data?.widgetTarget === "hydration") {
+    return { screen: "hydration", notificationType: "hydration" };
+  }
+  if (id === NOTIFICATION_IDS.dailyCheckIn) return { screen: "logtoday", notificationType: "daily-checkin" };
+  if (id === NOTIFICATION_IDS.monthlyCheckIn) return { screen: "monthlycheckin", notificationType: "monthly-checkin" };
+  if (id.startsWith(`${NOTIFICATION_IDS.screening}-`)) return { screen: "healthprofile", notificationType: "screening" };
   return null;
 }
 
 /** Module-level navigation callback — set via setNotificationNavigateCallback(). */
-let _navigateCallback: ((screen: string) => void) | null = null;
+let _navigateCallback: ((target: NotificationNavigationTarget) => void) | null = null;
 
 /** Register the app's navigate function so notification taps can route to the right screen. */
-export function setNotificationNavigateCallback(fn: (screen: string) => void): void {
+export function setNotificationNavigateCallback(fn: (target: NotificationNavigationTarget) => void): void {
   _navigateCallback = fn;
 }
 
@@ -626,8 +818,9 @@ export async function handleLastNotificationResponse(): Promise<void> {
     const response = await Notifications.getLastNotificationResponseAsync();
     if (!response) return;
     const id = response.notification.request.identifier;
-    const screen = getScreenForNotificationId(id);
-    if (screen && _navigateCallback) _navigateCallback(screen);
+    const data = response.notification.request.content.data as { medicationId?: string; doseIndex?: number; appointmentId?: string; widgetTarget?: string };
+    const target = getNavigationTarget(id, data);
+    if (target && _navigateCallback) _navigateCallback(target);
   } catch {}
 }
 
@@ -639,7 +832,7 @@ export function addNotificationResponseListener(
   if (!isNative()) return () => {};
   const sub = Notifications.addNotificationResponseReceivedListener((response) => {
     const actionId = response.actionIdentifier;
-    const data = response.notification.request.content.data as { medicationId?: string; doseIndex?: number; medicationName?: string; dosage?: string };
+    const data = response.notification.request.content.data as { medicationId?: string; doseIndex?: number; medicationName?: string; dosage?: string; appointmentId?: string; widgetTarget?: string };
     if (actionId === "MARK_TAKEN" && data?.medicationId != null) {
       const doseIndex = data.doseIndex ?? 0;
       const date = getToday();
@@ -657,8 +850,8 @@ export function addNotificationResponseListener(
     } else if (actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
       // User tapped the notification banner — route to the relevant screen
       const id = response.notification.request.identifier;
-      const screen = getScreenForNotificationId(id);
-      if (screen && _navigateCallback) _navigateCallback(screen);
+      const target = getNavigationTarget(id, data);
+      if (target && _navigateCallback) _navigateCallback(target);
     }
   });
   return () => sub.remove();
@@ -688,6 +881,7 @@ export async function syncAllFromSettings(): Promise<void> {
     const notifMed = settings.notificationsMedications !== false;
     const notifApt = settings.notificationsAppointments !== false;
     const notifDaily = settings.notificationsDailyCheckIn !== false;
+    const notifHydration = settings.notificationsHydration !== false;
     const notifMonthly = settings.notificationsMonthly !== false;
 
     if (!notifMed) {
@@ -772,8 +966,14 @@ export async function syncAllFromSettings(): Promise<void> {
         if (apt.status === "cancelled" || apt.status === "completed" || apt.status === "rescheduled") continue;
         if (apt.date < today) continue;
         const time = apt.time || "09:00";
-        await scheduleAppointmentReminder({ appointmentId: apt.id, doctorName: apt.doctorName, date: apt.date, time, when: "24hr" });
-        await scheduleAppointmentReminder({ appointmentId: apt.id, doctorName: apt.doctorName, date: apt.date, time, when: "2hr" });
+        await scheduleAppointmentRemindersForAppointment({
+          appointmentId: apt.id,
+          doctorName: apt.doctorName,
+          date: apt.date,
+          time,
+          location: apt.location,
+          status: apt.status,
+        });
       }
     }
 
@@ -782,6 +982,12 @@ export async function syncAllFromSettings(): Promise<void> {
     } else {
       const { hour, minute } = parseTimeHHMM(settings.dailyCheckInReminderTime);
       await scheduleDailyCheckIn(hour, minute);
+    }
+
+    if (!notifHydration) {
+      await cancelHydrationReminders();
+    } else {
+      await scheduleHydrationReminders();
     }
 
     if (!notifMonthly) {

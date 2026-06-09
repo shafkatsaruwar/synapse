@@ -6,6 +6,12 @@ private enum SynapseWidgetDestination {
     URL(string: "myapp://widget/\(screen)")!
   }
 
+  static func hydrationQuickSipURL() -> URL {
+    var components = URLComponents(string: "myapp://widget/hydration")!
+    components.queryItems = [URLQueryItem(name: "mode", value: "quick-sip")]
+    return components.url!
+  }
+
   static func prnLogURL(for medicationId: String) -> URL {
     var components = URLComponents(string: "myapp://widget/prnlog")!
     components.queryItems = [URLQueryItem(name: "medId", value: medicationId)]
@@ -398,82 +404,114 @@ private struct WellnessWidgetView: View {
 
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
-    let wellness = entry.snapshot.wellness
     let compact = family == .systemSmall
     WidgetCard(palette: palette) {
-      VStack(alignment: .leading, spacing: compact ? 6 : 10) {
-        if !compact {
-          Text("Daily Check-In")
-            .font(.system(size: 12, weight: .semibold))
+      if family == .systemMedium {
+        HStack(spacing: 16) {
+          Link(destination: SynapseWidgetDestination.url(for: "daily-log")) {
+            WellnessBlock(wellness: entry.snapshot.wellness, compact: false, palette: palette)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+
+          Rectangle()
+            .fill(palette.line)
+            .frame(width: 1)
+            .padding(.vertical, 2)
+
+          Link(destination: SynapseWidgetDestination.url(for: "appointments")) {
+            AppointmentBlock(appointment: entry.snapshot.appointment, compact: false, showHeader: true, palette: palette)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+        }
+      } else {
+        WellnessBlock(wellness: entry.snapshot.wellness, compact: compact, palette: palette)
+      }
+    }
+  }
+}
+
+private struct WellnessBlock: View {
+  let wellness: SynapseWidgetSnapshot.Wellness
+  let compact: Bool
+  let palette: SynapseWidgetPalette
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: compact ? 6 : 10) {
+      if !compact {
+        Text("Daily Check-In")
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(palette.muted)
+          .lineLimit(1)
+      }
+
+      Text(wellness.summaryText)
+        .font(.system(size: compact ? 15 : 18, weight: .bold))
+        .foregroundStyle(palette.ink)
+        .lineLimit(1)
+        .minimumScaleFactor(0.86)
+
+      if wellness.hasTodayLog {
+        VStack(alignment: .leading, spacing: compact ? 6 : 8) {
+          Text("Overall today")
+            .font(.system(size: compact ? 10 : 11, weight: .semibold))
             .foregroundStyle(palette.muted)
             .lineLimit(1)
-        }
 
-        Text(wellness.summaryText)
-          .font(.system(size: compact ? 15 : 18, weight: .bold))
-          .foregroundStyle(palette.ink)
-          .lineLimit(1)
-          .minimumScaleFactor(0.86)
+          Text(wellness.overallFeeling.map(String.init) ?? "--")
+            .font(.system(size: compact ? 42 : 34, weight: .bold))
+            .foregroundStyle(palette.red)
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
 
-        if wellness.hasTodayLog {
-          VStack(alignment: .leading, spacing: compact ? 6 : 8) {
-            Text("Overall today")
-              .font(.system(size: compact ? 10 : 11, weight: .semibold))
-              .foregroundStyle(palette.muted)
-              .lineLimit(1)
-
-            Text(wellness.overallFeeling.map(String.init) ?? "--")
-              .font(.system(size: compact ? 42 : 34, weight: .bold))
-              .foregroundStyle(palette.red)
-              .lineLimit(1)
-              .minimumScaleFactor(0.82)
-
-            if !compact && !wellness.detailHighlights.isEmpty {
-              HStack(spacing: 6) {
-                ForEach(Array(wellness.detailHighlights.prefix(3).enumerated()), id: \.offset) { _, item in
-                  WellnessDetailChip(text: item, palette: palette)
-                }
+          if !compact && !wellness.detailHighlights.isEmpty {
+            HStack(spacing: 6) {
+              ForEach(Array(wellness.detailHighlights.prefix(3).enumerated()), id: \.offset) { _, item in
+                WellnessDetailChip(text: item, palette: palette)
               }
             }
           }
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.vertical, compact ? 12 : 10)
-          .padding(.horizontal, compact ? 12 : 12)
-          .background(palette.track)
-          .clipShape(RoundedRectangle(cornerRadius: compact ? 18 : 16, style: .continuous))
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, compact ? 12 : 10)
+        .padding(.horizontal, 12)
+        .background(palette.track)
+        .clipShape(RoundedRectangle(cornerRadius: compact ? 18 : 16, style: .continuous))
+      }
 
-        if !compact || !wellness.hasTodayLog {
-          Text(wellness.secondaryText)
-            .font(.system(size: compact ? 10 : 12, weight: .regular))
-            .foregroundStyle(palette.muted)
+      if !compact || !wellness.hasTodayLog {
+        Text(wellness.secondaryText)
+          .font(.system(size: compact ? 10 : 12, weight: .regular))
+          .foregroundStyle(palette.muted)
+          .lineLimit(2)
+          .minimumScaleFactor(0.82)
+      }
+
+      if !compact && (wellness.symptomCountToday > 0 || wellness.isFastingToday) {
+        HStack(spacing: 8) {
+          if wellness.symptomCountToday > 0 {
+            Label(
+              wellness.symptomCountToday == 1 ? "1 symptom" : "\(wellness.symptomCountToday) symptoms",
+              systemImage: "waveform.path.ecg"
+            )
+            .font(.system(size: 10, weight: .regular))
+            .foregroundStyle(palette.red)
             .lineLimit(1)
-            .minimumScaleFactor(0.82)
-        }
+          }
 
-        if !compact && (wellness.symptomCountToday > 0 || wellness.isFastingToday) {
-          HStack(spacing: 8) {
-            if wellness.symptomCountToday > 0 {
-              Label(
-                wellness.symptomCountToday == 1 ? "1 symptom" : "\(wellness.symptomCountToday) symptoms",
-                systemImage: "waveform.path.ecg"
-              )
+          if wellness.isFastingToday {
+            Label("Fasting", systemImage: "moon.stars.fill")
               .font(.system(size: 10, weight: .regular))
-              .foregroundStyle(palette.red)
+              .foregroundStyle(palette.blue)
               .lineLimit(1)
-            }
-
-            if wellness.isFastingToday {
-              Label("Fasting", systemImage: "moon.stars.fill")
-                .font(.system(size: 10, weight: .regular))
-                .foregroundStyle(palette.blue)
-                .lineLimit(1)
-            }
           }
         }
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
@@ -764,12 +802,40 @@ private struct AppointmentWidgetView: View {
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
     WidgetCard(palette: palette) {
-      AppointmentBlock(
-        appointment: entry.snapshot.appointment,
-        compact: family == .systemSmall,
-        showHeader: true,
-        palette: palette
-      )
+      if family == .systemMedium {
+        HStack(spacing: 16) {
+          Link(destination: SynapseWidgetDestination.url(for: "appointments")) {
+            AppointmentBlock(
+              appointment: entry.snapshot.appointment,
+              compact: false,
+              showHeader: true,
+              palette: palette
+            )
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+
+          Rectangle()
+            .fill(palette.line)
+            .frame(width: 1)
+            .padding(.vertical, 2)
+
+          Link(destination: SynapseWidgetDestination.url(for: "hydration")) {
+            HydrationBlock(hydration: entry.snapshot.hydration, palette: palette)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+        }
+      } else {
+        AppointmentBlock(
+          appointment: entry.snapshot.appointment,
+          compact: true,
+          showHeader: true,
+          palette: palette
+        )
+      }
     }
   }
 }
@@ -798,25 +864,48 @@ private struct HydrationWidgetView: View {
 
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
-    let hydration = entry.snapshot.hydration
     WidgetCard(palette: palette) {
-      VStack(alignment: .leading, spacing: 10) {
-        Text("Hydration")
-          .font(smallTitleFont())
-          .foregroundStyle(palette.muted)
-        Text(hydration.presetLabel)
-          .font(.system(size: 18, weight: .bold))
-          .foregroundStyle(palette.ink)
-          .lineLimit(1)
-        Text(hydration.sipAmountText)
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(palette.red)
-          .lineLimit(1)
-        Text(hydration.totalTodayText)
-          .font(.system(size: 12, weight: .regular))
-          .foregroundStyle(palette.muted)
-          .lineLimit(1)
-        Spacer(minLength: 0)
+      if #available(iOSApplicationExtension 17.0, *) {
+        ZStack(alignment: .topLeading) {
+          Link(destination: SynapseWidgetDestination.url(for: "hydration")) {
+            Color.clear
+              .frame(maxWidth: .infinity, maxHeight: .infinity)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+
+          HydrationBlock(hydration: entry.snapshot.hydration, palette: palette)
+        }
+      } else {
+        HydrationBlock(hydration: entry.snapshot.hydration, palette: palette)
+      }
+    }
+  }
+}
+
+private struct HydrationBlock: View {
+  let hydration: SynapseWidgetSnapshot.Hydration
+  let palette: SynapseWidgetPalette
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text("Hydration")
+        .font(smallTitleFont())
+        .foregroundStyle(palette.muted)
+      Text(hydration.presetLabel)
+        .font(.system(size: 18, weight: .bold))
+        .foregroundStyle(palette.ink)
+        .lineLimit(1)
+      Text(hydration.sipAmountText)
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(palette.red)
+        .lineLimit(1)
+      Text(hydration.totalTodayText)
+        .font(.system(size: 12, weight: .regular))
+        .foregroundStyle(palette.muted)
+        .lineLimit(2)
+      Spacer(minLength: 0)
+      Link(destination: SynapseWidgetDestination.hydrationQuickSipURL()) {
         HStack(spacing: 6) {
           Image(systemName: "drop.fill")
             .font(.system(size: 13, weight: .semibold))
@@ -829,8 +918,9 @@ private struct HydrationWidgetView: View {
         .background(palette.red)
         .clipShape(Capsule())
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      .buttonStyle(.plain)
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
@@ -974,7 +1064,7 @@ struct SynapseWellnessWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
       WellnessWidgetView(entry: entry)
-        .widgetURL(SynapseWidgetDestination.url(for: "logtoday"))
+        .widgetURL(SynapseWidgetDestination.url(for: "daily-log"))
     }
     .configurationDisplayName("Daily Check-In")
     .description("See today’s wellness summary and jump into your daily check-in.")
@@ -1003,7 +1093,6 @@ struct SynapseHydrationWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
       HydrationWidgetView(entry: entry)
-        .widgetURL(SynapseWidgetDestination.url(for: "hydration"))
     }
     .configurationDisplayName("Hydration")
     .description("Take a quick sip and jump into your hydration log.")

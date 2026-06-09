@@ -7,11 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0AB6DC06DA6D4727D3103F21 /* SynapseShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 266A513CBB3D90886E3D52AD /* SynapseShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0FE393C0A9CF5F13A7EA8A83 /* libPods-Synapse.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F31FAC84DF379034C8CB25F /* libPods-Synapse.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		1C45F1811CC20BA96B5014C6 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38EE4B28570E183F4A6F06D2 /* Foundation.framework */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		592B1AB3F8240CD3DD203787 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 899F68671DF26BB98C21EF96 /* ExpoModulesProvider.swift */; };
+		64C88465161E62450E2A1D32 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D22D27A934C94AD3B35A250 /* ShareViewController.swift */; };
 		7F02BD12959CC42BC5FB3805 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 35431796CFF3DC9E0F0AB340 /* PrivacyInfo.xcprivacy */; };
+		A10000000000000000000036 /* SynapseCalendarBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000037 /* SynapseCalendarBridge.swift */; };
+		A10000000000000000000038 /* SynapseCalendarBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000039 /* SynapseCalendarBridge.m */; };
+		B70000000000000000000040 /* SynapseFoundationModelsBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B70000000000000000000041 /* SynapseFoundationModelsBridge.swift */; };
+		B70000000000000000000042 /* SynapseFoundationModelsBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = B70000000000000000000043 /* SynapseFoundationModelsBridge.m */; };
+		D80000000000000000000040 /* SynapseAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80000000000000000000041 /* SynapseAppIntents.swift */; };
+		E90000000000000000000040 /* SynapseVisionBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000041 /* SynapseVisionBridge.swift */; };
+		E90000000000000000000042 /* SynapseVisionBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000043 /* SynapseVisionBridge.m */; };
 		A10000000000000000000001 /* SynapseWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* SynapseWidgetBridge.swift */; };
 		A10000000000000000000002 /* SynapseWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* SynapseWidgetsBundle.swift */; };
 		A10000000000000000000003 /* SynapseWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* SynapseWidgets.swift */; };
@@ -22,6 +32,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		16EF5BA77D81389402D4C42A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EA7A9DBEAACAF6C750314F77;
+			remoteInfo = SynapseShareExtension;
+		};
 		A10000000000000000000032 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
@@ -39,6 +56,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				A10000000000000000000004 /* SynapseWidgets.appex in Embed App Extensions */,
+				0AB6DC06DA6D4727D3103F21 /* SynapseShareExtension.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -46,14 +64,25 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		061A48D32114899F29C2BB56 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* Synapse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Synapse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Synapse/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Synapse/Info.plist; sourceTree = "<group>"; };
 		1F31FAC84DF379034C8CB25F /* libPods-Synapse.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Synapse.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		266A513CBB3D90886E3D52AD /* SynapseShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SynapseShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		35431796CFF3DC9E0F0AB340 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Synapse/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		38EE4B28570E183F4A6F06D2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		6D6966030DA41711EA48E2DB /* Pods-Synapse.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Synapse.release.xcconfig"; path = "Target Support Files/Pods-Synapse/Pods-Synapse.release.xcconfig"; sourceTree = "<group>"; };
 		899F68671DF26BB98C21EF96 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Synapse/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		9D22D27A934C94AD3B35A250 /* ShareViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		A10000000000000000000011 /* SynapseWidgetBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseWidgetBridge.swift; path = Synapse/SynapseWidgetBridge.swift; sourceTree = "<group>"; };
+		A10000000000000000000037 /* SynapseCalendarBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseCalendarBridge.swift; path = Synapse/SynapseCalendarBridge.swift; sourceTree = "<group>"; };
+		A10000000000000000000039 /* SynapseCalendarBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseCalendarBridge.m; path = Synapse/SynapseCalendarBridge.m; sourceTree = "<group>"; };
+		B70000000000000000000041 /* SynapseFoundationModelsBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseFoundationModelsBridge.swift; path = Synapse/SynapseFoundationModelsBridge.swift; sourceTree = "<group>"; };
+		B70000000000000000000043 /* SynapseFoundationModelsBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseFoundationModelsBridge.m; path = Synapse/SynapseFoundationModelsBridge.m; sourceTree = "<group>"; };
+		D80000000000000000000041 /* SynapseAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseAppIntents.swift; path = Synapse/SynapseAppIntents.swift; sourceTree = "<group>"; };
+		E90000000000000000000041 /* SynapseVisionBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseVisionBridge.swift; path = Synapse/SynapseVisionBridge.swift; sourceTree = "<group>"; };
+		E90000000000000000000043 /* SynapseVisionBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseVisionBridge.m; path = Synapse/SynapseVisionBridge.m; sourceTree = "<group>"; };
 		A10000000000000000000013 /* SynapseWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SynapseWidgetsBundle.swift; sourceTree = "<group>"; };
 		A10000000000000000000014 /* SynapseWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SynapseWidgets.swift; sourceTree = "<group>"; };
 		A10000000000000000000015 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -62,6 +91,7 @@
 		A10000000000000000000035 /* SynapseWidgetBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseWidgetBridge.m; path = Synapse/SynapseWidgetBridge.m; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Synapse/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
+		CE459697E245019ED41DD03F /* SynapseShareExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = SynapseShareExtension.entitlements; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Synapse/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Synapse-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Synapse-Bridging-Header.h"; path = "Synapse/Synapse-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -74,6 +104,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				0FE393C0A9CF5F13A7EA8A83 /* libPods-Synapse.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7BE6ACE5FF56069174EC0086 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1C45F1811CC20BA96B5014C6 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -91,6 +129,13 @@
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
+				A10000000000000000000037 /* SynapseCalendarBridge.swift */,
+				A10000000000000000000039 /* SynapseCalendarBridge.m */,
+				B70000000000000000000041 /* SynapseFoundationModelsBridge.swift */,
+				B70000000000000000000043 /* SynapseFoundationModelsBridge.m */,
+				D80000000000000000000041 /* SynapseAppIntents.swift */,
+				E90000000000000000000041 /* SynapseVisionBridge.swift */,
+				E90000000000000000000043 /* SynapseVisionBridge.m */,
 				A10000000000000000000011 /* SynapseWidgetBridge.swift */,
 				A10000000000000000000035 /* SynapseWidgetBridge.m */,
 				F11748442D0722820044C1D9 /* Synapse-Bridging-Header.h */,
@@ -101,6 +146,25 @@
 				35431796CFF3DC9E0F0AB340 /* PrivacyInfo.xcprivacy */,
 			);
 			name = Synapse;
+			sourceTree = "<group>";
+		};
+		17E2AFA836B1E817242E8C60 /* SynapseShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				9D22D27A934C94AD3B35A250 /* ShareViewController.swift */,
+				061A48D32114899F29C2BB56 /* Info.plist */,
+				CE459697E245019ED41DD03F /* SynapseShareExtension.entitlements */,
+			);
+			name = SynapseShareExtension;
+			path = SynapseShareExtension;
+			sourceTree = "<group>";
+		};
+		1C585CFA9F0C204133CBC1DA /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				38EE4B28570E183F4A6F06D2 /* Foundation.framework */,
+			);
+			name = iOS;
 			sourceTree = "<group>";
 		};
 		2C4B9B9A48859C0584CD74F3 /* ExpoModulesProviders */ = {
@@ -116,6 +180,7 @@
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				1F31FAC84DF379034C8CB25F /* libPods-Synapse.a */,
+				1C585CFA9F0C204133CBC1DA /* iOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -145,6 +210,7 @@
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				DB5535987747CDC0F11A5436 /* Pods */,
 				2C4B9B9A48859C0584CD74F3 /* ExpoModulesProviders */,
+				17E2AFA836B1E817242E8C60 /* SynapseShareExtension */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -156,6 +222,7 @@
 			children = (
 				13B07F961A680F5B00A75B9A /* Synapse.app */,
 				A10000000000000000000017 /* SynapseWidgets.appex */,
+				266A513CBB3D90886E3D52AD /* SynapseShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -210,6 +277,7 @@
 			);
 			dependencies = (
 				A10000000000000000000033 /* PBXTargetDependency */,
+				22BDD6B3464DCA5DB6A98901 /* PBXTargetDependency */,
 			);
 			name = Synapse;
 			productName = Synapse;
@@ -231,6 +299,23 @@
 			name = SynapseWidgets;
 			productName = SynapseWidgets;
 			productReference = A10000000000000000000017 /* SynapseWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		EA7A9DBEAACAF6C750314F77 /* SynapseShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FAB51B65E5EA70A63F0FB027 /* Build configuration list for PBXNativeTarget "SynapseShareExtension" */;
+			buildPhases = (
+				25CA28CEECB4C88325A19792 /* Sources */,
+				7BE6ACE5FF56069174EC0086 /* Frameworks */,
+				D2885545E193F1DAF92A6255 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SynapseShareExtension;
+			productName = SynapseShareExtension;
+			productReference = 266A513CBB3D90886E3D52AD /* SynapseShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -264,6 +349,7 @@
 			targets = (
 				13B07F861A680F5B00A75B9A /* Synapse */,
 				A10000000000000000000031 /* SynapseWidgets */,
+				EA7A9DBEAACAF6C750314F77 /* SynapseShareExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -281,6 +367,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A10000000000000000000023 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D2885545E193F1DAF92A6255 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -419,9 +512,24 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
+				A10000000000000000000036 /* SynapseCalendarBridge.swift in Sources */,
+				A10000000000000000000038 /* SynapseCalendarBridge.m in Sources */,
+				B70000000000000000000040 /* SynapseFoundationModelsBridge.swift in Sources */,
+				B70000000000000000000042 /* SynapseFoundationModelsBridge.m in Sources */,
+				D80000000000000000000040 /* SynapseAppIntents.swift in Sources */,
+				E90000000000000000000040 /* SynapseVisionBridge.swift in Sources */,
+				E90000000000000000000042 /* SynapseVisionBridge.m in Sources */,
 				A10000000000000000000001 /* SynapseWidgetBridge.swift in Sources */,
 				A10000000000000000000034 /* SynapseWidgetBridge.m in Sources */,
 				592B1AB3F8240CD3DD203787 /* ExpoModulesProvider.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		25CA28CEECB4C88325A19792 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				64C88465161E62450E2A1D32 /* ShareViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -437,6 +545,12 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		22BDD6B3464DCA5DB6A98901 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = SynapseShareExtension;
+			target = EA7A9DBEAACAF6C750314F77 /* SynapseShareExtension */;
+			targetProxy = 16EF5BA77D81389402D4C42A /* PBXContainerItemProxy */;
+		};
 		A10000000000000000000033 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = A10000000000000000000031 /* SynapseWidgets */;
@@ -445,6 +559,32 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		08446BAAAF4918762628CC9F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = SynapseShareExtension/SynapseShareExtension.entitlements;
+				CURRENT_PROJECT_VERSION = 1.6;
+				DEVELOPMENT_TEAM = 9NND6657B2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SynapseShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.12;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mohammedsaruwar.synapse.shareextension;
+				PRODUCT_NAME = SynapseShareExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = F7997B397098D2DF65004354 /* Pods-Synapse.debug.xcconfig */;
@@ -512,6 +652,33 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		692CB8A4DF64C853379F225B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = SynapseShareExtension/SynapseShareExtension.entitlements;
+				CURRENT_PROJECT_VERSION = 1.6;
+				DEVELOPMENT_TEAM = 9NND6657B2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SynapseShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.12;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mohammedsaruwar.synapse.shareextension;
+				PRODUCT_NAME = SynapseShareExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -709,6 +876,15 @@
 			buildConfigurations = (
 				A10000000000000000000041 /* Debug */,
 				A10000000000000000000042 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FAB51B65E5EA70A63F0FB027 /* Build configuration list for PBXNativeTarget "SynapseShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				692CB8A4DF64C853379F225B /* Release */,
+				08446BAAAF4918762628CC9F /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

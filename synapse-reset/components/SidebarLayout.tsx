@@ -20,9 +20,12 @@ import * as Haptics from "expo-haptics";
 import Constants from "expo-constants";
 import { useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
 import SynapseLogo from "@/components/SynapseLogo";
+import { useSynapseHQPanel } from "@/components/SynapseHQPanel";
+import VisualScanImportModal from "@/screens/VisualScanImportModal";
 import { featureFlags } from "@/constants/feature-flags";
 import { useAuth } from "@/contexts/AuthContext";
 import { healthProfileStorage, settingsStorage } from "@/lib/storage";
+import { getDeveloperMode } from "@/lib/developer-mode";
 import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
@@ -48,6 +51,9 @@ const NAV_ITEMS: NavItem[] = [
   { key: "healthdata", label: "Vitals", icon: "analytics-outline", iconActive: "analytics" },
   { key: "medications", label: "Medications", icon: "medical-outline", iconActive: "medical" },
   { key: "symptoms", label: "Symptoms", icon: "pulse-outline", iconActive: "pulse" },
+  { key: "labwork", label: "LabWork", icon: "flask-outline", iconActive: "flask" },
+  { key: "imaging", label: "Imaging", icon: "scan-outline", iconActive: "scan" },
+  { key: "timeline", label: "Timeline", icon: "git-branch-outline", iconActive: "git-branch" },
   ...(featureFlags.documentScannerEnabled ? [
     { key: "documents", label: "Documents", icon: "scan-outline", iconActive: "scan" },
     { key: "insights", label: "Insights", icon: "sparkles-outline", iconActive: "sparkles" },
@@ -74,16 +80,24 @@ const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
   { title: "Main", keys: ["dashboard"] },
   { title: "Emergency", keys: ["emergency", "emergencycard"] },
   { title: "Primary", keys: ["log", "medications", "healthdata", "appointments", "symptoms"] },
-  { title: "Health & Insights", keys: ["reports", "monthlycheckin", "cycletracking", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
+  { title: "Diagnostics", keys: ["labwork", "imaging"] },
+  { title: "Health & Insights", keys: ["timeline", "reports", "monthlycheckin", "cycletracking", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
   { title: "System", keys: ["privacy", "settings"] },
 ];
 
 const ESSENTIAL_SICK_KEYS = ["dashboard", "sickmode", "medications", "symptoms", "settings"];
+const SIMPLE_ADD_ACTIONS = [
+  { key: "medication" as const, label: "Add medication", icon: "medical-outline" as const, offsetX: -88, offsetY: -26 },
+  { key: "appointment" as const, label: "Add appointment", icon: "calendar-outline" as const, offsetX: -70, offsetY: -92 },
+  { key: "symptom" as const, label: "Add symptom", icon: "pulse-outline" as const, offsetX: -24, offsetY: -146 },
+] as const;
+
+type QuickAddTarget = "medication" | "appointment" | "symptom" | "calendar" | "labwork" | "imaging";
 
 interface SidebarLayoutProps {
   activeScreen: string;
   onNavigate: (screen: string) => void;
-  onSimpleAddSelect?: (target: "medication" | "appointment" | "symptom") => void;
+  onSimpleAddSelect?: (target: QuickAddTarget) => void;
   children: React.ReactNode;
   sickMode?: boolean;
   simpleMode?: boolean;
@@ -107,8 +121,12 @@ export default function SidebarLayout({
   const { width, height } = useWindowDimensions();
   const isWide = width >= 768;
   const [moreOpen, setMoreOpen] = useState(false);
-  const [showSimpleAddSheet, setShowSimpleAddSheet] = useState(false);
+  const [simpleAddOpen, setSimpleAddOpen] = useState(false);
+  const [showVisualScanModal, setShowVisualScanModal] = useState(false);
   const drawerSlide = useRef(new Animated.Value(1)).current;
+  const simpleAddFabSpin = useRef(new Animated.Value(0)).current;
+  const simpleAddActionProgress = useRef(SIMPLE_ADD_ACTIONS.map(() => new Animated.Value(0))).current;
+  const simpleAddAnimatingRef = useRef(false);
 
   const isWideRef = useRef(isWide);
   useEffect(() => { isWideRef.current = isWide; }, [isWide]);
@@ -125,11 +143,15 @@ export default function SidebarLayout({
   const { user, session, signOut } = useAuth();
   const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
+  const [developerModeActive, setDeveloperModeActive] = useState(false);
+  const synapseHQ = useSynapseHQPanel(setDeveloperModeActive);
   const [settingsName, setSettingsName] = useState<string | undefined>(undefined);
   const [profileImageUri, setProfileImageUri] = useState<string | undefined>(undefined);
   const [enabledSections, setEnabledSections] = useState<string[] | undefined>(undefined);
   const menuButtonRef = useRef<View>(null);
   const emergencyCardRef = useRef<View>(null);
+  const simpleNavRef = useRef<View>(null);
+  const simpleAddFabRef = useRef<View>(null);
   const walkthrough = useWalkthroughTargets();
   const registerTarget = walkthrough?.registerTarget;
   const unregisterTarget = walkthrough?.unregisterTarget;
@@ -146,6 +168,16 @@ export default function SidebarLayout({
     return () => unregisterTarget("emergencycard");
   }, [registerTarget, unregisterTarget, moreOpen]);
 
+  useEffect(() => {
+    if (!registerTarget || !unregisterTarget || !simpleMode) return;
+    registerTarget("simple-nav", () => measureInWindow(simpleNavRef));
+    registerTarget("simple-add", () => measureInWindow(simpleAddFabRef));
+    return () => {
+      unregisterTarget("simple-nav");
+      unregisterTarget("simple-add");
+    };
+  }, [registerTarget, unregisterTarget, simpleMode]);
+
   const isWideScreen = width >= 768;
   const drawerWidth = Math.min(width * 0.78, isWideScreen ? 280 : 320);
 
@@ -160,7 +192,21 @@ export default function SidebarLayout({
     loadSettings();
   }, [loadSettings, activeScreen]);
 
-  const alwaysNavKeys = ["dashboard", "medications", "symptoms", "settings", "privacy", "emergency", "emergencycard"];
+  useEffect(() => {
+    let mounted = true;
+    getDeveloperMode()
+      .then((state) => {
+        if (mounted) setDeveloperModeActive(state?.isDeveloper === true);
+      })
+      .catch(() => {
+        if (mounted) setDeveloperModeActive(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [moreOpen]);
+
+  const alwaysNavKeys = ["dashboard", "medications", "symptoms", "labwork", "imaging", "timeline", "settings", "privacy", "emergency", "emergencycard"];
   const enabledKeysSet = new Set(
     enabledSections !== undefined
       ? [...alwaysNavKeys, ...enabledSections]
@@ -219,6 +265,78 @@ export default function SidebarLayout({
     }).start(() => setMoreOpen(false));
   }, [drawerSlide]);
 
+  const closeSimpleAdd = useCallback(() => {
+    if (!simpleAddOpen || simpleAddAnimatingRef.current) return;
+    simpleAddAnimatingRef.current = true;
+    Animated.parallel([
+      Animated.timing(simpleAddFabSpin, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.stagger(
+        24,
+        [...simpleAddActionProgress].reverse().map((value) =>
+          Animated.timing(value, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+          })
+        )
+      ),
+    ]).start(() => {
+      simpleAddAnimatingRef.current = false;
+      setSimpleAddOpen(false);
+    });
+  }, [simpleAddActionProgress, simpleAddFabSpin, simpleAddOpen]);
+
+  const openSimpleAdd = useCallback(() => {
+    if (simpleAddOpen || simpleAddAnimatingRef.current) return;
+    simpleAddAnimatingRef.current = true;
+    setSimpleAddOpen(true);
+    Animated.parallel([
+      Animated.timing(simpleAddFabSpin, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.stagger(
+        34,
+        simpleAddActionProgress.map((value) =>
+          Animated.spring(value, {
+            toValue: 1,
+            useNativeDriver: true,
+            tension: 105,
+            friction: 10,
+          })
+        )
+      ),
+    ]).start(() => {
+      simpleAddAnimatingRef.current = false;
+    });
+  }, [simpleAddActionProgress, simpleAddFabSpin, simpleAddOpen]);
+
+  const toggleSimpleAdd = useCallback(() => {
+    void Haptics.selectionAsync().catch(() => {});
+    if (simpleAddOpen) {
+      closeSimpleAdd();
+      return;
+    }
+    openSimpleAdd();
+  }, [closeSimpleAdd, openSimpleAdd, simpleAddOpen]);
+
+  const handleSimpleAddPress = useCallback((target: QuickAddTarget) => {
+    void Haptics.selectionAsync().catch(() => {});
+    closeSimpleAdd();
+    onSimpleAddSelect?.(target);
+  }, [closeSimpleAdd, onSimpleAddSelect]);
+
+  const handleScanPress = useCallback(() => {
+    void Haptics.selectionAsync().catch(() => {});
+    closeSimpleAdd();
+    setShowVisualScanModal(true);
+  }, [closeSimpleAdd]);
+
   return (
     <View style={styles.mobileContainer} {...swipePanResponder.panHandlers}>
       {shouldShowHeaderRow ? (
@@ -244,6 +362,7 @@ export default function SidebarLayout({
         style={[
           styles.mobileContent,
           {
+            paddingHorizontal: simpleMode ? 0 : 8,
             paddingBottom: showBottomNav
               ? (Platform.OS === "web" ? 108 : insets.bottom + 96)
               : isWide
@@ -258,6 +377,8 @@ export default function SidebarLayout({
 
       {showBottomNav && (
         <View
+          ref={simpleMode ? simpleNavRef : undefined}
+          collapsable={false}
           pointerEvents="box-none"
           style={[
             styles.mobileNavWrap,
@@ -279,6 +400,8 @@ export default function SidebarLayout({
                       key={item.key}
                       style={[styles.mobileNavItem, simpleMode && styles.mobileNavItemSimple, dimmed && { opacity: 0.35 }]}
                       onPress={() => onNavigate(item.key)}
+                      onLongPress={item.key === "settings" ? synapseHQ.open : undefined}
+                      delayLongPress={3500}
                       testID={`tab-${item.key}`}
                       accessibilityRole="button"
                       accessibilityLabel={item.label}
@@ -310,6 +433,8 @@ export default function SidebarLayout({
                       key={item.key}
                       style={[styles.mobileNavItem, simpleMode && styles.mobileNavItemSimple, dimmed && { opacity: 0.35 }]}
                       onPress={() => onNavigate(item.key)}
+                      onLongPress={item.key === "settings" ? synapseHQ.open : undefined}
+                      delayLongPress={3500}
                       testID={`tab-${item.key}`}
                       accessibilityRole="button"
                       accessibilityLabel={item.label}
@@ -334,65 +459,134 @@ export default function SidebarLayout({
         </View>
       )}
 
-      {simpleMode ? (
-        <>
+      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+        {simpleAddOpen ? (
           <Pressable
-            style={[
-              styles.simpleAddFab,
-              { bottom: Platform.OS === "web" ? 132 : insets.bottom + 108 },
-            ]}
-            onPress={() => {
-              void Haptics.selectionAsync().catch(() => {});
-              setShowSimpleAddSheet(true);
-            }}
+            style={styles.simpleAddBackdrop}
+            onPress={closeSimpleAdd}
             accessibilityRole="button"
-            accessibilityLabel="Add something"
-            accessibilityHint="Choose what to add"
-          >
-            <Ionicons name="add" size={30} color="#fff" />
-          </Pressable>
+            accessibilityLabel="Close quick add"
+          />
+        ) : null}
 
-          <Modal visible={showSimpleAddSheet} transparent animationType="fade" onRequestClose={() => setShowSimpleAddSheet(false)}>
-            <View style={styles.drawerContainer}>
-              <Pressable
-                style={styles.drawerOverlay}
-                onPress={() => setShowSimpleAddSheet(false)}
-                accessibilityRole="button"
-                accessibilityLabel="Close add options"
-              />
-              <View style={[styles.simpleAddSheetWrap, { paddingBottom: Platform.OS === "web" ? 24 : insets.bottom + 24 }]}>
-                <View style={styles.simpleAddSheet}>
-                  <Text style={styles.simpleAddSheetTitle}>What do you want to add?</Text>
-                  {[
-                    { key: "medication" as const, label: "Medication", icon: "medical-outline" as const },
-                    { key: "appointment" as const, label: "Appointment", icon: "calendar-outline" as const },
-                    { key: "symptom" as const, label: "Symptom", icon: "pulse-outline" as const },
-                  ].map((option) => (
-                    <Pressable
-                      key={option.key}
-                      style={({ pressed }) => [styles.simpleAddSheetButton, pressed && styles.simpleAddSheetButtonPressed]}
-                      onPress={() => {
-                        void Haptics.selectionAsync().catch(() => {});
-                        setShowSimpleAddSheet(false);
-                        onSimpleAddSelect?.(option.key);
-                      }}
-                    >
-                      <Ionicons name={option.icon} size={22} color={C.text} />
-                      <Text style={styles.simpleAddSheetButtonText}>{option.label}</Text>
-                    </Pressable>
-                  ))}
-                  <Pressable
-                    style={({ pressed }) => [styles.simpleAddSheetCancelButton, pressed && styles.simpleAddSheetButtonPressed]}
-                    onPress={() => setShowSimpleAddSheet(false)}
-                  >
-                    <Text style={styles.simpleAddSheetCancelText}>Cancel</Text>
+        {simpleAddOpen ? (
+          <View
+            style={[
+              styles.quickAddHub,
+              {
+                left: isWide ? 24 : 20,
+                right: isWide ? undefined : 20,
+                bottom: Platform.OS === "web" ? 110 : insets.bottom + (showBottomNav ? 134 : 28),
+              },
+            ]}
+          >
+            <Text style={styles.quickAddEyebrow}>Quick Add</Text>
+            <Text style={styles.quickAddTitle}>What are we adding?</Text>
+            <Pressable style={[styles.quickAddOption, styles.quickAddOptionPrimary]} onPress={handleScanPress}>
+              <View style={[styles.quickAddOptionIcon, styles.quickAddOptionIconPrimary]}>
+                <Ionicons name="scan-outline" size={22} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.quickAddOptionTitlePrimary}>Scan</Text>
+                <Text style={styles.quickAddOptionSubtitlePrimary}>Camera or photo upload</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#fff" />
+            </Pressable>
+            <View style={styles.quickAddOption}>
+              <View style={styles.quickAddOptionIcon}>
+                <Ionicons name="create-outline" size={21} color={C.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.quickAddOptionTitle}>Add Manually</Text>
+                <View style={styles.quickAddManualRow}>
+                  <Pressable style={styles.quickAddMiniButton} onPress={() => handleSimpleAddPress("medication")}>
+                    <Text style={styles.quickAddMiniText}>Med</Text>
+                  </Pressable>
+                  <Pressable style={styles.quickAddMiniButton} onPress={() => handleSimpleAddPress("appointment")}>
+                    <Text style={styles.quickAddMiniText}>Visit</Text>
+                  </Pressable>
+                  <Pressable style={styles.quickAddMiniButton} onPress={() => handleSimpleAddPress("labwork")}>
+                    <Text style={styles.quickAddMiniText}>Lab</Text>
+                  </Pressable>
+                  <Pressable style={styles.quickAddMiniButton} onPress={() => handleSimpleAddPress("imaging")}>
+                    <Text style={styles.quickAddMiniText}>Imaging</Text>
                   </Pressable>
                 </View>
               </View>
             </View>
-          </Modal>
-        </>
-      ) : null}
+            <Pressable style={styles.quickAddOption} onPress={() => handleSimpleAddPress("calendar")}>
+              <View style={styles.quickAddOptionIcon}>
+                <Ionicons name="calendar-outline" size={21} color={C.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.quickAddOptionTitle}>Import from Calendar</Text>
+                <Text style={styles.quickAddOptionSubtitle}>Pull in an Apple Calendar event</Text>
+              </View>
+            </Pressable>
+            <Pressable style={styles.quickAddOption} onPress={() => handleSimpleAddPress("symptom")}>
+              <View style={styles.quickAddOptionIcon}>
+                <Ionicons name="pulse-outline" size={21} color={C.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.quickAddOptionTitle}>Log Symptom</Text>
+                <Text style={styles.quickAddOptionSubtitle}>Record what happened fast</Text>
+              </View>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.simpleAddWheelLayer,
+            {
+              left: isWide ? 24 : 20,
+              bottom: Platform.OS === "web" ? (showBottomNav ? 148 : 34) : insets.bottom + (showBottomNav ? 154 : 28),
+            },
+          ]}
+        >
+          <View ref={simpleAddFabRef} collapsable={false}>
+            <Pressable
+              style={styles.simpleAddFab}
+              onPress={toggleSimpleAdd}
+              accessibilityRole="button"
+              accessibilityLabel={simpleAddOpen ? "Close quick add" : "Open quick add"}
+              accessibilityHint={simpleAddOpen ? "Close add options" : "Open scan and quick add options"}
+            >
+              <Animated.View
+                style={{
+                  transform: [
+                    {
+                      rotate: simpleAddFabSpin.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ["0deg", "45deg"],
+                      }),
+                    },
+                    {
+                      scale: simpleAddFabSpin.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 1.04],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <Ionicons name="add" size={30} color="#fff" />
+              </Animated.View>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+
+      <VisualScanImportModal
+        visible={showVisualScanModal}
+        initialType="medication"
+        onClose={() => setShowVisualScanModal(false)}
+        onSaved={() => {
+          setShowVisualScanModal(false);
+          onNavigate(activeScreen);
+        }}
+      />
 
       {!simpleMode && !isWide && (
       <Modal
@@ -489,6 +683,8 @@ export default function SidebarLayout({
                                   closeDrawer();
                                 }
                               }}
+                              onLongPress={!isLogout && item.key === "settings" ? synapseHQ.open : undefined}
+                              delayLongPress={3500}
                               testID={isLogout ? "more-logout" : `more-${item.key}`}
                               accessibilityRole="button"
                               accessibilityLabel={item.label}
@@ -519,7 +715,7 @@ export default function SidebarLayout({
                   <View style={styles.drawerFooterDivider} />
                   <View style={styles.drawerFooterContent}>
                     <Text style={styles.drawerFooterText}>
-                      Synapse v{Constants.expoConfig?.version ?? "1.3"}
+                      Synapse v{Constants.expoConfig?.version ?? "1.3"}{developerModeActive ? " (dev)" : ""}
                     </Text>
                   </View>
                 </View>
@@ -528,6 +724,7 @@ export default function SidebarLayout({
           </View>
         </Modal>
       )}
+      {synapseHQ.element}
     </View>
   );
 }
@@ -680,8 +877,6 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       color: C.accent,
     },
     simpleAddFab: {
-      position: "absolute",
-      right: 20,
       width: 64,
       height: 64,
       borderRadius: 32,
@@ -695,64 +890,137 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       elevation: 12,
       zIndex: 40,
     },
-    simpleAddSheetWrap: {
-      flex: 1,
+    simpleAddWheelLayer: {
+      position: "absolute",
+      width: 64,
+      height: 64,
+      alignItems: "center",
       justifyContent: "flex-end",
-      paddingHorizontal: 16,
     },
-    simpleAddSheet: {
+    simpleAddBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: themeId === "dark" ? "rgba(0,0,0,0.12)" : "rgba(17,24,39,0.04)",
+    },
+    quickAddHub: {
+      position: "absolute",
+      maxWidth: 390,
+      borderRadius: 22,
       backgroundColor: C.surface,
-      borderRadius: 24,
-      padding: 20,
       borderWidth: 1,
       borderColor: C.border,
-      gap: 12,
+      padding: 16,
+      gap: 10,
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.16,
-      shadowRadius: 20,
-      elevation: 8,
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.18,
+      shadowRadius: 22,
+      elevation: 16,
+      zIndex: 45,
     },
-    simpleAddSheetTitle: {
+    quickAddEyebrow: {
+      color: C.textSecondary,
+      fontSize: 11,
       fontWeight: "800",
-      fontSize: 22,
-      color: C.text,
-      letterSpacing: -0.4,
+      textTransform: "uppercase",
     },
-    simpleAddSheetButton: {
-      minHeight: 56,
-      borderRadius: 18,
+    quickAddTitle: {
+      color: C.text,
+      fontSize: 22,
+      fontWeight: "900",
+      marginBottom: 2,
+    },
+    quickAddOption: {
+      minHeight: 64,
+      borderRadius: 16,
       backgroundColor: C.surfaceElevated,
       borderWidth: 1,
       borderColor: C.border,
-      paddingHorizontal: 18,
+      padding: 12,
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
     },
-    simpleAddSheetButtonPressed: {
-      opacity: 0.95,
-      transform: [{ scale: 0.99 }],
+    quickAddOptionPrimary: {
+      backgroundColor: C.tint,
+      borderColor: C.tint,
     },
-    simpleAddSheetButtonText: {
-      fontWeight: "700",
-      fontSize: 18,
+    quickAddOptionIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      backgroundColor: C.tintLight,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    quickAddOptionIconPrimary: {
+      backgroundColor: "rgba(255,255,255,0.18)",
+    },
+    quickAddOptionTitle: {
       color: C.text,
+      fontSize: 15,
+      fontWeight: "800",
     },
-    simpleAddSheetCancelButton: {
-      minHeight: 56,
-      borderRadius: 18,
+    quickAddOptionTitlePrimary: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "900",
+    },
+    quickAddOptionSubtitle: {
+      color: C.textSecondary,
+      fontSize: 12,
+      fontWeight: "600",
+      marginTop: 2,
+    },
+    quickAddOptionSubtitlePrimary: {
+      color: "rgba(255,255,255,0.82)",
+      fontSize: 12,
+      fontWeight: "700",
+      marginTop: 2,
+    },
+    quickAddManualRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 7,
+      marginTop: 8,
+    },
+    quickAddMiniButton: {
+      minHeight: 32,
+      borderRadius: 999,
       backgroundColor: C.surface,
       borderWidth: 1,
       borderColor: C.border,
+      paddingHorizontal: 10,
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: 18,
     },
-    simpleAddSheetCancelText: {
-      fontWeight: "700",
-      fontSize: 18,
-      color: C.textSecondary,
+    quickAddMiniText: {
+      color: C.text,
+      fontSize: 12,
+      fontWeight: "800",
+    },
+    simpleAddActionWrap: {
+      position: "absolute",
+      right: 0,
+      bottom: 0,
+    },
+    simpleAddAction: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: themeId === "light" ? "rgba(255,255,255,0.92)" : C.surface,
+      borderWidth: 1,
+      borderColor: themeId === "light" ? "rgba(255,255,255,0.78)" : C.border,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.14,
+      shadowRadius: 16,
+      elevation: 8,
+    },
+    simpleAddActionPressed: {
+      opacity: 0.92,
+      transform: [{ scale: 0.99 }],
     },
     drawerContainer: {
       flex: 1,

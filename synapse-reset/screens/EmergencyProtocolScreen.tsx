@@ -23,6 +23,7 @@ import {
   type Doctor,
   type HealthCondition,
   type HealthProfileInfo,
+  type RecordOwner,
   type UserSettings,
 } from "@/lib/storage";
 import { getMedList, type MedListItem } from "@/lib/med-list-storage";
@@ -65,7 +66,11 @@ export default function EmergencyProtocolScreen({ onBack }: EmergencyProtocolScr
     setConditions(conds);
     setAllergy(a);
     setMeds(medList);
-    setEmergencyDoctor(emergencyDocId ? (docs.find((d) => d.id === emergencyDocId) ?? null) : null);
+    const owner: RecordOwner = p.userRole === "caregiver" && p.caredForName?.trim() ? "care_recipient" : "self";
+    setEmergencyDoctor(
+      docs.find((doctor) => (doctor.entryOwner ?? "self") === owner && doctor.isEmergency)
+      ?? (emergencyDocId ? (docs.find((doctor) => doctor.id === emergencyDocId) ?? null) : null)
+    );
   }, []);
 
   useEffect(() => {

@@ -36,6 +36,9 @@ module.exports = {
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSFaceIDUsageDescription: "Unlock Synapse with Face ID to keep your health data private.",
+        NSCalendarsUsageDescription: "Synapse uses read-only calendar access so you can import selected events as appointments.",
+        NSCalendarsFullAccessUsageDescription: "Synapse uses read-only calendar access so you can import selected events as appointments.",
+        NSCalendarsWriteOnlyAccessUsageDescription: "Synapse can add appointment events to Calendar when you choose to export them.",
         NSPhotoLibraryUsageDescription: "Synapse allows users to select photos from their library to personalize their profile and attach images to health records. Photos are only accessed when the user explicitly chooses to add one.",
         NSPhotoLibraryAddUsageDescription: "Synapse saves images only when the user chooses to export or save content.",
         LSSupportsOpeningDocumentsInPlace: false,

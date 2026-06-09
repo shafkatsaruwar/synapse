@@ -110,7 +110,7 @@ function StepSlider({
     [snapToStep],
   );
 
-  const fillPercent = `${(value / 10) * 100}%`;
+  const fillPercent = `${(value / 10) * 100}%` as const;
   const thumbOffset = trackWidth ? (value / 10) * trackWidth - 16 : 0;
 
   return (

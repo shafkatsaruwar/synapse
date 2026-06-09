@@ -63,6 +63,7 @@ export type MedicationType = "scheduled" | "prn";
 
 export interface Medication {
   id: string;
+  source?: "manual" | "scan" | "calendar" | "import";
   name: string;
   imageUri?: string;
   /** @deprecated Use doses[].amount + unit. Kept for migration. */
@@ -73,6 +74,7 @@ export interface Medication {
   route?: string;
   emoji?: string;
   medicationType?: MedicationType;
+  doctorId?: string;
   pharmacyId?: string;
   pharmacyName?: string;
   pharmacyPhone?: string;
@@ -222,6 +224,9 @@ export interface Doctor {
   phone?: string;
   address?: string;
   hospital?: string;
+  entryOwner?: RecordOwner;
+  isPrimary?: boolean;
+  isEmergency?: boolean;
   created_at?: string;
 }
 
@@ -236,7 +241,7 @@ export interface Pharmacy {
 
 export type AppointmentStatus = "completed" | "rescheduled" | "cancelled";
 
-export type AppointmentSource = "manual" | "mychart_import" | "calendar_import";
+export type AppointmentSource = "manual" | "scan" | "calendar" | "import" | "mychart_import" | "calendar_import";
 
 export interface Appointment {
   id: string;
@@ -273,6 +278,30 @@ export interface DoctorNote {
   talkedAbout?: boolean;
   talkedAboutAt?: string;
   createdAt: string;
+}
+
+export type LabWorkStatus = "completed" | "pending";
+
+export interface LabWork {
+  id: string;
+  source?: "manual" | "scan" | "import";
+  testName: string;
+  date: string;
+  doctorId?: string;
+  appointmentId?: string;
+  status?: LabWorkStatus;
+  notes: string;
+}
+
+export interface Imaging {
+  id: string;
+  source?: "manual" | "scan" | "import";
+  type: string;
+  bodyArea?: string;
+  date: string;
+  doctorId?: string;
+  appointmentId?: string;
+  notes: string;
 }
 
 export interface FastingLog {
@@ -427,7 +456,7 @@ export const REQUIRED_SECTION_KEYS: readonly string[] = ["medications", "appoint
 
 export const ALL_SECTION_KEYS = [
   "log", "healthdata", "medications", "symptoms", "monthlycheckin",
-  "eating", "mentalhealth", "comfort", "goals", "appointments", "reports", "privacy", "cycletracking",
+  "labwork", "imaging", "timeline", "eating", "mentalhealth", "comfort", "goals", "appointments", "reports", "privacy", "cycletracking",
 ] as const;
 export type SectionKey = (typeof ALL_SECTION_KEYS)[number];
 
@@ -463,6 +492,8 @@ const KEYS = {
   MEDICATION_LOGS: "fir_medication_logs",
   APPOINTMENTS: "fir_appointments",
   DOCTOR_NOTES: "fir_doctor_notes",
+  LAB_WORK: "fir_lab_work",
+  IMAGING: "fir_imaging",
   FASTING_LOGS: "fir_fasting_logs",
   VITALS: "fir_vitals",
   SETTINGS: "fir_settings",
@@ -689,10 +720,26 @@ function getLocalDateKey(value: string): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+function normalizeDoctorOwner(doc: Doctor): Doctor {
+  return { ...doc, entryOwner: doc.entryOwner ?? "self" };
+}
+
+async function getDoctorsWithOwnerMigration(): Promise<Doctor[]> {
+  const all = await getItem<Doctor>(KEYS.DOCTORS);
+  const normalized = all.map(normalizeDoctorOwner);
+  if (normalized.some((doc, index) => doc.entryOwner !== all[index]?.entryOwner)) {
+    await setItem(KEYS.DOCTORS, normalized);
+  }
+  return normalized;
+}
+
 export const doctorsStorage = {
-  getAll: () => getItem<Doctor>(KEYS.DOCTORS),
-  save: async (doc: Omit<Doctor, "id" | "created_at">) => {
-    const all = await getItem<Doctor>(KEYS.DOCTORS);
+  getAll: async (entryOwner?: RecordOwner) => {
+    const all = await getDoctorsWithOwnerMigration();
+    return entryOwner ? all.filter((doctor) => (doctor.entryOwner ?? "self") === entryOwner) : all;
+  },
+  save: async (doc: Omit<Doctor, "id" | "created_at">, entryOwner: RecordOwner = doc.entryOwner ?? "self") => {
+    const all = await getDoctorsWithOwnerMigration();
     const newDoc: Doctor = {
       ...doc,
       name: (doc.name ?? "").trim(),
@@ -700,6 +747,9 @@ export const doctorsStorage = {
       phone: doc.phone?.trim() || undefined,
       address: doc.address?.trim() || undefined,
       hospital: doc.hospital?.trim() || undefined,
+      entryOwner,
+      isPrimary: doc.isPrimary ?? false,
+      isEmergency: doc.isEmergency ?? false,
       id: Crypto.randomUUID(),
       created_at: new Date().toISOString(),
     };
@@ -707,11 +757,11 @@ export const doctorsStorage = {
     await setItem(KEYS.DOCTORS, all);
     return newDoc;
   },
-  addOrGet: async (doc: { name: string; specialty?: string; phone?: string; address?: string; hospital?: string }) => {
-    const all = await getItem<Doctor>(KEYS.DOCTORS);
+  addOrGet: async (doc: { name: string; specialty?: string; phone?: string; address?: string; hospital?: string; entryOwner?: RecordOwner }, entryOwner: RecordOwner = doc.entryOwner ?? "self") => {
+    const all = await getDoctorsWithOwnerMigration();
     const name = (doc.name ?? "").trim();
     const normalized = name.toLowerCase();
-    const existing = all.find((d) => (d.name ?? "").trim().toLowerCase() === normalized);
+    const existing = all.find((d) => (d.entryOwner ?? "self") === entryOwner && (d.name ?? "").trim().toLowerCase() === normalized);
     if (existing) return existing;
     const newDoc: Doctor = {
       id: Crypto.randomUUID(),
@@ -720,6 +770,9 @@ export const doctorsStorage = {
       phone: doc.phone?.trim() || undefined,
       address: doc.address?.trim() || undefined,
       hospital: doc.hospital?.trim() || undefined,
+      entryOwner,
+      isPrimary: false,
+      isEmergency: false,
       created_at: new Date().toISOString(),
     };
     all.push(newDoc);
@@ -727,7 +780,7 @@ export const doctorsStorage = {
     return newDoc;
   },
   update: async (id: string, updates: Partial<Omit<Doctor, "id" | "created_at">>) => {
-    const all = await getItem<Doctor>(KEYS.DOCTORS);
+    const all = await getDoctorsWithOwnerMigration();
     const idx = all.findIndex((d) => d.id === id);
     if (idx === -1) return;
     all[idx] = {
@@ -738,17 +791,42 @@ export const doctorsStorage = {
       phone: updates.phone !== undefined ? (updates.phone?.trim() || undefined) : all[idx].phone,
       address: updates.address !== undefined ? (updates.address?.trim() || undefined) : all[idx].address,
       hospital: updates.hospital !== undefined ? (updates.hospital?.trim() || undefined) : all[idx].hospital,
+      entryOwner: updates.entryOwner ?? all[idx].entryOwner ?? "self",
+      isPrimary: updates.isPrimary ?? all[idx].isPrimary ?? false,
+      isEmergency: updates.isEmergency ?? all[idx].isEmergency ?? false,
     };
     await setItem(KEYS.DOCTORS, all);
   },
   mergeFromRemote: async (remote: Doctor[]) => {
-    const local = await getItem<Doctor>(KEYS.DOCTORS);
+    const local = await getDoctorsWithOwnerMigration();
     const byId = new Map(local.map((d) => [d.id, d]));
-    remote.forEach((r) => byId.set(r.id, r));
+    remote.forEach((r) => byId.set(r.id, normalizeDoctorOwner(r)));
     await setItem(KEYS.DOCTORS, Array.from(byId.values()));
   },
+  setPrimary: async (id: string, entryOwner: RecordOwner) => {
+    const all = await getDoctorsWithOwnerMigration();
+    const target = all.find((doctor) => doctor.id === id && (doctor.entryOwner ?? "self") === entryOwner);
+    const nextValue = !target?.isPrimary;
+    const next = all.map((doctor) => (
+      (doctor.entryOwner ?? "self") === entryOwner
+        ? { ...doctor, isPrimary: doctor.id === id ? nextValue : false }
+        : doctor
+    ));
+    await setItem(KEYS.DOCTORS, next);
+  },
+  setEmergency: async (id: string, entryOwner: RecordOwner) => {
+    const all = await getDoctorsWithOwnerMigration();
+    const target = all.find((doctor) => doctor.id === id && (doctor.entryOwner ?? "self") === entryOwner);
+    const nextValue = !target?.isEmergency;
+    const next = all.map((doctor) => (
+      (doctor.entryOwner ?? "self") === entryOwner
+        ? { ...doctor, isEmergency: doctor.id === id ? nextValue : false }
+        : doctor
+    ));
+    await setItem(KEYS.DOCTORS, next);
+  },
   delete: async (id: string) => {
-    const all = await getItem<Doctor>(KEYS.DOCTORS);
+    const all = await getDoctorsWithOwnerMigration();
     await setItem(KEYS.DOCTORS, all.filter((d) => d.id !== id));
   },
 };
@@ -816,6 +894,36 @@ function addIntervalToDate(dateStr: string, interval: number, unit: RepeatUnit):
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+async function scheduleStoredAppointmentNotifications(appointment: Appointment): Promise<void> {
+  try {
+    const settings = await settingsStorage.get();
+    if (settings.notificationsAppointments === false) {
+      await cancelStoredAppointmentNotifications(appointment.id);
+      return;
+    }
+    const { scheduleAppointmentRemindersForAppointment } = await import("@/lib/notification-manager");
+    await scheduleAppointmentRemindersForAppointment({
+      appointmentId: appointment.id,
+      doctorName: appointment.doctorName,
+      date: appointment.date,
+      time: appointment.time || "09:00",
+      location: appointment.location,
+      status: appointment.status,
+    });
+  } catch (error) {
+    console.warn("scheduleStoredAppointmentNotifications failed", error);
+  }
+}
+
+async function cancelStoredAppointmentNotifications(appointmentId: string): Promise<void> {
+  try {
+    const { cancelAppointmentReminders } = await import("@/lib/notification-manager");
+    await cancelAppointmentReminders(appointmentId);
+  } catch (error) {
+    console.warn("cancelStoredAppointmentNotifications failed", error);
+  }
+}
+
 export const appointmentStorage = {
   getAll: async () => {
     const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
@@ -828,6 +936,7 @@ export const appointmentStorage = {
     const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
     const id = Crypto.randomUUID();
     const first: Appointment = { ...apt, id, entryOwner: apt.entryOwner ?? "self" };
+    const createdAppointments: Appointment[] = [first];
     apts.push(first);
     const isRecurring = apt.is_recurring && apt.repeat_interval != null && apt.repeat_unit;
     if (isRecurring && apt.repeat_interval != null && apt.repeat_unit) {
@@ -840,7 +949,7 @@ export const appointmentStorage = {
       })();
       let nextDate = addIntervalToDate(apt.date, interval, unit);
       while (nextDate <= end) {
-        apts.push({
+        const recurringAppointment: Appointment = {
           ...apt,
           id: Crypto.randomUUID(),
           date: nextDate,
@@ -850,11 +959,14 @@ export const appointmentStorage = {
           repeat_unit: undefined,
           repeat_end_date: undefined,
           entryOwner: apt.entryOwner ?? "self",
-        });
+        };
+        apts.push(recurringAppointment);
+        createdAppointments.push(recurringAppointment);
         nextDate = addIntervalToDate(nextDate, interval, unit);
       }
     }
     await setItem(KEYS.APPOINTMENTS, apts);
+    await Promise.all(createdAppointments.map(scheduleStoredAppointmentNotifications));
     return first;
   },
   update: async (id: string, updates: Partial<Appointment>) => {
@@ -863,16 +975,21 @@ export const appointmentStorage = {
     if (idx >= 0) {
       apts[idx] = { ...apts[idx], ...updates };
       await setItem(KEYS.APPOINTMENTS, apts);
+      await cancelStoredAppointmentNotifications(id);
+      await scheduleStoredAppointmentNotifications(apts[idx]);
     }
   },
   delete: async (id: string) => {
     const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
     await setItem(KEYS.APPOINTMENTS, apts.filter((a) => a.id !== id));
+    await cancelStoredAppointmentNotifications(id);
   },
   deleteRecurringFuture: async (parentId: string, fromDate: string) => {
     const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
+    const removed = apts.filter((a) => a.parent_recurring_id === parentId && a.date >= fromDate);
     const filtered = apts.filter((a) => !(a.parent_recurring_id === parentId && a.date >= fromDate));
     await setItem(KEYS.APPOINTMENTS, filtered);
+    await Promise.all(removed.map((appointment) => cancelStoredAppointmentNotifications(appointment.id)));
   },
 };
 
@@ -900,6 +1017,74 @@ export const doctorNoteStorage = {
   delete: async (id: string) => {
     const notes = await getItem<DoctorNote>(KEYS.DOCTOR_NOTES);
     await setItem(KEYS.DOCTOR_NOTES, notes.filter((n) => n.id !== id));
+  },
+};
+
+export const labWorkStorage = {
+  getAll: () => getItem<LabWork>(KEYS.LAB_WORK),
+  save: async (record: Omit<LabWork, "id">) => {
+    const all = await getItem<LabWork>(KEYS.LAB_WORK);
+    const next: LabWork = {
+      ...record,
+      testName: record.testName.trim(),
+      notes: record.notes?.trim() ?? "",
+      id: Crypto.randomUUID(),
+    };
+    all.push(next);
+    await setItem(KEYS.LAB_WORK, all);
+    return next;
+  },
+  update: async (id: string, updates: Partial<Omit<LabWork, "id">>) => {
+    const all = await getItem<LabWork>(KEYS.LAB_WORK);
+    const index = all.findIndex((record) => record.id === id);
+    if (index === -1) return null;
+    all[index] = {
+      ...all[index],
+      ...updates,
+      testName: updates.testName?.trim() || all[index].testName,
+      notes: updates.notes !== undefined ? updates.notes.trim() : all[index].notes,
+    };
+    await setItem(KEYS.LAB_WORK, all);
+    return all[index];
+  },
+  delete: async (id: string) => {
+    const all = await getItem<LabWork>(KEYS.LAB_WORK);
+    await setItem(KEYS.LAB_WORK, all.filter((record) => record.id !== id));
+  },
+};
+
+export const imagingStorage = {
+  getAll: () => getItem<Imaging>(KEYS.IMAGING),
+  save: async (record: Omit<Imaging, "id">) => {
+    const all = await getItem<Imaging>(KEYS.IMAGING);
+    const next: Imaging = {
+      ...record,
+      type: record.type.trim(),
+      bodyArea: record.bodyArea?.trim() || undefined,
+      notes: record.notes?.trim() ?? "",
+      id: Crypto.randomUUID(),
+    };
+    all.push(next);
+    await setItem(KEYS.IMAGING, all);
+    return next;
+  },
+  update: async (id: string, updates: Partial<Omit<Imaging, "id">>) => {
+    const all = await getItem<Imaging>(KEYS.IMAGING);
+    const index = all.findIndex((record) => record.id === id);
+    if (index === -1) return null;
+    all[index] = {
+      ...all[index],
+      ...updates,
+      type: updates.type?.trim() || all[index].type,
+      bodyArea: updates.bodyArea !== undefined ? (updates.bodyArea.trim() || undefined) : all[index].bodyArea,
+      notes: updates.notes !== undefined ? updates.notes.trim() : all[index].notes,
+    };
+    await setItem(KEYS.IMAGING, all);
+    return all[index];
+  },
+  delete: async (id: string) => {
+    const all = await getItem<Imaging>(KEYS.IMAGING);
+    await setItem(KEYS.IMAGING, all.filter((record) => record.id !== id));
   },
 };
 
@@ -1429,6 +1614,8 @@ export type ExportPayload = {
   pharmacies?: Pharmacy[];
   appointments: Appointment[];
   doctorNotes: DoctorNote[];
+  labWork?: LabWork[];
+  imaging?: Imaging[];
   fastingLogs: FastingLog[];
   vitals: Vital[];
   documents: DocumentExtraction[];
@@ -1458,6 +1645,8 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     pharmacies,
     appointments,
     doctorNotes,
+    labWork,
+    imaging,
     fastingLogs,
     vitals,
     settings,
@@ -1476,6 +1665,8 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     pharmacyStorage.getAll(),
     appointmentStorage.getAll(),
     doctorNoteStorage.getAll(),
+    labWorkStorage.getAll(),
+    imagingStorage.getAll(),
     fastingLogStorage.getAll(),
     vitalStorage.getAll(),
     settingsStorage.get(),
@@ -1511,6 +1702,8 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     pharmacies,
     appointments,
     doctorNotes,
+    labWork,
+    imaging,
     fastingLogs,
     vitals,
     documents,
@@ -1545,6 +1738,8 @@ export const importAllData = async (payload: ExportPayload): Promise<void> => {
   await setItem(KEYS.PHARMACIES, payload.pharmacies ?? []);
   await setItem(KEYS.APPOINTMENTS, payload.appointments ?? []);
   await setItem(KEYS.DOCTOR_NOTES, payload.doctorNotes ?? []);
+  await setItem(KEYS.LAB_WORK, payload.labWork ?? []);
+  await setItem(KEYS.IMAGING, payload.imaging ?? []);
   await setItem(KEYS.FASTING_LOGS, payload.fastingLogs ?? []);
   await setItem(KEYS.VITALS, payload.vitals ?? []);
   await setItem(KEYS.DOCUMENTS, payload.documents ?? []);

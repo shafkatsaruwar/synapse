@@ -8,6 +8,7 @@ import { useAppMode } from "@/contexts/AppModeContext";
 import { useIsTablet } from "@/lib/device";
 import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
 import { featureFlags } from "@/constants/feature-flags";
+import { useSynapseHQPanel } from "@/components/SynapseHQPanel";
 
 const LIGHT_SIDEBAR_GRADIENT = ["#D1E0F7", "#BDD4F2"] as const;
 
@@ -26,6 +27,9 @@ const NAV_ITEMS: NavItem[] = [
   { key: "healthdata", label: "Vitals", icon: "analytics-outline", iconActive: "analytics" },
   { key: "medications", label: "Medications", icon: "medical-outline", iconActive: "medical" },
   { key: "symptoms", label: "Symptoms", icon: "pulse-outline", iconActive: "pulse" },
+  { key: "labwork", label: "LabWork", icon: "flask-outline", iconActive: "flask" },
+  { key: "imaging", label: "Imaging", icon: "scan-outline", iconActive: "scan" },
+  { key: "timeline", label: "Timeline", icon: "git-branch-outline", iconActive: "git-branch" },
   ...(featureFlags.documentScannerEnabled
     ? [
         { key: "documents", label: "Documents", icon: "scan-outline" as IconName, iconActive: "scan" as IconName },
@@ -50,7 +54,8 @@ const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
   { title: "Main", keys: ["dashboard"] },
   { title: "Emergency", keys: ["emergency", "emergencycard"] },
   { title: "Primary", keys: ["log", "medications", "healthdata", "appointments", "symptoms"] },
-  { title: "Health & Insights", keys: ["reports", "monthlycheckin", "cycletracking", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
+  { title: "Diagnostics", keys: ["labwork", "imaging"] },
+  { title: "Health & Insights", keys: ["timeline", "reports", "monthlycheckin", "cycletracking", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
   { title: "System", keys: ["privacy", "settings"] },
 ];
 
@@ -67,6 +72,7 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
   const insets = useSafeAreaInsets();
   const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
+  const synapseHQ = useSynapseHQPanel();
   const emergencyCardRef = useRef<View>(null);
   const walkthrough = useWalkthroughTargets();
   const registerTarget = walkthrough?.registerTarget;
@@ -113,6 +119,8 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
                     <Pressable
                       style={[styles.navItem, styles.navItemExpanded, active && styles.navItemActive]}
                       onPress={() => onNavigate(item.key)}
+                      onLongPress={item.key === "settings" ? synapseHQ.open : undefined}
+                      delayLongPress={3500}
                       accessibilityRole="button"
                       accessibilityLabel={item.label}
                       accessibilityState={{ selected: active }}
@@ -134,6 +142,7 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
         })}
       </ScrollView>
       </View>
+      {synapseHQ.element}
     </View>
   );
 }

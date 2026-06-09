@@ -16,6 +16,7 @@ import {
 import { getMedList, type MedListItem } from "@/lib/med-list-storage";
 import { getDaysAgo, formatDate, formatDateWithYear, getToday } from "@/lib/date-utils";
 import { buildRecoveryInsights, type RecoveryStatusLabel } from "@/lib/recovery-insights";
+import { generateHealthSummary, type HealthGeneratedSummary } from "@/lib/foundation-models";
 
 interface SummaryEvent {
   date: string;
@@ -54,6 +55,9 @@ export default function ReportsScreen() {
   const [medListItems, setMedListItems] = useState<MedListItem[]>([]);
   const [range, setRange] = useState<7 | 30>(7);
   const [exporting, setExporting] = useState(false);
+  const [generatedSummary, setGeneratedSummary] = useState<HealthGeneratedSummary | null>(null);
+  const [generatedSummaryLoading, setGeneratedSummaryLoading] = useState(false);
+  const [generatedSummaryError, setGeneratedSummaryError] = useState("");
 
   const loadData = useCallback(async () => {
     const [l, m, ml, a, n, s, st, profileInfo, sm, conds, eating, hydration, checkIns, medList, vitalsData] = await Promise.all([
@@ -173,6 +177,36 @@ export default function ReportsScreen() {
   };
 
   const summaryEvents = buildChronologicalEvents();
+
+  const handleGenerateHealthSummary = async () => {
+    setGeneratedSummaryLoading(true);
+    setGeneratedSummaryError("");
+    try {
+      const summary = await generateHealthSummary({
+        rangeDays: range,
+        adherence,
+        takenDoses,
+        totalExpectedDoses: totalExpected,
+        missedDoses,
+        symptoms: topSymptoms.map(([name, count]) => ({ name, count })),
+        hydrationTotalMl,
+        hydrationEntryCount: recentHydration.length,
+        appointmentCount: recentAppointments.length,
+        appointments: recentAppointments.map((appointment) => ({
+          doctorName: appointment.doctorName,
+          specialty: appointment.specialty,
+          date: appointment.date,
+          location: appointment.location,
+        })),
+        meds: activeMeds.map((med) => ({ name: med.name, active: med.active })),
+      });
+      setGeneratedSummary(summary);
+    } catch (error: any) {
+      setGeneratedSummaryError(error?.message || "Could not generate this summary on this device.");
+    } finally {
+      setGeneratedSummaryLoading(false);
+    }
+  };
 
   const generateSummaryText = () => {
     let r = `HEALTH SUMMARY REPORT\n`;
@@ -315,6 +349,38 @@ export default function ReportsScreen() {
             <Text style={styles.statLabel}>{stat.label}</Text>
           </View>
         ))}
+      </View>
+
+      <View style={styles.aiSummaryCard}>
+        <View style={styles.aiSummaryHeader}>
+          <View>
+            <Text style={styles.cardTitle}>On-device Summary</Text>
+            <Text style={styles.aiSummarySubtext}>Quiet trends from this report window.</Text>
+          </View>
+          <Ionicons name="sparkles-outline" size={18} color={C.purple} />
+        </View>
+        <Pressable
+          style={[styles.aiSummaryButton, generatedSummaryLoading && styles.generateBtnDisabled]}
+          onPress={handleGenerateHealthSummary}
+          disabled={generatedSummaryLoading}
+          accessibilityRole="button"
+          accessibilityLabel="Generate health summary"
+        >
+          <Text style={styles.aiSummaryButtonText}>{generatedSummaryLoading ? "Generating..." : "Generate summary"}</Text>
+        </Pressable>
+        {!!generatedSummaryError && <Text style={styles.aiSummaryError}>{generatedSummaryError}</Text>}
+        {generatedSummary ? (
+          <View style={styles.aiSummaryResult}>
+            <Text style={styles.aiSummaryText}>{generatedSummary.summary}</Text>
+            {!!generatedSummary.adherence && <Text style={styles.aiSummaryText}>{generatedSummary.adherence}</Text>}
+            {[...generatedSummary.trends, ...generatedSummary.notablePatterns].map((item) => (
+              <View key={item} style={styles.aiSummaryBulletRow}>
+                <Text style={styles.aiSummaryBullet}>•</Text>
+                <Text style={styles.aiSummaryBulletText}>{item}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
       </View>
 
       {hasRecoveryTracking && (
@@ -610,6 +676,17 @@ function makeStyles(C: Theme) {
   statIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   statValue: { fontWeight: "700", fontSize: 24, color: C.text, letterSpacing: -0.5 },
   statLabel: { fontWeight: "400", fontSize: 11, color: C.textSecondary, marginTop: 2 },
+  aiSummaryCard: { backgroundColor: C.surface, borderRadius: 14, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border, gap: 12 },
+  aiSummaryHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  aiSummarySubtext: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: -8, lineHeight: 18 },
+  aiSummaryButton: { minHeight: 46, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.purpleLight, borderWidth: 1, borderColor: C.border },
+  aiSummaryButtonText: { fontWeight: "800", fontSize: 14, color: C.purple },
+  aiSummaryError: { fontWeight: "600", fontSize: 12, color: C.red, lineHeight: 18 },
+  aiSummaryResult: { gap: 8, borderRadius: 12, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, padding: 12 },
+  aiSummaryText: { fontWeight: "500", fontSize: 13, color: C.text, lineHeight: 20 },
+  aiSummaryBulletRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  aiSummaryBullet: { fontWeight: "900", fontSize: 14, color: C.purple, lineHeight: 20 },
+  aiSummaryBulletText: { flex: 1, fontWeight: "500", fontSize: 13, color: C.text, lineHeight: 20 },
   card: { backgroundColor: C.surface, borderRadius: 14, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border },
   cardTitle: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 14 },
   recoveryHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },

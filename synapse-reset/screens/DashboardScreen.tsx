@@ -34,6 +34,8 @@ import {
   symptomStorage,
   vitalStorage,
   sickModeStorage,
+  hydrationStorage,
+  convertHydrationToMl,
   type HealthLog,
   type Medication,
   type MedicationLog,
@@ -44,6 +46,7 @@ import {
   type RecordOwner,
   type Symptom,
   type Vital,
+  type HydrationEntry,
   disableRecoveryTracking,
 } from "@/lib/storage";
 import { getToday, formatDate, formatTime12h, formatTimestamp } from "@/lib/date-utils";
@@ -209,6 +212,35 @@ function formatDueMedicationStatus(currentMinutes: number, dueMinutes: number) {
   const delta = currentMinutes - dueMinutes;
   if (delta <= 5) return "Due now";
   return `Missed ${delta} min${delta === 1 ? "" : "s"} ago`;
+}
+
+function addDays(dateKey: string, days: number) {
+  const date = new Date(`${dateKey}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getWeeklyInsightMessage(params: {
+  adherencePercent: number | null;
+  averageHydrationMl: number;
+  hydrationGoalMl: number;
+  appointmentCount: number;
+  symptomCount: number;
+  topSymptom?: string;
+}) {
+  if (params.adherencePercent != null && params.adherencePercent < 70) {
+    return "You’ve missed a few doses this week.";
+  }
+  if (params.averageHydrationMl > 0 && params.averageHydrationMl < params.hydrationGoalMl) {
+    return "You might be a bit dehydrated.";
+  }
+  if (params.appointmentCount >= 2) {
+    return "You have a busy week with appointments.";
+  }
+  if (params.symptomCount >= 3 && params.topSymptom) {
+    return `${params.topSymptom} has shown up a few times this week.`;
+  }
+  return "You’re all good.";
 }
 
 interface DashboardScreenProps {
@@ -466,16 +498,19 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const refMed = useRef<View>(null);
   const refApt = useRef<View>(null);
   const refDailyLog = useRef<View>(null);
+  const refSimpleToday = useRef<View>(null);
 
   useEffect(() => {
     if (!registerTarget || !unregisterTarget) return;
     registerTarget("medication", () => measureInWindow(refMed));
     registerTarget("appointments", () => measureInWindow(refApt));
     registerTarget("dailylog", () => measureInWindow(refDailyLog));
+    registerTarget("simple-today", () => measureInWindow(refSimpleToday));
     return () => {
       unregisterTarget("medication");
       unregisterTarget("appointments");
       unregisterTarget("dailylog");
+      unregisterTarget("simple-today");
     };
   }, [registerTarget, unregisterTarget]);
 
@@ -490,12 +525,13 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", backupCriticalMedications: [] });
   const [symptoms, setSymptoms] = useState<Symptom[]>([]);
   const [vitals, setVitals] = useState<Vital[]>([]);
+  const [hydrationEntries, setHydrationEntries] = useState<HydrationEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [showRecoverySetup, setShowRecoverySetup] = useState(false);
   const [recoveryFocusInput, setRecoveryFocusInput] = useState("");
 
   const loadData = useCallback(async () => {
-    const [logsData, meds, ml, apts, fl, sett, profileInfo, symptomsData, vitalsData] = await Promise.all([
+    const [logsData, meds, ml, apts, fl, sett, profileInfo, symptomsData, vitalsData, hydrationData] = await Promise.all([
       healthLogStorage.getAll(),
       medicationStorage.getAll(),
       medicationLogStorage.getAll(),
@@ -505,6 +541,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       healthProfileStorage.get(),
       symptomStorage.getAll(),
       vitalStorage.getAll(),
+      hydrationStorage.getAll(),
     ]);
     setTodayLog(logsData.find((log) => log.date === today));
     setAllLogs(logsData);
@@ -521,6 +558,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     setProfile(profileInfo);
     setSymptoms(symptomsData);
     setVitals(vitalsData);
+    setHydrationEntries(hydrationData);
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setLoaded(true);
   }, [today]);
@@ -536,6 +574,14 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     if (isSickMode && med.name === "Hydrocortisone") return base * 3;
     return base;
   };
+  const totalDoses = useMemo(
+    () => medications.reduce((sum, med) => sum + getDoseCount(med), 0),
+    [isSickMode, medications]
+  );
+  const takenDoses = useMemo(
+    () => medLogs.filter((log) => log.taken).length,
+    [medLogs]
+  );
   const upcomingAppointments = useMemo(
     () => appointments.filter((appointment) => !appointment.status && (parseAppointmentDateTime(appointment)?.getTime() ?? -1) >= Date.now()),
     [appointments]
@@ -755,6 +801,55 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     symptoms: symptoms.filter((symptom) => symptom.date === today),
     vitals: vitals.filter((vital) => vital.date === today),
   }), [medications, medLogs, symptoms, vitals, today]);
+  const weeklySummary = useMemo(() => {
+    const weekStart = addDays(today, -6);
+    const weekDates = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
+    const activeScheduledMeds = medications.filter((med) => med.medicationType !== "prn");
+    const scheduledDoseCountPerDay = activeScheduledMeds.reduce((sum, med) => sum + getDoseCount(med), 0);
+    const totalScheduled = scheduledDoseCountPerDay * 7;
+    const medIds = new Set(activeScheduledMeds.map((med) => med.id));
+    const totalTaken = allMedLogs.filter((log) => log.taken && log.date >= weekStart && log.date <= today && medIds.has(log.medicationId)).length;
+    const adherencePercent = totalScheduled > 0 ? Math.round((totalTaken / totalScheduled) * 100) : null;
+    const hydrationGoalMl = 2000;
+    const hydrationByDate = new Map<string, number>();
+    hydrationEntries
+      .filter((entry) => entry.date >= weekStart && entry.date <= today)
+      .forEach((entry) => {
+        hydrationByDate.set(entry.date, (hydrationByDate.get(entry.date) ?? 0) + convertHydrationToMl(entry.amount, entry.unit));
+      });
+    const hydrationTotalMl = weekDates.reduce((sum, date) => sum + (hydrationByDate.get(date) ?? 0), 0);
+    const averageHydrationMl = Math.round(hydrationTotalMl / 7);
+    const weekAppointments = appointments.filter((appointment) => !appointment.status && appointment.date >= weekStart && appointment.date <= addDays(today, 6));
+    const nextUpcomingAppointment = upcomingAppointments[0] ?? null;
+    const weekSymptoms = symptoms.filter((symptom) => symptom.date >= weekStart && symptom.date <= today);
+    const symptomCounts = weekSymptoms.reduce<Record<string, number>>((acc, symptom) => {
+      const name = symptom.name?.trim();
+      if (!name) return acc;
+      acc[name] = (acc[name] ?? 0) + 1;
+      return acc;
+    }, {});
+    const topSymptom = Object.entries(symptomCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+    return {
+      totalScheduled,
+      totalTaken,
+      adherencePercent,
+      hydrationGoalMl,
+      averageHydrationMl,
+      appointmentCount: weekAppointments.length,
+      nextUpcomingAppointment,
+      symptomCount: weekSymptoms.length,
+      topSymptom,
+      insight: getWeeklyInsightMessage({
+        adherencePercent,
+        averageHydrationMl,
+        hydrationGoalMl,
+        appointmentCount: weekAppointments.length,
+        symptomCount: weekSymptoms.length,
+        topSymptom,
+      }),
+    };
+  }, [allMedLogs, appointments, hydrationEntries, medications, symptoms, today, upcomingAppointments]);
 
   const openRecoverySetup = () => {
     setRecoveryFocusInput(profile.recoveryFocus?.trim() ?? "");
@@ -942,6 +1037,53 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     </GlassView>
   );
 
+  const renderThisWeekCard = () => (
+    <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.weekCardGlass, themeId === "light" && styles.glanceCardLight]}>
+      <View style={styles.weekCardInner}>
+        <View style={styles.weekCardHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.weekCardTitle}>This Week</Text>
+            <Text style={styles.weekCardSubtitle}>Simple insights from your meds, hydration, appointments, and symptoms.</Text>
+          </View>
+          <View style={styles.weekIconBadge}>
+            <Ionicons name="sparkles-outline" size={17} color={C.tint} />
+          </View>
+        </View>
+
+        <View style={styles.weekMetricGrid}>
+          <View style={styles.weekMetricTile}>
+            <Text style={styles.weekMetricLabel}>Med adherence</Text>
+            <Text style={styles.weekMetricValue}>
+              {weeklySummary.adherencePercent == null ? "—" : `${weeklySummary.adherencePercent}%`}
+            </Text>
+            <Text style={styles.weekMetricMeta}>{weeklySummary.totalTaken}/{weeklySummary.totalScheduled} doses</Text>
+          </View>
+          <View style={styles.weekMetricTile}>
+            <Text style={styles.weekMetricLabel}>Hydration</Text>
+            <Text style={styles.weekMetricValue}>{Math.round(weeklySummary.averageHydrationMl / 100) / 10}L</Text>
+            <Text style={styles.weekMetricMeta}>avg / day</Text>
+          </View>
+          <View style={styles.weekMetricTile}>
+            <Text style={styles.weekMetricLabel}>Appointments</Text>
+            <Text style={styles.weekMetricValue}>{weeklySummary.appointmentCount}</Text>
+            <Text style={styles.weekMetricMeta}>
+              {weeklySummary.nextUpcomingAppointment
+                ? `${formatDate(weeklySummary.nextUpcomingAppointment.date)}`
+                : "none upcoming"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.weekInsightBox}>
+          <Text style={styles.weekInsightText}>{weeklySummary.insight}</Text>
+          {weeklySummary.topSymptom ? (
+            <Text style={styles.weekInsightMeta}>Most frequent symptom: {weeklySummary.topSymptom}</Text>
+          ) : null}
+        </View>
+      </View>
+    </GlassView>
+  );
+
   const renderMedicationsCard = () => (
     <PriorityCard colors={isSickMode ? PRIORITY_GRADIENTS.medicationsStress : PRIORITY_GRADIENTS.medications} icon="medical" label={isSickMode ? "Stress Dosing" : "Medications Today"} onPress={() => onNavigate("medications")}>
       {totalDoses > 0 ? (
@@ -1051,6 +1193,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + (modeUI.isSimpleMode ? 18 : 12)),
     paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
   };
+  const simpleModeBottomBleed = Platform.OS === "web" ? 108 : insets.bottom + 96;
   const fabBottom = Platform.OS === "web"
     ? (modeUI.isSimpleMode ? 132 : 100)
     : modeUI.isSimpleMode ? insets.bottom + 108 : insets.bottom + 8;
@@ -1081,74 +1224,71 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   if (modeUI.isSimpleMode) {
     const simpleContent = (
-      <View style={[styles.container, { backgroundColor: isLightTheme ? "transparent" : C.background }]}>
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: isLightTheme ? "transparent" : C.background,
+            marginBottom: -simpleModeBottomBleed,
+            paddingBottom: simpleModeBottomBleed,
+          },
+        ]}
+      >
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={[
             contentPadding,
             styles.scrollViewContent,
-            styles.simpleDashboardContent,
-            { paddingHorizontal: isWide ? 28 : 18 },
           ]}
           showsVerticalScrollIndicator={false}
           bounces={false}
           alwaysBounceVertical={false}
         >
-          <View style={styles.simpleDashboardHeader}>
-            <Text style={styles.simpleDashboardGreeting}>
-              {simpleGreeting}
-              {displayFirstName ? `, ${displayFirstName}` : ""}
-            </Text>
-            <Text style={styles.simpleDashboardSubtext}>
-              {simpleDashboardState.title}
-            </Text>
-          </View>
-
-          <View style={styles.simpleDashboardCard}>
-            <Text style={styles.simpleDashboardCardTitle}>Today</Text>
-            <Text style={styles.simpleDashboardLead}>{simpleDashboardState.title}</Text>
-            <Text style={styles.simpleDashboardAppointmentName}>{simpleDashboardState.primary}</Text>
-            {simpleDashboardState.detail ? (
-              <Text style={styles.simpleDashboardAppointmentMeta}>{simpleDashboardState.detail}</Text>
-            ) : null}
-            {simpleDashboardState.secondary ? (
-              <Text style={simpleDashboardState.detail ? styles.simpleDashboardAppointmentSubtle : styles.simpleDashboardAppointmentMeta}>
-                {simpleDashboardState.secondary}
+          <View style={[styles.simpleDashboardContent, { paddingHorizontal: isWide ? 28 : 18 }]}>
+            <View style={styles.simpleDashboardHeader}>
+              <Text style={styles.simpleDashboardGreeting}>
+                {simpleGreeting}
+                {displayFirstName ? `, ${displayFirstName}` : ""}
               </Text>
-            ) : null}
-            {simpleDashboardState.tertiary ? (
-              <Text style={styles.simpleDashboardAppointmentSubtle}>{simpleDashboardState.tertiary}</Text>
-            ) : null}
-            <Pressable
-              style={({ pressed }) => [
-                styles.simpleDashboardPrimaryButton,
-                pressed && styles.simpleDashboardPrimaryButtonPressed,
-              ]}
-              onPress={() => onNavigate(simpleDashboardState.ctaTarget)}
-              accessibilityRole="button"
-              accessibilityLabel={simpleDashboardState.ctaLabel}
-            >
-              <Text style={styles.simpleDashboardPrimaryButtonText}>{simpleDashboardState.ctaLabel}</Text>
-            </Pressable>
+              <Text style={styles.simpleDashboardSubtext}>
+                {simpleDashboardState.title}
+              </Text>
+            </View>
+
+            <View ref={refSimpleToday} collapsable={false} style={styles.simpleDashboardCard}>
+              <Text style={styles.simpleDashboardCardTitle}>Today</Text>
+              <Text style={styles.simpleDashboardLead}>{simpleDashboardState.title}</Text>
+              <Text style={styles.simpleDashboardAppointmentName}>{simpleDashboardState.primary}</Text>
+              {simpleDashboardState.detail ? (
+                <Text style={styles.simpleDashboardAppointmentMeta}>{simpleDashboardState.detail}</Text>
+              ) : null}
+              {simpleDashboardState.secondary ? (
+                <Text style={simpleDashboardState.detail ? styles.simpleDashboardAppointmentSubtle : styles.simpleDashboardAppointmentMeta}>
+                  {simpleDashboardState.secondary}
+                </Text>
+              ) : null}
+              {simpleDashboardState.tertiary ? (
+                <Text style={styles.simpleDashboardAppointmentSubtle}>{simpleDashboardState.tertiary}</Text>
+              ) : null}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.simpleDashboardPrimaryButton,
+                  pressed && styles.simpleDashboardPrimaryButtonPressed,
+                ]}
+                onPress={() => onNavigate(simpleDashboardState.ctaTarget)}
+                accessibilityRole="button"
+                accessibilityLabel={simpleDashboardState.ctaLabel}
+              >
+                <Text style={styles.simpleDashboardPrimaryButtonText}>{simpleDashboardState.ctaLabel}</Text>
+              </Pressable>
+            </View>
+
+            {renderThisWeekCard()}
           </View>
         </ScrollView>
         {fab}
       </View>
     );
-
-    if (isLightTheme) {
-      return (
-        <LinearGradient
-          colors={["#d7ddff", "#c8d6fb", "#d7ebff"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gradientContainer}
-        >
-          {simpleContent}
-        </LinearGradient>
-      );
-    }
-
     return simpleContent;
   }
 
@@ -1263,6 +1403,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       {hasRecoveryTracking ? renderRecoverySummaryCard() : renderRecoverySetupCard()}
 
       {renderTodayAtAGlanceCard()}
+
+      {renderThisWeekCard()}
 
       <View style={[styles.grid, isWide && styles.gridWide]}>
         {featureFlags.documentScannerEnabled && (
@@ -1972,6 +2114,30 @@ function makeStyles(C: Theme, textScale: number) {
     glanceLines: { gap: 8 },
     glanceLine: { fontWeight: "500", fontSize: 13, color: C.text, lineHeight: 18 },
     glanceInsight: { fontWeight: "600", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
+    weekCardGlass: {
+      borderRadius: 20,
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      elevation: 6,
+      overflow: "hidden",
+    },
+    weekCardInner: { gap: 12 },
+    weekCardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+    weekCardTitle: { fontWeight: "800", fontSize: 18, color: C.text, letterSpacing: -0.3 },
+    weekCardSubtitle: { marginTop: 4, fontWeight: "500", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
+    weekIconBadge: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.border },
+    weekMetricGrid: { flexDirection: "row", gap: 8 },
+    weekMetricTile: { flex: 1, minHeight: 92, borderRadius: 14, padding: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "space-between" },
+    weekMetricLabel: { fontWeight: "700", fontSize: 11, color: C.textSecondary },
+    weekMetricValue: { fontWeight: "800", fontSize: 22, color: C.text, letterSpacing: -0.4 },
+    weekMetricMeta: { fontWeight: "600", fontSize: 11, color: C.textTertiary, lineHeight: 15 },
+    weekInsightBox: { borderRadius: 14, padding: 12, backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.border },
+    weekInsightText: { fontWeight: "800", fontSize: 14, color: C.text, lineHeight: 19 },
+    weekInsightMeta: { marginTop: 4, fontWeight: "600", fontSize: 12, color: C.textSecondary, lineHeight: 17 },
     feelingTitle: { fontWeight: "600", fontSize: 14, color: C.text },
     feelingSubtitle: { marginTop: 4, fontWeight: "400", fontSize: 12, color: C.textSecondary },
     sectionLabel: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3, marginBottom: 14 },
