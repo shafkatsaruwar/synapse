@@ -9,6 +9,7 @@ import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { mentalHealthModeStorage, comfortStorage, type MentalHealthModeData, type ComfortItem } from "@/lib/storage";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 const HOURLY_CHECK_IN_MS = 60 * 60 * 1000;
 const COMFORT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -133,7 +134,7 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
     );
   };
 
-  const topPad = isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16);
+  const topPad = isWide ? 28 : (Platform.OS === "web" ? 40 : 14);
 
   if (!mhData) return <View style={styles.container} />;
 
@@ -286,6 +287,7 @@ export default function MentalHealthModeScreen({ onDeactivate, onRefreshKey }: M
 }
 
 function makeStyles(C: Theme) {
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
@@ -340,8 +342,8 @@ function makeStyles(C: Theme) {
   medsChipTextActive: { color: C.text },
   betterBtn: { backgroundColor: C.purple, paddingVertical: 14, borderRadius: 14, alignItems: "center", marginTop: 16 },
   betterBtnText: { fontWeight: "600", fontSize: 16, color: "#fff" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 },
-  modalContent: { backgroundColor: C.surface, borderRadius: 20, padding: 24 },
+  modalOverlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", padding: 24 },
+  modalContent: { backgroundColor: solidModalSurface, borderRadius: 20, padding: 24 },
   modalTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 8 },
   modalSubtitle: { fontSize: 15, color: C.textSecondary, marginBottom: 20 },
   modalRow: { flexDirection: "row", gap: 12, marginBottom: 16 },

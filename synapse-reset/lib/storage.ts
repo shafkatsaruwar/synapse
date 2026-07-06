@@ -207,6 +207,7 @@ export interface HealthProfileInfo {
   widgetAppearance?: WidgetAppearancePreference;
   recoveryTrackingEnabled?: boolean;
   recoveryFocus?: string;
+  recoveryTrackingStartedAt?: string;
   caredForName?: string;
   caredForAge?: number;
   backupEmergencyProtocols?: string;
@@ -351,6 +352,7 @@ export type CycleFlow = "light" | "medium" | "heavy";
 export interface CycleEntry {
   id: string;
   date: string;
+  recordedAt?: string;
   flow?: CycleFlow;
   symptoms?: string;
   notes?: string;
@@ -984,6 +986,13 @@ export const appointmentStorage = {
     await setItem(KEYS.APPOINTMENTS, apts.filter((a) => a.id !== id));
     await cancelStoredAppointmentNotifications(id);
   },
+  deleteRecurringSeries: async (parentId: string) => {
+    const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
+    const removed = apts.filter((a) => a.id === parentId || a.parent_recurring_id === parentId);
+    const filtered = apts.filter((a) => a.id !== parentId && a.parent_recurring_id !== parentId);
+    await setItem(KEYS.APPOINTMENTS, filtered);
+    await Promise.all(removed.map((appointment) => cancelStoredAppointmentNotifications(appointment.id)));
+  },
   deleteRecurringFuture: async (parentId: string, fromDate: string) => {
     const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
     const removed = apts.filter((a) => a.parent_recurring_id === parentId && a.date >= fromDate);
@@ -1356,6 +1365,7 @@ export const enableRecoveryTracking = async (focus = "sick mode recovery") => {
     ...profile,
     recoveryTrackingEnabled: true,
     recoveryFocus: profile.recoveryFocus?.trim() ? profile.recoveryFocus : focus,
+    recoveryTrackingStartedAt: profile.recoveryTrackingStartedAt ?? new Date().toISOString(),
   };
   await healthProfileStorage.save(nextProfile);
   return nextProfile;
@@ -1367,6 +1377,7 @@ export const disableRecoveryTracking = async () => {
     ...profile,
     recoveryTrackingEnabled: false,
     recoveryFocus: "",
+    recoveryTrackingStartedAt: undefined,
   };
   await healthProfileStorage.save(nextProfile);
   return nextProfile;
@@ -1380,7 +1391,7 @@ export const cycleTrackingStorage = {
   },
   save: async (data: Omit<CycleEntry, "id">) => {
     const all = await getItem<CycleEntry>(KEYS.CYCLE_ENTRIES);
-    const newItem = { ...data, id: Crypto.randomUUID() };
+    const newItem = { ...data, id: Crypto.randomUUID(), recordedAt: data.recordedAt ?? new Date().toISOString() };
     all.push(newItem);
     await setItem(KEYS.CYCLE_ENTRIES, all);
     return newItem;

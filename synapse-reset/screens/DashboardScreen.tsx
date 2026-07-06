@@ -23,6 +23,7 @@ import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useModeAwareScreen } from "@/contexts/AppModeContext";
 import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import GlassView from "@/components/GlassView";
+import { raised } from "@/constants/raised";
 import {
   healthLogStorage,
   medicationStorage,
@@ -54,6 +55,8 @@ import { getTodayRamadan } from "@/constants/ramadan-timetable";
 import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
 import { buildRecoveryInsights } from "@/lib/recovery-insights";
 import { buildTodayAtAGlance } from "@/lib/today-at-a-glance";
+import { cancelRecoveryCheckIn, syncRecoveryTrackingCheckIn } from "@/lib/notification-manager";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 // Gradient pairs: [top (darker), bottom (lighter)]. Soft, desaturated, top-to-bottom.
 const PRIORITY_GRADIENTS: Record<string, [string, string]> = {
@@ -80,7 +83,7 @@ const GOOD_DAY_MESSAGES = [
   // Calm everyday
   "Hope you’re feeling well today.",
   "Take a moment to check in with yourself.",
-  "Let’s see how you’re doing today.",
+  "Today at a glance.",
   "One small step for your health today.",
   "A new day to care for yourself.",
   "Let’s keep your health on track today.",
@@ -103,7 +106,7 @@ const GOOD_DAY_MESSAGES = [
   // Extra suggestions
   "Take a moment to check in with yourself today.",
   "Small steps today build stronger health tomorrow.",
-  "Let’s see how you’re doing today.",
+  "Today at a glance.",
   "Your health journey continues today.",
   "A quick check-in can make a big difference.",
   "Your wellbeing starts with a small moment of care.",
@@ -260,6 +263,7 @@ interface DashboardHeroProps {
   nextApt: Appointment | null;
   getOwnerMeta: (owner?: RecordOwner) => { label: string; icon: React.ComponentProps<typeof Ionicons>["name"] };
   onNavigate: (screen: string) => void;
+  dailyLogRef?: React.RefObject<View | null>;
   medicationCardRef?: React.RefObject<View | null>;
   appointmentCardRef?: React.RefObject<View | null>;
 }
@@ -275,24 +279,16 @@ function DashboardHero({
   nextApt,
   getOwnerMeta,
   onNavigate,
+  dailyLogRef,
   medicationCardRef,
   appointmentCardRef,
 }: DashboardHeroProps) {
   const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeHeroStyles(C), [C]);
 
-  const heroGradientColors: [string, string] =
-    themeId === "dark"
-      ? ["#0F0F10", "#0F0F10"]
-      : themeId === "calm"
-      ? ["#E6D2B8", "#E6D2B8"]
-      : ["#E6D3BD", "#E6D3BD"];
-
-  const heroBorderColor = themeId === "dark" ? "#2A2A2A" : "#D6BFA6";
-
   const miniCardBackground =
-    themeId === "dark" ? "rgba(220, 20, 20, 0.45)" : themeId === "light" ? "#FFFFFF" : "#F3E6D8";
-  const miniCardBorderColor = themeId === "dark" ? "#2A2A2A" : "#E2CFC0";
+    themeId === "dark" ? "rgba(255,255,255,0.08)" : themeId === "light" ? "rgba(255,255,255,0.24)" : "rgba(255,255,255,0.18)";
+  const miniCardBorderColor = themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.72)";
   const miniCardSubtitleColor = themeId === "dark" ? "#FFFFFF" : C.textSecondary;
 
   const renderHeroInner = () => (
@@ -334,6 +330,30 @@ function DashboardHero({
             {rightTime}
           </Text>
         </View>
+      </View>
+
+      <View ref={dailyLogRef} collapsable={false}>
+        <Pressable
+          style={[
+            styles.dashboardHeroCheckIn,
+            { backgroundColor: miniCardBackground, borderColor: miniCardBorderColor },
+          ]}
+          onPress={() => onNavigate("log")}
+          accessibilityRole="button"
+          accessibilityLabel="Let’s log this day"
+          accessibilityHint="Opens the daily log screen"
+        >
+          <View style={styles.dashboardHeroCheckInIcon}>
+            <Ionicons name="heart-outline" size={17} color={C.tint} />
+          </View>
+          <View style={styles.dashboardHeroCheckInText}>
+            <Text style={styles.dashboardHeroCheckInTitle}>Let’s log this day</Text>
+            <Text style={[styles.dashboardHeroCheckInSubtitle, { color: miniCardSubtitleColor }]}>
+              Log energy, mood, and sleep.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.tint} />
+        </Pressable>
       </View>
 
       <View style={styles.dashboardHeroMiniRow}>
@@ -395,38 +415,10 @@ function DashboardHero({
     </View>
   );
 
-  if (themeId === "light") {
-    return (
-      <View
-        style={[
-          styles.dashboardHero,
-          {
-            backgroundColor: "#FFFFFF",
-            borderColor: "rgba(255,255,255,0.9)",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.08,
-            shadowRadius: 8,
-            elevation: 4,
-          },
-        ]}
-      >
-        {renderHeroInner()}
-      </View>
-    );
-  }
-
   return (
-    <View style={[styles.dashboardHero, { borderColor: heroBorderColor }]}>
-      <LinearGradient
-        colors={heroGradientColors}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.dashboardHeroGradient}
-      >
-        {renderHeroInner()}
-      </LinearGradient>
-    </View>
+    <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={styles.dashboardHero}>
+      {renderHeroInner()}
+    </GlassView>
   );
 }
 
@@ -488,7 +480,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const { width } = useWindowDimensions();
   const { colors: C, themeId } = useTheme();
   const { textScale } = useDisplaySettings();
-  const styles = useMemo(() => makeStyles(C, textScale), [C, textScale]);
+  const styles = useMemo(() => makeStyles(C, textScale, themeId), [C, textScale, themeId]);
   const modeUI = useModeAwareScreen("dashboard");
   const isWide = width >= 768;
   const today = getToday();
@@ -599,8 +591,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       : "Good morning. Let’s start the day well.";
   } else if (hour < 17) {
     greeting = displayFirstName
-      ? `Good afternoon, ${displayFirstName}. How are you feeling today?`
-      : "Good afternoon. How are you feeling today?";
+      ? `Good afternoon, ${displayFirstName}. Here’s your health snapshot.`
+      : "Good afternoon. Here’s your health snapshot.";
   } else if (hour < 22) {
     greeting = displayFirstName
       ? `Good evening, ${displayFirstName}. Time for a quick check-in.`
@@ -863,10 +855,12 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       ...profile,
       recoveryTrackingEnabled: true,
       recoveryFocus: trimmed,
+      recoveryTrackingStartedAt: profile.recoveryTrackingStartedAt ?? new Date().toISOString(),
     };
     await healthProfileStorage.save(nextProfile);
     setProfile(nextProfile);
     setShowRecoverySetup(false);
+    await syncRecoveryTrackingCheckIn();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -891,6 +885,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               await sickModeStorage.reset();
               setSettings(nextSettings);
             }
+            await cancelRecoveryCheckIn();
 
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
@@ -899,186 +894,167 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     );
   };
 
-  const renderRecoverySummaryCard = () => (
-    <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.recoveryCardGlass, themeId === "light" && styles.recoveryCardLight]}>
-      <View style={styles.recoveryCardInner}>
-        <View style={styles.recoveryCardHeader}>
-          <View>
-            <Text style={styles.recoveryCardTitle}>Recovery Summary</Text>
-            <Text style={styles.recoveryCardSubtitle}>
-              {profile.recoveryFocus?.trim()
-                ? `Recovering from ${profile.recoveryFocus.trim()}. ${recoverySummary.summaryText}`
-                : recoverySummary.summaryText}
-            </Text>
-          </View>
-          <View style={[styles.recoveryStatusPill, { backgroundColor: recoveryStatusTone + "1F", borderColor: recoveryStatusTone + "44" }]}>
-            <Text style={styles.recoveryStatusText}>{recoverySummary.statusLabel}</Text>
-          </View>
-        </View>
-
-        <View style={styles.recoveryMetricsGrid}>
-          <Pressable
-            style={({ pressed }) => [styles.recoveryMetricCard, { opacity: pressed ? 0.88 : 1 }]}
-            onPress={() => onNavigate("healthdata")}
-            accessibilityRole="button"
-            accessibilityLabel="Open vitals"
-          >
-            <Text style={styles.recoveryMetricLabel}>Today’s vitals</Text>
-            <Text style={styles.recoveryMetricValue}>{todayVitalsText}</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.recoveryMetricCard, { opacity: pressed ? 0.88 : 1 }]}
-            onPress={() => onNavigate("symptoms")}
-            accessibilityRole="button"
-            accessibilityLabel="Open symptoms"
-          >
-            <Text style={styles.recoveryMetricLabel}>Last symptom</Text>
-            <Text style={styles.recoveryMetricValue}>{latestSymptomText}</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.recoveryMetricCard, { opacity: pressed ? 0.88 : 1 }]}
-            onPress={() => onNavigate("medications")}
-            accessibilityRole="button"
-            accessibilityLabel="Open medications"
-          >
-            <Text style={styles.recoveryMetricLabel}>Meds today</Text>
-            <Text style={styles.recoveryMetricValue}>
-              {recoverySummary.todayMedicationExpected > 0
-                ? `${recoverySummary.todayMedicationTaken}/${recoverySummary.todayMedicationExpected} taken`
-                : "No meds scheduled"}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.recoveryMetricCard, { opacity: pressed ? 0.88 : 1 }]}
-            onPress={() => onNavigate("logtoday")}
-            accessibilityRole="button"
-            accessibilityLabel="Open today's check-in"
-          >
-            <Text style={styles.recoveryMetricLabel}>Last check-in</Text>
-            <Text style={styles.recoveryMetricValue}>{latestCheckInText}</Text>
-          </Pressable>
-        </View>
-
-        <Pressable
-          style={({ pressed }) => [styles.recoveryInsightBanner, { opacity: pressed ? 0.9 : 1 }]}
-          onPress={() => onNavigate("reports")}
-          accessibilityRole="button"
-          accessibilityLabel="Open recovery reports"
-        >
-          <Ionicons name="sparkles-outline" size={16} color={C.tint} />
-        <Text style={styles.recoveryInsightText}>{recoverySummary.insights[0]}</Text>
-        </Pressable>
-        <Text style={styles.recoverySafetyText}>This app helps track symptoms and trends. It does not replace medical care.</Text>
-        <View style={styles.recoveryActionRow}>
-          <Pressable
-            style={({ pressed }) => [styles.recoverySecondaryButton, { opacity: pressed ? 0.88 : 1 }]}
-            onPress={openRecoverySetup}
-            accessibilityRole="button"
-            accessibilityLabel="Edit what you're recovering from"
-          >
-            <Text style={styles.recoverySecondaryButtonText}>Edit focus</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.recoveryEndButton, { opacity: pressed ? 0.88 : 1 }]}
-            onPress={handleEndRecovery}
-            accessibilityRole="button"
-            accessibilityLabel={settings.sickMode ? "I'm better" : "End recovery tracking"}
-          >
-            <Text style={styles.recoveryEndButtonText}>{settings.sickMode ? "I’m better" : "End recovery"}</Text>
-          </Pressable>
-        </View>
-      </View>
-    </GlassView>
-  );
-
-  const renderRecoverySetupCard = () => (
-    <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.recoveryCardGlass, themeId === "light" && styles.recoveryCardLight]}>
-      <View style={styles.recoveryCardInner}>
-        <View style={styles.recoveryCardHeader}>
+  const renderHealthSnapshotCard = () => (
+    <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={[styles.healthSnapshotGlass, themeId === "light" && styles.healthSnapshotLight]}>
+      <View style={styles.healthSnapshotInner}>
+        <View style={styles.healthSnapshotHeader}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.recoveryCardTitle}>Recovery Tracking</Text>
-            <Text style={styles.recoveryCardSubtitle}>
-              Turn this on only when it’s actually relevant. We’ll use it to connect your vitals, symptoms, meds, and daily check-ins.
-            </Text>
-          </View>
-        </View>
-
-        <Pressable
-          style={({ pressed }) => [styles.recoverySetupButton, { opacity: pressed ? 0.88 : 1 }]}
-          onPress={openRecoverySetup}
-          accessibilityRole="button"
-          accessibilityLabel="Set up recovery tracking"
-        >
-          <Ionicons name="bandage-outline" size={18} color="#fff" />
-          <Text style={styles.recoverySetupButtonText}>What are you recovering from?</Text>
-        </Pressable>
-      </View>
-    </GlassView>
-  );
-
-  const renderTodayAtAGlanceCard = () => (
-    <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.glanceCardGlass, themeId === "light" && styles.glanceCardLight]}>
-      <View style={styles.glanceCardInner}>
-        <View style={styles.glanceCardHeader}>
-          <View style={styles.glanceCardTitleWrap}>
-            <Text style={styles.glanceCardTitle}>Today at a glance</Text>
-            <Text style={styles.glanceCardSubtitle}>A quick reflection based on what you logged today.</Text>
-          </View>
-        </View>
-
-        <View style={styles.glanceLines}>
-          <Text style={styles.glanceLine}>{todayAtAGlance.medicationLine}</Text>
-          {todayAtAGlance.symptomsLine ? (
-            <Text style={styles.glanceLine}>{todayAtAGlance.symptomsLine}</Text>
-          ) : null}
-          <Text style={styles.glanceInsight}>{todayAtAGlance.insightLine}</Text>
-        </View>
-      </View>
-    </GlassView>
-  );
-
-  const renderThisWeekCard = () => (
-    <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.weekCardGlass, themeId === "light" && styles.glanceCardLight]}>
-      <View style={styles.weekCardInner}>
-        <View style={styles.weekCardHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.weekCardTitle}>This Week</Text>
-            <Text style={styles.weekCardSubtitle}>Simple insights from your meds, hydration, appointments, and symptoms.</Text>
+            <Text style={styles.healthSnapshotTitle}>Health Snapshot</Text>
+            <Text style={styles.healthSnapshotSubtitle}>Recovery, today, and this week in one view.</Text>
           </View>
           <View style={styles.weekIconBadge}>
             <Ionicons name="sparkles-outline" size={17} color={C.tint} />
           </View>
         </View>
 
-        <View style={styles.weekMetricGrid}>
-          <View style={styles.weekMetricTile}>
-            <Text style={styles.weekMetricLabel}>Med adherence</Text>
-            <Text style={styles.weekMetricValue}>
-              {weeklySummary.adherencePercent == null ? "—" : `${weeklySummary.adherencePercent}%`}
-            </Text>
-            <Text style={styles.weekMetricMeta}>{weeklySummary.totalTaken}/{weeklySummary.totalScheduled} doses</Text>
+        <View style={styles.snapshotSection}>
+          <View style={styles.snapshotSectionHeader}>
+            <Text style={styles.snapshotSectionLabel}>Recovery</Text>
+            {hasRecoveryTracking ? (
+              <View style={[styles.recoveryStatusPill, { backgroundColor: recoveryStatusTone + "1F", borderColor: recoveryStatusTone + "44" }]}>
+                <Text style={styles.recoveryStatusText}>{recoverySummary.statusLabel}</Text>
+              </View>
+            ) : null}
           </View>
-          <View style={styles.weekMetricTile}>
-            <Text style={styles.weekMetricLabel}>Hydration</Text>
-            <Text style={styles.weekMetricValue}>{Math.round(weeklySummary.averageHydrationMl / 100) / 10}L</Text>
-            <Text style={styles.weekMetricMeta}>avg / day</Text>
-          </View>
-          <View style={styles.weekMetricTile}>
-            <Text style={styles.weekMetricLabel}>Appointments</Text>
-            <Text style={styles.weekMetricValue}>{weeklySummary.appointmentCount}</Text>
-            <Text style={styles.weekMetricMeta}>
-              {weeklySummary.nextUpcomingAppointment
-                ? `${formatDate(weeklySummary.nextUpcomingAppointment.date)}`
-                : "none upcoming"}
-            </Text>
+          {hasRecoveryTracking ? (
+            <>
+              <Text style={styles.snapshotPrimaryText}>
+                {profile.recoveryFocus?.trim()
+                  ? `Recovering from ${profile.recoveryFocus.trim()}. ${recoverySummary.summaryText}`
+                  : recoverySummary.summaryText}
+              </Text>
+              <Pressable
+                style={({ pressed }) => [styles.snapshotInsightPill, { opacity: pressed ? 0.9 : 1 }]}
+                onPress={() => onNavigate("reports")}
+                accessibilityRole="button"
+                accessibilityLabel="Open recovery reports"
+              >
+                <Ionicons name="sparkles-outline" size={15} color={C.tint} />
+                <Text style={styles.snapshotInsightText}>{recoverySummary.insights[0]}</Text>
+              </Pressable>
+              <View style={styles.recoveryActionRow}>
+                <Pressable
+                  style={({ pressed }) => [styles.recoverySecondaryButton, { opacity: pressed ? 0.88 : 1 }]}
+                  onPress={openRecoverySetup}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit what you're recovering from"
+                >
+                  <Text style={styles.recoverySecondaryButtonText}>Edit focus</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.recoveryEndButton, { opacity: pressed ? 0.88 : 1 }]}
+                  onPress={handleEndRecovery}
+                  accessibilityRole="button"
+                  accessibilityLabel={settings.sickMode ? "I'm better" : "End recovery tracking"}
+                >
+                  <Text style={styles.recoveryEndButtonText}>{settings.sickMode ? "I’m better" : "End recovery"}</Text>
+                </Pressable>
+              </View>
+            </>
+          ) : (
+            <Pressable
+              style={({ pressed }) => [styles.recoverySetupCompact, { opacity: pressed ? 0.9 : 1 }]}
+              onPress={openRecoverySetup}
+              accessibilityRole="button"
+              accessibilityLabel="Set up recovery tracking"
+            >
+              <View style={styles.recoverySetupIcon}>
+                <Ionicons name="bandage-outline" size={18} color={C.tint} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.snapshotPrimaryText}>Ouch, what’s going on?</Text>
+                <Text style={styles.snapshotSecondaryText}>Tell Synapse what you’re recovering from.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
+            </Pressable>
+          )}
+        </View>
+
+        <View style={styles.snapshotDivider} />
+
+        <View style={styles.snapshotSection}>
+          <Text style={styles.snapshotSectionLabel}>Today</Text>
+          <View style={styles.glancePanel}>
+            <View style={styles.glanceRow}>
+              <View style={styles.glanceIconBubble}>
+                <Ionicons name="medical-outline" size={16} color={C.tint} />
+              </View>
+              <Text style={styles.glanceLine}>{todayAtAGlance.medicationLine}</Text>
+            </View>
+            {todayAtAGlance.symptomsLine ? (
+              <View style={styles.glanceRow}>
+                <View style={styles.glanceIconBubble}>
+                  <Ionicons name="pulse-outline" size={16} color={C.orange} />
+                </View>
+                <Text style={styles.glanceLine}>{todayAtAGlance.symptomsLine}</Text>
+              </View>
+            ) : null}
+            <View style={[styles.glanceRow, styles.glanceInsightRow]}>
+              <View style={styles.glanceInsightBubble}>
+                <Ionicons name="sparkles-outline" size={16} color={C.purple} />
+              </View>
+              <Text style={styles.glanceInsight}>{todayAtAGlance.insightLine}</Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.weekInsightBox}>
-          <Text style={styles.weekInsightText}>{weeklySummary.insight}</Text>
-          {weeklySummary.topSymptom ? (
-            <Text style={styles.weekInsightMeta}>Most frequent symptom: {weeklySummary.topSymptom}</Text>
-          ) : null}
+        <View style={styles.snapshotDivider} />
+
+        <View style={styles.snapshotSection}>
+          <View style={styles.snapshotSectionHeader}>
+            <Text style={styles.snapshotSectionLabel}>This week</Text>
+            <Text style={styles.snapshotSectionMeta}>Meds, hydration, visits</Text>
+          </View>
+          <View style={styles.weekMetricGrid}>
+            <Pressable
+              style={({ pressed }) => [styles.weekMetricTile, pressed && styles.snapshotPressed]}
+              onPress={() => onNavigate("medications")}
+              accessibilityRole="button"
+              accessibilityLabel="Open medications"
+            >
+              <Text style={styles.weekMetricLabel}>Med adherence</Text>
+              <Text style={styles.weekMetricValue}>
+                {weeklySummary.adherencePercent == null ? "—" : `${weeklySummary.adherencePercent}%`}
+              </Text>
+              <Text style={styles.weekMetricMeta}>{weeklySummary.totalTaken}/{weeklySummary.totalScheduled} doses</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.weekMetricTile, pressed && styles.snapshotPressed]}
+              onPress={() => onNavigate("eating")}
+              accessibilityRole="button"
+              accessibilityLabel="Open hydration"
+            >
+              <Text style={styles.weekMetricLabel}>Hydration</Text>
+              <Text style={styles.weekMetricValue}>{Math.round(weeklySummary.averageHydrationMl / 100) / 10}L</Text>
+              <Text style={styles.weekMetricMeta}>avg / day</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.weekMetricTile, pressed && styles.snapshotPressed]}
+              onPress={() => onNavigate("appointments")}
+              accessibilityRole="button"
+              accessibilityLabel="Open appointments"
+            >
+              <Text style={styles.weekMetricLabel}>Appointments</Text>
+              <Text style={styles.weekMetricValue}>{weeklySummary.appointmentCount}</Text>
+              <Text style={styles.weekMetricMeta}>
+                {weeklySummary.nextUpcomingAppointment
+                  ? `${formatDate(weeklySummary.nextUpcomingAppointment.date)}`
+                  : "none upcoming"}
+              </Text>
+            </Pressable>
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [styles.weekInsightBox, pressed && styles.snapshotPressed]}
+            onPress={() => onNavigate("reports")}
+            accessibilityRole="button"
+            accessibilityLabel="Open reports"
+          >
+            <Text style={styles.weekInsightText}>{weeklySummary.insight}</Text>
+            {weeklySummary.topSymptom ? (
+              <Text style={styles.weekInsightMeta}>Most frequent symptom: {weeklySummary.topSymptom}</Text>
+            ) : null}
+          </Pressable>
         </View>
       </View>
     </GlassView>
@@ -1190,32 +1166,32 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   );
 
   const contentPadding = {
-    paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + (modeUI.isSimpleMode ? 18 : 12)),
+    paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 12),
     paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
   };
   const simpleModeBottomBleed = Platform.OS === "web" ? 108 : insets.bottom + 96;
   const fabBottom = Platform.OS === "web"
-    ? (modeUI.isSimpleMode ? 132 : 100)
-    : modeUI.isSimpleMode ? insets.bottom + 108 : insets.bottom + 8;
+    ? (modeUI.isSimpleMode ? 132 : 148)
+    : modeUI.isSimpleMode ? insets.bottom + 108 : insets.bottom + 154;
   const fab = modeUI.isSimpleMode ? null : (
     <Pressable
       style={({ pressed }) => [styles.fab, { bottom: fabBottom, opacity: pressed ? 0.85 : 1 }]}
       onPress={() => {
         Haptics.selectionAsync();
-        onNavigate("emergency");
+        onNavigate("emergencycard");
       }}
       accessibilityRole="button"
-      accessibilityLabel="Emergency Protocol"
-      accessibilityHint="View critical medical information"
+      accessibilityLabel="Emergency Card"
+      accessibilityHint="Open critical medical information"
     >
-      <Ionicons name="medkit" size={28} color="#fff" />
+      <Ionicons name="medical-outline" size={22} color={C.red} />
     </Pressable>
   );
   const isLightTheme = themeId === "light";
 
   if (!loaded) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center", backgroundColor: C.background }]}>
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center", backgroundColor: "transparent" }]}>
         <ActivityIndicator size="large" color={C.tint} />
         <Text style={[styles.dateText, { marginTop: 12 }]}>Loading…</Text>
       </View>
@@ -1283,7 +1259,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               </Pressable>
             </View>
 
-            {renderThisWeekCard()}
+            {renderHealthSnapshotCard()}
           </View>
         </ScrollView>
         {fab}
@@ -1317,59 +1293,10 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             nextApt={nextApt ?? null}
             getOwnerMeta={getOwnerMeta}
             onNavigate={onNavigate}
+            dailyLogRef={refDailyLog}
             medicationCardRef={refMed}
             appointmentCardRef={refApt}
           />
-
-          <View ref={refDailyLog} collapsable={false}>
-          <GlassView
-            intensity={50}
-            tint={themeId === "dark" ? "dark" : "light"}
-            style={[styles.moodCardGlass, themeId === "light" && styles.moodCardLight]}
-          >
-            <View style={styles.ramadanWeekStrip}>
-              {Array.from({ length: 7 }).map((_, idx) => {
-                const start = Math.max(1, (ramadanDay.hijriDay ?? 1) - 3);
-                const dayNum = start + idx;
-                if (dayNum > 30) return null;
-                const isToday = dayNum === ramadanDay.hijriDay;
-                return (
-                  <View
-                    key={dayNum}
-                    style={[
-                      styles.ramadanWeekDay,
-                      isToday && styles.ramadanWeekDayActive,
-                    ]}
-                  >
-                    <Ionicons
-                      name="sunny-outline"
-                      size={13}
-                      color={isToday ? "#2D1340" : C.textTertiary}
-                      style={{ marginBottom: 2 }}
-                    />
-                    <Text style={isToday ? styles.ramadanWeekDayTextActive : styles.ramadanWeekDayText}>{dayNum}</Text>
-                  </View>
-                );
-              })}
-            </View>
-
-            <View style={styles.moodDivider} />
-
-            <Pressable
-              style={styles.moodFeelingRow}
-              onPress={() => onNavigate("log")}
-              accessibilityRole="button"
-              accessibilityLabel="How are you feeling today?"
-              accessibilityHint="Opens the daily log screen"
-            >
-              <View>
-                <Text style={styles.feelingTitle}>How are you feeling today?</Text>
-                <Text style={styles.feelingSubtitle}>Tap to log today&apos;s energy, mood, and sleep.</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={C.tint} />
-            </Pressable>
-          </GlassView>
-          </View>
 
           {settings.ramadanMode && (
             <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.feelingCardGlass, themeId === "light" && styles.feelingCardLight]}>
@@ -1400,11 +1327,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         </View>
       )}
 
-      {hasRecoveryTracking ? renderRecoverySummaryCard() : renderRecoverySetupCard()}
-
-      {renderTodayAtAGlanceCard()}
-
-      {renderThisWeekCard()}
+      {renderHealthSnapshotCard()}
 
       <View style={[styles.grid, isWide && styles.gridWide]}>
         {featureFlags.documentScannerEnabled && (
@@ -1458,7 +1381,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     if (isLightTheme) {
       return (
         <LinearGradient
-          colors={["#C9D8F6", "#BFD2F0", "#B7E3D9"]}
+          colors={["#F5F1EA", "#ECEDE5", "#E0EAE0"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.gradientContainer}
@@ -1485,8 +1408,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       <Modal visible={showRecoverySetup} animationType="fade" transparent onRequestClose={() => setShowRecoverySetup(false)}>
         <View style={styles.recoveryModalBackdrop}>
           <View style={styles.recoveryModalCard}>
-            <Text style={styles.recoveryModalTitle}>Recovery Tracking</Text>
-            <Text style={styles.recoveryModalSubtitle}>What are you recovering from?</Text>
+            <Text style={styles.recoveryModalTitle}>Ouch, what’s going on?</Text>
+            <Text style={styles.recoveryModalSubtitle}>Tell Synapse what recovery tracking is for.</Text>
             <TextInput
               value={recoveryFocusInput}
               onChangeText={setRecoveryFocusInput}
@@ -1529,7 +1452,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   if (isLightTheme) {
     return (
       <LinearGradient
-        colors={["#C9D8F6", "#BFD2F0", "#B7E3D9"]}
+        colors={["#F5F1EA", "#ECEDE5", "#E0EAE0"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradientContainer}
@@ -1547,21 +1470,15 @@ function makeHeroStyles(C: Theme) {
     dashboardHero: {
       marginTop: 12,
       marginBottom: 16,
-      borderRadius: 20,
-      borderWidth: 1,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.08,
-      shadowRadius: 6,
-      elevation: 6,
+      borderRadius: 30,
       overflow: "hidden",
     },
     dashboardHeroGradient: {
-      borderRadius: 20,
-      padding: 20,
+      borderRadius: 30,
+      padding: 22,
     },
     dashboardHeroHeader: {
-      marginBottom: 16,
+      marginBottom: 12,
     },
     dashboardHeroRamadan: {
       fontWeight: "700",
@@ -1570,14 +1487,16 @@ function makeHeroStyles(C: Theme) {
       marginBottom: 4,
     },
     dashboardHeroSubtitle: {
-      fontWeight: "400",
-      fontSize: 13,
-      color: C.textSecondary,
+      fontWeight: "900",
+      fontSize: 22,
+      color: C.text,
+      letterSpacing: -0.5,
     },
     dashboardHeroTimesRow: {
       flexDirection: "row",
       justifyContent: "space-between",
-      marginBottom: 20,
+      marginTop: 14,
+      marginBottom: 16,
     },
     dashboardHeroTimeCol: {
       flex: 1,
@@ -1597,18 +1516,56 @@ function makeHeroStyles(C: Theme) {
     },
     dashboardHeroMiniRow: {
       flexDirection: "row",
+      marginTop: 16,
       gap: 12,
     },
     dashboardHeroMiniCard: {
       flex: 1,
-      borderRadius: 16,
-      padding: 12,
+      borderRadius: 20,
+      padding: 14,
       borderWidth: 1,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.04,
-      shadowRadius: 6,
-      elevation: 2,
+      shadowColor: "#8C7A70",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.1,
+      shadowRadius: 18,
+      elevation: 5,
+    },
+    dashboardHeroCheckIn: {
+      minHeight: 64,
+      borderRadius: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderWidth: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      shadowColor: "#8C7A70",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.08,
+      shadowRadius: 16,
+      elevation: 4,
+    },
+    dashboardHeroCheckInIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(127,127,127,0.12)",
+    },
+    dashboardHeroCheckInText: {
+      flex: 1,
+      minWidth: 0,
+    },
+    dashboardHeroCheckInTitle: {
+      fontWeight: "700",
+      fontSize: 14,
+      color: C.text,
+    },
+    dashboardHeroCheckInSubtitle: {
+      marginTop: 2,
+      fontWeight: "500",
+      fontSize: 12,
     },
     dashboardHeroOwnerChip: {
       flexDirection: "row",
@@ -1641,11 +1598,12 @@ function makeHeroStyles(C: Theme) {
   });
 }
 
-function makeStyles(C: Theme, textScale: number) {
+function makeStyles(C: Theme, textScale: number, themeId: string) {
   const size = (base: number) => Math.round(base * textScale * 100) / 100;
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
     gradientContainer: { flex: 1, width: "100%", height: "100%" },
-    container: { flex: 1, minHeight: 1, backgroundColor: C.background },
+    container: { flex: 1, minHeight: 1, backgroundColor: "transparent" },
     scrollView: { flex: 1, minHeight: 1 },
     scrollViewContent: { flexGrow: 1 },
     content: { paddingHorizontal: 0 },
@@ -1677,14 +1635,10 @@ function makeStyles(C: Theme, textScale: number) {
       paddingHorizontal: 18,
       paddingTop: 20,
       paddingBottom: 18,
-      backgroundColor: "rgba(255,255,255,0.82)",
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.28)",
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.72)",
-      shadowColor: "#6A7BB4",
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.12,
-      shadowRadius: 22,
-      elevation: 6,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.74)",
+      ...raised("md", "#6A7BB4"),
       gap: 14,
     },
     simpleAddSheet: {
@@ -1698,11 +1652,7 @@ function makeStyles(C: Theme, textScale: number) {
       borderWidth: 1,
       borderColor: C.border,
       gap: 12,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.16,
-      shadowRadius: 20,
-      elevation: 8,
+      ...raised("lg"),
     },
     simpleAddSheetTitle: {
       fontWeight: "800",
@@ -1785,11 +1735,11 @@ function makeStyles(C: Theme, textScale: number) {
     simpleDashboardPrimaryButton: {
       minHeight: 58,
       borderRadius: 18,
-      backgroundColor: "#3F6EE8",
+      backgroundColor: C.tint,
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: 18,
-      shadowColor: "#3F6EE8",
+      shadowColor: C.tint,
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.2,
       shadowRadius: 16,
@@ -1831,7 +1781,7 @@ function makeStyles(C: Theme, textScale: number) {
       paddingVertical: 6,
       paddingHorizontal: 10,
       borderRadius: 999,
-      backgroundColor: "#3F6EE8",
+      backgroundColor: C.tint,
     },
     simpleDashboardTodayBadgeText: {
       fontWeight: "800",
@@ -1849,11 +1799,11 @@ function makeStyles(C: Theme, textScale: number) {
       width: 60,
       height: 60,
       borderRadius: 18,
-      backgroundColor: "#E9F0FF",
+      backgroundColor: "rgba(255,255,255,0.48)",
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1,
-      borderColor: "#D5E1FF",
+      borderColor: "rgba(255,255,255,0.74)",
     },
     simpleDashboardAppointmentTextWrap: {
       flex: 1,
@@ -1933,26 +1883,6 @@ function makeStyles(C: Theme, textScale: number) {
     ramadanTimeValue: { fontWeight: "600", fontSize: 16, color: C.text, marginTop: 2 },
     ramadanDivider: { width: 1, height: 32, backgroundColor: C.border, marginHorizontal: 12 },
     ramadanCountdownText: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 4 },
-    ramadanWeekStrip: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      backgroundColor: C.surface,
-      borderRadius: 16,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      width: "100%",
-    },
-    ramadanWeekDay: {
-      width: 28,
-      height: 32,
-      borderRadius: 16,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    ramadanWeekDayActive: { backgroundColor: "#F6C94D" },
-    ramadanWeekDayText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
-    ramadanWeekDayTextActive: { fontWeight: "700", fontSize: 12, color: "#2D1340" },
     ramadanQuoteCard: {},
     ramadanQuoteCardGlass: {
       marginTop: 12,
@@ -2005,43 +1935,13 @@ function makeStyles(C: Theme, textScale: number) {
     ramadanNextAptName: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
     ramadanNextAptMeta: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
     ramadanNextAptLocation: { fontWeight: "500", fontSize: 11, color: C.tint, marginTop: 2 },
-    moodCard: {},
-    moodCardGlass: {
-      marginTop: 12,
-      marginBottom: 12,
-      borderRadius: 20,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.08,
-      shadowRadius: 6,
-      elevation: 6,
-      overflow: "hidden",
-    },
-    moodCardLight: {},
-    moodDivider: {
-      height: 1,
-      backgroundColor: "rgba(0,0,0,0.08)",
-      marginVertical: 10,
-    },
-    moodFeelingRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
     feelingCard: {},
     feelingCardGlass: {
       marginTop: 0,
       marginBottom: 12,
-      borderRadius: 20,
+      borderRadius: 28,
       paddingHorizontal: 16,
       paddingVertical: 14,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.08,
-      shadowRadius: 6,
-      elevation: 6,
       overflow: "hidden",
     },
     feelingCardLight: {},
@@ -2049,6 +1949,58 @@ function makeStyles(C: Theme, textScale: number) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
+    },
+    healthSnapshotGlass: {
+      borderRadius: 30,
+      paddingHorizontal: 18,
+      paddingVertical: 18,
+      overflow: "hidden",
+    },
+    healthSnapshotLight: {},
+    healthSnapshotInner: { gap: 14 },
+    healthSnapshotHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
+    healthSnapshotTitle: { fontWeight: "900", fontSize: 22, color: C.text, letterSpacing: -0.5 },
+    healthSnapshotSubtitle: { marginTop: 4, fontWeight: "500", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
+    snapshotSection: { gap: 10 },
+    snapshotSectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+    snapshotSectionLabel: { fontWeight: "800", fontSize: 12, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 1.2 },
+    snapshotSectionMeta: { fontWeight: "700", fontSize: 11, color: C.textTertiary },
+    snapshotPrimaryText: { fontWeight: "700", fontSize: 14, color: C.text, lineHeight: 20 },
+    snapshotSecondaryText: { marginTop: 3, fontWeight: "500", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
+    snapshotDivider: { height: 1, backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.58)" },
+    snapshotInsightPill: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 8,
+      borderRadius: 18,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.48)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.72)",
+    },
+    snapshotInsightText: { flex: 1, fontWeight: "600", fontSize: 13, color: C.text, lineHeight: 18 },
+    snapshotPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
+    recoverySetupCompact: {
+      minHeight: 74,
+      borderRadius: 22,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      padding: 12,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.5)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.74)",
+    },
+    recoverySetupIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.tintLight,
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.72)",
     },
     recoveryCardGlass: {
       borderRadius: 20,
@@ -2069,10 +2021,10 @@ function makeStyles(C: Theme, textScale: number) {
     recoveryStatusPill: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
     recoveryStatusText: { fontWeight: "700", fontSize: 11, color: C.text },
     recoveryMetricsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
-    recoveryMetricCard: { width: "48%", backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 12, minHeight: 88 },
+    recoveryMetricCard: { width: "48%", backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 12, minHeight: 88, ...raised("sm") },
     recoveryMetricLabel: { fontWeight: "600", fontSize: 11, color: C.textSecondary, marginBottom: 6 },
     recoveryMetricValue: { fontWeight: "600", fontSize: 13, color: C.text, lineHeight: 18 },
-    recoveryInsightBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 12, marginBottom: 10 },
+    recoveryInsightBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 12, marginBottom: 10, ...raised("sm") },
     recoveryInsightText: { flex: 1, fontWeight: "500", fontSize: 13, color: C.text, lineHeight: 18 },
     recoverySafetyText: { fontWeight: "400", fontSize: 12, color: C.textTertiary, lineHeight: 17 },
     recoveryActionRow: { marginTop: 12, flexDirection: "row", flexWrap: "wrap", gap: 10 },
@@ -2082,8 +2034,8 @@ function makeStyles(C: Theme, textScale: number) {
     recoveryEndButtonText: { fontWeight: "700", fontSize: 13, color: C.red },
     recoverySetupButton: { marginTop: 6, backgroundColor: C.tint, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
     recoverySetupButtonText: { fontWeight: "700", fontSize: 14, color: "#fff" },
-    recoveryModalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", alignItems: "center", justifyContent: "center", padding: 24 },
-    recoveryModalCard: { width: "100%", maxWidth: 420, backgroundColor: C.surface, borderRadius: 22, padding: 20, borderWidth: 1, borderColor: C.border },
+    recoveryModalBackdrop: { flex: 1, backgroundColor: modalOverlay(), alignItems: "center", justifyContent: "center", padding: 24 },
+    recoveryModalCard: { width: "100%", maxWidth: 420, backgroundColor: solidModalSurface, borderRadius: 22, padding: 20, borderWidth: 1, borderColor: C.border, ...raised("lg") },
     recoveryModalTitle: { fontWeight: "700", fontSize: 24, color: C.text, letterSpacing: -0.4, marginBottom: 8 },
     recoveryModalSubtitle: { fontWeight: "600", fontSize: 14, color: C.textSecondary, marginBottom: 14 },
     recoveryModalInput: { marginBottom: 12 },
@@ -2112,8 +2064,51 @@ function makeStyles(C: Theme, textScale: number) {
     glanceCardTitle: { fontWeight: "700", fontSize: 18, color: C.text, letterSpacing: -0.3 },
     glanceCardSubtitle: { fontWeight: "400", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
     glanceLines: { gap: 8 },
-    glanceLine: { fontWeight: "500", fontSize: 13, color: C.text, lineHeight: 18 },
-    glanceInsight: { fontWeight: "600", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
+    glancePanel: {
+      gap: 9,
+      borderRadius: 20,
+      padding: 10,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.075)" : "rgba(255,255,255,0.56)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.78)",
+      ...raised("sm", C.tint),
+    },
+    glanceRow: {
+      minHeight: 48,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      borderRadius: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,253,248,0.88)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.9)",
+    },
+    glanceInsightRow: {
+      backgroundColor: themeId === "dark" ? "rgba(151,117,250,0.14)" : "rgba(126,87,194,0.09)",
+      borderColor: themeId === "dark" ? "rgba(151,117,250,0.24)" : "rgba(126,87,194,0.16)",
+    },
+    glanceIconBubble: {
+      width: 32,
+      height: 32,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : C.tintLight,
+      flexShrink: 0,
+    },
+    glanceInsightBubble: {
+      width: 32,
+      height: 32,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.purpleLight,
+      flexShrink: 0,
+    },
+    glanceLine: { flex: 1, fontWeight: "700", fontSize: 13, color: C.text, lineHeight: 18 },
+    glanceInsight: { flex: 1, fontWeight: "700", fontSize: 13, color: C.text, lineHeight: 18 },
     weekCardGlass: {
       borderRadius: 20,
       paddingHorizontal: 16,
@@ -2131,11 +2126,28 @@ function makeStyles(C: Theme, textScale: number) {
     weekCardSubtitle: { marginTop: 4, fontWeight: "500", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
     weekIconBadge: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.border },
     weekMetricGrid: { flexDirection: "row", gap: 8 },
-    weekMetricTile: { flex: 1, minHeight: 92, borderRadius: 14, padding: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "space-between" },
+    weekMetricTile: {
+      flex: 1,
+      minHeight: 92,
+      borderRadius: 18,
+      padding: 10,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.28)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.82)",
+      justifyContent: "space-between",
+      ...raised("sm"),
+    },
     weekMetricLabel: { fontWeight: "700", fontSize: 11, color: C.textSecondary },
     weekMetricValue: { fontWeight: "800", fontSize: 22, color: C.text, letterSpacing: -0.4 },
     weekMetricMeta: { fontWeight: "600", fontSize: 11, color: C.textTertiary, lineHeight: 15 },
-    weekInsightBox: { borderRadius: 14, padding: 12, backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.border },
+    weekInsightBox: {
+      borderRadius: 18,
+      padding: 12,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.22)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.82)",
+      ...raised("sm"),
+    },
     weekInsightText: { fontWeight: "800", fontSize: 14, color: C.text, lineHeight: 19 },
     weekInsightMeta: { marginTop: 4, fontWeight: "600", fontSize: 12, color: C.textSecondary, lineHeight: 17 },
     feelingTitle: { fontWeight: "600", fontSize: 14, color: C.text },
@@ -2196,19 +2208,21 @@ function makeStyles(C: Theme, textScale: number) {
     reportBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
     fab: {
       position: "absolute",
-      right: 20,
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: C.tint,
+      left: 20,
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: themeId === "dark" ? "rgba(255,59,48,0.16)" : C.surface,
+      borderWidth: 1.5,
+      borderColor: C.red,
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: "#000",
+      shadowColor: C.red,
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.35,
-      shadowRadius: 10,
-      elevation: 8,
-      zIndex: 30,
+      shadowOpacity: 0.16,
+      shadowRadius: 8,
+      elevation: 4,
+      zIndex: 28,
     },
   });
 }

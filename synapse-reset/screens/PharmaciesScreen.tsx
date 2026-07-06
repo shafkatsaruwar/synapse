@@ -6,8 +6,10 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { pharmacyStorage, type Pharmacy } from "@/lib/storage";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 interface PharmaciesScreenProps {
   onBack: () => void;
@@ -100,7 +102,7 @@ export default function PharmaciesScreen({ onBack }: PharmaciesScreenProps) {
     ]);
   };
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
+  const topPad = Platform.OS === "web" ? 40 : 14;
 
   return (
     <View style={styles.container}>
@@ -237,25 +239,26 @@ export default function PharmaciesScreen({ onBack }: PharmaciesScreenProps) {
 }
 
 function makeStyles(C: Theme) {
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingBottom: 16 },
     backBtn: { marginRight: 12, padding: 4 },
     title: { flex: 1, fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
-    addBtn: { width: 48, height: 48, borderRadius: 16, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+    addBtn: { width: 48, height: 48, borderRadius: 16, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", ...raised("md", C.tint) },
     scroll: { flex: 1 },
     content: { paddingHorizontal: 24, paddingBottom: 24 },
     hint: { fontSize: 13, color: C.textTertiary, marginBottom: 20 },
     empty: { alignItems: "center", paddingVertical: 80, gap: 8 },
     emptyTitle: { fontWeight: "600", fontSize: 17, color: C.text, marginTop: 16 },
     emptyDesc: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginTop: 8, textAlign: "center" },
-    card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: C.border },
+    card: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: C.border, ...raised("md", "#55718F") },
     cardTitle: { fontWeight: "700", fontSize: 16, color: C.text },
     cardMeta: { fontSize: 13, color: C.textSecondary, marginTop: 2 },
     cardActions: { flexDirection: "row", alignItems: "center", gap: 10 },
     iconBtn: { padding: 2 },
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
-    modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: C.border },
+    overlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", alignItems: "center", padding: 24 },
+    modal: { backgroundColor: solidModalSurface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: C.border, ...raised("lg", "#24364F") },
     modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
     label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
     input: { fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },

@@ -234,7 +234,7 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
     </ViewShot>
   );
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
+  const topPad = Platform.OS === "web" ? 40 : 14;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 24;
 
   return (

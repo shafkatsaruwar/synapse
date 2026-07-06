@@ -5,6 +5,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { exportAllData, clearAllData } from "@/lib/storage";
 import { getBiometricLockEnabled, setBiometricLockEnabled } from "@/lib/biometric-storage";
@@ -67,7 +68,7 @@ export default function PrivacyScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, {
-      paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16),
+      paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
       paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
     }]} showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>Privacy & Data</Text>
@@ -184,14 +185,14 @@ function makeStyles(C: Theme) {
     content: { paddingHorizontal: 24 },
     title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
     subtitle: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 24 },
-    card: { backgroundColor: C.surface, borderRadius: 14, padding: 18, marginBottom: 10, borderWidth: 1, borderColor: C.border },
+    card: { backgroundColor: C.surface, borderRadius: 14, padding: 18, marginBottom: 10, borderWidth: 1, borderColor: C.border, ...raised("md", "#55718F") },
     featureRow: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
     featureIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
     featureTitle: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 4 },
     featureDesc: { fontWeight: "400", fontSize: 12, color: C.textSecondary, lineHeight: 17 },
     divider: { height: 1, backgroundColor: C.border, marginVertical: 20 },
     sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 14 },
-    actionBtn: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: C.border },
+    actionBtn: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: C.border, ...raised("sm", "#55718F") },
     dangerAction: { borderColor: "rgba(255,69,58,0.2)" },
     actionIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
     actionTitle: { fontWeight: "600", fontSize: 14, color: C.text },
@@ -200,7 +201,7 @@ function makeStyles(C: Theme) {
     backupMetaLabel: { fontWeight: "600", fontSize: 12, color: C.textSecondary, marginBottom: 4 },
     backupMetaValue: { fontWeight: "600", fontSize: 14, color: C.text },
     backupMetaFile: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 4 },
-    infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 16, marginTop: 16 },
+    infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 16, marginTop: 16, ...raised("sm", "#6A7BA0") },
     infoText: { fontWeight: "400", fontSize: 12, color: C.textTertiary, flex: 1, lineHeight: 17 },
   });
 }

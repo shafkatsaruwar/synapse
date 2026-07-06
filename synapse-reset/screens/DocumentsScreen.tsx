@@ -6,10 +6,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { raised } from "@/constants/raised";
 import { documentStorage, medicationStorage, medComparisonStorage, type DocumentExtraction } from "@/lib/storage";
 import { analyzeDocument, compareMedications } from "@/lib/api";
 import { formatDate, getToday } from "@/lib/date-utils";
 import { featureFlags } from "@/constants/feature-flags";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 const C = Colors.dark;
 
@@ -130,7 +132,7 @@ export default function DocumentsScreen() {
   return (
     <View style={styles.container}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, {
-        paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16),
+        paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
         paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
       }]} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Documents</Text>
@@ -349,7 +351,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 24 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
   subtitle: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 20 },
-  uploadCard: { backgroundColor: C.surface, borderRadius: 14, padding: 24, marginBottom: 16, borderWidth: 1, borderColor: C.tint, borderStyle: "dashed" },
+  uploadCard: { backgroundColor: C.surface, borderRadius: 14, padding: 24, marginBottom: 16, borderWidth: 1, borderColor: C.tint, borderStyle: "dashed", ...raised("md", C.tint) },
   uploadContent: { alignItems: "center" },
   uploadIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center", marginBottom: 12 },
   uploadTitle: { fontWeight: "600", fontSize: 16, color: C.text, marginBottom: 4 },
@@ -359,7 +361,7 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: "center", paddingVertical: 48 },
   emptyTitle: { fontWeight: "600", fontSize: 16, color: C.textSecondary, marginTop: 12 },
   emptySubtext: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 4, textAlign: "center", maxWidth: 260 },
-  docCard: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: C.border },
+  docCard: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: C.border, ...raised("sm", "#55718F") },
   docHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   docIconWrap: { width: 38, height: 38, borderRadius: 10, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
   docDate: { fontWeight: "600", fontSize: 13, color: C.text },
@@ -367,8 +369,8 @@ const styles = StyleSheet.create({
   docTags: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
   tag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   tagText: { fontWeight: "500", fontSize: 10 },
-  modalFull: { flex: 1, backgroundColor: C.background },
-  modalHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.surface },
+  modalFull: { flex: 1, backgroundColor: modalSurface(C) },
+  modalHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: modalSurface(C), ...raised("sm", "#55718F") },
   backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   modalHeaderTitle: { flex: 1, fontWeight: "600", fontSize: 16, color: C.text, textAlign: "center" },
   deleteBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
@@ -394,8 +396,8 @@ const styles = StyleSheet.create({
   labValue: { fontWeight: "600", fontSize: 14 },
   labFlag: { fontWeight: "500", fontSize: 10, textTransform: "uppercase", marginTop: 2 },
   instrNum: { fontWeight: "600", fontSize: 13, color: C.purple, minWidth: 20 },
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
-  compModal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, borderWidth: 1, borderColor: C.border },
+  overlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", alignItems: "center", padding: 24 },
+  compModal: { backgroundColor: modalSurface(C), borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, borderWidth: 1, borderColor: C.border, ...raised("lg", "#24364F") },
   compTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 6 },
   compSubtitle: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginBottom: 18, lineHeight: 18 },
   compSection: { marginBottom: 16 },

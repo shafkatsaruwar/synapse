@@ -10,13 +10,16 @@ import {
   appointmentStorage,
   settingsStorage,
   healthProfileStorage,
+  sickModeStorage,
   normalizeMedication,
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
+import { getHomeScreenBadgeCount } from "@/lib/nav-badge-counts";
 
 const REFILL_THRESHOLD = 5;
 const MEDICATION_CATEGORY = "MEDICATION_REMINDER";
 const SNOOZE_MINUTES = 10;
+const MISSED_MEDICATION_CHECK_IN_DAYS = 14;
 
 /** Default hour/minute for time-of-day labels when no explicit time is set. */
 export const DEFAULT_REMINDER_TIMES: Record<string, { hour: number; minute: number }> = {
@@ -33,6 +36,8 @@ export const NOTIFICATION_IDS = {
   prefixRefill: "refill",
   prefixAppointment: "appt",
   dailyCheckIn: "daily-checkin",
+  missedMedsCheckIn: "missed-meds-check-in",
+  recoveryCheckIn: "recovery-check-in",
   prefixHydration: "hydration",
   monthlyCheckIn: "monthly-checkin",
   screening: "screening-reminder",
@@ -43,6 +48,7 @@ export type NotificationNavigationTarget =
   | { screen: "appointments"; notificationType: "appointment"; appointmentId?: string }
   | { screen: "logtoday"; notificationType: "daily-checkin" }
   | { screen: "monthlycheckin"; notificationType: "monthly-checkin" }
+  | { screen: "sickmode"; notificationType: "recovery-check-in" }
   | { screen: "healthprofile"; notificationType: "screening" }
   | { screen: "hydration"; notificationType: "hydration" };
 
@@ -82,6 +88,62 @@ export function setNotificationHandler(): void {
       shouldShowList: true,
     }),
   });
+}
+
+export async function updateAppIconBadgeCount(): Promise<void> {
+  if (!isNative()) return;
+  try {
+    const count = await getHomeScreenBadgeCount();
+    await Notifications.setBadgeCountAsync(count);
+  } catch {
+    // Badge updates are best-effort; the app still works if badge permission is off.
+  }
+}
+
+export async function cancelRecoveryCheckIn(): Promise<void> {
+  if (!isNative()) return;
+  await cancelNotification(NOTIFICATION_IDS.recoveryCheckIn);
+}
+
+export async function syncRecoveryTrackingCheckIn(): Promise<void> {
+  if (!isNative()) return;
+  try {
+    await cancelRecoveryCheckIn();
+    const [settings, profile, sickMode] = await Promise.all([
+      settingsStorage.get(),
+      healthProfileStorage.get(),
+      sickModeStorage.get(),
+    ]);
+    const recoveryActive = profile.recoveryTrackingEnabled === true || settings.sickMode === true || sickMode.active === true;
+    if (!recoveryActive) return;
+
+    const startedAtRaw = sickMode.startedAt || profile.recoveryTrackingStartedAt;
+    if (!startedAtRaw) return;
+    const startedAt = new Date(startedAtRaw);
+    if (Number.isNaN(startedAt.getTime())) return;
+
+    let date = new Date(startedAt);
+    date.setDate(date.getDate() + 3);
+    date.setHours(10, 0, 0, 0);
+    if (date.getTime() <= Date.now()) {
+      date = new Date(Date.now() + 10 * 60 * 1000);
+    }
+
+    await Notifications.scheduleNotificationAsync({
+      identifier: NOTIFICATION_IDS.recoveryCheckIn,
+      content: {
+        title: "Hey, still not feeling better?",
+        body: "If recovery is dragging on, consider checking your symptoms or reaching out for support.",
+        data: { widgetTarget: "sickmode", notificationType: "recovery-check-in" },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date,
+      },
+    });
+  } catch (e) {
+    console.warn("syncRecoveryTrackingCheckIn failed", e);
+  }
 }
 
 /** Register medication reminder category with "Mark as Taken" and "Snooze 10 minutes". */
@@ -593,6 +655,73 @@ const HYDRATION_NOTIFICATION_BODIES = [
   "Take a breath, then take a sip.",
 ] as const;
 
+function getScheduledDoseCount(med: Awaited<ReturnType<typeof medicationStorage.getAll>>[number]): number {
+  const normalized = normalizeMedication(med);
+  return Math.max(1, normalized.doses?.length ?? 1);
+}
+
+async function cancelMissedMedicationCheckIns(): Promise<void> {
+  if (!isNative()) return;
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const toCancel = scheduled
+      .filter((item) => item.identifier === NOTIFICATION_IDS.missedMedsCheckIn || item.identifier.startsWith(`${NOTIFICATION_IDS.missedMedsCheckIn}-`))
+      .map((item) => item.identifier);
+    for (const id of toCancel) {
+      await Notifications.cancelScheduledNotificationAsync(id);
+    }
+  } catch {}
+}
+
+async function syncMissedMedicationCheckIn(): Promise<void> {
+  if (!isNative()) return;
+  try {
+    await cancelMissedMedicationCheckIns();
+    const today = getToday();
+    const [meds, logs] = await Promise.all([
+      medicationStorage.getAll(),
+      medicationLogStorage.getByDate(today),
+    ]);
+    const scheduledMeds = meds.filter((med) => med.active !== false && med.medicationType !== "prn");
+    if (scheduledMeds.length === 0) return;
+
+    const missedDoseCount = scheduledMeds
+      .reduce((total, med) => {
+        const doseCount = getScheduledDoseCount(med);
+        const takenCount = Array.from({ length: doseCount }, (_, doseIndex) =>
+          logs.some((log) => log.medicationId === med.id && (log.doseIndex ?? 0) === doseIndex && log.taken)
+        ).filter(Boolean).length;
+        return total + Math.max(0, doseCount - takenCount);
+      }, 0);
+
+    for (let dayOffset = 0; dayOffset < MISSED_MEDICATION_CHECK_IN_DAYS; dayOffset++) {
+      if (dayOffset === 0 && missedDoseCount <= 0) continue;
+      let date = new Date();
+      date.setDate(date.getDate() + dayOffset);
+      date.setHours(21, 0, 0, 0);
+      if (dayOffset === 0 && date.getTime() <= Date.now()) {
+        date = new Date(Date.now() + 10 * 60 * 1000);
+      }
+
+      const dayKey = date.toISOString().slice(0, 10);
+      await Notifications.scheduleNotificationAsync({
+        identifier: `${NOTIFICATION_IDS.missedMedsCheckIn}-${dayKey}`,
+        content: {
+          title: "Hey! Where have you been all day?",
+          body: "We missed you. You still have meds waiting in Synapse.",
+          data: { widgetTarget: "medications", notificationType: "missed-medications" },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date,
+        },
+      });
+    }
+  } catch (e) {
+    console.warn("syncMissedMedicationCheckIn failed", e);
+  }
+}
+
 export async function scheduleHydrationReminders(): Promise<void> {
   if (!isNative()) return;
   await cancelHydrationReminders();
@@ -787,6 +916,9 @@ function getNavigationTarget(
       doseIndex: data?.doseIndex,
     };
   }
+  if (id === NOTIFICATION_IDS.missedMedsCheckIn || id.startsWith(`${NOTIFICATION_IDS.missedMedsCheckIn}-`)) {
+    return { screen: "medications", notificationType: "medication" };
+  }
   if (id.startsWith("apt-") || id.startsWith("appt_")) {
     return {
       screen: "appointments",
@@ -799,6 +931,7 @@ function getNavigationTarget(
   }
   if (id === NOTIFICATION_IDS.dailyCheckIn) return { screen: "logtoday", notificationType: "daily-checkin" };
   if (id === NOTIFICATION_IDS.monthlyCheckIn) return { screen: "monthlycheckin", notificationType: "monthly-checkin" };
+  if (id === NOTIFICATION_IDS.recoveryCheckIn || data?.widgetTarget === "sickmode") return { screen: "sickmode", notificationType: "recovery-check-in" };
   if (id.startsWith(`${NOTIFICATION_IDS.screening}-`)) return { screen: "healthprofile", notificationType: "screening" };
   return null;
 }
@@ -836,7 +969,9 @@ export function addNotificationResponseListener(
     if (actionId === "MARK_TAKEN" && data?.medicationId != null) {
       const doseIndex = data.doseIndex ?? 0;
       const date = getToday();
-      medicationLogStorage.toggle(data.medicationId, date, doseIndex).catch(() => {});
+      medicationLogStorage.toggle(data.medicationId, date, doseIndex)
+        .then(() => Promise.all([updateAppIconBadgeCount(), syncMissedMedicationCheckIn()]))
+        .catch(() => {});
       onMarkTaken(data.medicationId, doseIndex);
     } else if (actionId === "SNOOZE" && data?.medicationId != null) {
       scheduleMedicationSnooze({
@@ -888,6 +1023,7 @@ export async function syncAllFromSettings(): Promise<void> {
       for (const med of meds) {
         await cancelMedicationReminders(med.id);
       }
+      await cancelMissedMedicationCheckIns();
     } else {
       for (const med of meds) {
         if (!med.active) {
@@ -954,6 +1090,7 @@ export async function syncAllFromSettings(): Promise<void> {
           await scheduleMedicationRefillReminder(med.id, med.name ?? "Medication", `${lowSupplyText}${refillText}`);
         }
       }
+      await syncMissedMedicationCheckIn();
     }
 
     if (!notifApt) {
@@ -997,6 +1134,8 @@ export async function syncAllFromSettings(): Promise<void> {
     }
 
     await scheduleAgeBasedScreeningReminder(profile.dateOfBirth);
+    await syncRecoveryTrackingCheckIn();
+    await updateAppIconBadgeCount();
   } catch (e) {
     console.warn("syncAllFromSettings failed", e);
   }

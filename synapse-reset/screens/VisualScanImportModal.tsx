@@ -23,6 +23,7 @@ import {
   recognizeTextFromImage,
   type VisualScanType,
 } from "@/lib/visual-scan";
+import { modalOverlay, modalSurface, modalSurfaceElevated } from "@/lib/modal-colors";
 
 type Props = {
   visible: boolean;
@@ -334,25 +335,27 @@ function Field({
 }
 
 function makeStyles(C: Theme) {
+  const surface = modalSurface(C);
+  const surfaceElevated = modalSurfaceElevated(C);
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.56)", justifyContent: "center", alignItems: "center", padding: 22 },
-    sheet: { width: "100%", maxWidth: 460, maxHeight: "88%", borderRadius: 22, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, padding: 22 },
+    overlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", alignItems: "center", padding: 22 },
+    sheet: { width: "100%", maxWidth: 460, maxHeight: "88%", borderRadius: 22, backgroundColor: surface, borderWidth: 1, borderColor: C.border, padding: 22 },
     header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 },
     eyebrow: { fontWeight: "800", fontSize: 11, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.6 },
     title: { fontWeight: "800", fontSize: 28, color: C.text, letterSpacing: -0.5 },
-    closeBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
-    segment: { flexDirection: "row", backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 3, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
+    closeBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: surfaceElevated, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+    segment: { flexDirection: "row", backgroundColor: surfaceElevated, borderRadius: 12, padding: 3, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
     segmentBtn: { flex: 1, borderRadius: 9, paddingVertical: 9, alignItems: "center" },
-    segmentBtnActive: { backgroundColor: C.surface },
+    segmentBtnActive: { backgroundColor: surface },
     segmentText: { fontWeight: "700", fontSize: 12, color: C.textSecondary },
     segmentTextActive: { color: C.text },
     scanRow: { flexDirection: "row", gap: 10, marginBottom: 18 },
     scanBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: C.tint, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
     scanBtnText: { fontWeight: "800", fontSize: 14, color: "#fff" },
-    secondaryBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+    secondaryBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: surfaceElevated, borderWidth: 1, borderColor: C.border, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
     secondaryBtnText: { fontWeight: "800", fontSize: 14, color: C.text },
     label: { fontWeight: "700", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
-    input: { fontWeight: "500", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
+    input: { fontWeight: "500", fontSize: 14, color: C.text, backgroundColor: surfaceElevated, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
     textArea: { minHeight: 110, lineHeight: 20 },
     rawBox: { borderRadius: 14, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, padding: 12, marginBottom: 14 },
     rawLabel: { fontWeight: "800", fontSize: 11, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },

@@ -29,7 +29,6 @@ const BASE = getBaseUrl();
 const API_HEADERS: HeadersInit = { "Content-Type": "application/json", Accept: "application/json" };
 
 export async function analyzeDocument(imageBase64: string, mimeType: string) {
-  console.log("API Base URL:", BASE);
   if (!BASE) throw new Error("API URL not configured. Set EXPO_PUBLIC_API_URL or EXPO_PUBLIC_APP_URL in .env or EAS.");
   const res = await fetch(`${BASE}/api/analyze-document`, {
     method: "POST",
@@ -41,7 +40,6 @@ export async function analyzeDocument(imageBase64: string, mimeType: string) {
 }
 
 export async function getHealthInsights(data: any) {
-  console.log("API Base URL:", BASE);
   if (!BASE) throw new Error("API URL not configured. Set EXPO_PUBLIC_API_URL or EXPO_PUBLIC_APP_URL in .env or EAS.");
   const res = await fetch(`${BASE}/api/health-insights`, {
     method: "POST",
@@ -53,7 +51,6 @@ export async function getHealthInsights(data: any) {
 }
 
 export async function compareMedications(currentMedications: any[], extractedMedications: any[]) {
-  console.log("API Base URL:", BASE);
   if (!BASE) throw new Error("API URL not configured. Set EXPO_PUBLIC_API_URL or EXPO_PUBLIC_APP_URL in .env or EAS.");
   const res = await fetch(`${BASE}/api/compare-medications`, {
     method: "POST",
@@ -71,7 +68,6 @@ export async function sendEmail(options: {
   html?: string;
   from?: string;
 }) {
-  console.log("API Base URL:", BASE);
   if (!BASE) throw new Error("API URL not configured. Set EXPO_PUBLIC_API_URL or EXPO_PUBLIC_APP_URL in .env or EAS.");
   const res = await fetch(`${BASE}/api/send-email`, {
     method: "POST",

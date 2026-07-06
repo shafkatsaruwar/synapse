@@ -15,6 +15,8 @@ import {
 } from "@/lib/storage";
 import { buildHealthTimeline, groupTimelineByDay, type TimelineEvent, type TimelineFilter } from "@/lib/health-timeline";
 import { formatDateWithYear, formatTime12h } from "@/lib/date-utils";
+import { raised } from "@/constants/raised";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 const FILTERS: { key: TimelineFilter; label: string }[] = [
   { key: "all", label: "All" },
@@ -80,7 +82,7 @@ export default function TimelineScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: isWide ? 40 : Platform.OS === "web" ? 67 : insets.top + 16, paddingBottom: isWide ? 40 : insets.bottom + 110 },
+          { paddingTop: isWide ? 28 : Platform.OS === "web" ? 40 : 14, paddingBottom: isWide ? 40 : insets.bottom + 110 },
         ]}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
@@ -214,26 +216,27 @@ export default function TimelineScreen() {
 }
 
 function makeStyles(C: Theme) {
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: C.background },
+    container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 22 },
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 },
     eyebrow: { color: C.textSecondary, fontSize: 13, fontWeight: "800", textTransform: "uppercase", marginBottom: 2 },
     title: { color: C.text, fontSize: 38, fontWeight: "900" },
-    headerIcon: { width: 54, height: 54, borderRadius: 18, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
+    headerIcon: { width: 54, height: 54, borderRadius: 18, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center", ...raised("sm", C.tint) },
     filterRow: { gap: 10, paddingBottom: 18 },
-    filterChip: { minHeight: 40, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, paddingHorizontal: 14, alignItems: "center", justifyContent: "center" },
+    filterChip: { minHeight: 40, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", ...raised("sm") },
     filterChipActive: { backgroundColor: C.tint, borderColor: C.tint },
     filterText: { color: C.textSecondary, fontSize: 13, fontWeight: "800" },
     filterTextActive: { color: "#fff" },
-    emptyCard: { minHeight: 280, borderRadius: 18, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", gap: 10, padding: 24 },
+    emptyCard: { minHeight: 280, borderRadius: 22, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", gap: 10, padding: 24, ...raised("md") },
     emptyTitle: { color: C.text, fontSize: 20, fontWeight: "900" },
     emptyText: { color: C.textSecondary, fontSize: 15, textAlign: "center", lineHeight: 21 },
     timeline: { gap: 24 },
     dayGroup: { gap: 10 },
     dateHeader: { color: C.textSecondary, fontSize: 14, fontWeight: "900", textTransform: "uppercase" },
     dayEvents: { gap: 12 },
-    card: { minHeight: 104, borderRadius: 18, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, padding: 14, flexDirection: "row", alignItems: "center", gap: 12 },
+    card: { minHeight: 104, borderRadius: 20, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, padding: 14, flexDirection: "row", alignItems: "center", gap: 12, ...raised("sm") },
     cardPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
     railDot: { width: 42, height: 42, borderRadius: 14, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
     cardBody: { flex: 1, gap: 4 },
@@ -244,8 +247,8 @@ function makeStyles(C: Theme) {
     cardSubtitle: { color: C.textSecondary, fontSize: 14, fontWeight: "600" },
     inlineContext: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
     inlineContextText: { color: C.textSecondary, fontSize: 12, flex: 1 },
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", alignItems: "center", justifyContent: "center", padding: 20 },
-    detailModal: { width: "100%", maxWidth: 440, borderRadius: 22, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, padding: 18 },
+    overlay: { flex: 1, backgroundColor: modalOverlay(), alignItems: "center", justifyContent: "center", padding: 20 },
+    detailModal: { width: "100%", maxWidth: 440, borderRadius: 24, borderWidth: 1, borderColor: C.border, backgroundColor: solidModalSurface, padding: 18, ...raised("lg") },
     detailHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
     detailIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
     detailType: { color: C.textSecondary, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
@@ -255,7 +258,7 @@ function makeStyles(C: Theme) {
     detailRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.border },
     detailRowText: { color: C.text, fontSize: 15, fontWeight: "700" },
     contextList: { gap: 8, marginTop: 14 },
-    contextBlock: { flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 14, backgroundColor: C.surfaceElevated, padding: 12 },
+    contextBlock: { flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 14, backgroundColor: C.surfaceElevated, padding: 12, ...raised("sm") },
     contextText: { color: C.text, fontSize: 14, lineHeight: 19, flex: 1 },
     noContextText: { color: C.textSecondary, fontSize: 14, marginTop: 14 },
   }) as any;

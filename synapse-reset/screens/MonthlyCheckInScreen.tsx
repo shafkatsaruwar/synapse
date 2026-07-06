@@ -6,6 +6,7 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { raised } from "@/constants/raised";
 import {
   appointmentStorage,
   doctorNoteStorage,
@@ -16,6 +17,7 @@ import {
 } from "@/lib/storage";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
+import { updateAppIconBadgeCount } from "@/lib/notification-manager";
 
 type ReviewResponseMap = Record<string, boolean | undefined>;
 
@@ -178,6 +180,7 @@ export default function MonthlyCheckInScreen() {
         talkedAboutAt: noteResponses[note.id] ? reviewedAt : undefined,
       })),
     ]);
+    await updateAppIconBadgeCount();
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setBp("");
@@ -190,7 +193,7 @@ export default function MonthlyCheckInScreen() {
     setSaving(false);
   };
 
-  const topPad = isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16);
+  const topPad = isWide ? 28 : (Platform.OS === "web" ? 40 : 14);
 
   return (
     <ScrollView
@@ -451,17 +454,19 @@ function makeStyles(C: Theme) {
       borderWidth: 1,
       borderColor: C.surfaceElevated,
       marginBottom: 20,
+      ...raised("md", "#55718F"),
     },
     summaryHeader: { gap: 4, marginBottom: 14 },
     summaryTitle: { fontSize: 18, fontWeight: "700", color: C.text },
     summaryDate: { fontSize: 13, color: C.textSecondary },
     summaryGrid: { gap: 12 },
     summaryItem: {
-      backgroundColor: C.background,
+      backgroundColor: C.surfaceElevated,
       borderRadius: 14,
       padding: 14,
       borderWidth: 1,
       borderColor: C.surfaceElevated,
+      ...raised("sm", "#6A7BA0"),
     },
     summaryLabel: { fontSize: 12, fontWeight: "700", color: C.textSecondary, marginBottom: 6, textTransform: "uppercase" },
     summaryValue: { fontSize: 15, color: C.text, lineHeight: 22 },
@@ -473,6 +478,7 @@ function makeStyles(C: Theme) {
       borderWidth: 1,
       borderColor: C.surfaceElevated,
       marginBottom: 12,
+      ...raised("md", "#55718F"),
     },
     lockedIcon: {
       width: 36,
@@ -493,18 +499,20 @@ function makeStyles(C: Theme) {
       borderColor: C.surfaceElevated,
       marginBottom: 20,
       gap: 10,
+      ...raised("md", "#55718F"),
     },
     sectionTitle: { fontSize: 18, fontWeight: "700", color: C.text },
     sectionSubtitle: { fontSize: 14, color: C.textSecondary, lineHeight: 21 },
     reviewEmpty: { fontSize: 14, color: C.textSecondary, lineHeight: 21 },
     reviewList: { gap: 14 },
     reviewItem: {
-      backgroundColor: C.background,
+      backgroundColor: C.surfaceElevated,
       borderRadius: 16,
       padding: 14,
       borderWidth: 1,
       borderColor: C.surfaceElevated,
       gap: 10,
+      ...raised("sm", "#6A7BA0"),
     },
     reviewPrompt: { fontSize: 15, fontWeight: "600", color: C.text, lineHeight: 22 },
     choiceRow: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
@@ -517,6 +525,7 @@ function makeStyles(C: Theme) {
       backgroundColor: C.surface,
       borderWidth: 1,
       borderColor: C.surfaceElevated,
+      ...raised("sm", "#6A7BA0"),
     },
     choiceChipActive: { backgroundColor: C.tintLight, borderColor: C.tint },
     choiceChipText: { fontSize: 14, fontWeight: "600", color: C.textSecondary },
@@ -529,6 +538,7 @@ function makeStyles(C: Theme) {
       borderWidth: 1,
       borderColor: C.surfaceElevated,
       gap: 10,
+      ...raised("sm", "#55718F"),
     },
     noteReviewQuestion: { fontSize: 12, fontWeight: "700", color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.4 },
     noteReviewText: { fontSize: 14, color: C.text, lineHeight: 22 },
@@ -556,6 +566,7 @@ function makeStyles(C: Theme) {
       backgroundColor: C.surface,
       borderWidth: 1,
       borderColor: C.surfaceElevated,
+      ...raised("sm", "#6A7BA0"),
     },
     unitChipActive: { backgroundColor: C.tintLight, borderColor: C.tint },
     unitChipText: { fontSize: 14, fontWeight: "500", color: C.textSecondary },
@@ -569,6 +580,7 @@ function makeStyles(C: Theme) {
       paddingVertical: 14,
       borderRadius: 14,
       marginTop: 8,
+      ...raised("md", C.tint),
     },
     saveBtnText: { fontWeight: "600", fontSize: 16, color: "#fff" },
   });

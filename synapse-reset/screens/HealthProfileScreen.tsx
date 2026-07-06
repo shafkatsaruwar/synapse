@@ -5,9 +5,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { conditionStorage, healthProfileStorage, settingsStorage, type HealthProfileInfo, type SurgeryRecord, type VaccineRecord } from "@/lib/storage";
 import { syncAllFromSettings } from "@/lib/notification-manager";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 interface HealthProfileScreenProps {
   onBack: () => void;
@@ -168,7 +170,7 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
     ? `${profile.surgeries!.length} surger${profile.surgeries!.length === 1 ? "y" : "ies"} recorded`
     : "No surgeries added yet";
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
+  const topPad = Platform.OS === "web" ? 40 : 14;
 
   return (
     <View style={styles.container}>
@@ -440,6 +442,7 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
 }
 
 function makeStyles(C: Theme) {
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 24 },
@@ -447,31 +450,31 @@ function makeStyles(C: Theme) {
     backText: { fontWeight: "600", fontSize: 15, color: C.text },
     title: { fontWeight: "700", fontSize: 26, color: C.text, letterSpacing: -0.5, marginBottom: 8 },
     subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginBottom: 24 },
-    card: { backgroundColor: C.surface, borderRadius: 14, padding: 4, borderWidth: 1, borderColor: C.border },
+    card: { backgroundColor: C.surface, borderRadius: 14, padding: 4, borderWidth: 1, borderColor: C.border, ...raised("md", "#55718F") },
     recordAddBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: C.purple, alignItems: "center", justifyContent: "center", flexShrink: 0 },
     profileRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 16 },
     profileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
     profileRowTitle: { fontWeight: "600", fontSize: 15, color: C.text },
     profileRowDesc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
     divider: { height: 1, backgroundColor: C.border, marginLeft: 16, marginRight: 16 },
-    ageCard: { backgroundColor: C.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: C.border },
+    ageCard: { backgroundColor: C.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: C.border, ...raised("md", "#55718F") },
     ageLabel: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 8 },
     ageInput: { fontWeight: "400", fontSize: 16, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: C.border, marginBottom: 12 },
     ageSaveBtn: { backgroundColor: C.tint, borderRadius: 10, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
     ageSaveBtnSaved: { backgroundColor: C.green },
     ageSaveBtnText: { fontWeight: "600", fontSize: 14, color: "#fff" },
     blockSpacer: { height: 12 },
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
-    modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 420, maxHeight: "88%", borderWidth: 1, borderColor: C.border },
+    overlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", alignItems: "center", padding: 24 },
+    modal: { backgroundColor: solidModalSurface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 420, maxHeight: "88%", borderWidth: 1, borderColor: C.border, ...raised("lg", "#24364F") },
     modalHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16 },
     modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
     modalSectionLabel: { fontWeight: "700", fontSize: 12, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 12, marginTop: 4 },
     modalInput: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
     modalRecordList: { marginBottom: 16, gap: 10 },
-    modalRecordRow: { flexDirection: "row", alignItems: "flex-start", gap: 12, backgroundColor: C.surfaceElevated, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 12 },
+    modalRecordRow: { flexDirection: "row", alignItems: "flex-start", gap: 12, backgroundColor: C.surfaceElevated, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 12, ...raised("sm", "#6A7BA0") },
     modalRecordTitle: { fontWeight: "600", fontSize: 14, color: C.text },
     modalRecordText: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 4, lineHeight: 18 },
-    imagePickerBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated, marginBottom: 14 },
+    imagePickerBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated, marginBottom: 14, ...raised("sm", "#6A7BA0") },
     imagePickerText: { fontWeight: "600", fontSize: 13, color: C.purple },
     modalImagePreview: { width: "100%", height: 180, borderRadius: 14, marginBottom: 14, backgroundColor: C.surfaceElevated },
     modalActions: { flexDirection: "row", gap: 10 },

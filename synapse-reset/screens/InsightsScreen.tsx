@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { raised } from "@/constants/raised";
 import {
   healthLogStorage, symptomStorage, medicationStorage, medicationLogStorage, vitalStorage,
   fastingLogStorage, settingsStorage, documentStorage, insightStorage, conditionStorage,
@@ -88,7 +89,7 @@ export default function InsightsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, {
-      paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16),
+      paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
       paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
     }]} showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>Health Insights</Text>
@@ -243,12 +244,12 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 24 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
   subtitle: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 20 },
-  generateBtn: { backgroundColor: C.accent, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 20 },
+  generateBtn: { backgroundColor: C.accent, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 20, ...raised("md", C.accent) },
   generateText: { fontWeight: "600", fontSize: 15, color: "#fff" },
   emptyState: { alignItems: "center", paddingVertical: 48 },
   emptyTitle: { fontWeight: "600", fontSize: 16, color: C.textSecondary, marginTop: 12 },
   emptySubtext: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 4, textAlign: "center", maxWidth: 260 },
-  card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
+  card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border, ...raised("md", "#55718F") },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 },
   cardTitle: { fontWeight: "600", fontSize: 15, color: C.text },
   summaryLabel: { fontWeight: "500", fontSize: 12, color: C.textTertiary, marginBottom: 6 },
@@ -260,7 +261,7 @@ const styles = StyleSheet.create({
   confBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginTop: 2 },
   confText: { fontWeight: "500", fontSize: 10, textTransform: "uppercase" },
   clarifyItem: { marginBottom: 14, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.border },
-  suggestionRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: C.surfaceElevated, padding: 10, borderRadius: 8 },
+  suggestionRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: C.surfaceElevated, padding: 10, borderRadius: 8, ...raised("sm", "#6A7BA0") },
   suggestionText: { fontWeight: "400", fontSize: 12, color: C.yellow, flex: 1 },
   labTrackItem: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
   labTrackLeft: { flex: 1 },

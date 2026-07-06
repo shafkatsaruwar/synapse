@@ -10,4 +10,9 @@ RCT_EXTERN_METHOD(getEvents:(NSString *)startISO
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(getTravelEstimate:(NSString *)destination
+                  allowPermissionPrompt:(nonnull NSNumber *)allowPermissionPrompt
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

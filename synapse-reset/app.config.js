@@ -58,12 +58,6 @@ module.exports = {
               NSExceptionAllowsInsecureHTTPLoads: false,
               NSExceptionRequiresForwardSecrecy: false,
             },
-            localhost: {
-              NSExceptionAllowsInsecureHTTPLoads: true,
-            },
-            "127.0.0.1": {
-              NSExceptionAllowsInsecureHTTPLoads: true,
-            },
           },
         },
       },

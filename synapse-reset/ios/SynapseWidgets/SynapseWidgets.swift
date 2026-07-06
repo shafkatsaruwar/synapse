@@ -80,6 +80,7 @@ private struct SynapseWidgetSnapshot: Codable {
     let detail: String
     let startsAt: Date?
     let whenText: String
+    let travelText: String?
   }
 
   struct PrnMedication: Codable {
@@ -156,7 +157,8 @@ private struct SynapseWidgetSnapshot: Codable {
       doctorName: "Next appointment",
       detail: "No appointment scheduled",
       startsAt: nil,
-      whenText: "Add one in Synapse"
+      whenText: "Add one in Synapse",
+      travelText: nil
     ),
     prnMedication: nil,
     wellness: Wellness(
@@ -328,13 +330,16 @@ private func medicationProgress(_ medication: SynapseWidgetSnapshot.Medication?)
 
 private func compactRelativeMedicationText(_ dueAt: Date?) -> String {
   guard let dueAt else { return "Stay on track" }
+  let formatter = DateFormatter()
+  formatter.dateFormat = "h:mm a"
+  let exactTime = formatter.string(from: dueAt)
   let seconds = Int(dueAt.timeIntervalSinceNow.rounded())
-  if seconds <= 60 { return "due now" }
+  if seconds <= 60 { return "due now at \(exactTime)" }
   let minutes = Int(ceil(Double(seconds) / 60.0))
-  if minutes < 60 { return "in \(minutes) min" }
+  if minutes < 60 { return "in \(minutes) min at \(exactTime)" }
   let hours = Int(ceil(Double(minutes) / 60.0))
-  if hours < 24 { return "in \(hours) hr" }
-  return "tomorrow"
+  if hours < 24 { return "in \(hours) hr\(hours == 1 ? "" : "s") at \(exactTime)" }
+  return "tomorrow at \(exactTime)"
 }
 
 private func wellnessAccent(_ value: Int?, palette: SynapseWidgetPalette) -> Color {
@@ -697,6 +702,13 @@ private struct AppointmentBlock: View {
             .foregroundStyle(palette.blue)
             .lineLimit(1)
             .minimumScaleFactor(0.85)
+          if let travelText = appointment.travelText, !travelText.isEmpty {
+            Text(travelText)
+              .font(metaFont().weight(.semibold))
+              .foregroundStyle(palette.muted)
+              .lineLimit(1)
+              .minimumScaleFactor(0.8)
+          }
         } else {
           Text("No upcoming visit")
             .font(mainFont(compact: compact))

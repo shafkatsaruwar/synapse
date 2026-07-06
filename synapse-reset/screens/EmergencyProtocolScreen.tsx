@@ -12,6 +12,7 @@ import {
 import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { raised } from "@/constants/raised";
 import {
   allergyStorage,
   conditionStorage,
@@ -97,7 +98,7 @@ export default function EmergencyProtocolScreen({ onBack }: EmergencyProtocolScr
     Linking.openURL(`tel:${phone.replace(/\s/g, "")}`);
   };
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
+  const topPad = Platform.OS === "web" ? 40 : 14;
 
   // Derive unique pharmacies from med list
   const pharmacies = (() => {
@@ -385,6 +386,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     borderWidth: 1,
     borderColor: DIVIDER,
+    ...raised("md", "#5B6677"),
   },
   allergySection: {
     backgroundColor: RED_BG,
@@ -412,7 +414,7 @@ const styles = StyleSheet.create({
 
   allergyName: { fontWeight: "800", fontSize: 22, color: RED_BORDER, marginBottom: 8 },
   allergyDesc: { fontSize: 16, color: TEXT_PRIMARY, lineHeight: 24, marginBottom: 10 },
-  epiPenRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8, backgroundColor: "#FFE5E5", borderRadius: 8, padding: 10 },
+  epiPenRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8, backgroundColor: "rgba(255,229,229,0.72)", borderRadius: 8, padding: 10 },
   epiPenText: { fontWeight: "700", fontSize: 16, color: RED_BORDER },
   consequenceText: { fontSize: 15, color: TEXT_PRIMARY, lineHeight: 22, marginTop: 6, fontStyle: "italic" },
 
@@ -432,18 +434,19 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    ...raised("md", MAROON),
   },
   callBtnText: { fontWeight: "700", fontSize: 16, color: "#fff" },
 
   ageValueRow: { flexDirection: "row", alignItems: "center" },
   ageNotSet: { fontSize: 16, color: TEXT_SECONDARY, fontStyle: "italic", textDecorationLine: "underline" },
 
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 32 },
-  modalBox: { backgroundColor: "#fff", borderRadius: 18, padding: 24, width: "100%", maxWidth: 320 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.68)", justifyContent: "center", alignItems: "center", padding: 32 },
+  modalBox: { backgroundColor: "#FFFDF8", borderRadius: 22, padding: 24, width: "100%", maxWidth: 320, borderWidth: 1, borderColor: "rgba(122,0,30,0.16)", ...raised("lg", MAROON) },
   modalTitle: { fontWeight: "700", fontSize: 20, color: TEXT_PRIMARY, marginBottom: 16, textAlign: "center" },
   modalInput: { fontSize: 32, fontWeight: "700", color: TEXT_PRIMARY, textAlign: "center", borderBottomWidth: 2, borderBottomColor: MAROON, paddingVertical: 8, marginBottom: 24 },
   modalActions: { flexDirection: "row", gap: 10 },
-  modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: "#F0F0F0", alignItems: "center" },
+  modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: "#F5F1EA", alignItems: "center", borderWidth: 1, borderColor: "rgba(122,0,30,0.14)" },
   modalCancelText: { fontWeight: "600", fontSize: 15, color: TEXT_SECONDARY },
   modalSaveBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: MAROON, alignItems: "center" },
   modalSaveText: { fontWeight: "600", fontSize: 15, color: "#fff" },

@@ -1,7 +1,6 @@
-import "react-native-gesture-handler";
 import "@/lib/supabase-web-env";
 import React, { useEffect, useState } from "react";
-import { View, Linking, Platform } from "react-native";
+import { AppState, View, Linking, Platform } from "react-native";
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -19,6 +18,7 @@ import {
   setNotificationHandler,
   setupMedicationCategory,
   addNotificationResponseListener,
+  updateAppIconBadgeCount,
 } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { parseICS } from "@/lib/ics-parser";
@@ -41,8 +41,16 @@ export default function RootLayout() {
     setNotificationHandler();
     setupMedicationCategory();
     const remove = addNotificationResponseListener(() => {}, () => {});
+    updateAppIconBadgeCount().catch(() => {});
     syncWidgetSnapshot().catch(() => {});
     return remove;
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") updateAppIconBadgeCount().catch(() => {});
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
@@ -68,7 +76,7 @@ export default function RootLayout() {
   if (!ready) {
     return (
       <View
-        style={{ flex: 1, backgroundColor: "#FDF1E5" }}
+        style={{ flex: 1, backgroundColor: "#F5F1EA" }}
       />
     );
   }

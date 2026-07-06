@@ -6,8 +6,10 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { doctorsStorage, healthProfileStorage, medicationStorage, normalizeMedication, type Doctor, type HealthProfileInfo, type Medication, type RecordOwner } from "@/lib/storage";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 interface DoctorsScreenProps {
   onBack: () => void;
@@ -144,7 +146,7 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: Platform.OS === "web" ? 16 : insets.top + 16 }]}>
+      <View style={[styles.header, { paddingTop: Platform.OS === "web" ? 16 : 14 }]}>
         <Pressable onPress={onBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back">
           <Ionicons name="chevron-back" size={24} color={C.text} />
         </Pressable>
@@ -340,15 +342,16 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
 }
 
 function makeStyles(C: Theme) {
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border },
     backBtn: { marginRight: 8 },
     title: { flex: 1, fontWeight: "700", fontSize: 20, color: C.text },
-    addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+    addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", ...raised("md", C.tint) },
     scroll: { flex: 1 },
     content: { padding: 24 },
-    personSwitcher: { flexDirection: "row", gap: 8, backgroundColor: C.surface, borderRadius: 14, padding: 4, borderWidth: 1, borderColor: C.border, marginBottom: 16 },
+    personSwitcher: { flexDirection: "row", gap: 8, backgroundColor: C.surface, borderRadius: 14, padding: 4, borderWidth: 1, borderColor: C.border, marginBottom: 16, ...raised("sm", "#6A7BA0") },
     personChip: { flex: 1, minHeight: 38, borderRadius: 10, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
     personChipActive: { backgroundColor: C.tint },
     personChipText: { fontSize: 13, fontWeight: "700", color: C.textSecondary },
@@ -358,7 +361,7 @@ function makeStyles(C: Theme) {
     emptyText: { fontWeight: "600", fontSize: 16, color: C.text },
     emptySub: { fontSize: 13, color: C.textTertiary },
     emergencyHint: { fontSize: 12, color: C.textTertiary, marginBottom: 16, marginTop: -12 },
-    row: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 12, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border, gap: 12 },
+    row: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 12, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.border, gap: 12, ...raised("md", "#55718F") },
     rowEmergency: { borderColor: C.tint, borderWidth: 1.5, backgroundColor: C.tintLight },
     rowPrimary: { borderColor: C.cyan, borderWidth: 1.5 },
     doctorName: { fontWeight: "600", fontSize: 15, color: C.text },
@@ -370,8 +373,8 @@ function makeStyles(C: Theme) {
     primaryBadgeText: { fontSize: 11, fontWeight: "600", color: C.accent },
     primaryBtn: { padding: 2 },
     emergencyBtn: { padding: 2 },
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
-    modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: C.border },
+    overlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", alignItems: "center", padding: 24 },
+    modal: { backgroundColor: solidModalSurface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: C.border, ...raised("lg", "#24364F") },
     modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
     label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
     input: { fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },

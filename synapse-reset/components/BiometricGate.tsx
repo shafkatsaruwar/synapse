@@ -43,7 +43,7 @@ export default function BiometricGate({ children }: BiometricGateProps) {
           setError("Authentication failed. Try again.");
         }
       }
-    } catch (e) {
+    } catch {
       setFailCount((c) => c + 1);
       setError("Authentication unavailable.");
     } finally {

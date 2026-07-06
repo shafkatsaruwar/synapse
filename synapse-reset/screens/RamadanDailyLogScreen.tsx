@@ -118,7 +118,7 @@ export default function RamadanDailyLogScreen({ onBack }: RamadanDailyLogScreenP
     setSaved(true);
   };
 
-  const topPad = isWide ? 40 : Platform.OS === "web" ? 67 : insets.top + 16;
+  const topPad = isWide ? 28 : Platform.OS === "web" ? 40 : 14;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 24;
 
   return (

@@ -38,7 +38,7 @@ function makeStyles(C: Theme) {
     scroll: { flex: 1 },
     container: {
       flexGrow: 1,
-      backgroundColor: C.background,
+      backgroundColor: "transparent",
       paddingHorizontal: 20,
     },
     title: {

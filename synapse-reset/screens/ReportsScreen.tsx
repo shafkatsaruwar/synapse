@@ -17,6 +17,7 @@ import { getMedList, type MedListItem } from "@/lib/med-list-storage";
 import { getDaysAgo, formatDate, formatDateWithYear, getToday } from "@/lib/date-utils";
 import { buildRecoveryInsights, type RecoveryStatusLabel } from "@/lib/recovery-insights";
 import { generateHealthSummary, type HealthGeneratedSummary } from "@/lib/foundation-models";
+import { raised } from "@/constants/raised";
 
 interface SummaryEvent {
   date: string;
@@ -317,7 +318,7 @@ export default function ReportsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, {
-      paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16),
+      paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
       paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
     }]} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
@@ -664,30 +665,30 @@ function makeStyles(C: Theme) {
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
-  rangePicker: { flexDirection: "row", backgroundColor: C.surface, borderRadius: 10, padding: 3, marginBottom: 20, borderWidth: 1, borderColor: C.border },
+  rangePicker: { flexDirection: "row", backgroundColor: C.surface, borderRadius: 12, padding: 3, marginBottom: 20, borderWidth: 1, borderColor: C.border, ...raised("sm") },
   rangeBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center" },
   rangeBtnActive: { backgroundColor: C.surfaceElevated },
   rangeText: { fontWeight: "600", fontSize: 13, color: C.textSecondary },
   rangeTextActive: { color: C.text },
   statsGrid: { gap: 8, marginBottom: 16 },
   statsGridWide: { flexDirection: "row", flexWrap: "wrap" },
-  statCard: { backgroundColor: C.surface, borderRadius: 12, padding: 16, alignItems: "center", borderWidth: 1, borderColor: C.border },
+  statCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, alignItems: "center", borderWidth: 1, borderColor: C.border, ...raised("sm") },
   statCardWide: { width: "32%", marginRight: "1%" },
   statIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   statValue: { fontWeight: "700", fontSize: 24, color: C.text, letterSpacing: -0.5 },
   statLabel: { fontWeight: "400", fontSize: 11, color: C.textSecondary, marginTop: 2 },
-  aiSummaryCard: { backgroundColor: C.surface, borderRadius: 14, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border, gap: 12 },
+  aiSummaryCard: { backgroundColor: C.surface, borderRadius: 18, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border, gap: 12, ...raised("md") },
   aiSummaryHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   aiSummarySubtext: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: -8, lineHeight: 18 },
   aiSummaryButton: { minHeight: 46, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.purpleLight, borderWidth: 1, borderColor: C.border },
   aiSummaryButtonText: { fontWeight: "800", fontSize: 14, color: C.purple },
   aiSummaryError: { fontWeight: "600", fontSize: 12, color: C.red, lineHeight: 18 },
-  aiSummaryResult: { gap: 8, borderRadius: 12, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, padding: 12 },
+  aiSummaryResult: { gap: 8, borderRadius: 14, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, padding: 12, ...raised("sm") },
   aiSummaryText: { fontWeight: "500", fontSize: 13, color: C.text, lineHeight: 20 },
   aiSummaryBulletRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   aiSummaryBullet: { fontWeight: "900", fontSize: 14, color: C.purple, lineHeight: 20 },
   aiSummaryBulletText: { flex: 1, fontWeight: "500", fontSize: 13, color: C.text, lineHeight: 20 },
-  card: { backgroundColor: C.surface, borderRadius: 14, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border },
+  card: { backgroundColor: C.surface, borderRadius: 18, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border, ...raised("sm") },
   cardTitle: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 14 },
   recoveryHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   statusPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: C.border },
@@ -697,7 +698,7 @@ function makeStyles(C: Theme) {
   statusPillText: { fontWeight: "700", fontSize: 11, color: C.text },
   recoverySummaryText: { fontWeight: "400", fontSize: 13, color: C.text, lineHeight: 20, marginBottom: 14 },
   recoveryMiniStats: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
-  recoveryMiniStat: { width: "48%", backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 12 },
+  recoveryMiniStat: { width: "48%", backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 12, ...raised("sm") },
   recoveryMiniValue: { fontWeight: "700", fontSize: 20, color: C.text },
   recoveryMiniLabel: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
   safetyCopy: { fontWeight: "400", fontSize: 12, color: C.textTertiary, lineHeight: 18 },
@@ -722,12 +723,12 @@ function makeStyles(C: Theme) {
   summarySection: { marginTop: 8, marginBottom: 12 },
   sectionTitle: { fontWeight: "700", fontSize: 20, color: C.text, letterSpacing: -0.3 },
   sectionSubtitle: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 2 },
-  summaryCapture: { backgroundColor: C.surfaceElevated, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
+  summaryCapture: { backgroundColor: C.surfaceElevated, borderRadius: 18, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border, ...raised("md") },
   summaryHeader: { marginBottom: 16, borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 12 },
   summaryHeaderTitle: { fontWeight: "700", fontSize: 18, color: C.tint, letterSpacing: -0.3 },
   summaryHeaderConditions: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2 },
   summaryStatsRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
-  summaryStatBox: { flex: 1, backgroundColor: C.surface, borderRadius: 10, padding: 10, alignItems: "center" },
+  summaryStatBox: { flex: 1, backgroundColor: C.surface, borderRadius: 12, padding: 10, alignItems: "center", ...raised("sm") },
   summaryStatNum: { fontWeight: "700", fontSize: 18, color: C.text },
   summaryStatLbl: { fontWeight: "400", fontSize: 10, color: C.textSecondary, marginTop: 2 },
   summaryBlock: { marginBottom: 12 },

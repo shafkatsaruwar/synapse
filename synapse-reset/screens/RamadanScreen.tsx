@@ -17,6 +17,7 @@ import Colors from "@/constants/colors";
 import { fastingLogStorage, settingsStorage, sickModeStorage, enableRecoveryTracking, type FastingLog } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
+import { syncRecoveryTrackingCheckIn } from "@/lib/notification-manager";
 
 const C = Colors.dark;
 
@@ -125,6 +126,7 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
                 temperatures: [{ time: new Date().toISOString(), value: temp }],
                 prnDoses: [],
               });
+              await syncRecoveryTrackingCheckIn();
               if (onActivateSickMode) onActivateSickMode();
             },
           },
@@ -152,7 +154,7 @@ export default function RamadanScreen({ onActivateSickMode }: RamadanScreenProps
       contentContainerStyle={[
         styles.content,
         {
-          paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16),
+          paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
           paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
         },
       ]}

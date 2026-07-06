@@ -69,12 +69,6 @@ export async function backupNow(userId: string): Promise<{ error: Error | null }
     const medications = Array.isArray(payload.medications) ? payload.medications : [];
     const medicationLogs = Array.isArray(payload.medicationLogs) ? payload.medicationLogs : [];
     const data = buildBackupData(payload);
-    const insights = Array.isArray(payload.insights) ? payload.insights : [];
-    const conditions = Array.isArray(payload.conditions) ? payload.conditions : [];
-    const hasAllergy = payload.allergy != null && typeof payload.allergy === "object";
-    if (medications.length > 0 || medicationLogs.length > 0 || insights.length > 0 || conditions.length > 0 || hasAllergy) {
-      console.log("Backup: including", medications.length, "medications,", medicationLogs.length, "medication logs,", insights.length, "health insights,", conditions.length, "conditions,", hasAllergy ? "allergy & emergency info" : "no allergy");
-    }
     const { error } = await supabase.from("user_backups").upsert(
       {
         user_id: userId,

@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { settingsStorage, sickModeStorage, enableRecoveryTracking } from "@/lib/storage";
+import { syncRecoveryTrackingCheckIn } from "@/lib/notification-manager";
 
 interface SickModeHeaderButtonProps {
   onActivate: () => void;
@@ -35,6 +36,7 @@ export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKe
     await enableRecoveryTracking();
     const sd = await sickModeStorage.get();
     await sickModeStorage.save({ ...sd, active: true, startedAt: new Date().toISOString() });
+    await syncRecoveryTrackingCheckIn();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     onActivate();
   };
@@ -51,7 +53,7 @@ export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKe
       accessibilityLabel={isActive ? "Sick Mode active, open recovery" : "Activate Sick Mode"}
       accessibilityHint={isActive ? "Opens sick mode screen" : "Activates recovery protocol"}
     >
-      <Ionicons name="shield-outline" size={16} color={isActive ? C.red : "#4A78C2"} />
+      <Ionicons name="shield-outline" size={16} color={isActive ? "#fff" : C.tint} />
       <Text style={[styles.pillText, isActive && styles.pillTextActive]}>
         {isActive ? "Sick Mode Active" : "Activate Sick Mode"}
       </Text>
@@ -68,9 +70,9 @@ function makeStyles(C: Theme) {
       paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 16,
-      backgroundColor: "rgba(74,120,194,0.08)",
+      backgroundColor: C.tintLight,
       borderWidth: 1.5,
-      borderColor: "#4A78C2",
+      borderColor: C.tint,
     },
     pillActive: {
       backgroundColor: C.tint,
@@ -79,10 +81,10 @@ function makeStyles(C: Theme) {
     pillText: {
       fontWeight: "600",
       fontSize: 12,
-      color: "#4A78C2",
+      color: C.tint,
     },
     pillTextActive: {
-      color: C.red,
+      color: "#fff",
     },
   });
 }

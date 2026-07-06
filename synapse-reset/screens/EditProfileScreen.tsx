@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { conditionStorage, settingsStorage } from "@/lib/storage";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 interface EditProfileScreenProps {
   onBack: () => void;
@@ -130,6 +131,7 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
 }
 
 function makeStyles(C: Theme) {
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   header: {
@@ -140,7 +142,7 @@ function makeStyles(C: Theme) {
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
-    backgroundColor: C.background,
+    backgroundColor: "transparent",
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontWeight: "700", fontSize: 17, color: C.text },
@@ -202,13 +204,13 @@ function makeStyles(C: Theme) {
   outlineBtnFull: { borderWidth: 1, borderColor: C.border },
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: modalOverlay(),
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
   },
   modal: {
-    backgroundColor: C.surface,
+    backgroundColor: solidModalSurface,
     borderRadius: 22,
     padding: 28,
     width: "100%",

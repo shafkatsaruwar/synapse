@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { raised } from "@/constants/raised";
 import { conditionStorage, type HealthCondition } from "@/lib/storage";
 import conditionsDatabase from "@/constants/conditions.json";
 
@@ -111,7 +112,7 @@ export default function HealthProfileConditionsScreen({ onBack }: Props) {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[styles.content, {
-          paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16),
+          paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
           paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
         }]}
         showsVerticalScrollIndicator={false}
@@ -353,10 +354,10 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: "center", paddingVertical: 60, gap: 8 },
   emptyTitle: { fontWeight: "600", fontSize: 17, color: C.text, marginTop: 8 },
   emptyDesc: { fontWeight: "400", fontSize: 13, color: C.textTertiary, textAlign: "center", lineHeight: 20, marginBottom: 16 },
-  emptyAddBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.tint, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, minHeight: 44 },
+  emptyAddBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.tint, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, minHeight: 44, ...raised("md", C.tint) },
   emptyAddText: { fontWeight: "600", fontSize: 15, color: "#fff" },
 
-  conditionCard: { backgroundColor: C.surface, borderRadius: 14, marginBottom: 8, borderWidth: 1, borderColor: C.border },
+  conditionCard: { backgroundColor: C.surface, borderRadius: 14, marginBottom: 8, borderWidth: 1, borderColor: C.border, ...raised("sm", "#55718F") },
   conditionMain: { flexDirection: "row", alignItems: "center", padding: 16, gap: 12, minHeight: 56 },
   conditionNameRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   conditionName: { fontWeight: "600", fontSize: 15, color: C.text },
@@ -368,11 +369,11 @@ const styles = StyleSheet.create({
   addConditionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, marginTop: 8, minHeight: 44 },
   addConditionText: { fontWeight: "600", fontSize: 15, color: C.tint },
 
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", padding: 24 },
-  modal: { width: "100%", maxWidth: 400, backgroundColor: C.surface, borderRadius: 20, padding: 20, maxHeight: "80%" },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.68)", justifyContent: "center", alignItems: "center", padding: 24 },
+  modal: { width: "100%", maxWidth: 400, backgroundColor: "#1C1719", borderRadius: 20, padding: 20, maxHeight: "80%", ...raised("lg", "#24364F") },
   modalTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 16 },
 
-  searchContainer: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.surfaceElevated, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: C.border, marginBottom: 12 },
+  searchContainer: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.surfaceElevated, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: C.border, marginBottom: 12, ...raised("sm", "#6A7BA0") },
   searchInput: { flex: 1, fontWeight: "400", fontSize: 15, color: C.text, padding: 0 },
   resultsList: { maxHeight: 300 },
   resultItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: C.border, minHeight: 44 },
@@ -383,7 +384,7 @@ const styles = StyleSheet.create({
   cancelBtn: { alignItems: "center", paddingVertical: 14, marginTop: 8, minHeight: 44 },
   cancelText: { fontWeight: "600", fontSize: 15, color: C.textSecondary },
 
-  stressPromptCard: { width: "100%", maxWidth: 340, backgroundColor: C.surface, borderRadius: 20, padding: 24, alignItems: "center" },
+  stressPromptCard: { width: "100%", maxWidth: 340, backgroundColor: "#1C1719", borderRadius: 20, padding: 24, alignItems: "center", ...raised("lg", "#24364F") },
   stressPromptTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 8 },
   stressPromptText: { fontWeight: "400", fontSize: 14, color: C.textSecondary, textAlign: "center", lineHeight: 20, marginBottom: 24 },
   stressPromptActions: { flexDirection: "row", gap: 12, width: "100%" },

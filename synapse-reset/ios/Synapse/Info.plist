@@ -55,16 +55,6 @@
           <key>NSExceptionRequiresForwardSecrecy</key>
           <false/>
         </dict>
-        <key>localhost</key>
-        <dict>
-          <key>NSExceptionAllowsInsecureHTTPLoads</key>
-          <true/>
-        </dict>
-        <key>127.0.0.1</key>
-        <dict>
-          <key>NSExceptionAllowsInsecureHTTPLoads</key>
-          <true/>
-        </dict>
       </dict>
     </dict>
     <key>NSCameraUsageDescription</key>
@@ -77,10 +67,12 @@
     <string>Synapse can add appointment events to Calendar when you choose to export them.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>Unlock Synapse with Face ID to keep your health data private.</string>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your microphone</string>
-    <key>NSPhotoLibraryAddUsageDescription</key>
-    <string>Synapse saves images only when the user chooses to export or save content.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Allow $(PRODUCT_NAME) to access your microphone</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Synapse uses your approximate location to estimate travel time and help you know when to leave for appointments. Your home address is not stored.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Synapse saves images only when the user chooses to export or save content.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Synapse allows users to select photos from their library to personalize their profile and attach images to health records. Photos are only accessed when the user explicitly chooses to add one.</string>
     <key>NSUserActivityTypes</key>

@@ -6,12 +6,14 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import {
   goalStorage, medicationStorage, medicationLogStorage,
   type Goal, type Medication, type MedicationLog,
 } from "@/lib/storage";
 import { getToday, getDaysAgo } from "@/lib/date-utils";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 function getDoseCount(med: Medication): number {
   if (Array.isArray(med.doses) && med.doses.length > 0) return med.doses.length;
@@ -123,7 +125,7 @@ export default function GoalsScreen() {
     loadData();
   };
 
-  const topPad = isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16);
+  const topPad = isWide ? 28 : (Platform.OS === "web" ? 40 : 14);
 
   return (
     <ScrollView
@@ -254,13 +256,14 @@ export default function GoalsScreen() {
 }
 
 function makeStyles(C: Theme) {
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 24 },
     header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
     title: { fontWeight: "700", fontSize: 28, color: C.text, marginBottom: 4 },
     subtitle: { fontSize: 14, color: C.textSecondary, maxWidth: 280 },
-    addBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+    addBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", ...raised("md", C.tint) },
     empty: { alignItems: "center", paddingVertical: 48 },
     emptyTitle: { fontWeight: "600", fontSize: 18, color: C.text, marginTop: 12 },
     emptyDesc: { fontSize: 14, color: C.textTertiary, marginTop: 4 },
@@ -274,6 +277,7 @@ function makeStyles(C: Theme) {
       marginBottom: 12,
       borderWidth: 1,
       borderColor: C.border,
+      ...raised("md", "#55718F"),
     },
     goalCardDone: { backgroundColor: C.green + "12", borderColor: C.green + "35" },
     goalMain: { flex: 1 },
@@ -282,16 +286,16 @@ function makeStyles(C: Theme) {
     goalProgress: { fontSize: 13, color: C.textSecondary, marginTop: 4 },
     goalActions: { flexDirection: "row", alignItems: "center", gap: 12 },
     doneBtn: { padding: 4 },
-    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 },
-    modalBox: { backgroundColor: C.surface, borderRadius: 20, padding: 24 },
+    modalOverlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", padding: 24 },
+    modalBox: { backgroundColor: solidModalSurface, borderRadius: 20, padding: 24, ...raised("lg", "#24364F") },
     modalTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 16 },
     modalLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginTop: 12, marginBottom: 6 },
     typeRow: { flexDirection: "row", gap: 10, marginBottom: 8 },
-    typeChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated },
+    typeChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, ...raised("sm", "#6A7BA0") },
     typeChipActive: { backgroundColor: C.tintLight },
     typeChipText: { fontSize: 14, fontWeight: "500", color: C.textSecondary },
     typeChipTextActive: { color: C.tint },
-    modalInput: { backgroundColor: C.background, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: C.text, marginBottom: 4 },
+    modalInput: { backgroundColor: C.surfaceElevated, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: C.text, marginBottom: 4, borderWidth: 1, borderColor: C.border },
     modalActions: { flexDirection: "row", gap: 12, justifyContent: "flex-end", marginTop: 20 },
     modalCancel: { paddingVertical: 10, paddingHorizontal: 16 },
     modalCancelText: { fontSize: 16, color: C.textSecondary },

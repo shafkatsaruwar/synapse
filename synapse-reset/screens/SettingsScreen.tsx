@@ -21,6 +21,8 @@ import { useTheme, type ThemePreference, type Theme } from "@/contexts/ThemeCont
 import { useDisplaySettings, type TextSizeSetting } from "@/contexts/DisplaySettingsContext";
 import { useAppMode } from "@/contexts/AppModeContext";
 import { useAuth } from "@/contexts/AuthContext";
+import GlassView from "@/components/GlassView";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 import {
   settingsStorage,
   healthProfileStorage,
@@ -44,6 +46,7 @@ import { getToday } from "@/lib/date-utils";
 import { isCurrentMonthRamadan } from "@/lib/hijri";
 import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
+import { raised } from "@/constants/raised";
 
 const SECTION_LABELS: Record<string, string> = {
   log: "Daily Log", healthdata: "Vitals", medications: "Medications", symptoms: "Symptoms",
@@ -58,6 +61,7 @@ interface SettingsScreenProps {
   onNavigate?: (screen: string) => void;
   onRestoreComplete?: () => void;
   onShowAppTour?: () => void;
+  onShowWhatsNew?: () => void;
   openAppearanceModalToken?: number;
 }
 
@@ -122,6 +126,7 @@ export default function SettingsScreen({
   onNavigate,
   onRestoreComplete,
   onShowAppTour,
+  onShowWhatsNew,
   openAppearanceModalToken,
 }: SettingsScreenProps) {
   const insets = useSafeAreaInsets();
@@ -130,8 +135,8 @@ export default function SettingsScreen({
   const { user } = useAuth();
   const { appMode, setAppMode } = useAppMode();
   const { textSize, setTextSize, textScale } = useDisplaySettings();
-  const { colors: C, preference, setThemeId } = useTheme();
-  const styles = useMemo(() => makeStyles(C), [C]);
+  const { colors: C, preference, setThemeId, themeId } = useTheme();
+  const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
 
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
   const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", widgetAppearance: "system", backupCriticalMedications: [] });
@@ -140,6 +145,7 @@ export default function SettingsScreen({
   const [draftName, setDraftName] = useState("");
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [conditionsCount, setConditionsCount] = useState(0);
+  const [roleDetailsEditing, setRoleDetailsEditing] = useState(false);
 
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [showSectionsModal, setShowSectionsModal] = useState(false);
@@ -284,6 +290,7 @@ export default function SettingsScreen({
   };
 
   const updateRole = async (role: UserRole) => {
+    setRoleDetailsEditing(false);
     await handleSaveProfile({ ...profile, userRole: role });
   };
 
@@ -311,14 +318,28 @@ export default function SettingsScreen({
   const saveSimpleRoleDetails = async () => {
     await saveBackupRoleDetails({
       caredForName: profile.userRole === "caregiver" ? profile.caredForName?.trim() || undefined : undefined,
-      caredForAge: undefined,
+      caredForAge: profile.userRole === "caregiver" && profile.caredForAge != null ? profile.caredForAge : undefined,
       backupEmergencyProtocols: undefined,
       backupCriticalMedications: profile.backupCriticalMedications ?? [],
     });
+    setRoleDetailsEditing(false);
   };
 
+  const saveCareRecipientDetails = async () => {
+    await saveBackupRoleDetails({
+      caredForName: profile.caredForName?.trim() || undefined,
+      caredForAge: profile.caredForAge != null ? profile.caredForAge : undefined,
+      backupEmergencyProtocols: profile.backupEmergencyProtocols,
+      backupCriticalMedications: profile.backupCriticalMedications ?? [],
+    });
+    setRoleDetailsEditing(false);
+  };
+
+  const caredForNameLabel = profile.caredForName?.trim() || "Add name";
+  const caredForAgeLabel = profile.caredForAge != null ? `${profile.caredForAge} years old` : "Age not set";
+
   const contentPadding = {
-    paddingTop: isWide ? 40 : Platform.OS === "web" ? 67 : insets.top + (appMode === "simple" ? 18 : 16),
+    paddingTop: isWide ? 28 : Platform.OS === "web" ? 40 : 12,
     paddingBottom: isWide ? 40 : Platform.OS === "web" ? 118 : insets.bottom + 100,
     paddingHorizontal: 24,
   };
@@ -332,15 +353,6 @@ export default function SettingsScreen({
       tintColor: C.tint,
       tintBg: C.tintLight,
       onPress: () => onNavigate?.("healthprofile"),
-    },
-    emergency: {
-      key: "emergency",
-      title: "Emergency",
-      description: "Protocol and responder info",
-      icon: "shield-half-outline" as const,
-      tintColor: C.tint,
-      tintBg: C.tint + "22",
-      onPress: () => onNavigate?.("emergency"),
     },
     doctors: {
       key: "doctors",
@@ -405,6 +417,22 @@ export default function SettingsScreen({
       tintBg: C.tintLight,
       onPress: () => onNavigate?.("meetfounder"),
     },
+    ...(onShowWhatsNew
+      ? {
+          whatsnew: {
+            key: "whatsnew",
+            title: "What’s New",
+            description: "See the latest features again",
+            icon: "megaphone-outline" as const,
+            tintColor: C.tint,
+            tintBg: C.tintLight,
+            onPress: () => {
+              Haptics.selectionAsync();
+              onShowWhatsNew();
+            },
+          },
+        }
+      : {}),
     ...(onShowAppTour
       ? {
           tour: {
@@ -426,7 +454,6 @@ export default function SettingsScreen({
 
   const accountShortcutCards = [
     shortcutCardMap.healthprofile,
-    shortcutCardMap.emergency,
     shortcutCardMap.doctors,
     shortcutCardMap.pharmacies,
     shortcutCardMap.appearance,
@@ -434,6 +461,7 @@ export default function SettingsScreen({
     shortcutCardMap.feedback,
     shortcutCardMap.sections,
     shortcutCardMap.founder,
+    ...(shortcutCardMap.whatsnew ? [shortcutCardMap.whatsnew] : []),
     ...(shortcutCardMap.tour ? [shortcutCardMap.tour] : []),
   ];
 
@@ -453,7 +481,7 @@ export default function SettingsScreen({
         >
           <Text style={[styles.title, { fontSize: simpleHeaderTitleSize, marginBottom: 18 }]}>Account</Text>
 
-          <View style={styles.simpleSettingsCard}>
+          <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
             <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Profile</Text>
             <View style={styles.simpleProfileRow}>
               <Pressable
@@ -486,9 +514,9 @@ export default function SettingsScreen({
                 </Text>
               </Pressable>
             </View>
-          </View>
+          </GlassView>
 
-          <View style={styles.simpleSettingsCard}>
+          <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
             <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Role</Text>
             <Text style={[styles.simpleSettingsPrompt, { fontSize: simpleBodySize }]}>Who is this for?</Text>
             <View style={styles.simpleSettingsOptionStack}>
@@ -511,22 +539,75 @@ export default function SettingsScreen({
               })}
             </View>
             {(profile.userRole ?? "self") === "caregiver" ? (
-              <View style={styles.simpleSettingsInputBlock}>
-                <TextInput
-                  style={[styles.simpleSettingsInput, { fontSize: simpleBodySize }]}
-                  value={profile.caredForName ?? ""}
-                  onChangeText={(text) => setProfile((prev) => ({ ...prev, caredForName: text }))}
-                  placeholder="Who are you helping?"
-                  placeholderTextColor={C.textTertiary}
-                />
-                <Pressable style={styles.simpleSettingsPrimaryButton} onPress={saveSimpleRoleDetails}>
-                  <Text style={[styles.simpleSettingsPrimaryButtonText, { fontSize: simpleActionSize }]}>Save role</Text>
-                </Pressable>
+              <View style={styles.simplePersonCard}>
+                <View style={styles.simplePersonHeader}>
+                  <View style={styles.simplePersonAvatar}>
+                    <Ionicons name="person-outline" size={20} color={C.tint} />
+                  </View>
+                  <View style={styles.simplePersonText}>
+                    <Text style={[styles.simplePersonEyebrow, { fontSize: Math.max(11, simpleBodySize - 3) }]}>
+                      Care recipient
+                    </Text>
+                    <Text style={[styles.simplePersonName, { fontSize: simpleSectionTitleSize }]}>
+                      {caredForNameLabel}
+                    </Text>
+                    <Text style={[styles.simplePersonMeta, { fontSize: Math.max(12, simpleBodySize - 2) }]}>
+                      {caredForAgeLabel}
+                    </Text>
+                  </View>
+                  {!roleDetailsEditing ? (
+                    <Pressable
+                      style={styles.roleEditButton}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setRoleDetailsEditing(true);
+                      }}
+                    >
+                      <Ionicons name="pencil-outline" size={15} color={C.tint} />
+                      <Text style={styles.roleEditButtonText}>Edit</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                {roleDetailsEditing ? (
+                  <>
+                    <View style={styles.simplePersonFieldRow}>
+                      <View style={styles.simplePersonFieldName}>
+                        <Text style={styles.roleInlineLabel}>Name</Text>
+                        <TextInput
+                          style={[styles.simpleSettingsInput, { fontSize: simpleBodySize }]}
+                          value={profile.caredForName ?? ""}
+                          onChangeText={(text) => setProfile((prev) => ({ ...prev, caredForName: text }))}
+                          placeholder="Name"
+                          placeholderTextColor={C.textTertiary}
+                        />
+                      </View>
+                      <View style={styles.simplePersonFieldAge}>
+                        <Text style={styles.roleInlineLabel}>Age</Text>
+                        <TextInput
+                          style={[styles.simpleSettingsInput, { fontSize: simpleBodySize }]}
+                          value={profile.caredForAge != null ? String(profile.caredForAge) : ""}
+                          onChangeText={(text) =>
+                            setProfile((prev) => ({
+                              ...prev,
+                              caredForAge: text.trim() ? Math.max(0, parseInt(text, 10) || 0) : undefined,
+                            }))
+                          }
+                          placeholder="Age"
+                          placeholderTextColor={C.textTertiary}
+                          keyboardType="number-pad"
+                        />
+                      </View>
+                    </View>
+                    <Pressable style={styles.personSaveButton} onPress={saveSimpleRoleDetails}>
+                      <Text style={[styles.personSaveButtonText, { fontSize: simpleActionSize }]}>Save person</Text>
+                    </Pressable>
+                  </>
+                ) : null}
               </View>
             ) : null}
-          </View>
+          </GlassView>
 
-          <View style={styles.simpleSettingsCard}>
+          <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
             <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Accessibility</Text>
             <Text style={[styles.simpleSettingsPrompt, { fontSize: simpleBodySize }]}>Text size</Text>
             <View style={styles.simpleSettingsOptionStack}>
@@ -545,9 +626,9 @@ export default function SettingsScreen({
                 );
               })}
             </View>
-          </View>
+          </GlassView>
 
-          <View style={styles.simpleSettingsCard}>
+          <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
             <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>App Mode</Text>
             <View style={styles.simpleSettingsOptionStack}>
               {APP_MODE_OPTIONS.map((option) => {
@@ -565,7 +646,7 @@ export default function SettingsScreen({
                 );
               })}
             </View>
-          </View>
+          </GlassView>
 
           {onResetApp ? (
             <View style={styles.simpleSettingsDangerWrap}>
@@ -640,12 +721,13 @@ export default function SettingsScreen({
         <Text style={styles.title}>Account</Text>
 
         {/* ——— Local Profile Header ——— */}
-        <Pressable
-          style={({ pressed }) => [styles.card, { opacity: pressed ? 0.97 : 1 }]}
-          onPress={openNameModal}
-          accessibilityRole="button"
-          accessibilityLabel="Edit your name"
-        >
+        <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={styles.cardGlass}>
+          <Pressable
+            style={({ pressed }) => [styles.cardPressable, { opacity: pressed ? 0.9 : 1 }]}
+            onPress={openNameModal}
+            accessibilityRole="button"
+            accessibilityLabel="Edit your name"
+          >
           <View style={styles.profileHeader}>
             <Pressable
               style={styles.profileAvatar}
@@ -692,9 +774,10 @@ export default function SettingsScreen({
               {profile.profileImageUri ? "Change profile picture" : "Add profile picture"}
             </Text>
           </Pressable>
-        </Pressable>
+          </Pressable>
+        </GlassView>
 
-        <View style={styles.card}>
+        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
           <Text style={styles.sectionTitle}>Role</Text>
           <Text style={[styles.desc, { marginBottom: 12 }]}>Tell Synapse who this setup is for so the app can stay context-aware.</Text>
           <View style={styles.roleRow}>
@@ -714,33 +797,64 @@ export default function SettingsScreen({
           </View>
 
           {(profile.userRole ?? "self") === "caregiver" ? (
-            <View style={{ marginTop: 14, gap: 12 }}>
-              <View>
-                <Text style={styles.label}>Who are you caring for?</Text>
-                <TextInput
-                  style={styles.input}
-                  value={profile.caredForName ?? ""}
-                  onChangeText={(text) => setProfile((prev) => ({ ...prev, caredForName: text }))}
-                  placeholder="Their name"
-                  placeholderTextColor={C.textTertiary}
-                />
+            <View style={styles.rolePersonCard}>
+              <View style={styles.rolePersonHeader}>
+                <View style={styles.rolePersonAvatar}>
+                  <Ionicons name="person-outline" size={22} color={C.tint} />
+                </View>
+                <View style={styles.rolePersonText}>
+                  <Text style={styles.rolePersonEyebrow}>Care recipient</Text>
+                  <Text style={styles.rolePersonName}>{caredForNameLabel}</Text>
+                  <Text style={styles.rolePersonMeta}>{caredForAgeLabel}</Text>
+                </View>
+                {!roleDetailsEditing ? (
+                  <Pressable
+                    style={styles.roleEditButton}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setRoleDetailsEditing(true);
+                    }}
+                  >
+                    <Ionicons name="pencil-outline" size={15} color={C.tint} />
+                    <Text style={styles.roleEditButtonText}>Edit</Text>
+                  </Pressable>
+                ) : null}
               </View>
-              <View>
-                <Text style={styles.label}>Their age</Text>
-                <TextInput
-                  style={styles.input}
-                  value={profile.caredForAge != null ? String(profile.caredForAge) : ""}
-                  onChangeText={(text) =>
-                    setProfile((prev) => ({
-                      ...prev,
-                      caredForAge: text.trim() ? Math.max(0, parseInt(text, 10) || 0) : undefined,
-                    }))
-                  }
-                  placeholder="Their age"
-                  placeholderTextColor={C.textTertiary}
-                  keyboardType="number-pad"
-                />
-              </View>
+              {roleDetailsEditing ? (
+                <>
+                  <View style={styles.rolePersonFieldRow}>
+                    <View style={styles.rolePersonFieldName}>
+                      <Text style={styles.roleInlineLabel}>Name</Text>
+                      <TextInput
+                        style={styles.roleInlineInput}
+                        value={profile.caredForName ?? ""}
+                        onChangeText={(text) => setProfile((prev) => ({ ...prev, caredForName: text }))}
+                        placeholder="Name"
+                        placeholderTextColor={C.textTertiary}
+                      />
+                    </View>
+                    <View style={styles.rolePersonFieldAge}>
+                      <Text style={styles.roleInlineLabel}>Age</Text>
+                      <TextInput
+                        style={styles.roleInlineInput}
+                        value={profile.caredForAge != null ? String(profile.caredForAge) : ""}
+                        onChangeText={(text) =>
+                          setProfile((prev) => ({
+                            ...prev,
+                            caredForAge: text.trim() ? Math.max(0, parseInt(text, 10) || 0) : undefined,
+                          }))
+                        }
+                        placeholder="Age"
+                        placeholderTextColor={C.textTertiary}
+                        keyboardType="number-pad"
+                      />
+                    </View>
+                  </View>
+                  <Pressable style={styles.personSaveButton} onPress={saveCareRecipientDetails}>
+                    <Text style={styles.personSaveButtonText}>Save person</Text>
+                  </Pressable>
+                </>
+              ) : null}
             </View>
           ) : null}
 
@@ -780,7 +894,7 @@ export default function SettingsScreen({
             </View>
           ) : null}
 
-          {(profile.userRole ?? "self") !== "self" ? (
+          {(profile.userRole ?? "self") === "backup" ? (
             <Pressable
               style={[styles.primaryBtn, { marginTop: 14 }]}
               onPress={() =>
@@ -795,9 +909,9 @@ export default function SettingsScreen({
               <Text style={styles.primaryBtnText}>Save role details</Text>
             </Pressable>
           ) : null}
-        </View>
+        </GlassView>
 
-        <View style={styles.groupCard}>
+        <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={styles.groupCard}>
           <View style={styles.groupHeader}>
             <Text style={styles.groupTitle}>Health Hub</Text>
             <Text style={styles.groupSubtitle}>Quick ways into the stuff people actually use.</Text>
@@ -819,9 +933,9 @@ export default function SettingsScreen({
               </Pressable>
             ))}
           </View>
-        </View>
+        </GlassView>
 
-        <View style={styles.card}>
+        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
           <Text style={styles.sectionTitle}>App Mode</Text>
           <Text style={[styles.desc, { marginBottom: 12 }]}>
             Simple Mode is a focused view for Dashboard, Medications, Appointments, Symptoms, and Roles. Full Mode keeps the full detailed experience.
@@ -843,40 +957,42 @@ export default function SettingsScreen({
           <Text style={[styles.desc, { marginTop: 12 }]}>
             Simple Mode keeps those main areas easier to reach with larger controls and less clutter.
           </Text>
-        </View>
+        </GlassView>
 
-        <Pressable
-          style={styles.card}
-          testID="ramadan-mode-toggle"
-          onPress={() => {
-            const next = !settings.ramadanMode;
-            if (next) {
-              if (!isCurrentMonthRamadan()) {
-                Alert.alert(
-                  "Not Ramadan Yet",
-                  "We're so glad you're looking forward to Ramadan! The toggle will activate automatically when Ramadan begins. Come back then 🌙",
-                  [{ text: "Got it" }]
-                );
-                return;
+        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.cardGlass}>
+          <Pressable
+            style={styles.cardPressable}
+            testID="ramadan-mode-toggle"
+            onPress={() => {
+              const next = !settings.ramadanMode;
+              if (next) {
+                if (!isCurrentMonthRamadan()) {
+                  Alert.alert(
+                    "Not Ramadan Yet",
+                    "We're so glad you're looking forward to Ramadan! The toggle will activate automatically when Ramadan begins. Come back then 🌙",
+                    [{ text: "Got it" }]
+                  );
+                  return;
+                }
               }
-            }
-            setSettings((p) => ({ ...p, ramadanMode: next }));
-            setSaved(false);
-            Haptics.selectionAsync();
-          }}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: settings.ramadanMode }}
-        >
-          <View style={styles.toggleHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sectionTitle}>Ramadan Mode</Text>
-              <Text style={styles.desc}>Enable fasting tracking with Fajr & Iftar times</Text>
+              setSettings((p) => ({ ...p, ramadanMode: next }));
+              setSaved(false);
+              Haptics.selectionAsync();
+            }}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: settings.ramadanMode }}
+          >
+            <View style={styles.toggleHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sectionTitle}>Ramadan Mode</Text>
+                <Text style={styles.desc}>Enable fasting tracking with Fajr & Iftar times</Text>
+              </View>
+              <View style={[styles.toggle, settings.ramadanMode && styles.toggleActive]}>
+                <View style={[styles.toggleThumb, settings.ramadanMode && styles.toggleThumbActive]} />
+              </View>
             </View>
-            <View style={[styles.toggle, settings.ramadanMode && styles.toggleActive]}>
-              <View style={[styles.toggleThumb, settings.ramadanMode && styles.toggleThumbActive]} />
-            </View>
-          </View>
-        </Pressable>
+          </Pressable>
+        </GlassView>
 
         <Pressable
           style={({ pressed }) => [styles.saveBtn, saved && styles.saveBtnSaved, { opacity: pressed ? 0.85 : 1 }]}
@@ -1106,14 +1222,15 @@ export default function SettingsScreen({
   );
 }
 
-function makeStyles(C: Theme) {
+function makeStyles(C: Theme, themeId: string) {
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     scrollView: { flex: 1 },
     scrollViewContent: { flexGrow: 1 },
     title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 24 },
     simpleSettingsContent: { gap: 12 },
-    simpleSettingsCard: { backgroundColor: C.surface, borderRadius: 22, padding: 20, borderWidth: 1, borderColor: C.border, gap: 14 },
+    simpleSettingsCard: { borderRadius: 28, padding: 20, gap: 14, overflow: "hidden", ...raised("md") },
     simpleSettingsSectionTitle: { fontWeight: "800", color: C.text, letterSpacing: -0.4 },
     simpleSettingsPrompt: { fontWeight: "600", color: C.textSecondary, marginBottom: 2 },
     simpleProfileRow: { flexDirection: "row", alignItems: "center", gap: 16 },
@@ -1125,21 +1242,48 @@ function makeStyles(C: Theme) {
     simpleSettingsButtonRow: { flexDirection: "row", gap: 10 },
     simpleSettingsPrimaryButton: { minHeight: 54, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", flex: 1 },
     simpleSettingsPrimaryButtonText: { fontWeight: "800", color: "#fff", letterSpacing: -0.2 },
-    simpleSettingsSecondaryButton: { minHeight: 54, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", flex: 1 },
+    simpleSettingsSecondaryButton: { minHeight: 54, paddingHorizontal: 18, borderRadius: 18, backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.3)", borderWidth: 1, borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.78)", alignItems: "center", justifyContent: "center", flex: 1 },
     simpleSettingsSecondaryButtonText: { fontWeight: "800", color: C.text, letterSpacing: -0.2 },
     simpleSettingsOptionStack: { gap: 10 },
-    simpleSettingsOptionButton: { minHeight: 56, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, justifyContent: "center", paddingHorizontal: 18 },
+    simpleSettingsOptionButton: { minHeight: 56, borderRadius: 18, backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.28)", borderWidth: 1, borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.78)", justifyContent: "center", paddingHorizontal: 18 },
     simpleSettingsOptionButtonActive: { borderColor: C.tint, backgroundColor: C.tintLight },
     simpleSettingsOptionText: { fontWeight: "700", color: C.textSecondary, letterSpacing: -0.2 },
     simpleSettingsOptionTextActive: { color: C.tint },
     simpleSettingsInputBlock: { gap: 10 },
-    simpleSettingsInput: { minHeight: 56, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, paddingHorizontal: 18, color: C.text },
-    simpleSettingsToggleRow: { minHeight: 58, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    simpleSettingsInput: { minHeight: 56, borderRadius: 18, backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.34)", borderWidth: 1, borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.78)", paddingHorizontal: 18, color: C.text },
+    simplePersonCard: {
+      borderRadius: 24,
+      padding: 14,
+      gap: 12,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.26)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.82)",
+      ...raised("sm"),
+    },
+    simplePersonHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+    simplePersonAvatar: {
+      width: 46,
+      height: 46,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.tintLight,
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.72)",
+    },
+    simplePersonText: { flex: 1, minWidth: 0 },
+    simplePersonEyebrow: { fontWeight: "800", color: C.textTertiary, textTransform: "uppercase", letterSpacing: 0.8 },
+    simplePersonName: { fontWeight: "900", color: C.text, letterSpacing: -0.4 },
+    simplePersonMeta: { fontWeight: "700", color: C.textSecondary, marginTop: 2 },
+    simplePersonFieldRow: { flexDirection: "row", gap: 10 },
+    simplePersonFieldName: { flex: 1.4, minWidth: 0 },
+    simplePersonFieldAge: { flex: 0.8, minWidth: 86 },
+    simpleSettingsToggleRow: { minHeight: 58, borderRadius: 18, backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.28)", borderWidth: 1, borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.78)", paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     simpleSettingsDangerWrap: { paddingTop: 6, marginTop: 10, borderTopWidth: 1, borderTopColor: C.border },
     simpleSettingsDangerButton: { minHeight: 56, borderRadius: 18, borderWidth: 1, borderColor: C.red + "55", alignItems: "center", justifyContent: "center", backgroundColor: C.surface },
     simpleSettingsDangerText: { fontWeight: "800", color: C.red, letterSpacing: -0.2 },
     editProfileLink: { fontWeight: "500", fontSize: 13, color: C.tint, marginTop: 4 },
-    groupCard: { backgroundColor: C.surface, borderRadius: 14, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border },
+    groupCard: { borderRadius: 30, padding: 18, marginBottom: 12, overflow: "hidden", ...raised("md") },
     groupHeader: { marginBottom: 14 },
     groupTitle: { fontWeight: "700", fontSize: 17, color: C.text },
     groupSubtitle: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 3 },
@@ -1147,14 +1291,15 @@ function makeStyles(C: Theme) {
     tileCard: {
       width: "48%",
       minHeight: 132,
-      backgroundColor: C.surfaceElevated,
-      borderRadius: 16,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.24)",
+      borderRadius: 20,
       borderWidth: 1,
-      borderColor: C.border,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.78)",
       paddingHorizontal: 14,
       paddingVertical: 14,
       justifyContent: "flex-start",
       marginBottom: 12,
+      ...raised("sm"),
     },
     tileIconWrap: {
       width: 42,
@@ -1166,11 +1311,13 @@ function makeStyles(C: Theme) {
     },
     tileTitle: { fontWeight: "700", fontSize: 14, color: C.text, marginBottom: 4 },
     tileDesc: { fontWeight: "400", fontSize: 12, lineHeight: 17, color: C.textSecondary },
-    card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
+    card: { borderRadius: 28, padding: 20, marginBottom: 12, overflow: "hidden", ...raised("md") },
+    cardGlass: { borderRadius: 28, marginBottom: 12, overflow: "hidden", ...raised("md") },
+    cardPressable: { padding: 20 },
     sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 4 },
     desc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 14 },
     label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
-    input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border },
+    input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.34)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.78)" },
     textArea: { minHeight: 84, textAlignVertical: "top" },
     profileRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, minHeight: 50 },
     profileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
@@ -1192,12 +1339,13 @@ function makeStyles(C: Theme) {
     statCardsRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
     statCard: {
       flex: 1,
-      backgroundColor: C.background,
+      backgroundColor: C.surfaceElevated,
       borderRadius: 14,
       borderWidth: 1,
       borderColor: C.tint + "30",
       padding: 14,
       minHeight: 80,
+      ...raised("sm"),
     },
     statCardLabel: { fontWeight: "600", fontSize: 12, color: C.textSecondary, marginTop: 6 },
     statCardValue: { fontWeight: "600", fontSize: 14, color: C.text, marginTop: 2 },
@@ -1221,11 +1369,73 @@ function makeStyles(C: Theme) {
       borderRadius: 999,
       borderWidth: 1,
       borderColor: C.border,
-      backgroundColor: C.surfaceElevated,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.3)",
     },
     roleChipActive: { borderColor: C.tint, backgroundColor: C.tintLight },
     roleChipText: { color: C.textSecondary, fontWeight: "600", fontSize: 13 },
     roleChipTextActive: { color: C.tint },
+    rolePersonCard: {
+      marginTop: 14,
+      borderRadius: 24,
+      padding: 14,
+      gap: 12,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.26)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.82)",
+      ...raised("sm"),
+    },
+    rolePersonHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+    rolePersonAvatar: {
+      width: 52,
+      height: 52,
+      borderRadius: 20,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.tintLight,
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.72)",
+    },
+    rolePersonText: { flex: 1, minWidth: 0 },
+    rolePersonEyebrow: { fontWeight: "800", fontSize: 11, color: C.textTertiary, textTransform: "uppercase", letterSpacing: 0.8 },
+    rolePersonName: { fontWeight: "900", fontSize: 20, color: C.text, letterSpacing: -0.5 },
+    rolePersonMeta: { fontWeight: "700", fontSize: 13, color: C.textSecondary, marginTop: 2 },
+    rolePersonFieldRow: { flexDirection: "row", gap: 10 },
+    rolePersonFieldName: { flex: 1.4, minWidth: 0 },
+    rolePersonFieldAge: { flex: 0.8, minWidth: 86 },
+    roleEditButton: {
+      minHeight: 38,
+      paddingHorizontal: 12,
+      borderRadius: 999,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      backgroundColor: C.tintLight,
+      borderWidth: 1,
+      borderColor: C.tint + "35",
+    },
+    roleEditButtonText: { fontWeight: "900", fontSize: 12, color: C.tint },
+    roleInlineLabel: { fontWeight: "800", fontSize: 11, color: C.textTertiary, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 },
+    roleInlineInput: {
+      minHeight: 50,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      fontWeight: "700",
+      fontSize: 14,
+      color: C.text,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.34)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.78)",
+    },
+    personSaveButton: {
+      minHeight: 48,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.tint,
+      ...raised("sm"),
+    },
+    personSaveButtonText: { fontWeight: "900", fontSize: 14, color: "#fff", letterSpacing: -0.2 },
     localHint: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 12 },
     toggleHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     toggle: { width: 48, height: 28, borderRadius: 14, backgroundColor: C.surfaceElevated, justifyContent: "center", paddingHorizontal: 3 },
@@ -1235,13 +1445,13 @@ function makeStyles(C: Theme) {
     saveBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
     saveBtnSaved: { backgroundColor: C.tint },
     saveBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
+    overlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", alignItems: "center", padding: 24 },
     modalActions: { flexDirection: "row", gap: 10 },
     cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, alignItems: "center" },
     cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
     resetAppBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 28, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: C.red + "30" },
     resetAppText: { fontWeight: "500", fontSize: 14, color: C.red },
-    resetModal: { backgroundColor: C.surface, borderRadius: 22, padding: 28, width: "100%", maxWidth: 320, borderWidth: 1, borderColor: C.border, alignItems: "center" },
+    resetModal: { backgroundColor: solidModalSurface, borderRadius: 22, padding: 28, width: "100%", maxWidth: 320, borderWidth: 1, borderColor: C.border, alignItems: "center", ...raised("lg") },
     resetEmoji: { fontSize: 56, marginBottom: 16 },
     resetTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 8, textAlign: "center" },
     resetDesc: { fontWeight: "400", fontSize: 15, color: C.textSecondary, textAlign: "center", marginBottom: 24, lineHeight: 22 },
@@ -1253,8 +1463,8 @@ function makeStyles(C: Theme) {
       alignItems: "center",
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: C.border,
-      backgroundColor: C.surfaceElevated,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.78)",
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.28)",
       paddingVertical: 12,
       paddingHorizontal: 14,
     },

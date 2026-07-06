@@ -11,6 +11,7 @@ import {
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
+import { syncRecoveryTrackingCheckIn } from "@/lib/notification-manager";
 
 type NativeWidgetBridge = {
   getPendingAppIntentActions?: () => Promise<string | null>;
@@ -138,6 +139,7 @@ async function startSickMode() {
       checkInTimer: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
     });
   }
+  await syncRecoveryTrackingCheckIn();
 }
 
 async function addAppointmentFromIntent(payload: Record<string, unknown>) {

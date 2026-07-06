@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import TextInput from "@/components/DoneTextInput";
+import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { cycleTrackingStorage, type CycleEntry, type CycleFlow } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
@@ -64,7 +65,7 @@ export default function CycleTrackingScreen({ onBack }: CycleTrackingScreenProps
     ]);
   };
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
+  const topPad = Platform.OS === "web" ? 40 : 14;
 
   return (
     <View style={styles.container}>
@@ -172,7 +173,7 @@ function makeStyles(C: Theme) {
     backText: { fontWeight: "600", fontSize: 15, color: C.text },
     title: { fontWeight: "700", fontSize: 26, color: C.text, letterSpacing: -0.5, marginBottom: 8 },
     subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginBottom: 24 },
-    card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: C.border, marginBottom: 12 },
+    card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, borderWidth: 1, borderColor: C.border, marginBottom: 12, ...raised("md", "#55718F") },
     label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 8 },
     input: {
       fontWeight: "400",

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, StyleSheet, Text, Pressable, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -9,8 +9,9 @@ import { useIsTablet } from "@/lib/device";
 import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
 import { featureFlags } from "@/constants/feature-flags";
 import { useSynapseHQPanel } from "@/components/SynapseHQPanel";
+import { getNavBadgeCounts, type NavBadgeCounts } from "@/lib/nav-badge-counts";
 
-const LIGHT_SIDEBAR_GRADIENT = ["#D1E0F7", "#BDD4F2"] as const;
+const LIGHT_SIDEBAR_GRADIENT = ["#F5F1EA", "#E0EAE0"] as const;
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -73,6 +74,8 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
   const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
   const synapseHQ = useSynapseHQPanel();
+  const openSynapseHQ = __DEV__ ? synapseHQ.open : undefined;
+  const [badgeCounts, setBadgeCounts] = useState<NavBadgeCounts>({});
   const emergencyCardRef = useRef<View>(null);
   const walkthrough = useWalkthroughTargets();
   const registerTarget = walkthrough?.registerTarget;
@@ -83,6 +86,35 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
     registerTarget("emergencycard", () => measureInWindow(emergencyCardRef));
     return () => unregisterTarget("emergencycard");
   }, [registerTarget, unregisterTarget, isTablet]);
+
+  const loadBadges = useCallback(async () => {
+    try {
+      setBadgeCounts(await getNavBadgeCounts());
+    } catch {
+      setBadgeCounts({});
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isTablet || isSimpleMode) return;
+    loadBadges();
+    const interval = setInterval(loadBadges, 10000);
+    return () => clearInterval(interval);
+  }, [activeScreen, isSimpleMode, isTablet, loadBadges]);
+
+  const getBadgeCount = useCallback((key: string) => badgeCounts[key] ?? 0, [badgeCounts]);
+  const getNavAccessibilityLabel = useCallback((item: NavItem) => {
+    const count = getBadgeCount(item.key);
+    return count > 0 ? `${item.label}, ${count > 9 ? "9 plus" : count} pending` : item.label;
+  }, [getBadgeCount]);
+  const renderIconBadge = useCallback((count: number) => {
+    if (count <= 0) return null;
+    return (
+      <View style={styles.iconBadge}>
+        <Text style={styles.iconBadgeText}>{count > 9 ? "9+" : count}</Text>
+      </View>
+    );
+  }, [styles]);
 
   if (!isTablet || isSimpleMode) return null;
 
@@ -96,7 +128,7 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
           style={StyleSheet.absoluteFill}
         />
       ) : (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: C.background }]} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: "transparent" }]} />
       )}
       <View style={[styles.sidebar, { paddingTop: insets.top + 32 }]}>
       <Text style={styles.logo} numberOfLines={1}>
@@ -114,22 +146,26 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
               {items.map((item) => {
                 const active = activeScreen === item.key;
                 const isEmergencyCard = item.key === "emergencycard";
+                const badgeCount = getBadgeCount(item.key);
                 return (
                   <View key={item.key} ref={isEmergencyCard ? emergencyCardRef : undefined} collapsable={false}>
                     <Pressable
                       style={[styles.navItem, styles.navItemExpanded, active && styles.navItemActive]}
                       onPress={() => onNavigate(item.key)}
-                      onLongPress={item.key === "settings" ? synapseHQ.open : undefined}
+                      onLongPress={item.key === "settings" ? openSynapseHQ : undefined}
                       delayLongPress={3500}
                       accessibilityRole="button"
-                      accessibilityLabel={item.label}
+                      accessibilityLabel={getNavAccessibilityLabel(item)}
                       accessibilityState={{ selected: active }}
                     >
-                      <Ionicons
-                        name={active ? item.iconActive : item.icon}
-                        size={24}
-                        color={active ? C.accent : C.textTertiary}
-                      />
+                      <View style={styles.navIconWrap}>
+                        <Ionicons
+                          name={active ? item.iconActive : item.icon}
+                          size={24}
+                          color={active ? C.accent : C.textTertiary}
+                        />
+                        {renderIconBadge(badgeCount)}
+                      </View>
                       <Text style={[styles.navLabel, active && styles.navLabelActive]} numberOfLines={1}>
                         {item.label}
                       </Text>
@@ -142,7 +178,7 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
         })}
       </ScrollView>
       </View>
-      {synapseHQ.element}
+      {__DEV__ ? synapseHQ.element : null}
     </View>
   );
 }
@@ -208,6 +244,33 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       backgroundColor: C.sidebarActive,
       borderRadius: 10,
       marginHorizontal: 8,
+    },
+    navIconWrap: {
+      position: "relative",
+      minWidth: 28,
+      minHeight: 28,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    iconBadge: {
+      position: "absolute",
+      top: -7,
+      right: -10,
+      minWidth: 17,
+      height: 17,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.red,
+      borderWidth: 2,
+      borderColor: themeId === "dark" ? "#1C1C1E" : "#FFFFFF",
+    },
+    iconBadgeText: {
+      fontSize: 9,
+      lineHeight: 11,
+      fontWeight: "800",
+      color: "#FFFFFF",
     },
     navLabel: {
       fontWeight: "500",

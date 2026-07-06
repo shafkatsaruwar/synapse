@@ -60,6 +60,7 @@ import {
   type NotificationNavigationTarget,
   setNotificationNavigateCallback,
   handleLastNotificationResponse,
+  syncRecoveryTrackingCheckIn,
 } from "@/lib/notification-manager";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import AppBackground from "@/components/AppBackground";
@@ -79,18 +80,19 @@ import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { getPendingIcsImport, type IcsImportPayload } from "@/lib/ics-import";
 import { processPendingAppIntentActions } from "@/lib/app-intents";
 
-const WHATS_NEW_TITLE = "Simpler when you need it. Smarter when it counts.";
+const WHATS_NEW_TITLE = "Faster adds, smarter visits, cleaner care.";
 const WHATS_NEW_BODY =
-  "This update gives Synapse a calmer Simple Mode, more helpful widgets, and better visit prep so staying on top of your health takes less work.";
+  "This update makes it easier to add health info, prep for appointments, and find the support details that actually belong with each workflow.";
 const WHATS_NEW_BULLETS = [
-  "New Simple Mode with clear access to Home, Meds, Visits, Symptoms, and Account",
-  "New widgets for Daily Check-In, medications, visits, and As Needed meds",
-  "Doctor Notes now attach to a visit and can be marked as talked about",
-  "Monthly check-ins now review appointments and what actually got discussed",
-  "Faster medication logging and smoother appointments across the app",
+  "Quick Add now brings Scan, manual add, Calendar import, and symptom logging into one hub",
+  "Apple Calendar import now prioritizes relevant appointments so visits are easier to find",
+  "Appointments can show travel guidance based on your approximate current area",
+  "Appointment cards now offer clear Edit, Reschedule, and Cancel actions",
+  "Doctors belong with Appointments, and Pharmacies belong with Medications",
+  "Widgets now show more useful medication times and appointment details",
 ] as const;
 const WHATS_NEW_FOOTER =
-  "We also polished navigation, onboarding, and everyday tracking so Synapse feels cleaner, calmer, and easier to keep up with.";
+  "Try the new flows from the plus button, Appointments, Medications, or Account whenever you want a refresher.";
 
 const SIMPLE_TOUR_GAP = 14;
 const SIMPLE_TOUR_ARROW_SIZE = 11;
@@ -320,7 +322,7 @@ export default function MainScreen() {
   const [showSimpleModeTour, setShowSimpleModeTour] = useState(false);
   const [simpleModeTourStep, setSimpleModeTourStep] = useState(0);
   const [pendingSimpleModeTourAfterWhatsNew, setPendingSimpleModeTourAfterWhatsNew] = useState(false);
-  const [openAppearanceModalToken, setOpenAppearanceModalToken] = useState(0);
+  const [openAppearanceModalToken] = useState(0);
   const [showFeedbackPrompt, setShowFeedbackPrompt] = useState(false);
   const [suppressPostOnboardingPrompts, setSuppressPostOnboardingPrompts] = useState(false);
   const [feedbackInitialSentiment, setFeedbackInitialSentiment] = useState<FeedbackSentiment | null>(null);
@@ -508,6 +510,7 @@ export default function MainScreen() {
               checkInTimer: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
             });
           }
+          await syncRecoveryTrackingCheckIn();
           setSickMode(true);
           setActiveScreen("sickmode");
           setRefreshKey((k) => k + 1);
@@ -942,8 +945,7 @@ export default function MainScreen() {
     await markWhatsNewSeen();
     setPendingSimpleModeTourAfterWhatsNew(false);
     setShowWhatsNew(false);
-    setActiveScreen("settings");
-    setOpenAppearanceModalToken((value) => value + 1);
+    setActiveScreen("dashboard");
     setRefreshKey((k) => k + 1);
   }, [markWhatsNewSeen]);
 
@@ -1163,6 +1165,7 @@ export default function MainScreen() {
             onNavigate={handleNavigate}
             onRestoreComplete={() => setRefreshKey((k) => k + 1)}
             onShowAppTour={() => setShowWalkthrough(true)}
+            onShowWhatsNew={() => setShowWhatsNew(true)}
             openAppearanceModalToken={openAppearanceModalToken}
           />
         );

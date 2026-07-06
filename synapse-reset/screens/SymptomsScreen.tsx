@@ -11,6 +11,10 @@ import { useModeAwareScreen } from "@/contexts/AppModeContext";
 import { symptomStorage, settingsStorage, sickModeStorage, enableRecoveryTracking, type Symptom } from "@/lib/storage";
 import { formatTimestamp, getToday, getRelativeDay, getDaysAgo } from "@/lib/date-utils";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
+import { raised } from "@/constants/raised";
+import { syncRecoveryTrackingCheckIn } from "@/lib/notification-manager";
+import { maybePromptForCycleTracking } from "@/lib/cycle-detection";
+import { modalOverlay, modalSurface, modalSurfaceElevated } from "@/lib/modal-colors";
 
 const COMMON_SYMPTOMS = [
   "Chest pain",
@@ -123,6 +127,7 @@ export default function SymptomsScreen({ onActivateSickMode, simpleOpenAddToken 
       customTrigger: selectedTrigger === "Custom" ? customTrigger.trim() || undefined : undefined,
       durationMinutes: durationMinutes.trim() ? Math.max(1, parseInt(durationMinutes, 10) || 1) : undefined,
     });
+    await maybePromptForCycleTracking({ text: notes, source: "symptom-log", symptomName: name, symptomAlreadyLogged: true });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     if (isFeverSelected && temp && temp >= 100) {
@@ -144,6 +149,7 @@ export default function SymptomsScreen({ onActivateSickMode, simpleOpenAddToken 
     await enableRecoveryTracking();
     const sd = await sickModeStorage.get();
     await sickModeStorage.save({ ...sd, active: true, startedAt: new Date().toISOString() });
+    await syncRecoveryTrackingCheckIn();
     await syncWidgetSnapshot().catch(() => {});
     setShowFeverAlert(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -216,6 +222,7 @@ export default function SymptomsScreen({ onActivateSickMode, simpleOpenAddToken 
       temperature: temp,
       trigger: simpleTrigger || undefined,
     });
+    await maybePromptForCycleTracking({ text: simpleNotes, source: "symptom-log", symptomName: name, symptomAlreadyLogged: true });
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 
     if (selectedSymptom === "Fever" && temp && temp >= 100) {
@@ -253,7 +260,7 @@ export default function SymptomsScreen({ onActivateSickMode, simpleOpenAddToken 
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={[styles.content, styles.simpleContent, {
-            paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 18),
+            paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
             paddingBottom: isWide ? 56 : (Platform.OS === "web" ? 148 : insets.bottom + 140),
           }]}
           showsVerticalScrollIndicator={false}
@@ -503,7 +510,7 @@ export default function SymptomsScreen({ onActivateSickMode, simpleOpenAddToken 
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[styles.content, {
-          paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16),
+          paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
           paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
         }]}
         showsVerticalScrollIndicator={false}
@@ -704,6 +711,8 @@ export default function SymptomsScreen({ onActivateSickMode, simpleOpenAddToken 
 }
 
 function makeStyles(C: Theme) {
+  const solidModalSurface = modalSurface(C);
+  const solidModalElevated = modalSurfaceElevated(C);
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 24 },
@@ -712,12 +721,12 @@ function makeStyles(C: Theme) {
     simpleTitle: { fontWeight: "800", fontSize: 32, color: C.text, letterSpacing: -0.8 },
     simpleSubtitle: { fontWeight: "500", fontSize: 18, color: C.textSecondary },
     simpleSection: { gap: 10 },
-    simpleSymptomCard: { backgroundColor: C.surface, borderRadius: 22, padding: 18, borderWidth: 1, borderColor: C.border, gap: 6 },
+    simpleSymptomCard: { backgroundColor: C.surface, borderRadius: 22, padding: 18, borderWidth: 1, borderColor: C.border, gap: 6, ...raised("sm") },
     simpleSymptomCardPressed: { opacity: 0.96, transform: [{ scale: 0.995 }] },
     simpleSymptomName: { fontWeight: "800", fontSize: 22, color: C.text, letterSpacing: -0.4 },
     simpleSymptomSeverity: { fontWeight: "600", fontSize: 17, color: C.textSecondary },
     simpleSymptomTime: { fontWeight: "500", fontSize: 15, color: C.textTertiary },
-    simpleEmptyCard: { alignItems: "center", gap: 10, backgroundColor: C.surface, borderRadius: 24, paddingHorizontal: 22, paddingVertical: 28, borderWidth: 1, borderColor: C.border },
+    simpleEmptyCard: { alignItems: "center", gap: 10, backgroundColor: C.surface, borderRadius: 24, paddingHorizontal: 22, paddingVertical: 28, borderWidth: 1, borderColor: C.border, ...raised("md") },
     simpleEmptyIcon: { width: 72, height: 72, borderRadius: 24, backgroundColor: C.surfaceElevated, alignItems: "center", justifyContent: "center" },
     simpleEmptyTitle: { fontWeight: "800", fontSize: 22, color: C.text, textAlign: "center" },
     simpleEmptyBody: { fontWeight: "500", fontSize: 16, color: C.textSecondary, textAlign: "center", lineHeight: 22 },
@@ -731,31 +740,31 @@ function makeStyles(C: Theme) {
     simpleFooterAction: { position: "absolute", left: 16, right: 16 },
     simpleFooterButton: { minHeight: 60, borderRadius: 20, backgroundColor: C.orange, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.14, shadowRadius: 16, elevation: 5 },
     simpleFooterButtonText: { fontWeight: "800", fontSize: 20, color: "#fff" },
-    simpleModal: { backgroundColor: C.surface, borderRadius: 24, padding: 24, width: "100%", maxWidth: 420, borderWidth: 1, borderColor: C.border, maxHeight: "88%" },
+    simpleModal: { backgroundColor: solidModalSurface, borderRadius: 24, padding: 24, width: "100%", maxWidth: 420, borderWidth: 1, borderColor: C.border, maxHeight: "88%", ...raised("lg") },
     simpleModalTitle: { fontWeight: "800", fontSize: 24, color: C.text, marginBottom: 14, letterSpacing: -0.4 },
     simpleStepDots: { flexDirection: "row", gap: 8, marginBottom: 18 },
     simpleStepDot: { width: 10, height: 10, borderRadius: 999, backgroundColor: C.border },
     simpleStepDotActive: { width: 24, backgroundColor: C.orange },
     simpleStepTitle: { fontWeight: "800", fontSize: 22, color: C.text, marginBottom: 14, letterSpacing: -0.4 },
     simpleChoiceGrid: { gap: 10, marginBottom: 14 },
-    simpleChoiceButton: { minHeight: 56, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, justifyContent: "center", paddingHorizontal: 18 },
+    simpleChoiceButton: { minHeight: 56, borderRadius: 18, backgroundColor: solidModalElevated, borderWidth: 1, borderColor: C.border, justifyContent: "center", paddingHorizontal: 18 },
     simpleChoiceButtonActive: { backgroundColor: C.orangeLight, borderColor: C.orange },
     simpleChoiceButtonText: { fontWeight: "700", fontSize: 18, color: C.text },
     simpleChoiceButtonTextActive: { color: C.orange },
-    simpleInput: { fontWeight: "500", fontSize: 17, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
+    simpleInput: { fontWeight: "500", fontSize: 17, color: C.text, backgroundColor: solidModalElevated, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
     simpleSeverityStack: { gap: 10 },
-    simpleSeverityButton: { minHeight: 58, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },
+    simpleSeverityButton: { minHeight: 58, borderRadius: 18, backgroundColor: solidModalElevated, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },
     simpleSeverityButtonText: { fontWeight: "700", fontSize: 18, color: C.text },
     simpleOptionalLabel: { fontWeight: "600", fontSize: 14, color: C.textSecondary, marginBottom: 8 },
     simpleTriggerStack: { gap: 10, marginBottom: 14 },
-    simpleTriggerButton: { minHeight: 52, borderRadius: 16, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, justifyContent: "center", paddingHorizontal: 16 },
+    simpleTriggerButton: { minHeight: 52, borderRadius: 16, backgroundColor: solidModalElevated, borderWidth: 1, borderColor: C.border, justifyContent: "center", paddingHorizontal: 16 },
     simpleTriggerButtonActive: { backgroundColor: C.orangeLight, borderColor: C.orange },
     simpleTriggerButtonText: { fontWeight: "700", fontSize: 16, color: C.textSecondary },
     simpleTriggerButtonTextActive: { color: C.orange },
     simpleNotesInput: { minHeight: 92 },
     simpleModalActions: { flexDirection: "row", gap: 10, marginTop: 4 },
     simpleModalSpacer: { flex: 1 },
-    simpleDetailCard: { backgroundColor: C.surfaceElevated, borderRadius: 18, padding: 18, gap: 8, marginBottom: 16, borderWidth: 1, borderColor: C.border },
+    simpleDetailCard: { backgroundColor: solidModalElevated, borderRadius: 18, padding: 18, gap: 8, marginBottom: 16, borderWidth: 1, borderColor: C.border, ...raised("sm") },
     simpleDetailMeta: { fontWeight: "500", fontSize: 15, color: C.textSecondary, lineHeight: 21 },
     simpleDetailActions: { flexDirection: "row", gap: 10 },
     simpleToastWrap: { position: "absolute", left: 16, right: 16 },
@@ -764,39 +773,39 @@ function makeStyles(C: Theme) {
     header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
     title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
     subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
-    addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.orange, alignItems: "center", justifyContent: "center" },
+    addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.orange, alignItems: "center", justifyContent: "center", ...raised("sm", C.orange) },
     empty: { alignItems: "center", paddingVertical: 60, gap: 8 },
     emptyTitle: { fontWeight: "600", fontSize: 17, color: C.text, marginTop: 8 },
     emptyDesc: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
     sectionLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
-    symptomCard: { flexDirection: "row", alignItems: "flex-start", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 6, borderWidth: 1, borderColor: C.border, gap: 12 },
+    symptomCard: { flexDirection: "row", alignItems: "flex-start", backgroundColor: C.surface, borderRadius: 16, padding: 14, marginBottom: 6, borderWidth: 1, borderColor: C.border, gap: 12, ...raised("sm") },
     sevBar: { width: 3, height: 36, borderRadius: 2, marginTop: 2 },
     symptomName: { fontWeight: "600", fontSize: 14, color: C.text },
     sevText: { fontWeight: "500", fontSize: 12, marginTop: 2 },
     symptomMeta: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 3 },
     symptomNotes: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 4 },
-    card: { backgroundColor: C.surface, borderRadius: 14, padding: 18, borderWidth: 1, borderColor: C.border },
+    card: { backgroundColor: C.surface, borderRadius: 18, padding: 18, borderWidth: 1, borderColor: C.border, ...raised("sm") },
     cardTitle: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 14 },
     freqRow: { flexDirection: "row", alignItems: "center", marginBottom: 8, gap: 8 },
     freqName: { fontWeight: "500", fontSize: 13, color: C.text, width: 100 },
     freqBarOuter: { flex: 1, height: 6, backgroundColor: C.surfaceElevated, borderRadius: 3, overflow: "hidden" },
     freqBarInner: { height: "100%", backgroundColor: C.orange, borderRadius: 3 },
     freqCount: { fontWeight: "600", fontSize: 12, color: C.textSecondary, width: 20, textAlign: "right" },
-    recentCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: C.border },
+    recentCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 14, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: C.border, ...raised("sm") },
     recentName: { fontWeight: "500", fontSize: 13, color: C.text },
     recentDate: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2 },
     recentTime: { fontWeight: "500", fontSize: 11, color: C.textTertiary, marginTop: 2 },
     sevBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
     sevBadgeText: { fontWeight: "600", fontSize: 11 },
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
-    modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 420, borderWidth: 1, borderColor: C.border, maxHeight: "90%" },
+    overlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", alignItems: "center", padding: 24 },
+    modal: { backgroundColor: solidModalSurface, borderRadius: 22, padding: 24, width: "100%", maxWidth: 420, borderWidth: 1, borderColor: C.border, maxHeight: "90%", ...raised("lg") },
     modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
     quickHint: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginBottom: 14, lineHeight: 18 },
     label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
     chipGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
-    chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
+    chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: solidModalElevated },
     chipText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
-    input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
+    input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: solidModalElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
     sevPicker: { flexDirection: "row", gap: 6, marginBottom: 14 },
     sevPickBtn: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated },
     sevPickNum: { fontWeight: "700", fontSize: 16, color: C.textSecondary },
@@ -812,7 +821,7 @@ function makeStyles(C: Theme) {
     tempBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: C.orangeLight },
     tempBadgeHigh: { backgroundColor: C.redLight },
     tempBadgeText: { fontWeight: "600", fontSize: 11, color: C.orange },
-    feverAlertCard: { backgroundColor: C.surface, borderRadius: 20, padding: 28, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: "rgba(255,69,58,0.3)", alignItems: "center" },
+    feverAlertCard: { backgroundColor: solidModalSurface, borderRadius: 22, padding: 28, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: "rgba(255,69,58,0.3)", alignItems: "center", ...raised("lg", C.red) },
     feverAlertIcon: { width: 56, height: 56, borderRadius: 16, backgroundColor: C.redLight, alignItems: "center", justifyContent: "center", marginBottom: 16 },
     feverAlertTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 8 },
     feverAlertDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, textAlign: "center", lineHeight: 20, marginBottom: 20 },

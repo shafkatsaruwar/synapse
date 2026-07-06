@@ -15,6 +15,8 @@ import { useAccessibility } from "@/lib/accessibility";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { getSickModePalette } from "@/constants/sick-mode-colors";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
+import { cancelRecoveryCheckIn } from "@/lib/notification-manager";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 const HYDRATION_GOAL = 2000;
 const CHECK_IN_INTERVAL_MS = 2 * 60 * 60 * 1000;
 const COMFORT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -238,6 +240,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
     const settings = await settingsStorage.get();
     await settingsStorage.save({ ...settings, sickMode: false });
     await sickModeStorage.reset();
+    await cancelRecoveryCheckIn();
     await syncWidgetSnapshot().catch(() => {});
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onDeactivate();
@@ -268,7 +271,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[styles.content, {
-          paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16),
+          paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
           paddingBottom: isWide ? 60 : (Platform.OS === "web" ? 140 : insets.bottom + 120),
         }]}
         showsVerticalScrollIndicator={false}
@@ -554,6 +557,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
 }
 
 function makeStyles(C: Theme, S: import("@/constants/sick-mode-colors").SickModePalette) {
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: S.background },
   content: { paddingHorizontal: 24 },
@@ -671,11 +675,11 @@ function makeStyles(C: Theme, S: import("@/constants/sick-mode-colors").SickMode
   betterBtnText: { fontWeight: "700", fontSize: 16, color: "#fff" },
 
   modalOverlay: {
-    flex: 1, backgroundColor: "rgba(0,0,0,0.5)",
+    flex: 1, backgroundColor: modalOverlay(),
     justifyContent: "center", alignItems: "center", padding: 24,
   },
   modalContent: {
-    backgroundColor: C.background, borderRadius: 20, padding: 28,
+    backgroundColor: solidModalSurface, borderRadius: 22, padding: 28, borderWidth: 1, borderColor: C.border,
     width: "100%", maxWidth: 360, alignItems: "center",
     ...Platform.select({
       ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 20 },

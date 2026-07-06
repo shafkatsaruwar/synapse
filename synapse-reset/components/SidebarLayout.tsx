@@ -13,19 +13,18 @@ import {
   PanResponder,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Constants from "expo-constants";
 import { useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
-import SynapseLogo from "@/components/SynapseLogo";
+import GlassView from "@/components/GlassView";
 import { useSynapseHQPanel } from "@/components/SynapseHQPanel";
 import VisualScanImportModal from "@/screens/VisualScanImportModal";
 import { featureFlags } from "@/constants/feature-flags";
 import { useAuth } from "@/contexts/AuthContext";
 import { healthProfileStorage, settingsStorage } from "@/lib/storage";
 import { getDeveloperMode } from "@/lib/developer-mode";
+import { getNavBadgeCounts, type NavBadgeCounts } from "@/lib/nav-badge-counts";
 import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
@@ -140,18 +139,21 @@ export default function SidebarLayout({
       },
     })
   ).current;
-  const { user, session, signOut } = useAuth();
+  const { signOut } = useAuth();
   const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
   const [developerModeActive, setDeveloperModeActive] = useState(false);
   const synapseHQ = useSynapseHQPanel(setDeveloperModeActive);
+  const openSynapseHQ = __DEV__ ? synapseHQ.open : undefined;
   const [settingsName, setSettingsName] = useState<string | undefined>(undefined);
   const [profileImageUri, setProfileImageUri] = useState<string | undefined>(undefined);
   const [enabledSections, setEnabledSections] = useState<string[] | undefined>(undefined);
+  const [badgeCounts, setBadgeCounts] = useState<NavBadgeCounts>({});
   const menuButtonRef = useRef<View>(null);
   const emergencyCardRef = useRef<View>(null);
   const simpleNavRef = useRef<View>(null);
   const simpleAddFabRef = useRef<View>(null);
+  const showUniversalAdd = activeScreen !== "medications";
   const walkthrough = useWalkthroughTargets();
   const registerTarget = walkthrough?.registerTarget;
   const unregisterTarget = walkthrough?.unregisterTarget;
@@ -169,14 +171,14 @@ export default function SidebarLayout({
   }, [registerTarget, unregisterTarget, moreOpen]);
 
   useEffect(() => {
-    if (!registerTarget || !unregisterTarget || !simpleMode) return;
+    if (!registerTarget || !unregisterTarget || !simpleMode || !showUniversalAdd) return;
     registerTarget("simple-nav", () => measureInWindow(simpleNavRef));
     registerTarget("simple-add", () => measureInWindow(simpleAddFabRef));
     return () => {
       unregisterTarget("simple-nav");
       unregisterTarget("simple-add");
     };
-  }, [registerTarget, unregisterTarget, simpleMode]);
+  }, [registerTarget, unregisterTarget, simpleMode, showUniversalAdd]);
 
   const isWideScreen = width >= 768;
   const drawerWidth = Math.min(width * 0.78, isWideScreen ? 280 : 320);
@@ -192,7 +194,25 @@ export default function SidebarLayout({
     loadSettings();
   }, [loadSettings, activeScreen]);
 
+  const loadBadges = useCallback(async () => {
+    try {
+      setBadgeCounts(await getNavBadgeCounts());
+    } catch {
+      setBadgeCounts({});
+    }
+  }, []);
+
   useEffect(() => {
+    loadBadges();
+    const interval = setInterval(loadBadges, 10000);
+    return () => clearInterval(interval);
+  }, [loadBadges, activeScreen, moreOpen, simpleAddOpen]);
+
+  useEffect(() => {
+    if (!__DEV__) {
+      setDeveloperModeActive(false);
+      return;
+    }
     let mounted = true;
     getDeveloperMode()
       .then((state) => {
@@ -218,10 +238,20 @@ export default function SidebarLayout({
   const showBottomNav = simpleMode || (!isWide && primaryItemsFiltered.length > 0);
   const shouldShowHeaderRow = !simpleMode && (!isWide || headerRight != null);
 
-  // Auth has been removed – app is fully local. Treat everyone as a local profile.
-  const isSignedIn = false;
   const displayName = settingsName?.trim() || "You";
-  const email = "";
+  const getBadgeCount = useCallback((key: string) => badgeCounts[key] ?? 0, [badgeCounts]);
+  const getNavAccessibilityLabel = useCallback((item: NavItem) => {
+    const count = getBadgeCount(item.key);
+    return count > 0 ? `${item.label}, ${count > 9 ? "9 plus" : count} pending` : item.label;
+  }, [getBadgeCount]);
+  const renderIconBadge = useCallback((count: number) => {
+    if (count <= 0) return null;
+    return (
+      <View style={styles.iconBadge}>
+        <Text style={styles.iconBadgeText}>{count > 9 ? "9+" : count}</Text>
+      </View>
+    );
+  }, [styles]);
 
   useEffect(() => {
     if (moreOpen) {
@@ -395,23 +425,27 @@ export default function SidebarLayout({
                 {bottomNavItems.map((item) => {
                   const active = activeScreen === item.key;
                   const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
+                  const badgeCount = getBadgeCount(item.key);
                   return (
                     <Pressable
                       key={item.key}
                       style={[styles.mobileNavItem, simpleMode && styles.mobileNavItemSimple, dimmed && { opacity: 0.35 }]}
                       onPress={() => onNavigate(item.key)}
-                      onLongPress={item.key === "settings" ? synapseHQ.open : undefined}
+                      onLongPress={item.key === "settings" ? openSynapseHQ : undefined}
                       delayLongPress={3500}
                       testID={`tab-${item.key}`}
                       accessibilityRole="button"
-                      accessibilityLabel={item.label}
+                      accessibilityLabel={getNavAccessibilityLabel(item)}
                       accessibilityState={{ selected: active }}
                     >
-                      <Ionicons
-                        name={active ? item.iconActive : item.icon}
-                        size={24}
-                        color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
-                      />
+                      <View style={styles.mobileNavIconWrap}>
+                        <Ionicons
+                          name={active ? item.iconActive : item.icon}
+                          size={24}
+                          color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
+                        />
+                        {renderIconBadge(badgeCount)}
+                      </View>
                       {simpleMode ? (
                         <Text style={[styles.mobileNavLabel, active && styles.mobileNavLabelActive]}>
                           {item.label}
@@ -423,28 +457,32 @@ export default function SidebarLayout({
               </View>
             </View>
           ) : (
-            <BlurView intensity={45} tint={themeId === "dark" ? "dark" : "light"} style={styles.mobileNav}>
+            <GlassView variant="nav" tint={themeId === "dark" ? "dark" : "light"} style={styles.mobileNav}>
               <View style={styles.mobileNavContent}>
                 {bottomNavItems.map((item) => {
                   const active = activeScreen === item.key;
                   const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
+                  const badgeCount = getBadgeCount(item.key);
                   return (
                     <Pressable
                       key={item.key}
                       style={[styles.mobileNavItem, simpleMode && styles.mobileNavItemSimple, dimmed && { opacity: 0.35 }]}
                       onPress={() => onNavigate(item.key)}
-                      onLongPress={item.key === "settings" ? synapseHQ.open : undefined}
+                      onLongPress={item.key === "settings" ? openSynapseHQ : undefined}
                       delayLongPress={3500}
                       testID={`tab-${item.key}`}
                       accessibilityRole="button"
-                      accessibilityLabel={item.label}
+                      accessibilityLabel={getNavAccessibilityLabel(item)}
                       accessibilityState={{ selected: active }}
                     >
-                      <Ionicons
-                        name={active ? item.iconActive : item.icon}
-                        size={24}
-                        color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
-                      />
+                      <View style={styles.mobileNavIconWrap}>
+                        <Ionicons
+                          name={active ? item.iconActive : item.icon}
+                          size={24}
+                          color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
+                        />
+                        {renderIconBadge(badgeCount)}
+                      </View>
                       {simpleMode ? (
                         <Text style={[styles.mobileNavLabel, active && styles.mobileNavLabelActive]}>
                           {item.label}
@@ -454,11 +492,12 @@ export default function SidebarLayout({
                   );
                 })}
               </View>
-            </BlurView>
+            </GlassView>
           )}
         </View>
       )}
 
+      {showUniversalAdd ? (
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
         {simpleAddOpen ? (
           <Pressable
@@ -470,18 +509,32 @@ export default function SidebarLayout({
         ) : null}
 
         {simpleAddOpen ? (
-          <View
+          <GlassView
+            variant="sheet"
+            tint={themeId === "dark" ? "dark" : "light"}
             style={[
               styles.quickAddHub,
               {
-                left: isWide ? 24 : 20,
-                right: isWide ? undefined : 20,
+                left: isWide ? undefined : 20,
+                right: isWide ? 24 : 20,
                 bottom: Platform.OS === "web" ? 110 : insets.bottom + (showBottomNav ? 134 : 28),
               },
             ]}
           >
-            <Text style={styles.quickAddEyebrow}>Quick Add</Text>
-            <Text style={styles.quickAddTitle}>What are we adding?</Text>
+            <View style={styles.quickAddHeader}>
+              <View style={styles.quickAddHeaderText}>
+                <Text style={styles.quickAddEyebrow}>Quick Add</Text>
+                <Text style={styles.quickAddTitle}>What are we adding?</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.quickAddCloseButton, pressed && styles.simpleAddActionPressed]}
+                onPress={closeSimpleAdd}
+                accessibilityRole="button"
+                accessibilityLabel="Close quick add"
+              >
+                <Ionicons name="close" size={20} color={C.text} />
+              </Pressable>
+            </View>
             <Pressable style={[styles.quickAddOption, styles.quickAddOptionPrimary]} onPress={handleScanPress}>
               <View style={[styles.quickAddOptionIcon, styles.quickAddOptionIconPrimary]}>
                 <Ionicons name="scan-outline" size={22} color="#fff" />
@@ -532,7 +585,7 @@ export default function SidebarLayout({
                 <Text style={styles.quickAddOptionSubtitle}>Record what happened fast</Text>
               </View>
             </Pressable>
-          </View>
+          </GlassView>
         ) : null}
 
         <View
@@ -540,7 +593,7 @@ export default function SidebarLayout({
           style={[
             styles.simpleAddWheelLayer,
             {
-              left: isWide ? 24 : 20,
+              right: isWide ? 24 : 20,
               bottom: Platform.OS === "web" ? (showBottomNav ? 148 : 34) : insets.bottom + (showBottomNav ? 154 : 28),
             },
           ]}
@@ -577,6 +630,7 @@ export default function SidebarLayout({
           </View>
         </View>
       </View>
+      ) : null}
 
       <VisualScanImportModal
         visible={showVisualScanModal}
@@ -613,16 +667,13 @@ export default function SidebarLayout({
                 },
               ]}
             >
-              {themeId === "light" ? (
-                <LinearGradient
-                  colors={["#D1E0F7", "#BDD4F2"]}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                />
-              ) : (
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: C.background }]} />
-              )}
+              <View pointerEvents="none" style={styles.drawerTintLayer} />
+              <GlassView
+                variant="sheet"
+                tint={themeId === "dark" ? "dark" : "light"}
+                intensity={86}
+                style={styles.drawerGlassLayer}
+              />
               <ScrollView
                 style={[styles.drawerScroll, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 32 }]}
                 contentContainerStyle={styles.drawerScrollContent}
@@ -660,11 +711,12 @@ export default function SidebarLayout({
                       <Text style={styles.drawerGroupTitle}>{group.title}</Text>
                       {items.map((item) => {
                         const isLogout = item.key === "logout";
-                        const isEmergencyCard = item.key === "emergencycard";
                         const active = !isLogout && activeScreen === item.key;
+                        const isEmergencyCard = item.key === "emergencycard";
                         const dimmed = !isLogout && sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
                         const accentColor = sickMode ? C.red : C.accent;
                         const itemColor = active ? accentColor : C.textSecondary;
+                        const badgeCount = getBadgeCount(item.key);
                         return (
                           <View key={item.key} ref={isEmergencyCard ? emergencyCardRef : undefined} collapsable={false}>
                             <Pressable
@@ -683,19 +735,22 @@ export default function SidebarLayout({
                                   closeDrawer();
                                 }
                               }}
-                              onLongPress={!isLogout && item.key === "settings" ? synapseHQ.open : undefined}
+                              onLongPress={!isLogout && item.key === "settings" ? openSynapseHQ : undefined}
                               delayLongPress={3500}
                               testID={isLogout ? "more-logout" : `more-${item.key}`}
                               accessibilityRole="button"
-                              accessibilityLabel={item.label}
+                              accessibilityLabel={isLogout ? item.label : getNavAccessibilityLabel(item)}
                               accessibilityState={{ selected: active }}
                             >
-                              <Ionicons
-                                name={item.icon}
-                                size={20}
-                                color={itemColor}
-                                style={styles.drawerRowIcon}
-                              />
+                              <View style={styles.drawerRowIconWrap}>
+                                <Ionicons
+                                  name={item.icon}
+                                  size={20}
+                                  color={itemColor}
+                                  style={styles.drawerRowIcon}
+                                />
+                                {renderIconBadge(badgeCount)}
+                              </View>
                               <Text
                                 style={[styles.drawerRowLabel, { color: itemColor }, active && { color: accentColor, fontWeight: "600" }]}
                                 numberOfLines={1}
@@ -724,7 +779,7 @@ export default function SidebarLayout({
           </View>
         </Modal>
       )}
-      {synapseHQ.element}
+      {__DEV__ ? synapseHQ.element : null}
     </View>
   );
 }
@@ -835,15 +890,10 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       flexDirection: "row",
       justifyContent: "center",
       alignItems: "center",
-      borderRadius: 24,
+      borderRadius: 32,
       paddingVertical: 12,
-      paddingHorizontal: 8,
+      paddingHorizontal: 10,
       overflow: "hidden",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 10,
-      elevation: 10,
     },
     mobileNavFallback: {
       backgroundColor: themeId === "light" ? "rgba(255,255,255,0.85)" : "rgba(28,28,30,0.9)",
@@ -859,13 +909,41 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     mobileNavItem: {
       alignItems: "center",
       justifyContent: "center",
-      paddingVertical: 8,
+      paddingVertical: 9,
       paddingHorizontal: 14,
+      borderRadius: 22,
       flex: 1,
     },
     mobileNavItemSimple: {
       minWidth: 0,
       gap: 4,
+    },
+    mobileNavIconWrap: {
+      position: "relative",
+      minWidth: 28,
+      minHeight: 26,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    iconBadge: {
+      position: "absolute",
+      top: -7,
+      right: -10,
+      minWidth: 17,
+      height: 17,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.red,
+      borderWidth: 2,
+      borderColor: themeId === "dark" ? "#1C1C1E" : "#FFFFFF",
+    },
+    iconBadgeText: {
+      fontSize: 9,
+      lineHeight: 11,
+      fontWeight: "800",
+      color: "#FFFFFF",
     },
     mobileNavLabel: {
       fontWeight: "600",
@@ -883,10 +961,10 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       backgroundColor: C.tint,
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.28,
-      shadowRadius: 12,
+      shadowColor: C.tint,
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.34,
+      shadowRadius: 22,
       elevation: 12,
       zIndex: 40,
     },
@@ -904,18 +982,30 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     quickAddHub: {
       position: "absolute",
       maxWidth: 390,
-      borderRadius: 22,
-      backgroundColor: C.surface,
-      borderWidth: 1,
-      borderColor: C.border,
-      padding: 16,
+      borderRadius: 30,
+      padding: 18,
       gap: 10,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.18,
-      shadowRadius: 22,
-      elevation: 16,
       zIndex: 45,
+    },
+    quickAddHeader: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 12,
+      marginBottom: 2,
+    },
+    quickAddHeaderText: {
+      flex: 1,
+    },
+    quickAddCloseButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.6)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.82)",
+      alignItems: "center",
+      justifyContent: "center",
     },
     quickAddEyebrow: {
       color: C.textSecondary,
@@ -931,10 +1021,10 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     },
     quickAddOption: {
       minHeight: 64,
-      borderRadius: 16,
-      backgroundColor: C.surfaceElevated,
+      borderRadius: 22,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.58)",
       borderWidth: 1,
-      borderColor: C.border,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.76)",
       padding: 12,
       flexDirection: "row",
       alignItems: "center",
@@ -947,8 +1037,10 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     quickAddOptionIcon: {
       width: 42,
       height: 42,
-      borderRadius: 14,
-      backgroundColor: C.tintLight,
+      borderRadius: 16,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.58)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.76)",
       alignItems: "center",
       justifyContent: "center",
     },
@@ -986,9 +1078,9 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     quickAddMiniButton: {
       minHeight: 32,
       borderRadius: 999,
-      backgroundColor: C.surface,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.7)",
       borderWidth: 1,
-      borderColor: C.border,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.84)",
       paddingHorizontal: 10,
       alignItems: "center",
       justifyContent: "center",
@@ -1032,7 +1124,7 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       top: 0,
       bottom: 0,
       right: 0,
-      backgroundColor: "rgba(0,0,0,0.4)",
+      backgroundColor: themeId === "dark" ? "rgba(0,0,0,0.48)" : "rgba(15,31,54,0.28)",
     },
     drawerPanel: {
       position: "absolute",
@@ -1041,15 +1133,24 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       bottom: 0,
       overflow: "hidden",
       borderRightWidth: 1,
-      borderRightColor: "rgba(0,0,0,0.06)",
+      borderRightColor: themeId === "dark" ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.74)",
       paddingHorizontal: 20,
-      borderTopRightRadius: 24,
-      borderBottomRightRadius: 24,
-      shadowColor: "#000",
-      shadowOffset: { width: 2, height: 0 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 8,
+      borderTopRightRadius: 32,
+      borderBottomRightRadius: 32,
+      shadowColor: "#6F645E",
+      shadowOffset: { width: 12, height: 0 },
+      shadowOpacity: 0.22,
+      shadowRadius: 34,
+      elevation: 18,
+    },
+    drawerTintLayer: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: themeId === "dark" ? "rgba(16,10,11,0.42)" : "rgba(245,241,234,0.22)",
+    },
+    drawerGlassLayer: {
+      ...StyleSheet.absoluteFillObject,
+      borderTopRightRadius: 32,
+      borderBottomRightRadius: 32,
     },
     drawerScroll: {
       flex: 1,
@@ -1059,14 +1160,21 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       paddingBottom: 8,
     },
     drawerProfile: {
-      paddingVertical: 8,
-      paddingHorizontal: 4,
+      paddingVertical: 14,
+      paddingHorizontal: 12,
+      borderRadius: 24,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.24)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.7)",
+      marginBottom: 10,
     },
     drawerAvatar: {
       width: 40,
       height: 40,
       borderRadius: 20,
-      backgroundColor: C.surface,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.52)",
+      borderWidth: 1,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.84)",
       alignItems: "center",
       justifyContent: "center",
       marginBottom: 6,
@@ -1127,21 +1235,33 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       flexDirection: "row",
       alignItems: "center",
       paddingVertical: 8,
-      paddingHorizontal: 8,
-      borderRadius: 8,
-      marginBottom: 1,
+      paddingHorizontal: 10,
+      borderRadius: 16,
+      marginBottom: 4,
+      borderWidth: 1,
+      borderColor: "transparent",
     },
     drawerRowActive: {
-      backgroundColor: C.tintLight,
+      backgroundColor: themeId === "dark" ? "rgba(199,58,74,0.18)" : "rgba(255,255,255,0.36)",
       borderLeftWidth: 4,
       borderLeftColor: C.tint,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.76)",
       paddingLeft: 10,
     },
     drawerRowPressed: {
-      backgroundColor: C.surface,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.32)",
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.72)",
+    },
+    drawerRowIconWrap: {
+      position: "relative",
+      marginRight: 10,
+      minWidth: 24,
+      minHeight: 24,
+      alignItems: "center",
+      justifyContent: "center",
     },
     drawerRowIcon: {
-      marginRight: 10,
+      marginRight: 0,
     },
     drawerRowLabel: {
       flex: 1,
@@ -1155,7 +1275,7 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     },
     drawerFooterDivider: {
       height: 1,
-      backgroundColor: C.border,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.58)",
       marginBottom: 6,
     },
     drawerFooterContent: {

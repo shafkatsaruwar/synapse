@@ -6,6 +6,7 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import {
   eatingStorage,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/storage";
 import { getToday, getDaysAgo, formatDate } from "@/lib/date-utils";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 const AMOUNTS: { key: EatingAmount; label: string }[] = [
   { key: "small", label: "Small" },
@@ -190,7 +192,7 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
   const hydrationDates = Object.keys(hydrationGroupedByDate).sort((a, b) => b.localeCompare(a));
   const hydrationTotalMl = hydrationEntries.reduce((sum, entry) => sum + convertHydrationToMl(entry.amount, entry.unit), 0);
 
-  const topPad = isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16);
+  const topPad = isWide ? 28 : (Platform.OS === "web" ? 40 : 14);
 
   return (
     <View style={styles.container}>
@@ -501,20 +503,21 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
 }
 
 function makeStyles(C: Theme) {
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 24 },
     header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
     title: { fontWeight: "700", fontSize: 28, color: C.text, marginBottom: 4 },
     subtitle: { fontSize: 14, color: C.textSecondary, maxWidth: 250 },
-    addBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
-    tabRow: { flexDirection: "row", backgroundColor: C.surface, borderRadius: 10, padding: 3, marginBottom: 16, borderWidth: 1, borderColor: C.border },
+    addBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", ...raised("md", C.tint) },
+    tabRow: { flexDirection: "row", backgroundColor: C.surface, borderRadius: 10, padding: 3, marginBottom: 16, borderWidth: 1, borderColor: C.border, ...raised("sm", "#6A7BA0") },
     tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: "center", justifyContent: "center" },
     tabBtnActive: { backgroundColor: C.tintLight },
     tabText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
     tabTextActive: { color: C.tint },
     rangeRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
-    rangeChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: C.surface },
+    rangeChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: C.surface, ...raised("sm", "#6A7BA0") },
     rangeChipActive: { backgroundColor: C.tintLight },
     rangeChipText: { fontSize: 14, fontWeight: "500", color: C.textSecondary },
     rangeChipTextActive: { color: C.tint },
@@ -523,30 +526,30 @@ function makeStyles(C: Theme) {
     emptyDesc: { fontSize: 14, color: C.textTertiary, marginTop: 4, textAlign: "center" },
     dateBlock: { marginBottom: 20 },
     dateLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 8 },
-    entryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 8 },
+    entryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 8, ...raised("sm", "#55718F") },
     entryMain: { flex: 1 },
     entryWhat: { fontWeight: "500", fontSize: 15, color: C.text },
     entryAmount: { fontSize: 13, color: C.textSecondary, marginTop: 2, textTransform: "capitalize" },
-    presetCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.border, marginBottom: 12 },
+    presetCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.border, marginBottom: 12, ...raised("md", "#55718F") },
     presetHeader: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginBottom: 8 },
     presetTitle: { fontWeight: "700", fontSize: 16, color: C.text },
     presetMeta: { fontSize: 13, color: C.tint, marginTop: 4 },
     presetDesc: { fontSize: 13, color: C.textSecondary, lineHeight: 18 },
     presetEditBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: C.tintLight, alignSelf: "flex-start" },
     presetEditText: { fontWeight: "600", fontSize: 13, color: C.tint },
-    hydrationSummaryCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: C.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.border, marginBottom: 16 },
+    hydrationSummaryCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: C.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.border, marginBottom: 16, ...raised("md", "#55718F") },
     hydrationSummaryLabel: { fontSize: 12, fontWeight: "600", color: C.textSecondary, textTransform: "uppercase" },
     hydrationSummaryValue: { fontWeight: "700", fontSize: 24, color: C.text, marginTop: 4 },
-    quickSipBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.tint, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12 },
+    quickSipBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.tint, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, ...raised("md", C.tint) },
     quickSipText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 },
-    modalBox: { backgroundColor: C.surface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: C.border },
+    modalOverlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", padding: 24 },
+    modalBox: { backgroundColor: solidModalSurface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: C.border, ...raised("lg", "#24364F") },
     modalTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 16 },
-    modalInput: { backgroundColor: C.background, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: C.text, marginBottom: 16 },
+    modalInput: { backgroundColor: C.surfaceElevated, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: C.text, marginBottom: 16, borderWidth: 1, borderColor: C.border },
     modalLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 8 },
     amountRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
     amountRowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 },
-    amountChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: C.background },
+    amountChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, ...raised("sm", "#6A7BA0") },
     amountChipActive: { backgroundColor: C.tintLight },
     amountChipText: { fontSize: 14, fontWeight: "500", color: C.textSecondary },
     amountChipTextActive: { color: C.tint },

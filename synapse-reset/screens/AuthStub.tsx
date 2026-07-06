@@ -26,7 +26,7 @@ function makeStyles(C: Theme) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: C.background,
+      backgroundColor: "transparent",
       paddingHorizontal: 24,
     },
     title: {

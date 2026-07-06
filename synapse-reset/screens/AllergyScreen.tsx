@@ -12,6 +12,7 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { allergyStorage, type AllergyInfo } from "@/lib/storage";
 
@@ -54,7 +55,7 @@ export default function AllergyScreen({ onBack }: AllergyScreenProps) {
     setSaved(true);
   };
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
+  const topPad = Platform.OS === "web" ? 40 : 14;
 
   return (
     <View style={styles.container}>
@@ -212,7 +213,7 @@ function makeStyles(C: Theme) {
     backText: { fontWeight: "600", fontSize: 15, color: C.text },
     title: { fontWeight: "700", fontSize: 26, color: C.text, letterSpacing: -0.5, marginBottom: 8 },
     subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginBottom: 24 },
-    card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
+    card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border, ...raised("md", "#55718F") },
     label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
     input: { fontWeight: "400", fontSize: 14, color: C.text, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border },
     toggleHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
@@ -220,7 +221,7 @@ function makeStyles(C: Theme) {
     toggleActive: { backgroundColor: C.tint },
     toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#fff" },
     toggleThumbActive: { alignSelf: "flex-end" },
-    saveBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
+    saveBtn: { backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4, ...raised("md", C.tint) },
     saveBtnSaved: { backgroundColor: C.green },
     saveBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
   });

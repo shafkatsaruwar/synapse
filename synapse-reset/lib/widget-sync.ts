@@ -23,6 +23,7 @@ import {
   type WidgetAppearancePreference,
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
+import { getAppointmentTravelEstimate } from "@/lib/appointment-travel";
 
 type WidgetSnapshot = {
   appearance: WidgetAppearancePreference;
@@ -40,6 +41,7 @@ type WidgetSnapshot = {
     detail: string;
     startsAt: string | null;
     whenText: string;
+    travelText: string | null;
   };
   prnMedication: null | {
     id: string;
@@ -541,7 +543,7 @@ function buildMentalHealthSnapshot(mentalHealthMode: MentalHealthModeData) {
   };
 }
 
-function getNextAppointmentSnapshot(appointments: Appointment[]) {
+async function getNextAppointmentSnapshot(appointments: Appointment[]) {
   const now = new Date();
   const graceWindowMs = 1000 * 60 * 60 * 2;
   const upcoming = appointments
@@ -555,11 +557,13 @@ function getNextAppointmentSnapshot(appointments: Appointment[]) {
 
   if (!upcoming.length) return null;
   const { appointment, startsAt } = upcoming[0];
+  const travelText = await getAppointmentTravelEstimate(appointment, null, { allowPermissionPrompt: false });
   return {
     doctorName: appointment.doctorName || "Appointment",
     detail: simplifyAppointmentDetail(appointment.specialty || appointment.location || "Upcoming visit"),
     startsAt: startsAt.toISOString(),
     whenText: formatAppointmentWhen(startsAt),
+    travelText,
   };
 }
 
@@ -583,7 +587,7 @@ export async function syncWidgetSnapshot() {
   const snapshot: WidgetSnapshot = {
     appearance: profile.widgetAppearance ?? "system",
     medication: getNextMedicationSnapshot(medications, logs),
-    appointment: getNextAppointmentSnapshot(appointments),
+    appointment: await getNextAppointmentSnapshot(appointments),
     prnMedication: getPrnMedicationSnapshot(medications, logs),
     wellness: buildWellnessSnapshot(todayLog, todaySymptoms),
     hydration,

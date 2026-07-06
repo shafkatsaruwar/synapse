@@ -7,6 +7,8 @@ import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { appointmentStorage, doctorsStorage, labWorkStorage, type Appointment, type Doctor, type LabWork, type LabWorkStatus } from "@/lib/storage";
 import { formatDate, getToday } from "@/lib/date-utils";
+import { raised } from "@/constants/raised";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 const STATUS_OPTIONS: { value: LabWorkStatus; label: string }[] = [
   { value: "completed", label: "Completed" },
@@ -112,7 +114,7 @@ export default function LabWorkScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: isWide ? 40 : Platform.OS === "web" ? 67 : insets.top + 16, paddingBottom: isWide ? 40 : insets.bottom + 110 },
+          { paddingTop: isWide ? 28 : Platform.OS === "web" ? 40 : 14, paddingBottom: isWide ? 40 : insets.bottom + 110 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -223,18 +225,19 @@ export default function LabWorkScreen() {
 }
 
 function makeStyles(C: Theme) {
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: C.background },
+    container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 22 },
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24 },
     title: { fontSize: 36, fontWeight: "900", color: C.text },
-    addBtn: { width: 58, height: 58, borderRadius: 18, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
-    emptyCard: { minHeight: 260, borderRadius: 18, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", gap: 14, padding: 24 },
+    addBtn: { width: 58, height: 58, borderRadius: 18, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", ...raised("md", C.tint) },
+    emptyCard: { minHeight: 260, borderRadius: 22, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", gap: 14, padding: 24, ...raised("md") },
     emptyTitle: { fontSize: 20, fontWeight: "800", color: C.text },
     primaryButton: { borderRadius: 16, backgroundColor: C.tint, paddingHorizontal: 18, paddingVertical: 13 },
     primaryButtonText: { color: "#fff", fontSize: 15, fontWeight: "800" },
     list: { gap: 14 },
-    card: { minHeight: 96, borderRadius: 18, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, padding: 14, flexDirection: "row", alignItems: "center", gap: 14 },
+    card: { minHeight: 96, borderRadius: 20, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, padding: 14, flexDirection: "row", alignItems: "center", gap: 14, ...raised("sm") },
     datePill: { width: 58, height: 66, borderRadius: 16, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
     datePillDay: { color: C.tint, fontSize: 24, fontWeight: "900" },
     datePillMonth: { color: C.tint, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
@@ -244,8 +247,8 @@ function makeStyles(C: Theme) {
     statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: C.green + "22" },
     statusBadgePending: { backgroundColor: C.orange + "22" },
     statusText: { color: C.textSecondary, fontSize: 11, fontWeight: "800", textTransform: "capitalize" },
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", alignItems: "center", justifyContent: "center", padding: 20 },
-    modal: { width: "100%", maxWidth: 430, borderRadius: 22, backgroundColor: C.surface, padding: 18, borderWidth: 1, borderColor: C.border },
+    overlay: { flex: 1, backgroundColor: modalOverlay(), alignItems: "center", justifyContent: "center", padding: 20 },
+    modal: { width: "100%", maxWidth: 430, borderRadius: 24, backgroundColor: solidModalSurface, padding: 18, borderWidth: 1, borderColor: C.border, ...raised("lg") },
     modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
     modalTitle: { fontSize: 22, fontWeight: "900", color: C.text },
     closeBtn: { width: 38, height: 38, borderRadius: 14, backgroundColor: C.surfaceElevated, alignItems: "center", justifyContent: "center" },

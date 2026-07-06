@@ -14,10 +14,13 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { healthLogStorage, settingsStorage, healthProfileStorage, type UserSettings, type HealthProfileInfo, type RecordOwner } from "@/lib/storage";
 import { formatTimestamp, getToday } from "@/lib/date-utils";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
+import { maybePromptForCycleTracking } from "@/lib/cycle-detection";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 import RAMADAN_2026 from "@/constants/ramadan-timetable";
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -354,6 +357,7 @@ export default function DailyLogScreen({ openTodayOnLaunch = false }: DailyLogSc
     setSaved(true);
     setLoggedDates((prev) => new Set([...prev, `${selectedDate}:${logEntryOwner}`]));
     await syncWidgetSnapshot().catch(() => {});
+    await maybePromptForCycleTracking({ text: notes, source: "daily-check-in" });
   };
 
   const closeModal = () => {
@@ -396,7 +400,7 @@ export default function DailyLogScreen({ openTodayOnLaunch = false }: DailyLogSc
         contentContainerStyle={[
           styles.content,
           {
-            paddingTop: isWide ? 40 : Platform.OS === "web" ? 67 : insets.top + 16,
+            paddingTop: isWide ? 28 : Platform.OS === "web" ? 40 : 14,
             paddingBottom: isWide ? 40 : Platform.OS === "web" ? 118 : insets.bottom + 100,
           },
         ]}
@@ -592,6 +596,7 @@ export default function DailyLogScreen({ openTodayOnLaunch = false }: DailyLogSc
 }
 
 function makeStyles(C: Theme) {
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
@@ -617,6 +622,7 @@ function makeStyles(C: Theme) {
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,
+    ...raised("sm", "#6A7BA0"),
   },
   monthLabel: {
     fontWeight: "600",
@@ -629,6 +635,7 @@ function makeStyles(C: Theme) {
     padding: 12,
     borderWidth: 1,
     borderColor: C.border,
+    ...raised("md", "#55718F"),
   },
   weekdayRow: {
     flexDirection: "row",
@@ -745,16 +752,19 @@ function makeStyles(C: Theme) {
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: modalOverlay(),
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: C.background,
+    backgroundColor: solidModalSurface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 16,
     paddingHorizontal: 24,
     maxHeight: "85%",
+    borderTopWidth: 1,
+    borderColor: C.border,
+    ...raised("lg", "#24364F"),
   },
   modalHeader: {
     flexDirection: "row",
@@ -784,6 +794,7 @@ function makeStyles(C: Theme) {
     marginBottom: 12,
     borderWidth: 1,
     borderColor: C.border,
+    ...raised("sm", "#55718F"),
   },
   sectionTitle: {
     fontWeight: "600",
@@ -804,6 +815,7 @@ function makeStyles(C: Theme) {
     backgroundColor: C.surfaceElevated,
     borderWidth: 1,
     borderColor: C.border,
+    ...raised("sm", "#6A7BA0"),
   },
   ownerChipActive: {
     backgroundColor: C.tintLight,

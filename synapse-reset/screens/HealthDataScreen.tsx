@@ -6,9 +6,11 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { vitalStorage, healthLogStorage, type Vital, type HealthLog } from "@/lib/storage";
 import { getDaysAgo, formatDate, getToday } from "@/lib/date-utils";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 type Category = "weight" | "blood_pressure" | "blood_sugar" | "heart_rate" | "body_temperature" | "oxygen_saturation" | "sleep" | "hydration" | "labs";
 type VitalSource = "manual" | "apple_watch" | "blood_pressure_monitor" | "other";
@@ -190,7 +192,7 @@ export default function HealthDataScreen() {
   return (
     <View style={styles.container}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, {
-        paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16),
+        paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
         paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
       }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
@@ -389,21 +391,22 @@ export default function HealthDataScreen() {
 }
 
 function makeStyles(C: Theme) {
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
-  addBtn: { flexDirection: "row", gap: 4, paddingHorizontal: 14, height: 36, borderRadius: 10, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+  addBtn: { flexDirection: "row", gap: 4, paddingHorizontal: 14, height: 36, borderRadius: 10, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", ...raised("md", C.tint) },
   catRow: { gap: 6, marginBottom: 16, paddingRight: 24 },
-  catChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface },
+  catChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, ...raised("sm", "#6A7BA0") },
   catText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
   rangeRow: { flexDirection: "row", gap: 6, marginBottom: 16 },
-  rangeBtn: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 8, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  rangeBtn: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 8, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, ...raised("sm", "#6A7BA0") },
   rangeBtnActive: { backgroundColor: C.tintLight, borderColor: C.tint },
   rangeText: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
   rangeTextActive: { color: C.tint },
-  card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border },
+  card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border, ...raised("md", "#55718F") },
   cardTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 14 },
   emptyChart: { alignItems: "center", paddingVertical: 32 },
   emptyText: { fontWeight: "400", fontSize: 13, color: C.textTertiary, marginTop: 8 },
@@ -414,7 +417,7 @@ function makeStyles(C: Theme) {
   bar: { width: "80%", minWidth: 6, borderRadius: 4 },
   barDate: { fontWeight: "400", fontSize: 8, color: C.textTertiary, marginTop: 4, textAlign: "center" },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  statItem: { flex: 1, minWidth: 70, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, alignItems: "center" },
+  statItem: { flex: 1, minWidth: 70, backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 12, alignItems: "center", ...raised("sm", "#6A7BA0") },
   statLabel: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginBottom: 4 },
   statValue: { fontWeight: "600", fontSize: 16, color: C.text },
   trendRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border },
@@ -430,8 +433,8 @@ function makeStyles(C: Theme) {
   unitChipActive: { borderColor: C.tint, backgroundColor: C.tint + "18" },
   unitChipText: { fontWeight: "500", fontSize: 14, color: C.textSecondary },
   unitChipTextActive: { color: C.tint, fontWeight: "600" },
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
-  modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 380, borderWidth: 1, borderColor: C.border },
+  overlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", alignItems: "center", padding: 24 },
+  modal: { backgroundColor: solidModalSurface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 380, borderWidth: 1, borderColor: C.border, ...raised("lg", "#24364F") },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
   label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
   bpRow: { flexDirection: "row", alignItems: "center", gap: 10 },

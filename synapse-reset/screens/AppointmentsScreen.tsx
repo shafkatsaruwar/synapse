@@ -24,14 +24,20 @@ import {
 } from "@/lib/storage";
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
+import { getAppointmentTravelEstimate } from "@/lib/appointment-travel";
 import AppleCalendarImportModal from "@/screens/AppleCalendarImportModal";
 import VisualScanImportModal from "@/screens/VisualScanImportModal";
 import {
   explainAppointment,
+  isFoundationModelsAvailable,
   summarizeDoctorNotes,
   type AppointmentExplanation,
   type DoctorNotesSummary,
 } from "@/lib/foundation-models";
+import { raised } from "@/constants/raised";
+import { updateAppIconBadgeCount } from "@/lib/notification-manager";
+import { maybePromptForCycleTracking } from "@/lib/cycle-detection";
+import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 const REPEAT_OPTIONS: { value: "none" | "week" | "2weeks" | "month" | "custom"; label: string; interval?: number; unit?: RepeatUnit }[] = [
   { value: "none", label: "Does not repeat" },
@@ -257,9 +263,12 @@ function AppointmentDetailModal({
   colors: C,
   styles,
   ownerLabel,
+  travelText,
   onClose,
   onEdit,
-  onDelete,
+  onReschedule,
+  onCancel,
+  onDeleteSeries,
   onMarkDone,
 }: {
   visible: boolean;
@@ -269,9 +278,12 @@ function AppointmentDetailModal({
   styles: ReturnType<typeof makeStyles>;
   today: string;
   ownerLabel: string;
+  travelText?: string | null;
   onClose: () => void;
   onEdit: (appointment: Appointment) => void;
-  onDelete: (appointment: Appointment) => void;
+  onReschedule: (appointment: Appointment) => void;
+  onCancel: (appointment: Appointment) => void;
+  onDeleteSeries?: (appointment: Appointment) => void;
   onMarkDone: (appointment: Appointment) => void | Promise<void>;
 }) {
   const [notesExpanded, setNotesExpanded] = useState(false);
@@ -296,6 +308,26 @@ function AppointmentDetailModal({
   const notes = appointment.notes?.trim() || "";
   const shouldCollapseNotes = notes.length > 180;
   const displayedNotes = shouldCollapseNotes && !notesExpanded ? `${notes.slice(0, 180).trim()}...` : notes;
+
+  const buildFallbackExplanation = (): AppointmentExplanation => {
+    const appointmentName = appointment.specialty?.trim() || appointment.doctorName?.trim() || "this appointment";
+    const when = `${formatDate(appointment.date)} at ${formatTime12h(appointment.time || "09:00")}`;
+    const place = address || facility;
+    const locationText = place ? ` at ${place}` : "";
+    const notesText = notes ? " Your saved notes may help you remember what to ask about." : "";
+
+    return {
+      explanation: `This is an appointment for ${appointmentName} on ${when}${locationText}.${notesText}`,
+      likelyPurpose: "Use this as a quick prep summary. Synapse is not guessing a diagnosis or medical reason beyond the details you saved.",
+      bringOrExpect: [
+        "Bring a photo ID and insurance card if you use one.",
+        "Bring your current medication list.",
+        "Write down symptoms, questions, or changes you want to mention.",
+        ...(notes ? ["Review your saved notes before you go."] : []),
+        ...(place ? ["Leave extra time for travel, parking, and check-in."] : []),
+      ],
+    };
+  };
 
   const openDirections = async () => {
     if (!address.trim()) return;
@@ -327,6 +359,13 @@ function AppointmentDetailModal({
     setExplanationLoading(true);
     setExplanationError("");
     try {
+      const available = await isFoundationModelsAvailable();
+      if (!available) {
+        setExplanation(buildFallbackExplanation());
+        setExplanationError("Appointment explanation is not available on this device yet. Here’s a quick prep summary instead.");
+        return;
+      }
+
       const result = await explainAppointment({
         title: appointment.specialty || appointment.doctorName || "Appointment",
         doctorName: appointment.doctorName,
@@ -334,8 +373,9 @@ function AppointmentDetailModal({
         notes: appointment.notes || "",
       });
       setExplanation(result);
-    } catch (error: any) {
-      setExplanationError(error?.message || "Could not explain this appointment on this device.");
+    } catch {
+      setExplanation(buildFallbackExplanation());
+      setExplanationError("Appointment explanation is not available on this device yet. Here’s a quick prep summary instead.");
     } finally {
       setExplanationLoading(false);
     }
@@ -379,7 +419,7 @@ function AppointmentDetailModal({
             {!!explanationError && <Text style={styles.aiErrorText}>{explanationError}</Text>}
             {explanation ? (
               <View style={styles.aiResultCard}>
-                <Text style={styles.aiResultTitle}>What this likely is</Text>
+                <Text style={styles.aiResultTitle}>Appointment prep</Text>
                 <Text style={styles.aiResultText}>{explanation.explanation}</Text>
                 {!!explanation.likelyPurpose && <Text style={styles.aiResultText}>{explanation.likelyPurpose}</Text>}
                 {explanation.bringOrExpect.length > 0 ? (
@@ -405,6 +445,12 @@ function AppointmentDetailModal({
                 <Ionicons name="time-outline" size={18} color={C.textSecondary} />
                 <Text style={styles.detailInfoText}>{formatTime12h(appointment.time || "09:00")}</Text>
               </View>
+              {!!travelText && (
+                <View style={styles.detailInfoRow}>
+                  <Ionicons name="car-outline" size={18} color={C.textSecondary} />
+                  <Text style={styles.detailInfoText}>{travelText}</Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.detailSection}>
@@ -433,19 +479,33 @@ function AppointmentDetailModal({
               <Pressable style={styles.simpleAppointmentsPrimaryButton} onPress={() => { void onMarkDone(appointment); }}>
                 <Text style={styles.simpleAppointmentsPrimaryButtonText}>Mark as done</Text>
               </Pressable>
-              <View style={styles.simpleAppointmentsSecondaryRow}>
-                <Pressable style={styles.simpleAppointmentsSecondaryButton} onPress={() => onEdit(appointment)}>
+              <View style={styles.appointmentOptionsList}>
+                <Pressable style={styles.appointmentOptionButton} onPress={() => onEdit(appointment)}>
                   <View style={styles.simpleAppointmentsActionLabel}>
                     <Ionicons name="pencil" size={18} color={C.text} />
-                    <Text style={styles.simpleAppointmentsSecondaryButtonText}>Edit</Text>
+                    <Text style={styles.appointmentOptionText}>Edit</Text>
                   </View>
                 </Pressable>
-                <Pressable style={styles.simpleAppointmentsDeleteButton} onPress={() => onDelete(appointment)}>
+                <Pressable style={styles.appointmentOptionButton} onPress={() => onReschedule(appointment)}>
                   <View style={styles.simpleAppointmentsActionLabel}>
-                    <Ionicons name="trash-outline" size={18} color={C.red} />
-                    <Text style={styles.simpleAppointmentsDeleteButtonText}>Delete</Text>
+                    <Ionicons name="calendar-outline" size={18} color={C.text} />
+                    <Text style={styles.appointmentOptionText}>Reschedule</Text>
                   </View>
                 </Pressable>
+                <Pressable style={[styles.appointmentOptionButton, styles.appointmentCancelOptionButton]} onPress={() => onCancel(appointment)}>
+                  <View style={styles.simpleAppointmentsActionLabel}>
+                    <Ionicons name="close-circle-outline" size={18} color={C.red} />
+                    <Text style={styles.appointmentCancelOptionText}>Cancel</Text>
+                  </View>
+                </Pressable>
+                {!!onDeleteSeries && (
+                  <Pressable style={[styles.appointmentOptionButton, styles.appointmentCancelOptionButton]} onPress={() => onDeleteSeries(appointment)}>
+                    <View style={styles.simpleAppointmentsActionLabel}>
+                      <Ionicons name="trash-outline" size={18} color={C.red} />
+                      <Text style={styles.appointmentCancelOptionText}>Delete series</Text>
+                    </View>
+                  </Pressable>
+                )}
               </View>
             </View>
           </ScrollView>
@@ -476,9 +536,113 @@ function DetailActionButton({
   );
 }
 
+function AppointmentListCard({
+  appointment,
+  colors: C,
+  styles,
+  isCaregiver,
+  ownerLabel,
+  travelText,
+  recurrenceLabel,
+  showCompleteButton = false,
+  showMonthInBadge = false,
+  showTimeMeta = false,
+  onPress,
+  onLongPress,
+  onComplete,
+  onOptions,
+}: {
+  appointment: Appointment;
+  colors: Theme;
+  styles: ReturnType<typeof makeStyles>;
+  isCaregiver: boolean;
+  ownerLabel: string;
+  travelText?: string;
+  recurrenceLabel?: string | null;
+  showCompleteButton?: boolean;
+  showMonthInBadge?: boolean;
+  showTimeMeta?: boolean;
+  onPress: () => void;
+  onLongPress?: () => void;
+  onComplete?: () => void;
+  onOptions: () => void;
+}) {
+  const appointmentDay = new Date(`${appointment.date}T00:00:00`);
+  const isCompleted = appointment.status === "completed";
+  const title = appointment.doctorName || "Appointment";
+  const detail = appointment.location || appointment.specialty;
+
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.aptCard,
+        isCompleted && styles.aptCardCompleted,
+        pressed && styles.aptCardPressed,
+      ]}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}${appointment.specialty ? `, ${appointment.specialty}` : ""}, ${formatDate(appointment.date)}`}
+      accessibilityHint={onLongPress ? "Tap to view details, long press for appointment options" : undefined}
+    >
+      {showCompleteButton ? (
+        <Pressable
+          onPress={() => {
+            if (!isCompleted) onComplete?.();
+          }}
+          style={styles.aptCompleteBtn}
+          accessibilityRole="button"
+          accessibilityLabel={isCompleted ? "Completed" : "Mark as completed"}
+        >
+          {isCompleted ? (
+            <Ionicons name="checkmark-circle" size={24} color={C.green} />
+          ) : (
+            <Ionicons name="ellipse-outline" size={24} color={C.textTertiary} />
+          )}
+        </Pressable>
+      ) : null}
+      <View style={styles.aptDateBadge}>
+        <Text style={styles.aptDateDay}>{appointmentDay.getDate()}</Text>
+        {showMonthInBadge ? (
+          <Text style={styles.aptDateMonth}>
+            {appointmentDay.toLocaleDateString("en-US", { month: "short" })}
+          </Text>
+        ) : null}
+      </View>
+      <View style={styles.aptCardContent}>
+        <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{title}</Text>
+        {isCaregiver ? <Text style={styles.ownerMeta}>{ownerLabel}</Text> : null}
+        {!!detail && <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{detail}</Text>}
+        {!!recurrenceLabel && <Text style={styles.aptRecurrence}>{recurrenceLabel}</Text>}
+        {showTimeMeta ? (
+          <View style={styles.aptMeta}>
+            <Ionicons name="time-outline" size={12} color={C.textSecondary} />
+            <Text style={styles.aptMetaText}>{formatTime12h(appointment.time)}</Text>
+            {!!appointment.location && (
+              <>
+                <Ionicons name="location-outline" size={12} color={C.textSecondary} />
+                <Text style={styles.aptMetaLocation} numberOfLines={1} ellipsizeMode="tail">{appointment.location}</Text>
+              </>
+            )}
+          </View>
+        ) : null}
+        {!!travelText && (
+          <View style={styles.aptTravelRow}>
+            <Ionicons name="car-outline" size={12} color={C.textSecondary} />
+            <Text style={styles.aptTravelText} numberOfLines={1} ellipsizeMode="tail">{travelText}</Text>
+          </View>
+        )}
+      </View>
+      <Pressable onPress={onOptions} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Appointment options for ${title}`}>
+        <Ionicons name="ellipsis-horizontal" size={20} color={C.textSecondary} />
+      </Pressable>
+    </Pressable>
+  );
+}
+
 function makeCalStyles(C: Theme) {
   return StyleSheet.create({
-    cal: { backgroundColor: C.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.border, marginBottom: 16 },
+    cal: { backgroundColor: C.surface, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: C.border, marginBottom: 16, ...raised("md") },
     calHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
     calHeaderActions: { flexDirection: "row", alignItems: "center", gap: 10 },
     calMonth: { fontWeight: "600", fontSize: 15, color: C.text },
@@ -570,6 +734,8 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
   const [showSimpleDatePicker, setShowSimpleDatePicker] = useState(false);
   const [showSimpleTimePicker, setShowSimpleTimePicker] = useState(false);
   const [simpleViewingApt, setSimpleViewingApt] = useState<Appointment | null>(null);
+  const [actionAppointment, setActionAppointment] = useState<Appointment | null>(null);
+  const [appointmentTravelText, setAppointmentTravelText] = useState<Record<string, string>>({});
 
   const loadData = useCallback(async () => {
     const apts = await appointmentStorage.getAll();
@@ -668,10 +834,19 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
   const detailDoctor = simpleViewingApt
     ? doctors.find((doctor) => (doctor.entryOwner ?? "self") === (simpleViewingApt.entryOwner ?? "self") && (doctor.id === simpleViewingApt.doctor_id || doctor.name.trim().toLowerCase() === simpleViewingApt.doctorName.trim().toLowerCase())) ?? null
     : null;
+  const findDoctorForAppointment = useCallback((appointment: Appointment) => {
+    return doctors.find((doctor) =>
+      (doctor.entryOwner ?? "self") === (appointment.entryOwner ?? "self")
+      && (doctor.id === appointment.doctor_id || doctor.name.trim().toLowerCase() === appointment.doctorName.trim().toLowerCase())
+    ) ?? null;
+  }, [doctors]);
   const openAppointmentDetail = useCallback((appointment: Appointment) => {
     setSelectedDate(appointment.date || today);
     setSimpleViewingApt(appointment);
   }, [today]);
+  const openAppointmentActions = useCallback((appointment: Appointment) => {
+    setActionAppointment(appointment);
+  }, []);
   const noteAppointmentOptions = useMemo(
     () => appointments
       .filter((appointment) => !appointment.status)
@@ -761,22 +936,6 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
     Alert.alert("Appointment marked done", "You're all set.");
   }, [loadData]);
 
-  const handleSimpleDelete = useCallback((appointment: Appointment) => {
-    Alert.alert("Delete appointment?", `${appointment.doctorName} will be removed.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          await appointmentStorage.delete(appointment.id);
-          await syncWidgetSnapshot().catch(() => {});
-          setSimpleViewingApt(null);
-          await loadData();
-        },
-      },
-    ]);
-  }, [loadData]);
-
   const resetInlineDoctorForm = () => {
     setNewDoctorName("");
     setNewDoctorSpecialty("");
@@ -850,22 +1009,8 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
     setShowRescheduleTimePicker(false);
   };
 
-  const openAppointmentModalForDate = useCallback((date: string) => {
+  const selectCalendarDate = useCallback((date: string) => {
     setSelectedDate(date);
-    setEditingApt(null);
-    setSelectedDoctorId(null);
-    setShowDoctorPicker(false);
-    resetInlineDoctorForm();
-    setAptDate(date);
-    setAptTime("09:00");
-    setAptNotes("");
-    setAptEntryOwner("self");
-    setRepeatOption("none");
-    setCustomInterval("1");
-    setCustomUnit("week");
-    setShowTimePicker(false);
-    setShowDatePicker(false);
-    setShowAptModal(true);
   }, []);
 
   const handleAddDoctorInline = async () => {
@@ -886,7 +1031,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const handleEditApt = async (apt: Appointment) => {
+  const handleEditApt = useCallback(async (apt: Appointment) => {
     setEditingApt(apt);
     const owner = apt.entryOwner ?? "self";
     setAptEntryOwner(owner);
@@ -906,10 +1051,11 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
     setShowTimePicker(false);
     setShowDatePicker(false);
     setShowAptModal(true);
-  };
+  }, []);
 
   const openDetailEdit = useCallback((appointment: Appointment) => {
     setSimpleViewingApt(null);
+    setActionAppointment(null);
     if (modeUI.isSimpleMode) {
       openSimpleEditAppointment(appointment);
       return;
@@ -945,19 +1091,6 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
     setShowAptModal(false);
     await syncWidgetSnapshot().catch(() => {});
     loadData();
-  };
-
-  const handleDeleteApt = async (apt: Appointment) => {
-    const doDelete = async () => {
-      await appointmentStorage.delete(apt.id);
-      await syncWidgetSnapshot().catch(() => {});
-      loadData();
-    };
-    if (Platform.OS === "web") { await doDelete(); return; }
-    Alert.alert("Delete", `Remove appointment with ${apt.doctorName}?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: doDelete },
-    ]);
   };
 
   const resetNoteForm = useCallback(() => {
@@ -997,6 +1130,8 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
       ? await doctorNoteStorage.update(editingNoteId, payload)
       : await doctorNoteStorage.save(payload);
     if (!savedNote) return;
+    await updateAppIconBadgeCount();
+    await maybePromptForCycleTracking({ text: savedNote.text, source: "doctor-note" });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setNotes((prev) => {
       if (editingNoteId) {
@@ -1015,6 +1150,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
       talkedAboutAt: talkedAbout ? new Date().toISOString() : undefined,
     });
     if (!updatedNote) return;
+    await updateAppIconBadgeCount();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setNotes((prev) => prev.map((item) => item.id === note.id ? updatedNote : item));
   };
@@ -1022,6 +1158,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
   const handleDeleteNote = async (note: DoctorNote) => {
     if (Platform.OS === "web") {
       await doctorNoteStorage.delete(note.id);
+      await updateAppIconBadgeCount();
       setNotes((prev) => prev.filter((item) => item.id !== note.id));
       return;
     }
@@ -1032,6 +1169,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
         style: "destructive",
         onPress: async () => {
           await doctorNoteStorage.delete(note.id);
+          await updateAppIconBadgeCount();
           setNotes((prev) => prev.filter((item) => item.id !== note.id));
         },
       },
@@ -1050,15 +1188,70 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
       : "Choose appointment or doctor";
   const canSaveDoctorNote = !!noteText.trim() && (!!selectedNoteAppointment || !!selectedNoteDoctor);
 
-  const selectedApts = appointments.filter((a) => a.date === selectedDate);
-  const todayApts = appointments.filter((a) => a.date === today && (a.status === undefined || a.status === "completed"));
+  const selectedApts = useMemo(() => appointments.filter((a) => a.date === selectedDate), [appointments, selectedDate]);
+  const todayApts = useMemo(() => appointments.filter((a) => a.date === today && (a.status === undefined || a.status === "completed")), [appointments, today]);
   const currentMonthPrefix = today.slice(0, 7);
-  const upcoming = appointments.filter((a) => a.date > today && a.status === undefined && a.date.startsWith(currentMonthPrefix));
-  const isRecurringApt = (a: Appointment) => a.is_recurring || a.parent_recurring_id;
+  const upcoming = useMemo(() => appointments.filter((a) => a.date > today && a.status === undefined && a.date.startsWith(currentMonthPrefix)), [appointments, currentMonthPrefix, today]);
+  const getRecurringParentId = useCallback((appointment: Appointment) => {
+    return appointment.parent_recurring_id ?? (appointment.is_recurring ? appointment.id : null);
+  }, []);
+  const isRecurringApt = useCallback((appointment: Appointment) => !!getRecurringParentId(appointment), [getRecurringParentId]);
+
+  const handleDeleteRecurringSeries = useCallback((appointment: Appointment) => {
+    const parentId = getRecurringParentId(appointment);
+    if (!parentId) return;
+    const seriesCount = appointments.filter((a) => a.id === parentId || a.parent_recurring_id === parentId).length;
+    const doDelete = async () => {
+      setSimpleViewingApt(null);
+      setActionAppointment(null);
+      await appointmentStorage.deleteRecurringSeries(parentId);
+      await syncWidgetSnapshot().catch(() => {});
+      await updateAppIconBadgeCount();
+      await loadData();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    };
+    if (Platform.OS === "web") {
+      void doDelete();
+      return;
+    }
+    Alert.alert(
+      "Delete repeating appointments?",
+      `This removes ${seriesCount} appointment${seriesCount === 1 ? "" : "s"} in this series.`,
+      [
+        { text: "Keep", style: "cancel" },
+        { text: "Delete series", style: "destructive", onPress: () => { void doDelete(); } },
+      ]
+    );
+  }, [appointments, getRecurringParentId, loadData]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const visibleAppointments = [...todayApts, ...selectedApts, ...upcoming.slice(0, 5)]
+      .filter((appointment, index, list) => list.findIndex((item) => item.id === appointment.id) === index)
+      .filter((appointment) => !!(appointment.location?.trim() || findDoctorForAppointment(appointment)?.address?.trim() || findDoctorForAppointment(appointment)?.hospital?.trim()));
+
+    if (!visibleAppointments.length) return () => { cancelled = true; };
+
+    const loadTravelEstimates = async () => {
+      const next: Record<string, string> = {};
+      for (const appointment of visibleAppointments) {
+        const estimate = await getAppointmentTravelEstimate(appointment, findDoctorForAppointment(appointment));
+        if (estimate) next[appointment.id] = estimate;
+        if (cancelled) return;
+      }
+      setAppointmentTravelText((current) => ({ ...current, ...next }));
+    };
+
+    void loadTravelEstimates();
+    return () => {
+      cancelled = true;
+    };
+  }, [findDoctorForAppointment, selectedApts, todayApts, upcoming]);
 
   const markAppointmentStatus = useCallback(async (apt: Appointment, status: "completed" | "rescheduled" | "cancelled") => {
     await appointmentStorage.update(apt.id, { status });
     await syncWidgetSnapshot().catch(() => {});
+    await updateAppIconBadgeCount();
     loadData();
   }, [loadData]);
 
@@ -1068,13 +1261,32 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
   }, [markAppointmentStatus]);
 
   const openRescheduleFor = useCallback((apt: Appointment) => {
+    setSimpleViewingApt(null);
+    setActionAppointment(null);
     setRescheduleApt(apt);
-    setRescheduleDate("");
+    setRescheduleDate(apt.date || today);
     setRescheduleTime(apt.time || "09:00");
     setShowRescheduleDatePicker(false);
     setShowRescheduleTimePicker(false);
     setShowRescheduleModal(true);
-  }, []);
+  }, [today]);
+
+  const handleCancelAppointment = useCallback((apt: Appointment) => {
+    const doCancel = async () => {
+      setSimpleViewingApt(null);
+      setActionAppointment(null);
+      await markAppointmentStatus(apt, "cancelled");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    };
+    if (Platform.OS === "web") {
+      void doCancel();
+      return;
+    }
+    Alert.alert("Cancel appointment?", `${apt.doctorName} will be marked as cancelled.`, [
+      { text: "Keep", style: "cancel" },
+      { text: "Cancel appointment", style: "destructive", onPress: () => { void doCancel(); } },
+    ]);
+  }, [markAppointmentStatus]);
 
   const handleRescheduleConfirm = useCallback(async () => {
     if (!rescheduleApt || !rescheduleDate.trim()) return;
@@ -1126,7 +1338,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={[styles.content, styles.simpleAppointmentsContent, {
-            paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 18),
+            paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
             paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
           }]}
           showsVerticalScrollIndicator={false}
@@ -1366,9 +1578,12 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
           styles={styles}
           today={today}
           ownerLabel={simpleViewingApt ? getOwnerLabel(simpleViewingApt.entryOwner) : "You"}
+          travelText={simpleViewingApt ? appointmentTravelText[simpleViewingApt.id] : null}
           onClose={() => setSimpleViewingApt(null)}
           onEdit={openDetailEdit}
-          onDelete={handleSimpleDelete}
+          onReschedule={openRescheduleFor}
+          onCancel={handleCancelAppointment}
+          onDeleteSeries={simpleViewingApt && isRecurringApt(simpleViewingApt) ? handleDeleteRecurringSeries : undefined}
           onMarkDone={handleSimpleMarkDone}
         />
 
@@ -1400,7 +1615,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
   return (
     <View style={styles.container}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, {
-        paddingTop: isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + 16),
+        paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
         paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
       }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
@@ -1466,7 +1681,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
               <CalendarView
                 appointments={appointments}
                 selectedDate={selectedDate}
-                onSelectDate={openAppointmentModalForDate}
+                onSelectDate={selectCalendarDate}
                 onJumpToToday={() => setSelectedDate(today)}
                 calStyles={calStyles}
                 colors={C}
@@ -1482,37 +1697,20 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
                 <View style={{ marginTop: 16 }}>
                   <Text style={styles.sectionLabel}>Today</Text>
                   {todayApts.map((apt) => (
-                    <Pressable
+                    <AppointmentListCard
                       key={apt.id}
-                      style={({ pressed }) => [styles.aptCard, apt.status === "completed" && styles.aptCardCompleted, pressed && styles.aptCardPressed]}
+                      appointment={apt}
+                      colors={C}
+                      styles={styles}
+                      isCaregiver={isCaregiver}
+                      ownerLabel={getOwnerLabel(apt.entryOwner)}
+                      travelText={appointmentTravelText[apt.id]}
+                      showCompleteButton
+                      showTimeMeta
                       onPress={() => openAppointmentDetail(apt)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`View appointment with ${apt.doctorName}`}
-                    >
-                      <Pressable onPress={() => apt.status !== "completed" && handleCompleteToday(apt)} style={styles.aptCompleteBtn} accessibilityRole="button" accessibilityLabel={apt.status === "completed" ? "Completed" : "Mark as completed"}>
-                        {apt.status === "completed" ? <Ionicons name="checkmark-circle" size={24} color={C.green} /> : <Ionicons name="ellipse-outline" size={24} color={C.textTertiary} />}
-                      </Pressable>
-                      <View style={styles.aptDateBadge}>
-                        <Text style={styles.aptDateDay}>{new Date(apt.date + "T00:00:00").getDate()}</Text>
-                      </View>
-                      <View style={styles.aptCardContent}>
-                        <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{apt.doctorName}</Text>
-                        {isCaregiver && <Text style={styles.ownerMeta}>{getOwnerLabel(apt.entryOwner)}</Text>}
-                        {!!(apt.location || apt.specialty) && <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{apt.location || apt.specialty}</Text>}
-                        <View style={styles.aptMeta}>
-                          <Ionicons name="time-outline" size={12} color={C.textSecondary} />
-                          <Text style={styles.aptMetaText}>{formatTime12h(apt.time)}</Text>
-                          {!!apt.location && (
-                            <>
-                              <Ionicons name="location-outline" size={12} color={C.textSecondary} />
-                              <Text style={styles.aptMetaLocation} numberOfLines={1} ellipsizeMode="tail">{apt.location}</Text>
-                            </>
-                          )}
-                        </View>
-                      </View>
-                      <Pressable onPress={() => handleEditApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Edit appointment with ${apt.doctorName}`}><Ionicons name="pencil-outline" size={16} color={C.textSecondary} /></Pressable>
-                      <Pressable onPress={() => handleDeleteApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Delete appointment with ${apt.doctorName}`}><Ionicons name="trash-outline" size={16} color={C.textTertiary} /></Pressable>
-                    </Pressable>
+                      onComplete={() => handleCompleteToday(apt)}
+                      onOptions={() => openAppointmentActions(apt)}
+                    />
                   ))}
                 </View>
               )}
@@ -1522,35 +1720,19 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
                 <View>
                   <Text style={styles.sectionLabel}>{formatDate(selectedDate)}</Text>
                   {selectedApts.map((apt) => (
-                    <Pressable
+                    <AppointmentListCard
                       key={apt.id}
-                      style={({ pressed }) => [styles.aptCard, pressed && styles.aptCardPressed]}
+                      appointment={apt}
+                      colors={C}
+                      styles={styles}
+                      isCaregiver={isCaregiver}
+                      ownerLabel={getOwnerLabel(apt.entryOwner)}
+                      travelText={appointmentTravelText[apt.id]}
+                      recurrenceLabel={getRecurrenceLabel(apt, appointments)}
+                      showTimeMeta
                       onPress={() => openAppointmentDetail(apt)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`View appointment with ${apt.doctorName}`}
-                    >
-                      <View style={styles.aptDateBadge}>
-                        <Text style={styles.aptDateDay}>{new Date(apt.date + "T00:00:00").getDate()}</Text>
-                      </View>
-                      <View style={styles.aptCardContent}>
-                        <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{apt.doctorName}</Text>
-                        {isCaregiver && <Text style={styles.ownerMeta}>{getOwnerLabel(apt.entryOwner)}</Text>}
-                        {!!(apt.location || apt.specialty) && <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{apt.location || apt.specialty}</Text>}
-                        {getRecurrenceLabel(apt, appointments) && <Text style={styles.aptRecurrence}>{getRecurrenceLabel(apt, appointments)}</Text>}
-                        <View style={styles.aptMeta}>
-                          <Ionicons name="time-outline" size={12} color={C.textSecondary} />
-                          <Text style={styles.aptMetaText}>{formatTime12h(apt.time)}</Text>
-                          {!!apt.location && (
-                            <>
-                              <Ionicons name="location-outline" size={12} color={C.textSecondary} />
-                              <Text style={styles.aptMetaLocation} numberOfLines={1} ellipsizeMode="tail">{apt.location}</Text>
-                            </>
-                          )}
-                        </View>
-                      </View>
-                      <Pressable onPress={() => handleEditApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Edit appointment with ${apt.doctorName}`}><Ionicons name="pencil-outline" size={16} color={C.textSecondary} /></Pressable>
-                      <Pressable onPress={() => handleDeleteApt(apt)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Delete appointment with ${apt.doctorName}`}><Ionicons name="trash-outline" size={16} color={C.textTertiary} /></Pressable>
-                    </Pressable>
+                      onOptions={() => openAppointmentActions(apt)}
+                    />
                   ))}
                 </View>
               ) : selectedDate !== today ? (
@@ -1563,18 +1745,20 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
                 <View style={{ marginTop: 20 }}>
                   <Text style={styles.sectionLabel}>Upcoming</Text>
                   {upcoming.slice(0, 5).map((apt) => (
-                    <Pressable key={apt.id} style={({ pressed }) => [styles.aptCard, pressed && styles.aptCardPressed]} onPress={() => openAppointmentDetail(apt)} onLongPress={() => handleDeleteApt(apt)} accessibilityRole="button" accessibilityLabel={`${apt.doctorName}${apt.specialty ? `, ${apt.specialty}` : ""}, ${formatDate(apt.date)}`} accessibilityHint="Tap to view, long press to delete">
-                      <View style={styles.aptDateBadge}>
-                        <Text style={styles.aptDateDay}>{new Date(apt.date + "T00:00:00").getDate()}</Text>
-                        <Text style={styles.aptDateMonth}>{new Date(apt.date + "T00:00:00").toLocaleDateString("en-US", { month: "short" })}</Text>
-                      </View>
-                      <View style={styles.aptCardContent}>
-                        <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{apt.doctorName}</Text>
-                        {isCaregiver && <Text style={styles.ownerMeta}>{getOwnerLabel(apt.entryOwner)}</Text>}
-                        {!!(apt.location || apt.specialty) && <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{apt.location || apt.specialty}</Text>}
-                        {getRecurrenceLabel(apt, appointments) && <Text style={styles.aptRecurrence}>{getRecurrenceLabel(apt, appointments)}</Text>}
-                      </View>
-                    </Pressable>
+                    <AppointmentListCard
+                      key={apt.id}
+                      appointment={apt}
+                      colors={C}
+                      styles={styles}
+                      isCaregiver={isCaregiver}
+                      ownerLabel={getOwnerLabel(apt.entryOwner)}
+                      travelText={appointmentTravelText[apt.id]}
+                      recurrenceLabel={getRecurrenceLabel(apt, appointments)}
+                      showMonthInBadge
+                      onPress={() => openAppointmentDetail(apt)}
+                      onLongPress={() => openAppointmentActions(apt)}
+                      onOptions={() => openAppointmentActions(apt)}
+                    />
                   ))}
                 </View>
               )}
@@ -1923,6 +2107,77 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
         }}
       />
 
+      <Modal visible={!!actionAppointment} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => setActionAppointment(null)}>
+          <Pressable style={styles.appointmentActionSheet} onPress={() => {}}>
+            <View style={styles.appointmentActionHeader}>
+              <Text style={styles.appointmentActionEyebrow}>Appointment options</Text>
+              <Text style={styles.appointmentActionTitle} numberOfLines={2}>{actionAppointment?.doctorName || "Appointment"}</Text>
+              {!!actionAppointment && (
+                <Text style={styles.appointmentActionSubtitle}>
+                  {formatDate(actionAppointment.date)} • {formatTime12h(actionAppointment.time || "09:00")}
+                </Text>
+              )}
+            </View>
+            <View style={styles.appointmentActionList}>
+              <Pressable
+                style={styles.appointmentActionRow}
+                onPress={() => {
+                  if (!actionAppointment) return;
+                  openDetailEdit(actionAppointment);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Edit appointment"
+              >
+                <Ionicons name="pencil-outline" size={20} color={C.text} />
+                <Text style={styles.appointmentActionRowText}>Edit</Text>
+              </Pressable>
+              <Pressable
+                style={styles.appointmentActionRow}
+                onPress={() => {
+                  if (!actionAppointment) return;
+                  openRescheduleFor(actionAppointment);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Reschedule appointment"
+              >
+                <Ionicons name="calendar-outline" size={20} color={C.text} />
+                <Text style={styles.appointmentActionRowText}>Reschedule</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.appointmentActionRow, styles.appointmentActionRowDestructive]}
+                onPress={() => {
+                  if (!actionAppointment) return;
+                  handleCancelAppointment(actionAppointment);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel appointment"
+              >
+                <Ionicons name="close-circle-outline" size={20} color={C.red} />
+                <Text style={styles.appointmentActionRowDestructiveText}>Cancel appointment</Text>
+              </Pressable>
+              {!!actionAppointment && isRecurringApt(actionAppointment) && (
+                <Pressable
+                  style={[styles.appointmentActionRow, styles.appointmentActionRowDestructive]}
+                  onPress={() => {
+                    if (!actionAppointment) return;
+                    handleDeleteRecurringSeries(actionAppointment);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete repeating appointment series"
+                >
+                  <Ionicons name="trash-outline" size={20} color={C.red} />
+                  <Text style={styles.appointmentActionRowDestructiveText}>Delete series</Text>
+                </Pressable>
+              )}
+            </View>
+            <Pressable style={styles.appointmentActionClose} onPress={() => setActionAppointment(null)} accessibilityRole="button" accessibilityLabel="Close appointment options">
+              <Text style={styles.appointmentActionCloseText}>Close</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <AppointmentDetailModal
         visible={!!simpleViewingApt}
         appointment={simpleViewingApt}
@@ -1931,9 +2186,12 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
         styles={styles}
         today={today}
         ownerLabel={simpleViewingApt ? getOwnerLabel(simpleViewingApt.entryOwner) : "You"}
+        travelText={simpleViewingApt ? appointmentTravelText[simpleViewingApt.id] : null}
         onClose={() => setSimpleViewingApt(null)}
         onEdit={openDetailEdit}
-        onDelete={handleSimpleDelete}
+        onReschedule={openRescheduleFor}
+        onCancel={handleCancelAppointment}
+        onDeleteSeries={simpleViewingApt && isRecurringApt(simpleViewingApt) ? handleDeleteRecurringSeries : undefined}
         onMarkDone={handleSimpleMarkDone}
       />
 
@@ -2125,12 +2383,13 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
 
 function makeStyles(C: Theme, textScale: number) {
   const size = (base: number) => Math.round(base * textScale * 100) / 100;
+  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
   simpleAppointmentsContent: { gap: 18 },
   simpleAppointmentsHeader: { marginBottom: 6 },
-  simpleAppointmentsCard: { backgroundColor: C.surface, borderRadius: 24, padding: 20, borderWidth: 1, borderColor: C.border, gap: 10 },
+  simpleAppointmentsCard: { backgroundColor: C.surface, borderRadius: 24, padding: 20, borderWidth: 1, borderColor: C.border, gap: 10, ...raised("md") },
   simpleAppointmentsCardToday: { borderColor: C.tint, backgroundColor: C.tintLight },
   simpleAppointmentsCardLabel: { fontWeight: "700", fontSize: size(18), color: C.textSecondary },
   simpleAppointmentsTodayBadge: { alignSelf: "flex-start", paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, backgroundColor: C.tint },
@@ -2145,26 +2404,31 @@ function makeStyles(C: Theme, textScale: number) {
   simpleAppointmentsActionDivider: { height: 1, backgroundColor: C.border, opacity: 0.9, marginVertical: 2 },
   simpleAppointmentsSecondaryRow: { flexDirection: "row", gap: 10 },
   simpleAppointmentsActionLabel: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  appointmentOptionsList: { gap: 10 },
+  appointmentOptionButton: { minHeight: 52, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+  appointmentOptionText: { fontWeight: "800", fontSize: size(17), color: C.text },
+  appointmentCancelOptionButton: { backgroundColor: C.redLight, borderColor: C.red },
+  appointmentCancelOptionText: { fontWeight: "800", fontSize: size(17), color: C.red },
   simpleAppointmentsSecondaryButton: { minHeight: 54, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", flex: 1 },
   simpleAppointmentsSecondaryButtonPressed: { opacity: 0.95, transform: [{ scale: 0.99 }] },
   simpleAppointmentsSecondaryButtonText: { fontWeight: "700", fontSize: size(17), color: C.text },
   simpleAppointmentsDeleteButton: { minHeight: 54, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.redLight, borderWidth: 1, borderColor: C.red, alignItems: "center", justifyContent: "center", flex: 1 },
   simpleAppointmentsDeleteButtonText: { fontWeight: "800", fontSize: size(17), color: C.red },
   simpleAppointmentsEmptyTitle: { fontWeight: "700", fontSize: size(24), color: C.text, marginBottom: 2 },
-  simpleAppointmentsAddCard: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 58, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  simpleAppointmentsAddCard: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 58, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, ...raised("sm") },
   simpleAppointmentsAddCardText: { fontWeight: "700", fontSize: size(18), color: C.text },
   simpleAppointmentsListSection: { gap: 10 },
   simpleAppointmentsSectionTitle: { fontWeight: "700", fontSize: size(18), color: C.textSecondary, marginLeft: 4 },
-  simpleAppointmentsListCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surface, borderRadius: 18, paddingHorizontal: 18, paddingVertical: 16, borderWidth: 1, borderColor: C.border, gap: 10 },
+  simpleAppointmentsListCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surface, borderRadius: 18, paddingHorizontal: 18, paddingVertical: 16, borderWidth: 1, borderColor: C.border, gap: 10, ...raised("sm") },
   simpleAppointmentsListTextWrap: { flex: 1, gap: 3 },
   simpleAppointmentsListDoctor: { fontWeight: "700", fontSize: size(18), color: C.text },
   simpleAppointmentsListWhen: { fontWeight: "500", fontSize: size(15), color: C.textSecondary },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { fontWeight: "700", fontSize: size(28), color: C.text, letterSpacing: -0.5 },
-  importBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
-  addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.purple, alignItems: "center", justifyContent: "center" },
-  tabRow: { flexDirection: "row", backgroundColor: C.surface, borderRadius: 10, padding: 3, marginBottom: 16, borderWidth: 1, borderColor: C.border },
+  importBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", ...raised("sm") },
+  addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.purple, alignItems: "center", justifyContent: "center", ...raised("sm", C.purple) },
+  tabRow: { flexDirection: "row", backgroundColor: C.surface, borderRadius: 10, padding: 3, marginBottom: 16, borderWidth: 1, borderColor: C.border, ...raised("sm") },
   tabBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", position: "relative" },
   tabBtnActive: { backgroundColor: C.surfaceElevated },
   tabText: { fontWeight: "500", fontSize: 13, color: C.textSecondary },
@@ -2189,7 +2453,7 @@ function makeStyles(C: Theme, textScale: number) {
   },
   calLayout: { flexDirection: "row" },
   sectionLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
-  aptCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 12, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: C.border, gap: 12 },
+  aptCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 16, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: C.border, gap: 12, ...raised("sm") },
   aptCardPressed: { opacity: 0.94, transform: [{ scale: 0.995 }] },
   aptCardCompleted: { backgroundColor: "rgba(48,209,88,0.08)", borderColor: "rgba(48,209,88,0.25)" },
   aptCompleteBtn: { padding: 4, marginRight: 2 },
@@ -2204,12 +2468,14 @@ function makeStyles(C: Theme, textScale: number) {
   aptMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, flex: 1, minWidth: 0 },
   aptMetaText: { fontWeight: "400", fontSize: 11, color: C.textSecondary, marginRight: 8 },
   aptMetaLocation: { fontWeight: "400", fontSize: 11, color: C.textSecondary, flex: 1, minWidth: 0 },
-  noAptForDate: { backgroundColor: C.surface, borderRadius: 12, padding: 20, alignItems: "center", borderWidth: 1, borderColor: C.border },
+  aptTravelRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4, minWidth: 0 },
+  aptTravelText: { flex: 1, minWidth: 0, fontWeight: "600", fontSize: 11, color: C.textSecondary },
+  noAptForDate: { backgroundColor: C.surface, borderRadius: 16, padding: 20, alignItems: "center", borderWidth: 1, borderColor: C.border, ...raised("sm") },
   noAptText: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
   empty: { alignItems: "center", paddingVertical: 60, gap: 8 },
   emptyTitle: { fontWeight: "600", fontSize: 17, color: C.text, marginTop: 8 },
   emptyDesc: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
-  noteCard: { flexDirection: "row", alignItems: "flex-start", backgroundColor: C.surface, borderRadius: 12, padding: 14, marginBottom: 6, borderWidth: 1, borderColor: C.border, gap: 10 },
+  noteCard: { flexDirection: "row", alignItems: "flex-start", backgroundColor: C.surface, borderRadius: 16, padding: 14, marginBottom: 6, borderWidth: 1, borderColor: C.border, gap: 10, ...raised("sm") },
   noteBullet: { width: 24, height: 24, borderRadius: 7, backgroundColor: C.greenLight, alignItems: "center", justifyContent: "center" },
   noteBulletNum: { fontWeight: "600", fontSize: 12, color: C.text },
   noteContent: { flex: 1, gap: 6 },
@@ -2223,14 +2489,26 @@ function makeStyles(C: Theme, textScale: number) {
   noteActionButtonTextDone: { color: C.green },
   noteAiButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: C.purpleLight, borderWidth: 1, borderColor: C.border },
   noteAiButtonText: { fontWeight: "800", fontSize: size(12), color: C.purple },
-  noteSummaryCard: { borderRadius: 14, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, padding: 12, gap: 10 },
+  noteSummaryCard: { borderRadius: 14, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, padding: 12, gap: 10, ...raised("sm") },
   noteSummarySection: { gap: 5 },
   noteSummaryTitle: { fontWeight: "800", fontSize: size(11), color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.4 },
   noteSummaryText: { flex: 1, fontWeight: "500", fontSize: size(12), color: C.text, lineHeight: size(18) },
   noteSummaryEmpty: { fontWeight: "500", fontSize: size(12), color: C.textTertiary, fontStyle: "italic" },
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
-  modal: { backgroundColor: C.surface, borderRadius: 18, paddingTop: 24, paddingHorizontal: 24, paddingBottom: 60, width: "100%", maxWidth: 400, maxHeight: "88%", borderWidth: 1, borderColor: C.border },
-  detailSheet: { backgroundColor: C.surface, borderRadius: 22, width: "100%", maxWidth: 460, maxHeight: "88%", borderWidth: 1, borderColor: C.border, overflow: "hidden" },
+  overlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", alignItems: "center", padding: 24 },
+  modal: { backgroundColor: solidModalSurface, borderRadius: 22, paddingTop: 24, paddingHorizontal: 24, paddingBottom: 60, width: "100%", maxWidth: 400, maxHeight: "88%", borderWidth: 1, borderColor: C.border, ...raised("lg") },
+  appointmentActionSheet: { backgroundColor: solidModalSurface, borderRadius: 24, padding: 18, width: "100%", maxWidth: 400, borderWidth: 1, borderColor: C.border, gap: 14, ...raised("lg") },
+  appointmentActionHeader: { gap: 4, paddingHorizontal: 4 },
+  appointmentActionEyebrow: { fontWeight: "800", fontSize: size(12), color: C.textTertiary, textTransform: "uppercase", letterSpacing: 0.6 },
+  appointmentActionTitle: { fontWeight: "800", fontSize: size(24), color: C.text, letterSpacing: -0.3 },
+  appointmentActionSubtitle: { fontWeight: "600", fontSize: size(15), color: C.textSecondary },
+  appointmentActionList: { gap: 10 },
+  appointmentActionRow: { minHeight: 54, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, ...raised("sm") },
+  appointmentActionRowText: { fontWeight: "800", fontSize: size(17), color: C.text },
+  appointmentActionRowDestructive: { backgroundColor: C.redLight, borderColor: C.red },
+  appointmentActionRowDestructiveText: { fontWeight: "800", fontSize: size(17), color: C.red },
+  appointmentActionClose: { minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: C.surfaceElevated },
+  appointmentActionCloseText: { fontWeight: "800", fontSize: size(16), color: C.textSecondary },
+  detailSheet: { backgroundColor: solidModalSurface, borderRadius: 24, width: "100%", maxWidth: 460, maxHeight: "88%", borderWidth: 1, borderColor: C.border, overflow: "hidden", ...raised("lg") },
   detailContent: { padding: 22, gap: 16, paddingBottom: 28 },
   detailHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   detailHeaderText: { flex: 1, minWidth: 0 },
@@ -2240,19 +2518,19 @@ function makeStyles(C: Theme, textScale: number) {
   detailOwner: { fontWeight: "700", fontSize: size(13), color: C.textTertiary, marginTop: 8 },
   detailCloseButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
   detailActionRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  detailActionButton: { minHeight: 46, borderRadius: 14, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+  detailActionButton: { minHeight: 46, borderRadius: 14, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, ...raised("sm") },
   detailActionText: { fontWeight: "800", fontSize: size(13), color: C.text },
   aiButton: { minHeight: 50, borderRadius: 16, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.purpleLight, borderWidth: 1, borderColor: C.border },
   aiButtonDisabled: { opacity: 0.62 },
   aiButtonText: { fontWeight: "800", fontSize: size(14), color: C.purple },
   aiErrorText: { fontWeight: "600", fontSize: size(12), color: C.red, lineHeight: size(18) },
-  aiResultCard: { borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, padding: 16, gap: 8 },
+  aiResultCard: { borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, padding: 16, gap: 8, ...raised("sm") },
   aiResultTitle: { fontWeight: "800", fontSize: size(12), color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 },
   aiResultText: { flex: 1, fontWeight: "500", fontSize: size(14), color: C.text, lineHeight: size(21) },
   aiBulletList: { gap: 6, marginTop: 2 },
   aiBulletRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   aiBullet: { fontWeight: "900", fontSize: size(14), color: C.purple, lineHeight: size(20) },
-  detailSection: { borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, padding: 16, gap: 8 },
+  detailSection: { borderRadius: 18, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, padding: 16, gap: 8, ...raised("sm") },
   detailSectionLabel: { fontWeight: "800", fontSize: 11, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.6 },
   detailInfoRow: { flexDirection: "row", alignItems: "center", gap: 9 },
   detailInfoText: { fontWeight: "700", fontSize: size(16), color: C.text },
@@ -2263,7 +2541,7 @@ function makeStyles(C: Theme, textScale: number) {
   detailInlineButtonText: { fontWeight: "800", fontSize: size(13), color: C.purple },
   detailFooterActions: { gap: 10, paddingTop: 2 },
   pickerModal: { maxWidth: 360 },
-  iosTimeSheet: { backgroundColor: C.surface, borderRadius: 18, paddingTop: 20, paddingBottom: 16, paddingHorizontal: 20, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: C.border, alignItems: "stretch" },
+  iosTimeSheet: { backgroundColor: solidModalSurface, borderRadius: 18, paddingTop: 20, paddingBottom: 16, paddingHorizontal: 20, width: "100%", maxWidth: 360, borderWidth: 1, borderColor: C.border, alignItems: "stretch", ...raised("lg") },
   modalScrollContent: { paddingBottom: 28 },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 16 },
   simpleStepDots: { flexDirection: "row", gap: 8, marginBottom: 18 },

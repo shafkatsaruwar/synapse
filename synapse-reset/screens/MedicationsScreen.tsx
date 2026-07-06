@@ -23,6 +23,8 @@ import { cancelMedicationReminders, DEFAULT_REMINDER_TIMES, syncAllFromSettings 
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import VisualScanImportModal from "@/screens/VisualScanImportModal";
+import { raised } from "@/constants/raised";
+import { modalOverlay, modalSurface, modalSurfaceElevated } from "@/lib/modal-colors";
 
 const TIME_TAGS: string[] = ["Morning", "Afternoon", "Night", "Before Fajr", "After Iftar"];
 const MED_LIST_DOSE_TIMES: MedListDoseTime[] = ["Morning", "Afternoon", "Evening", "Night", "As Needed"];
@@ -1442,7 +1444,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
     return Array.from({ length: count }, (_, i) => `Dose ${i + 1}`);
   };
 
-  const topPad = isWide ? 40 : (Platform.OS === "web" ? 67 : insets.top + (modeUI.isSimpleMode ? 18 : 16));
+  const topPad = isWide ? 28 : (Platform.OS === "web" ? 40 : 12);
   const isCaregiver = profile.userRole === "caregiver" && !!profile.caredForName?.trim();
   const ownerOptions: { value: RecordOwner; label: string }[] = [
     { value: "self", label: "You" },
@@ -1518,20 +1520,31 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
             </View>
           )}
           <View style={styles.header}>
-            <View>
-              <Text style={[styles.title, styles.simpleTitle, isSickMode && { color: sickPalette.accent }]}>Medications</Text>
-              <Text style={[styles.subtitle, styles.simpleSubtitle, isSickMode && { color: sickPalette.text }]}>
+            <View style={styles.headerTitleGroup}>
+              <Text style={[styles.title, styles.simpleTitle, isSickMode && { color: sickPalette.accent }]} numberOfLines={1}>Medications</Text>
+              <Text style={[styles.subtitle, styles.simpleSubtitle, isSickMode && { color: sickPalette.text }]} numberOfLines={1}>
                 {headerSubtitle}
               </Text>
             </View>
-            <Pressable
-              style={styles.headerIconButton}
-              onPress={() => setShowVisualScanModal(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Scan medication"
-            >
-              <Ionicons name="scan-outline" size={20} color={C.text} />
-            </Pressable>
+            <View style={styles.headerActions}>
+              <Pressable
+                style={({ pressed }) => [styles.headerAddPill, pressed && styles.headerActionPressed]}
+                onPress={openAddModal}
+                accessibilityRole="button"
+                accessibilityLabel="Add medication"
+              >
+                <Text style={styles.headerAddPillText}>Add Med</Text>
+                <Ionicons name="add" size={17} color="#fff" />
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.headerIconButton, pressed && styles.headerActionPressed]}
+                onPress={() => setShowVisualScanModal(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Scan medication"
+              >
+                <Ionicons name="scan-outline" size={20} color={C.text} />
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -1547,7 +1560,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
           {scheduledMeds.length === 0 && prnMeds.length === 0 ? (
             <View style={styles.simpleEmptyCard}>
               <Text style={styles.simpleEmptyTitle}>No medications yet</Text>
-              <Text style={styles.simpleEmptyBody}>Use the + button to set up your first medication.</Text>
+              <Text style={styles.simpleEmptyBody}>Use Add Med to set up your first medication.</Text>
             </View>
           ) : (
             <>
@@ -1820,18 +1833,29 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
           </View>
         )}
         <View style={styles.header}>
-          <View>
-            <Text style={[styles.title, isSickMode && { color: sickPalette.accent }]}>Medications</Text>
-            <Text style={[styles.subtitle, isSickMode && { color: sickPalette.text }]}>{headerSubtitle}</Text>
+          <View style={styles.headerTitleGroup}>
+            <Text style={[styles.title, isSickMode && { color: sickPalette.accent }]} numberOfLines={1}>Medications</Text>
+            <Text style={[styles.subtitle, isSickMode && { color: sickPalette.text }]} numberOfLines={1}>{headerSubtitle}</Text>
           </View>
-          <Pressable
-            style={styles.headerIconButton}
-            onPress={() => setShowVisualScanModal(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Scan medication"
-          >
-            <Ionicons name="scan-outline" size={20} color={C.text} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable
+              style={({ pressed }) => [styles.headerAddPill, pressed && styles.headerActionPressed]}
+              onPress={openAddModal}
+              accessibilityRole="button"
+              accessibilityLabel="Add medication"
+            >
+              <Text style={styles.headerAddPillText}>Add Med</Text>
+              <Ionicons name="add" size={17} color="#fff" />
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.headerIconButton, pressed && styles.headerActionPressed]}
+              onPress={() => setShowVisualScanModal(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Scan medication"
+            >
+              <Ionicons name="scan-outline" size={20} color={C.text} />
+            </Pressable>
+          </View>
         </View>
         {totalDoses > 0 && (
           <View style={[styles.progressBar, isSickMode && { backgroundColor: sickPalette.progress }]}>
@@ -1851,7 +1875,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
           <View style={styles.empty}>
             <Ionicons name="medical-outline" size={40} color={C.textTertiary} />
             <Text style={styles.emptyTitle}>No medications yet</Text>
-            <Text style={styles.emptyDesc}>Tap the + button to add your first medication.</Text>
+            <Text style={styles.emptyDesc}>Tap Add Med to add your first medication.</Text>
           </View>
         ) : (
           grouped.map(({ tag, meds }) => (
@@ -2330,23 +2354,6 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
           </View>
         </View>
       ) : null}
-
-      <Pressable
-        testID="add-medication"
-        style={({ pressed }) => [
-          styles.fab,
-          {
-            right: isWide ? 24 : 20,
-            bottom: Platform.OS === "web" ? 76 : insets.bottom + 42,
-            opacity: pressed ? 0.92 : 1,
-          },
-        ]}
-        onPress={handleOpenAddMedication}
-        accessibilityRole="button"
-        accessibilityLabel="Add medication"
-      >
-        <Ionicons name="add" size={28} color="#fff" />
-      </Pressable>
 
       <Modal visible={showTempModal} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowTempModal(false)}>
@@ -3517,6 +3524,8 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
 
 function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   const size = (base: number) => Math.round(base * textScale * 100) / 100;
+  const solidModalSurface = modalSurface(C);
+  const solidModalElevated = modalSurfaceElevated(C);
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
@@ -3526,8 +3535,13 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   sickBanner: { marginBottom: 16, borderRadius: 12, padding: 12, borderWidth: 1 },
   sickBannerInner: { flexDirection: "row", alignItems: "center", gap: 8 },
   sickBannerText: { fontWeight: "600", fontSize: 13 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 16 },
+  headerTitleGroup: { flex: 1, minWidth: 0 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 0 },
   headerIconButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+  headerAddPill: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: C.tint, ...raised("sm", C.tint) },
+  headerAddPillText: { fontWeight: "800", fontSize: size(14), color: "#fff", letterSpacing: 0 },
+  headerActionPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
   simpleTitle: { fontSize: size(34), lineHeight: size(38), letterSpacing: -0.9 },
@@ -3571,6 +3585,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
     backgroundColor: C.surfaceElevated,
     borderWidth: 1,
     borderColor: C.border,
+    ...raised("sm"),
   },
   simpleSummaryText: {
     fontWeight: "600",
@@ -3586,11 +3601,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.borderLight,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 4,
+    ...raised("md"),
     gap: 12,
   },
   simpleMedicationCardPressed: {
@@ -3695,6 +3706,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
     borderColor: C.borderLight,
     gap: 8,
     alignItems: "center",
+    ...raised("md"),
   },
   simpleEmptyTitle: {
     fontWeight: "800",
@@ -3732,6 +3744,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
     backgroundColor: C.surfaceElevated,
     borderWidth: 1,
     borderColor: C.border,
+    ...raised("sm"),
   },
   simpleEmptyInlineText: {
     fontWeight: "500",
@@ -3750,6 +3763,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
     borderWidth: 1,
     borderColor: C.border,
     gap: 4,
+    ...raised("sm"),
   },
   simpleTypeChoiceCardActive: {
     backgroundColor: C.tintLight,
@@ -3789,6 +3803,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
     borderWidth: 1,
     borderColor: C.border,
     marginBottom: 16,
+    ...raised("sm"),
   },
   prnStepDots: {
     flexDirection: "row",
@@ -3860,23 +3875,22 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   prnReasonChipTextActive: {
     color: C.tint,
   },
-  addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+  addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", ...raised("sm", C.tint) },
   progressBar: { height: 3, borderRadius: 999, backgroundColor: C.green + "1F", marginBottom: 24, overflow: "hidden" },
   progressFill: { height: 3, borderRadius: 999, backgroundColor: C.green },
   empty: { alignItems: "center", paddingVertical: 60, gap: 8 },
   emptyTitle: { fontWeight: "600", fontSize: 17, color: C.text, marginTop: 8 },
   emptyDesc: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
-  fab: { position: "absolute", width: 56, height: 56, borderRadius: 28, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 2.5, elevation: 2 },
   refillRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8, marginLeft: 26 },
   refillText: { fontWeight: "400", fontSize: 10.5, color: C.textTertiary, opacity: 0.72 },
   refillTextWarning: { color: C.red },
   sectionPanel: { marginBottom: 0, paddingVertical: 16, paddingHorizontal: 4 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   sectionTitle: { fontWeight: "700", fontSize: 18, color: C.text },
-  sectionAddBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.tint, alignItems: "center", justifyContent: "center" },
+  sectionAddBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", ...raised("sm", C.tint) },
   sectionDivider: { height: 1, backgroundColor: C.textTertiary + "12", marginVertical: 8, marginHorizontal: 4 },
   medListEmpty: { fontWeight: "400", fontSize: 13, color: C.textTertiary, marginBottom: 12 },
-  medListCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.textTertiary + "10" },
+  medListCard: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 16, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: C.textTertiary + "10", ...raised("sm") },
   medListCardName: { fontWeight: "600", fontSize: 15, color: C.text },
   medListCardDoseLine: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 2 },
   medListCardPrescriber: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 2 },
@@ -3900,7 +3914,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   durationUnitBtn: { paddingHorizontal: 10, paddingVertical: 12, borderRadius: 10, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "1A" },
   durationUnitBtnActive: { backgroundColor: C.tint, borderColor: C.tint },
   durationUnitText: { fontWeight: "600", fontSize: 12, color: C.textSecondary },
-  doseCard: { marginBottom: 12, padding: 12, borderRadius: 12, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "14" },
+  doseCard: { marginBottom: 12, padding: 12, borderRadius: 14, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.textTertiary + "14", ...raised("sm") },
   doseCardTitle: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 8 },
   doseRowWrap: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   doseAmountInput: { flex: 2, marginBottom: 0 },
@@ -3923,7 +3937,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   dosePickerBlock: { marginBottom: 14 },
   tagBadge: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
   tagText: { fontWeight: "600", fontSize: 12 },
-  medCard: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: C.textTertiary + "10" },
+  medCard: { backgroundColor: C.surface, borderRadius: 18, paddingVertical: 15, paddingHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: C.textTertiary + "10", ...raised("sm") },
   medCardTaken: { borderColor: "rgba(48,209,88,0.14)", backgroundColor: "rgba(48,209,88,0.04)" },
   safetyNote: { flexDirection: "row", alignItems: "flex-start", gap: 6, paddingVertical: 12, paddingHorizontal: 4, marginBottom: 8 },
   safetyNoteText: { flex: 1, fontWeight: "400", fontSize: 11, color: C.textTertiary, lineHeight: 16 },
@@ -4001,7 +4015,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   takenBanner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 10, backgroundColor: "rgba(48,209,88,0.09)" },
   takenText: { fontWeight: "600", fontSize: 13, color: C.green },
   dosesContainer: { gap: 6 },
-  doseRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: C.surfaceElevated },
+  doseRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: C.surfaceElevated, ...raised("sm") },
   doseRowPending: { opacity: 0.82 },
   doseRowTaken: { backgroundColor: "rgba(48,209,88,0.08)" },
   doseLabel: { fontWeight: "500", fontSize: 13, color: C.text, flex: 1 },
@@ -4073,14 +4087,14 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
     fontSize: 13,
     color: "#fff",
   },
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
-  bottomSheetOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
-  bottomSheet: { backgroundColor: C.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 32 },
-  inlineReminderPicker: { backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 8, borderWidth: 1, borderColor: C.textTertiary + "14", marginTop: -2 },
-  modal: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: "100%", maxWidth: 400, maxHeight: "85%", borderWidth: 1, borderColor: C.textTertiary + "14" },
+  overlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", alignItems: "center", padding: 24 },
+  bottomSheetOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: modalOverlay() },
+  bottomSheet: { backgroundColor: solidModalSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 32, ...raised("lg") },
+  inlineReminderPicker: { backgroundColor: solidModalElevated, borderRadius: 12, padding: 8, borderWidth: 1, borderColor: C.textTertiary + "24", marginTop: -2 },
+  modal: { backgroundColor: solidModalSurface, borderRadius: 22, padding: 24, width: "100%", maxWidth: 400, maxHeight: "85%", borderWidth: 1, borderColor: C.textTertiary + "24", ...raised("lg") },
   modalTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 20 },
   medicationPhotoSection: { marginBottom: 18, gap: 10 },
-  medicationPhotoPreview: { width: "100%", height: 164, borderRadius: 16, backgroundColor: C.surfaceElevated },
+  medicationPhotoPreview: { width: "100%", height: 164, borderRadius: 16, backgroundColor: solidModalElevated },
   medicationPhotoActions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   medicationPhotoButton: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, backgroundColor: C.tintLight },
   medicationPhotoButtonText: { fontWeight: "600", fontSize: 13, color: C.tint },
@@ -4098,6 +4112,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
     borderWidth: 1,
     borderColor: C.textTertiary + "14",
     padding: 14,
+    ...raised("sm"),
   },
   prnSummaryName: {
     fontWeight: "700",
@@ -4130,7 +4145,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
   confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: C.tint, alignItems: "center" },
   confirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-  nudgeCard: { backgroundColor: C.surface, borderRadius: 20, padding: 28, width: "100%", maxWidth: 340, borderWidth: 1, borderColor: C.textTertiary + "14", alignItems: "center" },
+  nudgeCard: { backgroundColor: solidModalSurface, borderRadius: 22, padding: 28, width: "100%", maxWidth: 340, borderWidth: 1, borderColor: C.textTertiary + "14", alignItems: "center", ...raised("lg") },
   nudgeEmoji: { fontSize: 44, marginBottom: 16 },
   nudgeText: { fontWeight: "600", fontSize: 16, color: C.text, textAlign: "center", lineHeight: 22, marginBottom: 24 },
   nudgeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.green, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, width: "100%", marginBottom: 10 },
@@ -4140,7 +4155,7 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   protocolSection: { marginTop: 12, paddingTop: 20, borderTopWidth: 1, borderTopColor: S.accentBorder },
   protocolHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
   protocolTitle: { fontWeight: "700", fontSize: 18, color: S.accent, letterSpacing: -0.3 },
-  protocolCard: { backgroundColor: S.card, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: S.accentBorder },
+  protocolCard: { backgroundColor: S.card, borderRadius: 16, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: S.accentBorder, ...raised("sm", S.accent) },
   protocolCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   protocolCardTitle: { fontWeight: "600", fontSize: 14, color: S.text, flex: 1 },
   protocolMeta: { fontWeight: "500", fontSize: 12, color: C.textSecondary },

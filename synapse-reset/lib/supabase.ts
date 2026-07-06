@@ -53,10 +53,6 @@ function getEnv(): { url: string; anonKey: string } | null {
       anonKey = anonKey || (typeof k === "string" ? k.trim() : "");
     }
   }
-  console.log("SUPABASE URL FROM EXTRA:", strFromExtra("EXPO_PUBLIC_SUPABASE_URL"));
-  console.log("SUPABASE KEY FROM EXTRA:", strFromExtra("EXPO_PUBLIC_SUPABASE_ANON_KEY"));
-  console.log("SUPABASE URL FROM PROCESS ENV:", process.env.EXPO_PUBLIC_SUPABASE_URL);
-  console.log("SUPABASE KEY FROM PROCESS ENV:", process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
   if (!url || !anonKey) return null;
   return { url, anonKey };
 }
@@ -132,13 +128,8 @@ export function getSupabaseUrl(): string | null {
  */
 export async function initSupabaseFromStorage(): Promise<void> {
   if (client !== null) {
-    console.log("Supabase client already initialized; skipping initSupabaseFromStorage");
     return;
   }
-  const fromEnv = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
-  const fromExtra = strFromExtra("EXPO_PUBLIC_SUPABASE_URL");
-  console.log("Supabase init: process.env URL:", fromEnv ? `${fromEnv.slice(0, 30)}...` : "(missing)");
-  console.log("Supabase init: extra URL:", fromExtra ? `${fromExtra.slice(0, 30)}...` : "(missing)");
   try {
     const [storedUrl, storedKey] = await Promise.all([
       AsyncStorage.getItem(STORAGE_KEY_URL),
@@ -155,8 +146,6 @@ export async function initSupabaseFromStorage(): Promise<void> {
   }
   const env = getEnv();
   if (env) {
-    console.log("SUPABASE URL FROM ENV:", env?.url);
-    console.log("SUPABASE KEY PRESENT:", !!env?.anonKey);
     setClientFromEnv(env);
   }
   else console.warn("Supabase env missing: set in EAS or use in-app config.");

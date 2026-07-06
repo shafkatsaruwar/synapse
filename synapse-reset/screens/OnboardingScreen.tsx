@@ -779,7 +779,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
+  container: { flex: 1, backgroundColor: "transparent" },
   sliderWrap: { flex: 1, overflow: "hidden" },
   sliderRow: { flexDirection: "row", flex: 1 },
   slide: { flex: 1, justifyContent: "center" },
@@ -906,7 +906,7 @@ function makeStyles(C: Theme) {
   privacyHeroDevice: {
     flex: 1,
     borderRadius: 24,
-    backgroundColor: C.background,
+    backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.borderLight,
     padding: 16,
@@ -1038,7 +1038,7 @@ function makeStyles(C: Theme) {
     lineHeight: 21,
     color: C.textSecondary,
   },
-  featureSlideBg: { backgroundColor: C.background },
+  featureSlideBg: { backgroundColor: "transparent" },
   featureSlideCenter: { alignItems: "center", justifyContent: "center", paddingVertical: 16 },
   phoneMockup: {
     width: 280,
@@ -1368,7 +1368,7 @@ function makeStyles(C: Theme) {
     width: 52,
     height: 52,
     borderRadius: 16,
-    backgroundColor: C.background,
+    backgroundColor: C.surfaceElevated,
     borderWidth: 1,
     borderColor: C.border,
     alignItems: "center",
