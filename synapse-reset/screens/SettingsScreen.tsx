@@ -47,6 +47,7 @@ import { isCurrentMonthRamadan } from "@/lib/hijri";
 import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { raised } from "@/constants/raised";
+import { getCloudKitBackupStatus, restoreFromICloud, saveToICloud } from "@/lib/cloudkit-backup";
 
 const SECTION_LABELS: Record<string, string> = {
   log: "Daily Log", healthdata: "Vitals", medications: "Medications", symptoms: "Symptoms",
@@ -91,6 +92,8 @@ const SIMPLE_TEXT_SIZE_OPTIONS: { id: TextSizeSetting; label: string }[] = [
   { id: "extra_large", label: "Extra Large" },
 ];
 
+type CloudKitStatus = Awaited<ReturnType<typeof getCloudKitBackupStatus>>;
+
 const PROFILE_IMAGE_DIR = `${FileSystem.documentDirectory ?? ""}profile-images/`;
 
 function getFileExtension(uri: string) {
@@ -98,6 +101,18 @@ function getFileExtension(uri: string) {
   const lastDot = clean.lastIndexOf(".");
   if (lastDot === -1) return "jpg";
   return clean.slice(lastDot + 1).toLowerCase() || "jpg";
+}
+
+function formatBackupTime(value?: string | null) {
+  if (!value) return "Not synced yet";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "Not synced yet";
+  return `Last synced ${date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })}`;
 }
 
 async function persistProfileImage(sourceUri: string, previousUri?: string) {
@@ -155,6 +170,8 @@ export default function SettingsScreen({
   const [medications, setMedications] = useState<Medication[]>([]);
   const [medLogs, setMedLogs] = useState<MedicationLog[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [cloudStatus, setCloudStatus] = useState<CloudKitStatus | null>(null);
+  const [cloudBusy, setCloudBusy] = useState(false);
 
   const handleResetApp = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -192,6 +209,14 @@ export default function SettingsScreen({
   React.useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const refreshCloudStatus = useCallback(() => {
+    getCloudKitBackupStatus().then(setCloudStatus).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refreshCloudStatus();
+  }, [refreshCloudStatus]);
 
   useEffect(() => {
     if ((openAppearanceModalToken ?? 0) > 0) {
@@ -296,6 +321,58 @@ export default function SettingsScreen({
 
   const saveBackupRoleDetails = async (updates: Partial<HealthProfileInfo>) => {
     await handleSaveProfile({ ...profile, ...updates });
+  };
+
+  const handleBackupNow = async () => {
+    Haptics.selectionAsync();
+    setCloudBusy(true);
+    try {
+      const result = await saveToICloud();
+      refreshCloudStatus();
+      if (result.skipped) {
+        Alert.alert("iCloud unavailable", "Synapse will keep working offline and try again later.");
+      } else if (result.error) {
+        Alert.alert("Backup unavailable", "Could not reach iCloud right now. Synapse will try again later.");
+      } else {
+        Alert.alert("Backed up", "Your Synapse data is saved privately in iCloud.");
+      }
+    } finally {
+      setCloudBusy(false);
+    }
+  };
+
+  const handleRestoreCloudKit = () => {
+    Haptics.selectionAsync();
+    Alert.alert(
+      "Restore from iCloud?",
+      "If iCloud has newer Synapse data, it will replace the local data on this device.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Restore",
+          style: "default",
+          onPress: async () => {
+            setCloudBusy(true);
+            try {
+              const result = await restoreFromICloud({ uploadLocalIfNewer: false });
+              await loadData();
+              onRestoreComplete?.();
+              syncWidgetSnapshot().catch(() => {});
+              refreshCloudStatus();
+              if (result.restored) {
+                Alert.alert("Restored", "Your iCloud backup has been restored.");
+              } else if (result.error) {
+                Alert.alert("Restore unavailable", "Could not reach iCloud right now.");
+              } else {
+                Alert.alert("Already current", "No newer iCloud backup was found.");
+              }
+            } finally {
+              setCloudBusy(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const dateObj = new Date();
@@ -775,6 +852,41 @@ export default function SettingsScreen({
             </Text>
           </Pressable>
           </Pressable>
+        </GlassView>
+
+        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
+          <Text style={styles.sectionTitle}>iCloud Backup</Text>
+          <Text style={styles.desc}>
+            Private CloudKit backup for medications, appointments, logs, labs, imaging, and health notes.
+          </Text>
+          <View style={styles.syncedBadge}>
+            <Ionicons
+              name={cloudStatus?.available ? "cloud-done-outline" : "cloud-offline-outline"}
+              size={15}
+              color={cloudStatus?.available ? C.green : C.textTertiary}
+            />
+            <Text style={[styles.syncedText, !cloudStatus?.available && { color: C.textTertiary }]}>
+              {cloudStatus?.available
+                ? formatBackupTime(cloudStatus.lastSyncedAt ?? cloudStatus.cloudLastUpdatedAt)
+                : "iCloud will sync when available"}
+            </Text>
+          </View>
+          <View style={styles.backupActions}>
+            <Pressable
+              style={[styles.secondaryBtn, cloudBusy && { opacity: 0.55 }]}
+              onPress={handleBackupNow}
+              disabled={cloudBusy}
+            >
+              <Text style={styles.secondaryBtnText}>{cloudBusy ? "Working..." : "Backup Now"}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.outlineBtn, cloudBusy && { opacity: 0.55 }]}
+              onPress={handleRestoreCloudKit}
+              disabled={cloudBusy}
+            >
+              <Text style={styles.outlineBtnText}>Restore</Text>
+            </Pressable>
+          </View>
         </GlassView>
 
         <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>

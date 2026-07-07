@@ -2,10 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
 import {
   cycleTrackingStorage,
-  healthProfileStorage,
   settingsStorage,
   symptomStorage,
-  type HealthProfileInfo,
   type UserSettings,
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
@@ -50,16 +48,6 @@ function getDetectedSymptom(keyword: string, fallback?: string) {
   return "Cramps";
 }
 
-function profileLooksMale(profile: HealthProfileInfo) {
-  const looseProfile = profile as HealthProfileInfo & {
-    sex?: string;
-    gender?: string;
-    biologicalSex?: string;
-  };
-  const value = (looseProfile.biologicalSex ?? looseProfile.sex ?? looseProfile.gender ?? "").toLowerCase().trim();
-  return value === "male" || value === "man";
-}
-
 function cycleTrackingEnabled(settings: UserSettings) {
   return settings.enabledSections === undefined || settings.enabledSections.includes("cycletracking");
 }
@@ -92,8 +80,12 @@ async function startCycleTracking(symptomName: string, keyword: string, source: 
     date: getToday(),
     recordedAt: timestamp,
     flow: "medium",
+    symptomTags: symptomName.toLowerCase().includes("cramp") ? ["cramping"] : [],
     symptoms: symptomName,
     notes: `Started from ${source.replace(/-/g, " ")} after detecting "${keyword}".`,
+    cycleId: `cycle-${getToday()}-${Date.now()}`,
+    cycleDay: 1,
+    isCycleStart: true,
   });
   await logDetectedSymptom(symptomName, `Detected from ${source.replace(/-/g, " ")}.`, timestamp, symptomAlreadyLogged);
   await applyCooldown();
@@ -108,19 +100,18 @@ export async function maybePromptForCycleTracking(options: MaybePromptForCycleTr
   const keyword = getCycleKeyword([options.symptomName, options.text].filter(Boolean).join(" "));
   if (!keyword) return false;
 
-  const [settings, profile, cooldownActive] = await Promise.all([
+  const [settings, cooldownActive] = await Promise.all([
     settingsStorage.get(),
-    healthProfileStorage.get(),
     isOnCooldown(),
   ]);
-  if (cooldownActive || profileLooksMale(profile) || !cycleTrackingEnabled(settings)) return false;
+  if (cooldownActive || !cycleTrackingEnabled(settings)) return false;
 
   const timestamp = new Date().toISOString();
   const symptomName = getDetectedSymptom(keyword, options.symptomName);
 
   Alert.alert(
-    "Hey… quick check 💬",
-    "Are you currently on your menstrual cycle?",
+    "Quick check",
+    "Are you currently on your cycle?",
     [
       {
         text: "Yes",

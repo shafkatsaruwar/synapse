@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
 import { getToday } from "@/lib/date-utils";
+import { markCloudKitBackupDirty } from "@/lib/cloudkit-backup-scheduler";
 
 export interface HealthLog {
   id: string;
@@ -348,14 +349,28 @@ export interface MonthlyCheckIn {
 }
 
 export type CycleFlow = "light" | "medium" | "heavy";
+export type CycleSymptomTag = "cramping" | "headache" | "fatigue" | "bloating" | "mood_changes" | "nausea" | "custom";
+
+export interface Cycle {
+  id: string;
+  startDate: string;
+  endDate?: string;
+  entryIds: string[];
+}
 
 export interface CycleEntry {
   id: string;
   date: string;
   recordedAt?: string;
   flow?: CycleFlow;
+  symptomTags?: CycleSymptomTag[];
   symptoms?: string;
   notes?: string;
+  cycleId?: string;
+  cycleDay?: number;
+  isCycleStart?: boolean;
+  owner?: RecordOwner;
+  privacyMode?: boolean;
 }
 
 export type EatingAmount = "small" | "medium" | "large";
@@ -532,6 +547,7 @@ async function getItem<T>(key: string): Promise<T[]> {
 async function setItem<T>(key: string, data: T[]): Promise<void> {
   try {
     await AsyncStorage.setItem(key, JSON.stringify(data));
+    await markCloudKitBackupDirty();
   } catch (e) {
     console.warn("AsyncStorage setItem failed", key, e);
   }
@@ -1165,6 +1181,7 @@ export const settingsStorage = {
   save: async (settings: UserSettings) => {
     try {
       await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+      await markCloudKitBackupDirty();
     } catch (e) {
       console.warn("AsyncStorage settings save failed", e);
     }
@@ -1194,6 +1211,7 @@ export const sickModeStorage = {
   save: async (data: SickModeData) => {
     try {
       await AsyncStorage.setItem(KEYS.SICK_MODE, JSON.stringify(data));
+      await markCloudKitBackupDirty();
     } catch (e) {
       console.warn("AsyncStorage sickMode save failed", e);
     }
@@ -1201,6 +1219,7 @@ export const sickModeStorage = {
   reset: async () => {
     try {
       await AsyncStorage.setItem(KEYS.SICK_MODE, JSON.stringify(DEFAULT_SICK_MODE));
+      await markCloudKitBackupDirty();
     } catch (e) {
       console.warn("AsyncStorage sickMode reset failed", e);
     }
@@ -1278,6 +1297,7 @@ export const allergyStorage = {
   save: async (data: AllergyInfo) => {
     try {
       await AsyncStorage.setItem(KEYS.ALLERGY_INFO, JSON.stringify(data));
+      await markCloudKitBackupDirty();
     } catch (e) {
       console.warn("AsyncStorage allergy save failed", e);
     }
@@ -1299,6 +1319,7 @@ export const emergencyDoctorStorage = {
       } else {
         await AsyncStorage.setItem("emergency_doctor", id);
       }
+      await markCloudKitBackupDirty();
     } catch (e) {
       console.warn("AsyncStorage emergencyDoctor setDocId failed", e);
     }
@@ -1320,6 +1341,7 @@ export const primaryDoctorStorage = {
       } else {
         await AsyncStorage.setItem("primary_doctor", id);
       }
+      await markCloudKitBackupDirty();
     } catch (e) {
       console.warn("AsyncStorage primaryDoctor setDocId failed", e);
     }
@@ -1353,6 +1375,7 @@ export const healthProfileStorage = {
           ...data,
         })
       );
+      await markCloudKitBackupDirty();
     } catch (e) {
       console.warn("AsyncStorage healthProfile save failed", e);
     }
@@ -1538,6 +1561,7 @@ export const hydrationStorage = {
         unit: preset.unit,
       };
       await AsyncStorage.setItem(KEYS.HYDRATION_PRESET, JSON.stringify(safePreset));
+      await markCloudKitBackupDirty();
     } catch (e) {
       console.warn("AsyncStorage hydrationPreset save failed", e);
     }
@@ -1561,6 +1585,7 @@ export const mentalHealthModeStorage = {
   save: async (data: MentalHealthModeData) => {
     try {
       await AsyncStorage.setItem(KEYS.MENTAL_HEALTH_MODE, JSON.stringify(data));
+      await markCloudKitBackupDirty();
     } catch (e) {
       console.warn("AsyncStorage mentalHealthMode save failed", e);
     }
@@ -1568,6 +1593,7 @@ export const mentalHealthModeStorage = {
   reset: async () => {
     try {
       await AsyncStorage.setItem(KEYS.MENTAL_HEALTH_MODE, JSON.stringify(DEFAULT_MENTAL_HEALTH_MODE));
+      await markCloudKitBackupDirty();
     } catch (e) {
       console.warn("AsyncStorage mentalHealthMode reset failed", e);
     }

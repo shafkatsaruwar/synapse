@@ -23,6 +23,7 @@ import {
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { parseICS } from "@/lib/ics-parser";
 import { fireICSImport } from "@/lib/ics-import-event";
+import { installCloudKitAutoSync } from "@/lib/cloudkit-backup";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -45,6 +46,8 @@ export default function RootLayout() {
     syncWidgetSnapshot().catch(() => {});
     return remove;
   }, []);
+
+  useEffect(() => installCloudKitAutoSync(), []);
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {

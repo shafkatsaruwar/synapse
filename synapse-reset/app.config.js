@@ -33,6 +33,11 @@ module.exports = {
       supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
       buildNumber: "1.6",
+      entitlements: {
+        "com.apple.developer.icloud-container-identifiers": ["iCloud.com.mohammedsaruwar.synapse"],
+        "com.apple.developer.icloud-services": ["CloudKit"],
+        "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)com.mohammedsaruwar.synapse",
+      },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSFaceIDUsageDescription: "Unlock Synapse with Face ID to keep your health data private.",

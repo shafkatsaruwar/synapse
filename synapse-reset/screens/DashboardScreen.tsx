@@ -287,8 +287,8 @@ function DashboardHero({
   const styles = useMemo(() => makeHeroStyles(C), [C]);
 
   const miniCardBackground =
-    themeId === "dark" ? "rgba(255,255,255,0.08)" : themeId === "light" ? "rgba(255,255,255,0.24)" : "rgba(255,255,255,0.18)";
-  const miniCardBorderColor = themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.72)";
+    themeId === "dark" ? "rgba(255,255,255,0.14)" : themeId === "light" ? "rgba(255,255,255,0.42)" : "rgba(255,255,255,0.32)";
+  const miniCardBorderColor = themeId === "dark" ? "rgba(255,255,255,0.34)" : "rgba(255,255,255,0.96)";
   const miniCardSubtitleColor = themeId === "dark" ? "#FFFFFF" : C.textSecondary;
 
   const renderHeroInner = () => (
@@ -343,6 +343,8 @@ function DashboardHero({
           accessibilityLabel="Let’s log this day"
           accessibilityHint="Opens the daily log screen"
         >
+          <View pointerEvents="none" style={styles.dashboardHeroPlateRim} />
+          <View pointerEvents="none" style={styles.dashboardHeroPlateSheen} />
           <View style={styles.dashboardHeroCheckInIcon}>
             <Ionicons name="heart-outline" size={17} color={C.tint} />
           </View>
@@ -367,6 +369,8 @@ function DashboardHero({
             accessibilityRole="button"
             accessibilityLabel="Open Medications"
           >
+            <View pointerEvents="none" style={styles.dashboardHeroPlateRim} />
+            <View pointerEvents="none" style={styles.dashboardHeroPlateSheen} />
             {nextMedication ? (
               <View style={styles.dashboardHeroOwnerChip}>
                 <Ionicons name={getOwnerMeta(nextMedication.owner).icon} size={11} color={themeId === "dark" ? "#D8D8D8" : C.textSecondary} />
@@ -394,6 +398,8 @@ function DashboardHero({
             accessibilityRole="button"
             accessibilityLabel="Open Appointments"
           >
+          <View pointerEvents="none" style={styles.dashboardHeroPlateRim} />
+          <View pointerEvents="none" style={styles.dashboardHeroPlateSheen} />
           {nextApt ? (
             <View style={styles.dashboardHeroOwnerChip}>
               <Ionicons name={getOwnerMeta(nextApt.entryOwner).icon} size={11} color={themeId === "dark" ? "#D8D8D8" : C.textSecondary} />
@@ -444,6 +450,9 @@ function PriorityCard({ colors, icon, label, onPress, children }: { colors: [str
     >
       <Animated.View style={[priorityCardStyle, { transform: [{ scale }], overflow: "hidden" }]}>
         <LinearGradient colors={colors} style={StyleSheet.absoluteFillObject} />
+        <View pointerEvents="none" style={priorityCardRimStyle} />
+        <View pointerEvents="none" style={priorityCardSheenStyle} />
+        <View pointerEvents="none" style={priorityCardDepthStyle} />
         <View style={priorityCardContentStyle}>
           <View style={priorityHeaderStyle}>
             <View style={priorityIconWrapStyle}>
@@ -461,19 +470,63 @@ function PriorityCard({ colors, icon, label, onPress, children }: { colors: [str
 
 // Static styles for PriorityCard (no theme colors needed — gradient covers everything)
 const priorityCardStyle = {
-  borderRadius: 16,
+  borderRadius: 20,
   aspectRatio: 1.1,
   justifyContent: "space-between" as const,
+  borderWidth: 2,
+  borderColor: "rgba(255,255,255,0.46)",
   shadowColor: "#000",
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.08,
-  shadowRadius: 16,
-  elevation: 4,
+  shadowOffset: { width: 0, height: 12 },
+  shadowOpacity: 0.17,
+  shadowRadius: 22,
+  elevation: 9,
 };
-const priorityCardContentStyle = { flex: 1, padding: 16, justifyContent: "space-between" as const };
+const priorityCardContentStyle = { flex: 1, padding: 18, justifyContent: "space-between" as const };
+const priorityCardRimStyle = {
+  position: "absolute" as const,
+  left: 5,
+  right: 5,
+  top: 5,
+  bottom: 6,
+  borderRadius: 17,
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.28)",
+};
+const priorityCardSheenStyle = {
+  position: "absolute" as const,
+  left: 10,
+  right: 10,
+  top: 8,
+  height: 42,
+  borderRadius: 18,
+  backgroundColor: "rgba(255,255,255,0.16)",
+  borderTopWidth: 1,
+  borderTopColor: "rgba(255,255,255,0.42)",
+};
+const priorityCardDepthStyle = {
+  position: "absolute" as const,
+  left: 8,
+  right: 8,
+  bottom: 5,
+  height: 4,
+  borderBottomLeftRadius: 16,
+  borderBottomRightRadius: 16,
+  backgroundColor: "rgba(255,255,255,0.1)",
+  borderTopWidth: 1,
+  borderTopColor: "rgba(255,255,255,0.14)",
+};
 const priorityHeaderStyle = { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginBottom: 10 };
-const priorityIconWrapStyle = { width: 28, height: 28, borderRadius: 7, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center" as const, justifyContent: "center" as const };
-const priorityLabelStyle = { fontWeight: "600" as const, fontSize: 12, color: "#fff", flex: 1 };
+const priorityIconWrapStyle = {
+  width: 32,
+  height: 32,
+  borderRadius: 10,
+  backgroundColor: "rgba(255,255,255,0.24)",
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.28)",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+};
+const priorityLabelStyle = { fontWeight: "800" as const, fontSize: 12, color: "#fff", flex: 1 };
 
 export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardScreenProps) {
   const insets = useSafeAreaInsets();
@@ -975,7 +1028,11 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         <View style={styles.snapshotSection}>
           <Text style={styles.snapshotSectionLabel}>Today</Text>
           <View style={styles.glancePanel}>
+            <View pointerEvents="none" style={styles.glancePanelEdgeTop} />
+            <View pointerEvents="none" style={styles.glancePanelEdgeBottom} />
+            <View pointerEvents="none" style={styles.glancePanelHighlight} />
             <View style={styles.glanceRow}>
+              <View pointerEvents="none" style={styles.glanceRowBevel} />
               <View style={styles.glanceIconBubble}>
                 <Ionicons name="medical-outline" size={16} color={C.tint} />
               </View>
@@ -983,6 +1040,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             </View>
             {todayAtAGlance.symptomsLine ? (
               <View style={styles.glanceRow}>
+                <View pointerEvents="none" style={styles.glanceRowBevel} />
                 <View style={styles.glanceIconBubble}>
                   <Ionicons name="pulse-outline" size={16} color={C.orange} />
                 </View>
@@ -990,6 +1048,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               </View>
             ) : null}
             <View style={[styles.glanceRow, styles.glanceInsightRow]}>
+              <View pointerEvents="none" style={styles.glanceRowBevel} />
               <View style={styles.glanceInsightBubble}>
                 <Ionicons name="sparkles-outline" size={16} color={C.purple} />
               </View>
@@ -1521,45 +1580,70 @@ function makeHeroStyles(C: Theme) {
     },
     dashboardHeroMiniCard: {
       flex: 1,
-      borderRadius: 20,
-      padding: 14,
-      borderWidth: 1,
+      borderRadius: 24,
+      padding: 17,
+      borderWidth: 2,
       shadowColor: "#8C7A70",
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.1,
-      shadowRadius: 18,
-      elevation: 5,
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.16,
+      shadowRadius: 22,
+      elevation: 9,
+      overflow: "hidden",
     },
     dashboardHeroCheckIn: {
-      minHeight: 64,
-      borderRadius: 20,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      borderWidth: 1,
+      minHeight: 74,
+      borderRadius: 24,
+      paddingHorizontal: 17,
+      paddingVertical: 15,
+      borderWidth: 2,
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
       shadowColor: "#8C7A70",
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.08,
-      shadowRadius: 16,
-      elevation: 4,
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.16,
+      shadowRadius: 22,
+      elevation: 9,
+      overflow: "hidden",
+    },
+    dashboardHeroPlateRim: {
+      position: "absolute",
+      left: 5,
+      right: 5,
+      top: 5,
+      bottom: 6,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.34)",
+    },
+    dashboardHeroPlateSheen: {
+      position: "absolute",
+      left: 10,
+      right: 10,
+      top: 8,
+      height: 36,
+      borderRadius: 17,
+      backgroundColor: "rgba(255,255,255,0.26)",
+      borderTopWidth: 1,
+      borderTopColor: "rgba(255,255,255,0.62)",
     },
     dashboardHeroCheckInIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
+      width: 42,
+      height: 42,
+      borderRadius: 15,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "rgba(127,127,127,0.12)",
+      backgroundColor: "rgba(255,255,255,0.36)",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.52)",
     },
     dashboardHeroCheckInText: {
       flex: 1,
       minWidth: 0,
     },
     dashboardHeroCheckInTitle: {
-      fontWeight: "700",
-      fontSize: 14,
+      fontWeight: "800",
+      fontSize: 15,
       color: C.text,
     },
     dashboardHeroCheckInSubtitle: {
@@ -1572,11 +1656,13 @@ function makeHeroStyles(C: Theme) {
       alignItems: "center",
       alignSelf: "flex-start",
       gap: 4,
-      marginBottom: 6,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
+      marginBottom: 8,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
       borderRadius: 999,
-      backgroundColor: "rgba(127,127,127,0.12)",
+      backgroundColor: "rgba(255,255,255,0.26)",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.38)",
     },
     dashboardHeroOwnerText: {
       fontWeight: "700",
@@ -1585,13 +1671,13 @@ function makeHeroStyles(C: Theme) {
       textTransform: "uppercase",
     },
     dashboardHeroMiniTitle: {
-      fontWeight: "600",
-      fontSize: 14,
+      fontWeight: "800",
+      fontSize: 15,
       color: C.text,
-      marginBottom: 2,
+      marginBottom: 4,
     },
     dashboardHeroMiniSubtitle: {
-      fontWeight: "400",
+      fontWeight: "600",
       fontSize: 12,
       color: C.textSecondary,
     },
@@ -2065,50 +2151,114 @@ function makeStyles(C: Theme, textScale: number, themeId: string) {
     glanceCardSubtitle: { fontWeight: "400", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
     glanceLines: { gap: 8 },
     glancePanel: {
-      gap: 9,
+      gap: 10,
+      borderRadius: 24,
+      padding: 13,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.84)",
+      borderWidth: 2,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.34)" : "rgba(255,255,255,1)",
+      overflow: "hidden",
+      shadowColor: themeId === "dark" ? "#000" : C.tint,
+      shadowOffset: { width: 0, height: 13 },
+      shadowOpacity: themeId === "dark" ? 0.42 : 0.22,
+      shadowRadius: 24,
+      elevation: 10,
+    },
+    glancePanelHighlight: {
+      position: "absolute",
+      left: 10,
+      right: 10,
+      top: 8,
+      height: 42,
       borderRadius: 20,
-      padding: 10,
-      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.075)" : "rgba(255,255,255,0.56)",
-      borderWidth: 1,
-      borderColor: themeId === "dark" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.78)",
-      ...raised("sm", C.tint),
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.13)" : "rgba(255,255,255,0.72)",
+    },
+    glancePanelEdgeTop: {
+      position: "absolute",
+      left: 5,
+      right: 5,
+      top: 4,
+      height: 2,
+      borderRadius: 999,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.58)" : "rgba(255,255,255,1)",
+    },
+    glancePanelEdgeBottom: {
+      position: "absolute",
+      left: 8,
+      right: 8,
+      bottom: 5,
+      height: 2,
+      borderRadius: 999,
+      backgroundColor: themeId === "dark" ? "rgba(0,0,0,0.32)" : "rgba(119,143,171,0.22)",
     },
     glanceRow: {
-      minHeight: 48,
+      minHeight: 56,
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
-      borderRadius: 16,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,253,248,0.88)",
-      borderWidth: 1,
-      borderColor: themeId === "dark" ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.9)",
+      borderRadius: 18,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.92)",
+      borderWidth: 1.5,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,1)",
+      overflow: "hidden",
+      shadowColor: themeId === "dark" ? "#000" : "#6A7BB4",
+      shadowOffset: { width: 0, height: 7 },
+      shadowOpacity: themeId === "dark" ? 0.28 : 0.14,
+      shadowRadius: 13,
+      elevation: 5,
+    },
+    glanceRowBevel: {
+      position: "absolute",
+      left: 2,
+      right: 2,
+      top: 2,
+      height: "46%",
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      borderBottomLeftRadius: 8,
+      borderBottomRightRadius: 8,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.46)",
     },
     glanceInsightRow: {
-      backgroundColor: themeId === "dark" ? "rgba(151,117,250,0.14)" : "rgba(126,87,194,0.09)",
-      borderColor: themeId === "dark" ? "rgba(151,117,250,0.24)" : "rgba(126,87,194,0.16)",
+      backgroundColor: themeId === "dark" ? "rgba(151,117,250,0.24)" : "rgba(255,255,255,0.88)",
+      borderColor: themeId === "dark" ? "rgba(151,117,250,0.42)" : "rgba(126,87,194,0.28)",
     },
     glanceIconBubble: {
-      width: 32,
-      height: 32,
-      borderRadius: 12,
+      width: 36,
+      height: 36,
+      borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : C.tintLight,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.74)",
+      borderWidth: 1.5,
+      borderColor: themeId === "dark" ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.96)",
       flexShrink: 0,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: themeId === "dark" ? 0.22 : 0.08,
+      shadowRadius: 5,
+      elevation: 2,
     },
     glanceInsightBubble: {
-      width: 32,
-      height: 32,
-      borderRadius: 12,
+      width: 36,
+      height: 36,
+      borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: C.purpleLight,
+      backgroundColor: themeId === "dark" ? "rgba(151,117,250,0.2)" : "rgba(255,255,255,0.74)",
+      borderWidth: 1.5,
+      borderColor: themeId === "dark" ? "rgba(151,117,250,0.35)" : "rgba(126,87,194,0.22)",
       flexShrink: 0,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: themeId === "dark" ? 0.22 : 0.08,
+      shadowRadius: 5,
+      elevation: 2,
     },
-    glanceLine: { flex: 1, fontWeight: "700", fontSize: 13, color: C.text, lineHeight: 18 },
-    glanceInsight: { flex: 1, fontWeight: "700", fontSize: 13, color: C.text, lineHeight: 18 },
+    glanceLine: { flex: 1, fontWeight: "800", fontSize: 13, color: C.text, lineHeight: 18 },
+    glanceInsight: { flex: 1, fontWeight: "800", fontSize: 13, color: C.text, lineHeight: 18 },
     weekCardGlass: {
       borderRadius: 20,
       paddingHorizontal: 16,

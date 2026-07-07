@@ -19,6 +19,8 @@
 		A10000000000000000000038 /* SynapseCalendarBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000039 /* SynapseCalendarBridge.m */; };
 		B70000000000000000000040 /* SynapseFoundationModelsBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B70000000000000000000041 /* SynapseFoundationModelsBridge.swift */; };
 		B70000000000000000000042 /* SynapseFoundationModelsBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = B70000000000000000000043 /* SynapseFoundationModelsBridge.m */; };
+		C90000000000000000000040 /* SynapseCloudKitBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000041 /* SynapseCloudKitBridge.swift */; };
+		C90000000000000000000042 /* SynapseCloudKitBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000043 /* SynapseCloudKitBridge.m */; };
 		D80000000000000000000040 /* SynapseAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80000000000000000000041 /* SynapseAppIntents.swift */; };
 		E90000000000000000000040 /* SynapseVisionBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000041 /* SynapseVisionBridge.swift */; };
 		E90000000000000000000042 /* SynapseVisionBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000043 /* SynapseVisionBridge.m */; };
@@ -80,6 +82,8 @@
 		A10000000000000000000039 /* SynapseCalendarBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseCalendarBridge.m; path = Synapse/SynapseCalendarBridge.m; sourceTree = "<group>"; };
 		B70000000000000000000041 /* SynapseFoundationModelsBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseFoundationModelsBridge.swift; path = Synapse/SynapseFoundationModelsBridge.swift; sourceTree = "<group>"; };
 		B70000000000000000000043 /* SynapseFoundationModelsBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseFoundationModelsBridge.m; path = Synapse/SynapseFoundationModelsBridge.m; sourceTree = "<group>"; };
+		C90000000000000000000041 /* SynapseCloudKitBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseCloudKitBridge.swift; path = Synapse/SynapseCloudKitBridge.swift; sourceTree = "<group>"; };
+		C90000000000000000000043 /* SynapseCloudKitBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseCloudKitBridge.m; path = Synapse/SynapseCloudKitBridge.m; sourceTree = "<group>"; };
 		D80000000000000000000041 /* SynapseAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseAppIntents.swift; path = Synapse/SynapseAppIntents.swift; sourceTree = "<group>"; };
 		E90000000000000000000041 /* SynapseVisionBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseVisionBridge.swift; path = Synapse/SynapseVisionBridge.swift; sourceTree = "<group>"; };
 		E90000000000000000000043 /* SynapseVisionBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseVisionBridge.m; path = Synapse/SynapseVisionBridge.m; sourceTree = "<group>"; };
@@ -133,6 +137,8 @@
 				A10000000000000000000039 /* SynapseCalendarBridge.m */,
 				B70000000000000000000041 /* SynapseFoundationModelsBridge.swift */,
 				B70000000000000000000043 /* SynapseFoundationModelsBridge.m */,
+				C90000000000000000000041 /* SynapseCloudKitBridge.swift */,
+				C90000000000000000000043 /* SynapseCloudKitBridge.m */,
 				D80000000000000000000041 /* SynapseAppIntents.swift */,
 				E90000000000000000000041 /* SynapseVisionBridge.swift */,
 				E90000000000000000000043 /* SynapseVisionBridge.m */,
@@ -516,6 +522,8 @@
 				A10000000000000000000038 /* SynapseCalendarBridge.m in Sources */,
 				B70000000000000000000040 /* SynapseFoundationModelsBridge.swift in Sources */,
 				B70000000000000000000042 /* SynapseFoundationModelsBridge.m in Sources */,
+				C90000000000000000000040 /* SynapseCloudKitBridge.swift in Sources */,
+				C90000000000000000000042 /* SynapseCloudKitBridge.m in Sources */,
 				D80000000000000000000040 /* SynapseAppIntents.swift in Sources */,
 				E90000000000000000000040 /* SynapseVisionBridge.swift in Sources */,
 				E90000000000000000000042 /* SynapseVisionBridge.m in Sources */,
