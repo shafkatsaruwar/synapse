@@ -166,7 +166,7 @@ export default function CycleTrackingScreen({ onBack }: CycleTrackingScreenProps
   const [selectedTags, setSelectedTags] = useState<CycleSymptomTag[]>([]);
   const [customSymptom, setCustomSymptom] = useState("");
   const [notes, setNotes] = useState("");
-  const [privacyMode, setPrivacyMode] = useState(false);
+  const [privacyMode, setPrivacyMode] = useState(true);
   const [quickLogOpen, setQuickLogOpen] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -177,11 +177,13 @@ export default function CycleTrackingScreen({ onBack }: CycleTrackingScreenProps
       medicationLogStorage.getAll(),
       AsyncStorage.getItem(PRIVACY_KEY).catch(() => null),
     ]);
+    const privacyValue = privacy === "false" ? false : true;
+    if (privacy === null) await AsyncStorage.setItem(PRIVACY_KEY, "true");
     setEntries([...all].map(normalizeEntry).sort((a, b) => b.date.localeCompare(a.date)));
     setHealthLogs(logs);
     setSymptomLogs(symptoms);
     setMedLogs(meds);
-    setPrivacyMode(privacy === "true");
+    setPrivacyMode(privacyValue);
     setQuickLogOpen((current) => (all.length === 0 ? true : current));
   }, []);
 
