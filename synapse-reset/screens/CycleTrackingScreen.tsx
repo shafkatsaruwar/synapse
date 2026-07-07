@@ -296,7 +296,7 @@ export default function CycleTrackingScreen({ onBack }: CycleTrackingScreenProps
           <Text style={styles.backText}>Settings</Text>
         </Pressable>
 
-        <Text style={styles.title}>Cycle Tracking</Text>
+        <Text style={styles.title}>Cycle tracking</Text>
         <Text style={styles.subtitle}>Pattern-aware logging for flow, symptoms, energy, and context.</Text>
 
         <View style={styles.card}>
