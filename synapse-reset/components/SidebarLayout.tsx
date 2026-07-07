@@ -153,7 +153,7 @@ export default function SidebarLayout({
   const emergencyCardRef = useRef<View>(null);
   const simpleNavRef = useRef<View>(null);
   const simpleAddFabRef = useRef<View>(null);
-  const showUniversalAdd = activeScreen !== "medications";
+  const showUniversalAdd = activeScreen !== "medications" && activeScreen !== "cycletracking";
   const walkthrough = useWalkthroughTargets();
   const registerTarget = walkthrough?.registerTarget;
   const unregisterTarget = walkthrough?.unregisterTarget;

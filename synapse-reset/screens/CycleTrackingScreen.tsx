@@ -167,6 +167,7 @@ export default function CycleTrackingScreen({ onBack }: CycleTrackingScreenProps
   const [customSymptom, setCustomSymptom] = useState("");
   const [notes, setNotes] = useState("");
   const [privacyMode, setPrivacyMode] = useState(false);
+  const [quickLogOpen, setQuickLogOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     const [all, logs, symptoms, meds, privacy] = await Promise.all([
@@ -181,6 +182,7 @@ export default function CycleTrackingScreen({ onBack }: CycleTrackingScreenProps
     setSymptomLogs(symptoms);
     setMedLogs(meds);
     setPrivacyMode(privacy === "true");
+    setQuickLogOpen((current) => (all.length === 0 ? true : current));
   }, []);
 
   React.useEffect(() => {
@@ -244,6 +246,7 @@ export default function CycleTrackingScreen({ onBack }: CycleTrackingScreenProps
     setSelectedTags([]);
     setCustomSymptom("");
     setNotes("");
+    setQuickLogOpen(false);
     await loadData();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
@@ -305,62 +308,108 @@ export default function CycleTrackingScreen({ onBack }: CycleTrackingScreenProps
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Quick log</Text>
-          {isLikelyNewCycle ? (
-            <View style={styles.detectedBanner}>
-              <Ionicons name="sparkles-outline" size={18} color={C.tint} />
-              <Text style={styles.detectedText}>This looks like the start of a new cycle.</Text>
-            </View>
-          ) : null}
-
-          <Text style={styles.label}>Date</Text>
-          <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={C.textTertiary} />
-
-          <Text style={styles.label}>Flow</Text>
-          <View style={styles.flowRow}>
-            {FLOW_OPTIONS.map((option) => {
-              const active = flow === option.id;
-              return (
-                <Pressable key={option.id} style={[styles.flowChip, active && styles.flowChipActive]} onPress={() => setFlow(option.id)}>
-                  <View style={[styles.flowDot, { opacity: 0.35 + option.strength * 0.2 }, active && { backgroundColor: C.tint }]} />
-                  <Text style={[styles.flowChipText, active && styles.flowChipTextActive]}>{option.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <Text style={styles.label}>Symptoms</Text>
-          <View style={styles.tagGrid}>
-            {SYMPTOM_TAGS.map((tag) => {
-              const active = selectedTags.includes(tag.id);
-              return (
-                <Pressable key={tag.id} style={[styles.tagChip, active && styles.tagChipActive]} onPress={() => toggleTag(tag.id)}>
-                  <Ionicons name={tag.icon} size={15} color={active ? C.tint : C.textTertiary} />
-                  <Text style={[styles.tagText, active && styles.tagTextActive]}>{tag.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <TextInput style={styles.input} value={customSymptom} onChangeText={setCustomSymptom} placeholder="Optional custom symptom" placeholderTextColor={C.textTertiary} />
-
-          <Text style={styles.label}>Notes</Text>
-          <TextInput style={[styles.input, styles.textArea]} value={notes} onChangeText={setNotes} placeholder="Anything else you want to remember" placeholderTextColor={C.textTertiary} multiline />
-
-          {supportTips.length > 0 ? (
-            <View style={styles.supportBox}>
-              {supportTips.map((tip) => (
-                <View key={tip} style={styles.supportRow}>
-                  <Ionicons name="leaf-outline" size={16} color={C.green} />
-                  <Text style={styles.supportText}>{tip}</Text>
+          {quickLogOpen ? (
+            <>
+              <View style={styles.quickLogHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>Quick log</Text>
+                  <Text style={styles.smallText}>Add today&apos;s flow, symptoms, and context.</Text>
                 </View>
-              ))}
-            </View>
-          ) : null}
+                {entries.length > 0 ? (
+                  <Pressable
+                    style={styles.closeLogButton}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setQuickLogOpen(false);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Collapse quick log"
+                  >
+                    <Ionicons name="chevron-up" size={20} color={C.textSecondary} />
+                  </Pressable>
+                ) : null}
+              </View>
+              {isLikelyNewCycle ? (
+                <View style={styles.detectedBanner}>
+                  <Ionicons name="sparkles-outline" size={18} color={C.tint} />
+                  <Text style={styles.detectedText}>This looks like the start of a new cycle.</Text>
+                </View>
+              ) : null}
 
-          <Pressable style={styles.saveBtn} onPress={handleSave}>
-            <Text style={styles.saveBtnText}>Save Cycle Entry</Text>
-          </Pressable>
+              <Text style={styles.label}>Date</Text>
+              <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={C.textTertiary} />
+
+              <Text style={styles.label}>Flow</Text>
+              <View style={styles.flowRow}>
+                {FLOW_OPTIONS.map((option) => {
+                  const active = flow === option.id;
+                  return (
+                    <Pressable key={option.id} style={[styles.flowChip, active && styles.flowChipActive]} onPress={() => setFlow(option.id)}>
+                      <View style={[styles.flowDot, { opacity: 0.35 + option.strength * 0.2 }, active && { backgroundColor: C.tint }]} />
+                      <Text style={[styles.flowChipText, active && styles.flowChipTextActive]}>{option.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.label}>Symptoms</Text>
+              <View style={styles.tagGrid}>
+                {SYMPTOM_TAGS.map((tag) => {
+                  const active = selectedTags.includes(tag.id);
+                  return (
+                    <Pressable key={tag.id} style={[styles.tagChip, active && styles.tagChipActive]} onPress={() => toggleTag(tag.id)}>
+                      <Ionicons name={tag.icon} size={15} color={active ? C.tint : C.textTertiary} />
+                      <Text style={[styles.tagText, active && styles.tagTextActive]}>{tag.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <TextInput style={styles.input} value={customSymptom} onChangeText={setCustomSymptom} placeholder="Optional custom symptom" placeholderTextColor={C.textTertiary} />
+
+              <Text style={styles.label}>Notes</Text>
+              <TextInput style={[styles.input, styles.textArea]} value={notes} onChangeText={setNotes} placeholder="Anything else you want to remember" placeholderTextColor={C.textTertiary} multiline />
+
+              {supportTips.length > 0 ? (
+                <View style={styles.supportBox}>
+                  {supportTips.map((tip) => (
+                    <View key={tip} style={styles.supportRow}>
+                      <Ionicons name="leaf-outline" size={16} color={C.green} />
+                      <Text style={styles.supportText}>{tip}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              <Pressable style={styles.saveBtn} onPress={handleSave}>
+                <Text style={styles.saveBtnText}>Save Cycle Entry</Text>
+              </Pressable>
+            </>
+          ) : (
+            <View style={styles.collapsedLogRow}>
+              <View style={styles.collapsedLogIcon}>
+                <Ionicons name="water-outline" size={22} color={C.tint} />
+              </View>
+              <View style={styles.collapsedLogText}>
+                <Text style={styles.collapsedLogTitle}>Cycle log saved</Text>
+                <Text style={styles.smallText}>
+                  {entries[0] ? `Last entry ${formatShortDate(entries[0].date)}.` : "Open the logger when you need it."}
+                </Text>
+              </View>
+              <Pressable
+                style={styles.openLogButton}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setQuickLogOpen(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Log another cycle entry"
+              >
+                <Ionicons name="add" size={18} color="#fff" />
+                <Text style={styles.openLogButtonText}>Log</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         <View style={styles.card}>
@@ -454,6 +503,14 @@ function makeStyles(C: Theme) {
     sectionTitle: { fontWeight: "800", fontSize: 18, color: C.text, marginBottom: 6 },
     smallText: { fontWeight: "500", fontSize: 12, color: C.textTertiary, lineHeight: 17 },
     privacyRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+    quickLogHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 12 },
+    closeLogButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border },
+    collapsedLogRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+    collapsedLogIcon: { width: 46, height: 46, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.tint + "30" },
+    collapsedLogText: { flex: 1, minWidth: 0 },
+    collapsedLogTitle: { fontWeight: "800", fontSize: 17, color: C.text, marginBottom: 3 },
+    openLogButton: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: C.tint, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
+    openLogButtonText: { fontWeight: "800", fontSize: 13, color: "#fff" },
     detectedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.tintLight, borderRadius: 14, padding: 12, marginBottom: 14 },
     detectedText: { flex: 1, fontWeight: "700", fontSize: 13, color: C.tint },
     label: { fontWeight: "700", fontSize: 12, color: C.textSecondary, marginBottom: 8, marginTop: 2 },
