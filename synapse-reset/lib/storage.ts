@@ -178,6 +178,15 @@ export type RecordOwner = "self" | "care_recipient";
 export type WidgetAppearancePreference = "system" | "calm" | "light" | "dark";
 export type AppMode = "simple" | "full";
 
+export interface CaregiverProfile {
+  name: string;
+  age: number;
+  relation?: string;
+  medications: string[];
+  appointments: string[];
+  logs: string[];
+}
+
 export interface BackupCriticalMedication {
   id: string;
   name: string;
@@ -284,6 +293,13 @@ export interface DoctorNote {
 
 export type LabWorkStatus = "completed" | "pending";
 
+export interface LabResult {
+  name: string;
+  value: number;
+  unit: string;
+  referenceRange?: string;
+}
+
 export interface LabWork {
   id: string;
   source?: "manual" | "scan" | "import";
@@ -292,6 +308,8 @@ export interface LabWork {
   doctorId?: string;
   appointmentId?: string;
   status?: LabWorkStatus;
+  results?: LabResult[];
+  documentUri?: string;
   notes: string;
 }
 
@@ -438,13 +456,13 @@ export interface DocumentExtraction {
 export interface HealthInsight {
   id: string;
   date: string;
-  changes: { title: string; description: string; type: string }[];
-  unclear: { title: string; description: string; suggestion: string }[];
-  labsToTrack: { test: string; reason: string; frequency: string }[];
-  symptomCorrelations: { pattern: string; description: string; confidence: string }[];
-  medicationNotes: { medication: string; note: string; type: string }[];
-  ramadanTips: { tip: string; category: string }[];
-  summary: string;
+  changes?: { title: string; description: string; type?: string }[];
+  unclear?: { title: string; description: string; suggestion?: string }[];
+  labsToTrack?: { test: string; reason?: string; frequency?: string }[];
+  symptomCorrelations?: { pattern: string; description?: string; confidence?: string }[];
+  medicationNotes?: { medication: string; note: string; type?: string }[];
+  ramadanTips?: { tip: string; category?: string }[];
+  summary?: string;
 }
 
 export interface MedComparison {
@@ -532,6 +550,8 @@ const KEYS = {
   PHARMACIES: "fir_pharmacies",
   CYCLE_ENTRIES: "fir_cycle_entries",
   FEEDBACK: "fir_feedback",
+  USER_ROLE: "fir_user_role",
+  CAREGIVER_PROFILE: "fir_caregiver_profile",
 };
 
 async function getItem<T>(key: string): Promise<T[]> {
@@ -1188,6 +1208,85 @@ export const settingsStorage = {
   },
 };
 
+export const roleStorage = {
+  get: async (): Promise<UserRole> => {
+    try {
+      const raw = await AsyncStorage.getItem(KEYS.USER_ROLE);
+      if (raw === "self" || raw === "caregiver" || raw === "backup") return raw;
+      const profile = await healthProfileStorage.get();
+      return profile.userRole ?? "self";
+    } catch (e) {
+      console.warn("AsyncStorage role get failed", e);
+      return "self";
+    }
+  },
+  save: async (role: UserRole) => {
+    try {
+      await AsyncStorage.setItem(KEYS.USER_ROLE, role);
+      const profile = await healthProfileStorage.get();
+      await healthProfileStorage.save({ ...profile, userRole: role });
+      await markCloudKitBackupDirty();
+    } catch (e) {
+      console.warn("AsyncStorage role save failed", e);
+    }
+  },
+};
+
+export const caregiverProfileStorage = {
+  get: async (): Promise<CaregiverProfile | null> => {
+    try {
+      const raw = await AsyncStorage.getItem(KEYS.CAREGIVER_PROFILE);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<CaregiverProfile>;
+        return {
+          name: parsed.name?.trim() || "",
+          age: Number.isFinite(parsed.age) ? Number(parsed.age) : 0,
+          relation: parsed.relation?.trim() || undefined,
+          medications: Array.isArray(parsed.medications) ? parsed.medications : [],
+          appointments: Array.isArray(parsed.appointments) ? parsed.appointments : [],
+          logs: Array.isArray(parsed.logs) ? parsed.logs : [],
+        };
+      }
+      const profile = await healthProfileStorage.get();
+      if (!profile.caredForName?.trim() && !profile.caredForAge) return null;
+      return {
+        name: profile.caredForName?.trim() || "",
+        age: profile.caredForAge ?? 0,
+        relation: undefined,
+        medications: [],
+        appointments: [],
+        logs: [],
+      };
+    } catch (e) {
+      console.warn("AsyncStorage caregiverProfile get failed", e);
+      return null;
+    }
+  },
+  save: async (profile: CaregiverProfile) => {
+    try {
+      const safeProfile: CaregiverProfile = {
+        name: profile.name.trim(),
+        age: Number.isFinite(profile.age) ? Math.max(0, Math.round(profile.age)) : 0,
+        relation: profile.relation?.trim() || undefined,
+        medications: Array.isArray(profile.medications) ? profile.medications : [],
+        appointments: Array.isArray(profile.appointments) ? profile.appointments : [],
+        logs: Array.isArray(profile.logs) ? profile.logs : [],
+      };
+      await AsyncStorage.setItem(KEYS.CAREGIVER_PROFILE, JSON.stringify(safeProfile));
+      const healthProfile = await healthProfileStorage.get();
+      await healthProfileStorage.save({
+        ...healthProfile,
+        userRole: "caregiver",
+        caredForName: safeProfile.name,
+        caredForAge: safeProfile.age || undefined,
+      });
+      await markCloudKitBackupDirty();
+    } catch (e) {
+      console.warn("AsyncStorage caregiverProfile save failed", e);
+    }
+  },
+};
+
 const DEFAULT_SICK_MODE: SickModeData = {
   active: false,
   hydrationMl: 0,
@@ -1429,7 +1528,7 @@ export const conditionStorage = {
   getAll: () => getItem<HealthCondition>(KEYS.CONDITIONS),
   save: async (data: Omit<HealthCondition, "id">) => {
     const items = await getItem<HealthCondition>(KEYS.CONDITIONS);
-    const id = `cond_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const id = `cond_${Crypto.randomUUID()}`;
     items.push({ ...data, id });
     await setItem(KEYS.CONDITIONS, items);
     return id;
@@ -1670,6 +1769,8 @@ export type ExportPayload = {
   goals?: Goal[];
   cycleEntries?: CycleEntry[];
   feedback?: FeedbackEntry[];
+  userRole?: UserRole;
+  caregiverProfile?: CaregiverProfile | null;
 };
 
 export const exportAllData = async (): Promise<ExportPayload> => {
@@ -1693,6 +1794,8 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     conditions,
     sickMode,
     healthProfile,
+    userRole,
+    caregiverProfile,
   ] = await Promise.all([
     healthLogStorage.getAll(),
     symptomStorage.getAll(),
@@ -1713,6 +1816,8 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     conditionStorage.getAll(),
     sickModeStorage.get(),
     healthProfileStorage.get(),
+    roleStorage.get(),
+    caregiverProfileStorage.get(),
   ]);
   const [medComparisons, monthlyCheckIns, eatingLogs, hydrationLogs, hydrationPreset, mentalHealthMode, comfortItems, goals, cycleEntries, feedback] = await Promise.all([
     medComparisonStorage.getAll(),
@@ -1758,6 +1863,8 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     goals,
     cycleEntries,
     feedback,
+    userRole,
+    caregiverProfile,
   };
 };
 
@@ -1765,6 +1872,8 @@ export const importAllData = async (payload: ExportPayload): Promise<void> => {
   await clearAllData();
   await settingsStorage.save(payload.profile);
   await healthProfileStorage.save(payload.healthProfile ?? { userRole: "self", backupCriticalMedications: [] });
+  await roleStorage.save(payload.userRole ?? payload.healthProfile?.userRole ?? "self");
+  if (payload.caregiverProfile) await caregiverProfileStorage.save(payload.caregiverProfile);
   await allergyStorage.save(payload.allergy ?? { ...DEFAULT_ALLERGY_INFO });
   await sickModeStorage.save(payload.sickMode ?? { ...DEFAULT_SICK_MODE });
   await setItem(KEYS.HEALTH_LOGS, payload.healthLogs ?? []);

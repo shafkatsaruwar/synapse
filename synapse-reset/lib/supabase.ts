@@ -2,17 +2,21 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { secureStorage } from "./secure-storage";
+import { auditLogger } from "./audit-logger";
 
 const STORAGE_KEY_URL = "supabase_url";
 const STORAGE_KEY_ANON = "supabase_anon_key";
 
 let client: SupabaseClient | null = null;
 let lastUsedUrl: string | null = null;
+let isInitialized = false;
 
 function strFromExtra(key: string): string {
+  const legacyManifest = Constants.manifest as { extra?: Record<string, unknown> } | null | undefined;
   const extra =
     (Constants.expoConfig?.extra as Record<string, unknown> | undefined) ??
-    (Constants.manifest?.extra as Record<string, unknown> | undefined) ??
+    legacyManifest?.extra ??
     (Constants.manifest2?.extra as Record<string, unknown> | undefined);
   if (!extra || typeof extra !== "object") return "";
   const v = extra[key];
@@ -34,16 +38,17 @@ function getExtraForWeb(): Record<string, unknown> | undefined {
   return expo?.config?.extra;
 }
 
-/** Primary: Constants.expoConfig.extra.supabaseUrl / supabaseAnonKey; fallback: EXPO_PUBLIC_* and process.env. */
+/** Primary: EXPO_PUBLIC_* from .env; fallback to Expo extra / stored config. */
 function getEnv(): { url: string; anonKey: string } | null {
+  const legacyManifest = Constants.manifest as { extra?: Record<string, unknown> } | null | undefined;
   const extra =
     (Constants.expoConfig?.extra as Record<string, unknown> | undefined) ??
-    (Constants.manifest?.extra as Record<string, unknown> | undefined) ??
+    legacyManifest?.extra ??
     (Constants.manifest2?.extra as Record<string, unknown> | undefined);
   const fromExtra = (key: string) =>
     (extra && typeof extra[key] === "string" ? (extra[key] as string).trim() : "") || strFromExtra(key) || process.env[key]?.trim() || "";
-  let url = fromExtra("supabaseUrl") || fromExtra("EXPO_PUBLIC_SUPABASE_URL") || process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || "";
-  let anonKey = fromExtra("supabaseAnonKey") || fromExtra("EXPO_PUBLIC_SUPABASE_ANON_KEY") || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || "";
+  let url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || fromExtra("EXPO_PUBLIC_SUPABASE_URL") || fromExtra("supabaseUrl") || "";
+  let anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || fromExtra("EXPO_PUBLIC_SUPABASE_ANON_KEY") || fromExtra("supabaseAnonKey") || "";
   if ((!url || !anonKey) && typeof window !== "undefined") {
     const webExtra = getExtraForWeb();
     if (webExtra) {
@@ -71,7 +76,7 @@ const supabaseStorage = {
 const FETCH_TIMEOUT_MS = 30000;
 
 function supabaseFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
+  const isAuthRequest = typeof input === "string" ? input.includes("/auth/") : input instanceof URL ? input.href.includes("/auth/") : false;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   return fetch(input, {
@@ -80,14 +85,18 @@ function supabaseFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Re
   })
     .then((res) => {
       clearTimeout(timeoutId);
-      if (!res.ok && url.includes("/auth/")) {
-        console.warn("Supabase auth request failed:", res.status, url);
+      if (!res.ok && isAuthRequest) {
+        auditLogger.log("AUTH", "user", "failure", {
+          errorMessage: `Auth failed with status ${res.status}`,
+        });
       }
       return res;
     })
     .catch((err) => {
       clearTimeout(timeoutId);
-      console.warn("Supabase fetch error:", err?.message ?? err, url);
+      auditLogger.log("ERROR", "user", "failure", {
+        errorMessage: err?.message ? err.message.substring(0, 100) : "Unknown error",
+      }).catch(() => {});
       throw err;
     });
 }
@@ -124,44 +133,74 @@ export function getSupabaseUrl(): string | null {
 
 /**
  * Call once at app startup (e.g. in AuthProvider). Loads Supabase URL/anon key from
- * AsyncStorage first; if missing, uses env/extra. Initializes the client so getSupabase() works.
+ * secure storage first; if missing, uses env/extra. Initializes the client so getSupabase() works.
  */
 export async function initSupabaseFromStorage(): Promise<void> {
-  if (client !== null) {
+  if (isInitialized) return;
+
+  const env = getEnv();
+  if (env) {
+    if (client === null || lastUsedUrl !== env.url) {
+      setClientFromEnv(env);
+    }
+    try {
+      await Promise.all([
+        secureStorage.setItem(STORAGE_KEY_URL, env.url),
+        secureStorage.setItem(STORAGE_KEY_ANON, env.anonKey),
+      ]);
+    } catch (e) {
+      console.warn("Supabase secure storage write failed");
+    }
+    isInitialized = true;
     return;
   }
+
   try {
     const [storedUrl, storedKey] = await Promise.all([
-      AsyncStorage.getItem(STORAGE_KEY_URL),
-      AsyncStorage.getItem(STORAGE_KEY_ANON),
+      secureStorage.getItem(STORAGE_KEY_URL),
+      secureStorage.getItem(STORAGE_KEY_ANON),
     ]);
     const url = storedUrl?.trim();
     const anonKey = storedKey?.trim();
-    if (url && anonKey) {
+    if (url && anonKey && isValidSupabaseUrl(url)) {
       setClientFromEnv({ url, anonKey });
+      isInitialized = true;
       return;
     }
   } catch (e) {
-    console.warn("Supabase storage read failed", e);
+    console.warn("Supabase secure storage read failed");
   }
-  const env = getEnv();
-  if (env) {
-    setClientFromEnv(env);
-  }
-  else console.warn("Supabase env missing: set in EAS or use in-app config.");
+
+  console.warn("Supabase env missing: set in EAS or use in-app config.");
+  isInitialized = true;
 }
 
 /**
- * Save Supabase URL and anon key in the app (e.g. from Auth screen). Lets users sign in
- * without rebuilding. Call after user enters URL and key.
+ * Save Supabase URL and anon key in the app (e.g. from Auth screen). Uses secure storage.
+ * Call after user enters URL and key.
  */
 export async function setSupabaseConfig(url: string, anonKey: string): Promise<void> {
   const u = url?.trim();
   const k = anonKey?.trim();
   if (!u || !k) return;
-  await AsyncStorage.setItem(STORAGE_KEY_URL, u);
-  await AsyncStorage.setItem(STORAGE_KEY_ANON, k);
-  setClientFromEnv({ url: u, anonKey: k });
+
+  if (!isValidSupabaseUrl(u)) {
+    throw new Error("Invalid Supabase URL format");
+  }
+
+  try {
+    await secureStorage.setItem(STORAGE_KEY_URL, u);
+    await secureStorage.setItem(STORAGE_KEY_ANON, k);
+    setClientFromEnv({ url: u, anonKey: k });
+    await auditLogger.log("AUTH", "user", "success", {
+      details: "Supabase config updated",
+    });
+  } catch (error) {
+    await auditLogger.log("AUTH", "user", "failure", {
+      errorMessage: "Failed to save Supabase config",
+    });
+    throw error;
+  }
 }
 
 /**
@@ -169,5 +208,9 @@ export async function setSupabaseConfig(url: string, anonKey: string): Promise<v
  * Ensure initSupabaseFromStorage() has run at startup before relying on this.
  */
 export function getSupabase(): SupabaseClient | null {
+  const env = getEnv();
+  if (env && (client === null || lastUsedUrl !== env.url)) {
+    setClientFromEnv(env);
+  }
   return client;
 }
