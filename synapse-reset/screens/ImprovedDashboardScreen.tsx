@@ -184,58 +184,59 @@ export default function ImprovedDashboardScreen({
         </View>
 
         {/* Health Insights */}
+        {/* Health Insights */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Health Insights</Text>
-          <Pressable onPress={() => onNavigate?.("log")}>
-            <StatusCard
-              icon={<Text style={styles.insightIcon}>📈</Text>}
-              title="Energy Trend"
-              value="↑ Improving"
-              subtitle="Up 2 points this week"
-              status="success"
-            />
-          </Pressable>
-          <Pressable onPress={() => onNavigate?.("eating")}>
-            <StatusCard
-              icon={<Text style={styles.insightIcon}>💧</Text>}
-              title="Hydration"
-              value="0L today"
-              subtitle="You're dehydrated, drink water"
-              status="warning"
-            />
-          </Pressable>
-          <Pressable onPress={() => onNavigate?.("log")}>
-            <StatusCard
-              icon={<Text style={styles.insightIcon}>😴</Text>}
-              title="Sleep Quality"
-              value="Average"
-              subtitle="1h less than your baseline"
-              status="danger"
-            />
-          </Pressable>
+          <View style={styles.insightsBox}>
+            <Pressable style={styles.insightItem} onPress={() => onNavigate?.("log")}>
+              <Text style={styles.insightItemIcon}>📈</Text>
+              <View style={styles.insightItemContent}>
+                <Text style={styles.insightItemTitle}>Energy Trend</Text>
+                <Text style={[styles.insightItemValue, { color: StatusColors.success }]}>↑ Improving</Text>
+                <Text style={styles.insightItemSubtitle}>Up 2 points this week</Text>
+              </View>
+            </Pressable>
+            <View style={styles.insightDivider} />
+            <Pressable style={styles.insightItem} onPress={() => onNavigate?.("eating")}>
+              <Text style={styles.insightItemIcon}>💧</Text>
+              <View style={styles.insightItemContent}>
+                <Text style={styles.insightItemTitle}>Hydration</Text>
+                <Text style={[styles.insightItemValue, { color: StatusColors.warning }]}>0L today</Text>
+                <Text style={styles.insightItemSubtitle}>You're dehydrated, drink water</Text>
+              </View>
+            </Pressable>
+            <View style={styles.insightDivider} />
+            <Pressable style={styles.insightItem} onPress={() => onNavigate?.("log")}>
+              <Text style={styles.insightItemIcon}>😴</Text>
+              <View style={styles.insightItemContent}>
+                <Text style={styles.insightItemTitle}>Sleep Quality</Text>
+                <Text style={[styles.insightItemValue, { color: StatusColors.danger }]}>Average</Text>
+                <Text style={styles.insightItemSubtitle}>1h less than your baseline</Text>
+              </View>
+            </Pressable>
+          </View>
         </View>
 
-        {/* Data Visualization */}
-        <Pressable onPress={() => onNavigate?.("insights")}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Energy Trend (Last 7 Days)</Text>
-            <SimpleLineChart
-              data={[5, 6, 6, 7, 6.5, 7, 7]}
-              label="Daily Energy Levels"
-              color={DataVizColors.energy}
-              height={200}
-            />
-          </View>
-        </Pressable>
-
-        {/* Medication Adherence Ring */}
+        {/* Trends & Progress */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>This Week's Progress</Text>
+          <Text style={styles.sectionTitle}>Trends & Progress</Text>
+          <Pressable onPress={() => onNavigate?.("insights")}>
+            <View style={styles.trendBox}>
+              <Text style={styles.trendTitle}>Energy Trend (Last 7 Days)</Text>
+              <SimpleLineChart
+                data={[5, 6, 6, 7, 6.5, 7, 7]}
+                label="Daily Energy Levels"
+                color={DataVizColors.energy}
+                height={180}
+              />
+            </View>
+          </Pressable>
+          <Text style={styles.progressTitle}>This Week</Text>
           <View style={styles.ringRow}>
             <Pressable style={styles.ringItem} onPress={() => onNavigate?.("medications")}>
               <ProgressRing
                 percentage={92}
-                size={100}
+                size={80}
                 color={StatusColors.success}
                 label="Medications"
               />
@@ -243,7 +244,7 @@ export default function ImprovedDashboardScreen({
             <Pressable style={styles.ringItem} onPress={() => onNavigate?.("eating")}>
               <ProgressRing
                 percentage={75}
-                size={100}
+                size={80}
                 color={StatusColors.warning}
                 label="Hydration"
               />
@@ -251,7 +252,7 @@ export default function ImprovedDashboardScreen({
             <Pressable style={styles.ringItem} onPress={() => onNavigate?.("log")}>
               <ProgressRing
                 percentage={60}
-                size={100}
+                size={80}
                 color={StatusColors.danger}
                 label="Sleep Goal"
               />
@@ -356,46 +357,47 @@ const makeStyles = (colors: any) => StyleSheet.create({
   metricsBox: {
     backgroundColor: colors.surfaceElevated,
     borderRadius: UITokens.borderRadius.md,
-    padding: UITokens.spacing.lg,
+    padding: UITokens.spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
   },
   metricsBoxTitle: {
-    fontSize: UITokens.typography.h3.fontSize,
+    fontSize: 14,
     fontWeight: "600",
     color: colors.text,
-    marginBottom: UITokens.spacing.md,
+    marginBottom: UITokens.spacing.sm,
   },
   metricsBoxGrid: {
     display: "flex",
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: UITokens.spacing.md,
+    gap: UITokens.spacing.sm,
   },
   metricItem: {
     flex: 1,
     minWidth: "45%",
     alignItems: "center",
     justifyContent: "center",
+    paddingVertical: UITokens.spacing.xs,
   },
   metricItemIcon: {
-    fontSize: 24,
-    marginBottom: UITokens.spacing.sm,
+    fontSize: 18,
+    marginBottom: 4,
   },
   metricItemLabel: {
-    fontSize: UITokens.typography.caption.fontSize,
+    fontSize: 10,
     color: colors.textSecondary,
     fontWeight: "500",
     textTransform: "uppercase",
     marginBottom: 2,
   },
   metricItemValue: {
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: "700",
     marginBottom: 2,
   },
   metricItemUnit: {
-    fontSize: 10,
+    fontSize: 9,
     color: colors.textSecondary,
     fontWeight: "500",
   },
@@ -439,15 +441,72 @@ const makeStyles = (colors: any) => StyleSheet.create({
     marginBottom: UITokens.spacing.sm,
   },
 
-  insightIcon: {
+  insightsBox: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: UITokens.borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  insightItem: {
+    flexDirection: "row",
+    padding: UITokens.spacing.md,
+    alignItems: "flex-start",
+  },
+  insightItemIcon: {
     fontSize: 24,
+    marginRight: UITokens.spacing.md,
+  },
+  insightItemContent: {
+    flex: 1,
+  },
+  insightItemTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: 2,
+  },
+  insightItemValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  insightItemSubtitle: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  insightDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+  },
+
+  trendBox: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: UITokens.borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: UITokens.spacing.md,
+    marginBottom: UITokens.spacing.md,
+  },
+  trendTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: UITokens.spacing.sm,
+  },
+  progressTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: UITokens.spacing.md,
+    marginTop: UITokens.spacing.md,
   },
 
   ringRow: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    marginVertical: UITokens.spacing.lg,
+    marginVertical: UITokens.spacing.sm,
   },
   ringItem: {
     alignItems: "center",

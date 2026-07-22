@@ -84,13 +84,16 @@ interface ProgressRingProps {
 
 export function ProgressRing({
   percentage,
-  size = 120,
+  size = 100,
   color = StatusColors.success,
   label,
 }: ProgressRingProps) {
   const { colors } = useTheme();
   const dynamicStyles = makeChartStyles(colors);
   const clampedPercentage = Math.max(0, Math.min(100, percentage));
+  const strokeWidth = 3;
+  const radius = size / 2 - strokeWidth / 2;
+  const circumference = 2 * Math.PI * radius;
   const rotation = (clampedPercentage / 100) * 360;
 
   return (
@@ -103,13 +106,13 @@ export function ProgressRing({
             width: size,
             height: size,
             borderRadius: size / 2,
-            borderWidth: 4,
+            borderWidth: strokeWidth,
             borderColor: colors.border,
           },
         ]}
       />
 
-      {/* Progress circle - simplified using border */}
+      {/* Progress circle */}
       <View
         style={[
           dynamicStyles.ringProgress,
@@ -117,11 +120,12 @@ export function ProgressRing({
             width: size,
             height: size,
             borderRadius: size / 2,
-            borderWidth: 4,
-            borderColor: color,
-            borderTopColor: "transparent",
-            borderRightColor: "transparent",
+            borderWidth: strokeWidth,
+            borderColor: "transparent",
+            borderTopColor: color,
+            borderRightColor: color,
             borderBottomColor: clampedPercentage > 50 ? color : "transparent",
+            borderLeftColor: clampedPercentage > 75 ? color : "transparent",
             transform: [{ rotate: `${rotation}deg` }],
           },
         ]}
@@ -129,10 +133,10 @@ export function ProgressRing({
 
       {/* Center content */}
       <View style={dynamicStyles.ringContent}>
+        {label && <Text style={dynamicStyles.ringLabel}>{label}</Text>}
         <Text style={dynamicStyles.ringPercentage}>
           {Math.round(clampedPercentage)}%
         </Text>
-        {label && <Text style={dynamicStyles.ringLabel}>{label}</Text>}
       </View>
     </View>
   );
