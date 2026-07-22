@@ -89,50 +89,50 @@ const makeStyles = (colors: any) => StyleSheet.create({
   container: {
     backgroundColor: colors.surfaceElevated,
     borderRadius: UITokens.borderRadius.md,
-    padding: UITokens.spacing.lg,
-    minHeight: 140,
+    padding: UITokens.spacing.md,
+    minHeight: 100,
     justifyContent: "space-between",
   },
   icon: {
-    marginBottom: UITokens.spacing.md,
+    marginBottom: UITokens.spacing.xs,
   },
   label: {
-    fontSize: UITokens.typography.caption.fontSize,
+    fontSize: 11,
     color: colors.textSecondary,
     fontWeight: "500",
     textTransform: "uppercase",
-    marginBottom: UITokens.spacing.sm,
+    marginBottom: 2,
   },
   valueContainer: {
     flexDirection: "row",
     alignItems: "baseline",
-    marginBottom: UITokens.spacing.md,
+    marginBottom: UITokens.spacing.sm,
   },
   value: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: "700",
     color: colors.text,
   },
   unit: {
-    fontSize: UITokens.typography.caption.fontSize,
+    fontSize: 11,
     color: colors.textSecondary,
     marginLeft: UITokens.spacing.xs,
   },
   trendContainer: {
-    marginBottom: UITokens.spacing.sm,
+    marginBottom: UITokens.spacing.xs,
   },
   trend: {
-    fontSize: UITokens.typography.caption.fontSize,
+    fontSize: 10,
     fontWeight: "600",
   },
   statusBadge: {
     alignSelf: "flex-start",
-    paddingHorizontal: UITokens.spacing.sm,
-    paddingVertical: UITokens.spacing.xs,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: UITokens.borderRadius.full,
   },
   statusText: {
-    fontSize: UITokens.typography.caption.fontSize,
+    fontSize: 10,
     fontWeight: "600",
   },
 });

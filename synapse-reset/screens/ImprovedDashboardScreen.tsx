@@ -114,6 +114,7 @@ export default function ImprovedDashboardScreen({
               icon={<Text style={styles.icon}>⚡</Text>}
               trend={metrics.energy > 5 ? "up" : "down"}
               trendValue="+1 from yesterday"
+              style={{ width: "48%" }}
             />
             <MetricCard
               label="Mood"
@@ -123,6 +124,7 @@ export default function ImprovedDashboardScreen({
               icon={<Text style={styles.icon}>😊</Text>}
               trend="up"
               trendValue="Stable"
+              style={{ width: "48%" }}
             />
             <MetricCard
               label="Sleep"
@@ -132,6 +134,7 @@ export default function ImprovedDashboardScreen({
               icon={<Text style={styles.icon}>😴</Text>}
               trend={metrics.sleep > 6 ? "up" : "down"}
               trendValue="-0.5h vs avg"
+              style={{ width: "48%" }}
             />
             <MetricCard
               label="Adherence"
@@ -141,6 +144,7 @@ export default function ImprovedDashboardScreen({
               icon={<Text style={styles.icon}>✓</Text>}
               trend="up"
               trendValue="This week"
+              style={{ width: "48%" }}
             />
           </View>
           </View>
@@ -359,10 +363,8 @@ const makeStyles = (colors: any) => StyleSheet.create({
   metricsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: UITokens.spacing.md,
-  },
-  metricsGrid: {
-    gap: UITokens.spacing.md,
+    gap: UITokens.spacing.sm,
+    justifyContent: "space-between",
   },
 
   quickAddButton: {
