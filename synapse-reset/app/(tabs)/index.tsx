@@ -8,7 +8,7 @@ import SidebarLayout from "@/components/SidebarLayout";
 import TabletSidebar from "@/components/TabletSidebar";
 import { useIsTablet } from "@/lib/device";
 import SickModeHeaderButton from "@/components/SickModeHeaderButton";
-import ImprovedDashboardScreen from "@/screens/ImprovedDashboardScreen";
+import DashboardScreen from "@/screens/DashboardScreen";
 import DailyLogScreen from "@/screens/DailyLogScreen";
 import MedicationsScreen from "@/screens/MedicationsScreen";
 import ImprovedSymptomsScreen from "@/screens/ImprovedSymptomsScreen";
@@ -1224,7 +1224,7 @@ export default function MainScreen() {
 
     switch (activeScreen) {
       case "dashboard":
-        return <ImprovedDashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
+        return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
       case "caregiverdashboard":
         return (
           <CaregiverDashboardScreen
@@ -1342,7 +1342,7 @@ export default function MainScreen() {
           />
         );
       default:
-        return <ImprovedDashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
+        return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
     }
   };
 
