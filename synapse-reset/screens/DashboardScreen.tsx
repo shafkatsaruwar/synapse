@@ -293,45 +293,6 @@ function DashboardHero({
 
   const renderHeroInner = () => (
     <View style={styles.dashboardHeroGradient}>
-      <View style={styles.dashboardHeroHeader}>
-        {ramadanDayLabel ? (
-          <Text
-            style={[
-              styles.dashboardHeroRamadan,
-              themeId === "light" && { color: "#1F2937" },
-            ]}
-          >
-            {ramadanDayLabel}
-          </Text>
-        ) : null}
-        <Text style={styles.dashboardHeroSubtitle}>{subtitle}</Text>
-      </View>
-
-      <View style={styles.dashboardHeroTimesRow}>
-        <View style={styles.dashboardHeroTimeCol}>
-          <Text style={styles.dashboardHeroTimeLabel}>{leftTimeLabel}</Text>
-          <Text
-            style={[
-              styles.dashboardHeroTimeValue,
-              themeId === "light" && { color: "#2F6FCF" },
-            ]}
-          >
-            {leftTime}
-          </Text>
-        </View>
-        <View style={styles.dashboardHeroTimeCol}>
-          <Text style={styles.dashboardHeroTimeLabel}>{rightTimeLabel}</Text>
-          <Text
-            style={[
-              styles.dashboardHeroTimeValue,
-              themeId === "light" && { color: "#2F6FCF" },
-            ]}
-          >
-            {rightTime}
-          </Text>
-        </View>
-      </View>
-
       <View ref={dailyLogRef} collapsable={false}>
         <Pressable
           style={[
@@ -1706,7 +1667,7 @@ function makeStyles(C: Theme, textScale: number, themeId: string) {
     scrollViewContent: { flexGrow: 1 },
     content: { paddingHorizontal: 0 },
     simpleDashboardContent: {
-      gap: 16,
+      gap: 8,
       width: "100%",
       maxWidth: 720,
       alignSelf: "center",
