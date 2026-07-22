@@ -276,11 +276,12 @@ function getAutoEmoji(med: Medication): string {
 
 interface MedicationsScreenProps {
   simpleOpenAddToken?: number;
+  simpleOpenAddOwner?: RecordOwner;
   onSimpleOpenAddConsumed?: () => void;
   onSimpleSaveComplete?: () => void;
 }
 
-export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddConsumed, onSimpleSaveComplete }: MedicationsScreenProps) {
+export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwner, onSimpleOpenAddConsumed, onSimpleSaveComplete }: MedicationsScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -400,6 +401,13 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
     syncWidgetSnapshot().catch(() => {});
   }, [loadData]);
 
+  const isCaregiver = profile.userRole === "caregiver" && !!profile.caredForName?.trim();
+  const ownerOptions: { value: RecordOwner; label: string }[] = [
+    { value: "self", label: "You" },
+    ...(isCaregiver ? [{ value: "care_recipient" as const, label: profile.caredForName!.trim() }] : []),
+  ];
+  const getOwnerLabel = (owner?: RecordOwner) => owner === "care_recipient" && isCaregiver ? profile.caredForName!.trim() : "You";
+
   const resetMedListForm = () => {
     setFormMedListName("");
     setFormMedListDoses([{ dosage: "", time: "Morning" }]);
@@ -437,12 +445,20 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
     setShowMedListModal(true);
   };
 
-  const openAddModal = () => {
+  const openAddModal = (ownerOverride?: RecordOwner) => {
+    let requestedOwner: RecordOwner = "self";
+    let shouldSkipOwnerStep = false;
+    if (ownerOverride === "self") {
+      shouldSkipOwnerStep = true;
+    } else if (ownerOverride === "care_recipient" && isCaregiver) {
+      requestedOwner = "care_recipient";
+      shouldSkipOwnerStep = true;
+    }
     setEditingMed(null);
     setFormName("");
     setFormMedicationImageUri("");
     setFormMedicationType("scheduled");
-    setSimpleAddStep(ownerOptions.length > 1 ? 0 : 1);
+    setSimpleAddStep(shouldSkipOwnerStep ? 1 : ownerOptions.length > 1 ? 0 : 1);
     setSimpleAddTypeSelection(null);
     setSimpleSelectedDoseTimes(["Morning"]);
     setPrnFlowStep(1);
@@ -474,7 +490,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
     setFormLowSupplyThreshold("5");
     setFormConcentrationMgPerMl("");
     setFormRefillUnit("Pills");
-    setFormEntryOwner("self");
+    setFormEntryOwner(requestedOwner);
     setShowCurrentMedNamePicker(false);
     setShowDoseTimePickerIndex(null);
     setShowReminderTimePickerIndex(null);
@@ -619,10 +635,10 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
     !!prnPrimaryDose.unit.trim() &&
     (isPrn || simpleSelectedDoseTimes.length > 0);
 
-  const handleOpenAddMedication = () => {
+  const handleOpenAddMedication = (ownerOverride?: RecordOwner) => {
     try {
       void Haptics.selectionAsync().catch(() => {});
-      openAddModal();
+      openAddModal(ownerOverride);
     } catch (error) {
       console.warn("Failed to open add medication flow", error);
       Alert.alert("Something went wrong. Try again.");
@@ -648,10 +664,10 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
   }, []);
 
   useEffect(() => {
-    if (!modeUI.isSimpleMode || !simpleOpenAddToken) return;
-    handleOpenAddMedication();
+    if (!simpleOpenAddToken) return;
+    handleOpenAddMedication(simpleOpenAddOwner);
     onSimpleOpenAddConsumed?.();
-  }, [modeUI.isSimpleMode, onSimpleOpenAddConsumed, simpleOpenAddToken]);
+  }, [onSimpleOpenAddConsumed, simpleOpenAddOwner, simpleOpenAddToken]);
 
   const renderSimpleAddMedicationFlow = () => (
     <View style={styles.prnFlowCard}>
@@ -1444,13 +1460,28 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
     return Array.from({ length: count }, (_, i) => `Dose ${i + 1}`);
   };
 
-  const topPad = isWide ? 28 : (Platform.OS === "web" ? 40 : 12);
-  const isCaregiver = profile.userRole === "caregiver" && !!profile.caredForName?.trim();
-  const ownerOptions: { value: RecordOwner; label: string }[] = [
-    { value: "self", label: "You" },
-    ...(isCaregiver ? [{ value: "care_recipient" as const, label: profile.caredForName!.trim() }] : []),
-  ];
-  const getOwnerLabel = (owner?: RecordOwner) => owner === "care_recipient" && isCaregiver ? profile.caredForName!.trim() : "You";
+  const topPad = isWide ? 28 : (Platform.OS === "web" ? 40 : insets.top + 24);
+  const getCaregiverMedStatus = (med: Medication) => {
+    const normalized = normalizeMedication(med);
+    const logs = medLogs.filter((log) => log.medicationId === med.id && log.taken);
+    const lastTaken = logs.sort((a, b) => (b.recordedAt ?? "").localeCompare(a.recordedAt ?? ""))[0]?.recordedAt;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const doses = normalized.doses ?? [];
+    const missed = doses.filter((dose, index) => {
+      const scheduledMinutes = reminderTimeToMinutes(dose.reminderTime);
+      const taken = isDoseTaken(med.id, index);
+      return !taken && scheduledMinutes != null && scheduledMinutes < currentMinutes;
+    });
+    const nextDose = doses
+      .map((dose, index) => ({ dose, index, minutes: reminderTimeToMinutes(dose.reminderTime) }))
+      .filter((item) => !isDoseTaken(med.id, item.index) && item.minutes != null)
+      .sort((a, b) => (a.minutes ?? 0) - (b.minutes ?? 0))[0]?.dose;
+    const dueSoon = nextDose?.reminderTime != null && (reminderTimeToMinutes(nextDose.reminderTime) ?? 0) - currentMinutes <= 90;
+    const allTaken = doses.length > 0 && doses.every((_, index) => isDoseTaken(med.id, index));
+    const status = missed.length > 0 ? "missed" : allTaken ? "taken" : dueSoon ? "dueSoon" : "pending";
+    return { lastTaken, nextDose, missedCount: missed.length, status };
+  };
   const medicationDoctors = useMemo(
     () => doctors.filter((doctor) => (doctor.entryOwner ?? "self") === formEntryOwner),
     [doctors, formEntryOwner]
@@ -1529,7 +1560,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
             <View style={styles.headerActions}>
               <Pressable
                 style={({ pressed }) => [styles.headerAddPill, pressed && styles.headerActionPressed]}
-                onPress={openAddModal}
+                onPress={() => openAddModal()}
                 accessibilityRole="button"
                 accessibilityLabel="Add medication"
               >
@@ -1607,6 +1638,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                     const emoji = getAutoEmoji(med);
                     const canTakeScheduledDose = nextUntakenIndex !== null;
                     const prescribingDoctor = getMedicationDoctor(med);
+                    const caregiverStatus = isCaregiver && med.entryOwner === "care_recipient" ? getCaregiverMedStatus(med) : null;
 
                     return (
                       <Pressable
@@ -1644,6 +1676,22 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                         </View>
                         <View style={styles.simpleMedicationDivider} />
                         <Text style={styles.simpleMedicationStatus}>{statusText}</Text>
+                        {caregiverStatus ? (
+                          <View style={[styles.caregiverStatusLayer, caregiverStatus.status === "missed" && styles.caregiverStatusLayerMissed]}>
+                            <Text style={styles.caregiverStatusText}>
+                              {caregiverStatus.status === "taken" ? "🟢 Taken" : caregiverStatus.status === "dueSoon" ? "🟡 Due soon" : caregiverStatus.status === "missed" ? "🔴 Missed" : "🟡 Pending"}
+                            </Text>
+                            <Text style={styles.caregiverStatusMeta}>
+                              Last taken: {caregiverStatus.lastTaken ? formatLoggedTime(caregiverStatus.lastTaken) : "Not today"}
+                            </Text>
+                            <Text style={styles.caregiverStatusMeta}>
+                              Next dose: {caregiverStatus.nextDose?.reminderTime ? formatReminderTimeDisplay(caregiverStatus.nextDose.reminderTime) : "None today"}
+                            </Text>
+                            {caregiverStatus.missedCount > 0 ? (
+                              <Text style={styles.caregiverMissedText}>🔴 {caregiverStatus.missedCount} dose{caregiverStatus.missedCount === 1 ? "" : "s"} missed today</Text>
+                            ) : null}
+                          </View>
+                        ) : null}
                         <Pressable
                           style={({ pressed }) => [
                             styles.simpleMedicationPrimaryButton,
@@ -1840,7 +1888,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
           <View style={styles.headerActions}>
             <Pressable
               style={({ pressed }) => [styles.headerAddPill, pressed && styles.headerActionPressed]}
-              onPress={openAddModal}
+              onPress={() => openAddModal()}
               accessibilityRole="button"
               accessibilityLabel="Add medication"
             >
@@ -1917,6 +1965,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
               const remainingRefills = med.refillsRemaining;
               const showRefill = currentSupply != null || remainingRefills != null;
               const prescribingDoctor = getMedicationDoctor(med);
+              const caregiverStatus = isCaregiver && med.entryOwner === "care_recipient" ? getCaregiverMedStatus(med) : null;
 
               return (
                 <Pressable
@@ -1978,6 +2027,23 @@ export default function MedicationsScreen({ simpleOpenAddToken, onSimpleOpenAddC
                       </Text>
                     </View>
                   )}
+
+                  {caregiverStatus ? (
+                    <View style={[styles.caregiverStatusLayer, caregiverStatus.status === "missed" && styles.caregiverStatusLayerMissed]}>
+                      <Text style={styles.caregiverStatusText}>
+                        {caregiverStatus.status === "taken" ? "🟢 Taken" : caregiverStatus.status === "dueSoon" ? "🟡 Due soon" : caregiverStatus.status === "missed" ? "🔴 Missed" : "🟡 Pending"}
+                      </Text>
+                      <Text style={styles.caregiverStatusMeta}>
+                        Last taken: {caregiverStatus.lastTaken ? formatLoggedTime(caregiverStatus.lastTaken) : "Not today"}
+                      </Text>
+                      <Text style={styles.caregiverStatusMeta}>
+                        Next dose: {caregiverStatus.nextDose?.reminderTime ? formatReminderTimeDisplay(caregiverStatus.nextDose.reminderTime) : "None today"}
+                      </Text>
+                      {caregiverStatus.missedCount > 0 ? (
+                        <Text style={styles.caregiverMissedText}>🔴 {caregiverStatus.missedCount} dose{caregiverStatus.missedCount === 1 ? "" : "s"} missed today</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
 
                   {doseCountForTag === 1 ? (
                     allTaken ? (
@@ -4037,6 +4103,37 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
     lineHeight: 15,
     fontWeight: "500",
     opacity: 0.8,
+  },
+  caregiverStatusLayer: {
+    marginTop: 10,
+    marginBottom: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.textTertiary + "18",
+    backgroundColor: solidModalElevated,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 3,
+  },
+  caregiverStatusLayerMissed: {
+    borderColor: C.red + "44",
+    backgroundColor: C.red + "08",
+  },
+  caregiverStatusText: {
+    fontWeight: "800",
+    fontSize: 13,
+    color: C.text,
+  },
+  caregiverStatusMeta: {
+    fontWeight: "600",
+    fontSize: 12,
+    color: C.textSecondary,
+  },
+  caregiverMissedText: {
+    marginTop: 2,
+    fontWeight: "900",
+    fontSize: 12,
+    color: C.red,
   },
   toastWrap: {
     position: "absolute",

@@ -82,6 +82,8 @@ function normalizeRestorePayload(raw: unknown): ExportPayload {
 
 export async function getCloudKitBackupStatus(): Promise<{
   available: boolean;
+  nativeBridgeAvailable: boolean;
+  platform: string;
   accountStatus: string;
   lastSyncedAt: string | null;
   cloudLastUpdatedAt: string | null;
@@ -93,7 +95,15 @@ export async function getCloudKitBackupStatus(): Promise<{
   ]);
 
   if (!isCloudKitAvailable() || !bridge) {
-    return { available: false, accountStatus: "unavailable", lastSyncedAt, cloudLastUpdatedAt: null, lastError };
+    return {
+      available: false,
+      nativeBridgeAvailable: !!bridge,
+      platform: Platform.OS,
+      accountStatus: Platform.OS === "ios" ? "native_bridge_missing" : "unsupported_platform",
+      lastSyncedAt,
+      cloudLastUpdatedAt: null,
+      lastError,
+    };
   }
 
   try {
@@ -103,6 +113,8 @@ export async function getCloudKitBackupStatus(): Promise<{
     ]);
     return {
       available: status.available === true,
+      nativeBridgeAvailable: true,
+      platform: Platform.OS,
       accountStatus: status.status ?? "unknown",
       lastSyncedAt,
       cloudLastUpdatedAt: metadata?.lastUpdated || null,
@@ -110,7 +122,15 @@ export async function getCloudKitBackupStatus(): Promise<{
     };
   } catch (error) {
     await setLastError(error);
-    return { available: false, accountStatus: "error", lastSyncedAt, cloudLastUpdatedAt: null, lastError: String(error) };
+    return {
+      available: false,
+      nativeBridgeAvailable: true,
+      platform: Platform.OS,
+      accountStatus: "error",
+      lastSyncedAt,
+      cloudLastUpdatedAt: null,
+      lastError: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
@@ -136,7 +156,7 @@ export async function saveToICloud(): Promise<{ skipped?: boolean; error?: Error
   }
 }
 
-export async function restoreFromICloud(options?: { uploadLocalIfNewer?: boolean }): Promise<{
+export async function restoreFromICloud(options?: { uploadLocalIfNewer?: boolean; forceRestoreLatest?: boolean }): Promise<{
   restored: boolean;
   uploadedLocal?: boolean;
   skipped?: boolean;
@@ -155,7 +175,7 @@ export async function restoreFromICloud(options?: { uploadLocalIfNewer?: boolean
     const cloudTime = dateValue(cloud.lastUpdated);
     const localTime = dateValue(localUpdatedAt);
 
-    if (cloudTime > localTime) {
+    if (options?.forceRestoreLatest || cloudTime > localTime) {
       const parsed = normalizeRestorePayload(JSON.parse(cloud.payload));
       await withCloudKitBackupSuppressed(async () => {
         await importAllData(parsed);

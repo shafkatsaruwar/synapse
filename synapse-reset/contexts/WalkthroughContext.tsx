@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 
 export type WalkthroughMeasure = () => Promise<{ x: number; y: number; width: number; height: number } | null>;
@@ -16,20 +16,19 @@ interface WalkthroughContextValue {
 
 const WalkthroughContext = createContext<WalkthroughContextValue | null>(null);
 
-const targetsRef = new Map<string, WalkthroughMeasure>();
-
 export function WalkthroughProvider({ children }: { children: React.ReactNode }) {
   const [tick, setTick] = useState(0);
+  const targetsRef = useRef(new Map<string, WalkthroughMeasure>());
   const registerTarget = useCallback<Register>((id, measure) => {
-    targetsRef.set(id, measure);
+    targetsRef.current.set(id, measure);
     setTick((t) => t + 1);
   }, []);
   const unregisterTarget = useCallback<Unregister>((id) => {
-    if (!targetsRef.has(id)) return;
-    targetsRef.delete(id);
+    if (!targetsRef.current.has(id)) return;
+    targetsRef.current.delete(id);
     setTick((t) => t + 1);
   }, []);
-  const getTarget = useCallback<GetTarget>((id) => targetsRef.get(id), []);
+  const getTarget = useCallback<GetTarget>((id) => targetsRef.current.get(id), []);
   const value = useMemo(
     () => ({ registerTarget, unregisterTarget, getTarget, version: tick }),
     [registerTarget, unregisterTarget, getTarget, tick]

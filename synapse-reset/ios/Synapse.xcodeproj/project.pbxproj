@@ -15,21 +15,21 @@
 		592B1AB3F8240CD3DD203787 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 899F68671DF26BB98C21EF96 /* ExpoModulesProvider.swift */; };
 		64C88465161E62450E2A1D32 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D22D27A934C94AD3B35A250 /* ShareViewController.swift */; };
 		7F02BD12959CC42BC5FB3805 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 35431796CFF3DC9E0F0AB340 /* PrivacyInfo.xcprivacy */; };
-		A10000000000000000000036 /* SynapseCalendarBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000037 /* SynapseCalendarBridge.swift */; };
-		A10000000000000000000038 /* SynapseCalendarBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000039 /* SynapseCalendarBridge.m */; };
-		B70000000000000000000040 /* SynapseFoundationModelsBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B70000000000000000000041 /* SynapseFoundationModelsBridge.swift */; };
-		B70000000000000000000042 /* SynapseFoundationModelsBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = B70000000000000000000043 /* SynapseFoundationModelsBridge.m */; };
-		C90000000000000000000040 /* SynapseCloudKitBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000041 /* SynapseCloudKitBridge.swift */; };
-		C90000000000000000000042 /* SynapseCloudKitBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000043 /* SynapseCloudKitBridge.m */; };
-		D80000000000000000000040 /* SynapseAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80000000000000000000041 /* SynapseAppIntents.swift */; };
-		E90000000000000000000040 /* SynapseVisionBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000041 /* SynapseVisionBridge.swift */; };
-		E90000000000000000000042 /* SynapseVisionBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000043 /* SynapseVisionBridge.m */; };
 		A10000000000000000000001 /* SynapseWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* SynapseWidgetBridge.swift */; };
 		A10000000000000000000002 /* SynapseWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* SynapseWidgetsBundle.swift */; };
 		A10000000000000000000003 /* SynapseWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* SynapseWidgets.swift */; };
 		A10000000000000000000004 /* SynapseWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* SynapseWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A10000000000000000000034 /* SynapseWidgetBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000035 /* SynapseWidgetBridge.m */; };
+		A10000000000000000000036 /* SynapseCalendarBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000037 /* SynapseCalendarBridge.swift */; };
+		A10000000000000000000038 /* SynapseCalendarBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000039 /* SynapseCalendarBridge.m */; };
+		B70000000000000000000040 /* SynapseFoundationModelsBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B70000000000000000000041 /* SynapseFoundationModelsBridge.swift */; };
+		B70000000000000000000042 /* SynapseFoundationModelsBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = B70000000000000000000043 /* SynapseFoundationModelsBridge.m */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
+		C90000000000000000000040 /* SynapseCloudKitBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000041 /* SynapseCloudKitBridge.swift */; };
+		C90000000000000000000042 /* SynapseCloudKitBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000043 /* SynapseCloudKitBridge.m */; };
+		D80000000000000000000040 /* SynapseAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80000000000000000000041 /* SynapseAppIntents.swift */; };
+		E90000000000000000000040 /* SynapseVisionBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000041 /* SynapseVisionBridge.swift */; };
+		E90000000000000000000042 /* SynapseVisionBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000043 /* SynapseVisionBridge.m */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -78,24 +78,24 @@
 		899F68671DF26BB98C21EF96 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Synapse/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		9D22D27A934C94AD3B35A250 /* ShareViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		A10000000000000000000011 /* SynapseWidgetBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseWidgetBridge.swift; path = Synapse/SynapseWidgetBridge.swift; sourceTree = "<group>"; };
-		A10000000000000000000037 /* SynapseCalendarBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseCalendarBridge.swift; path = Synapse/SynapseCalendarBridge.swift; sourceTree = "<group>"; };
-		A10000000000000000000039 /* SynapseCalendarBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseCalendarBridge.m; path = Synapse/SynapseCalendarBridge.m; sourceTree = "<group>"; };
-		B70000000000000000000041 /* SynapseFoundationModelsBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseFoundationModelsBridge.swift; path = Synapse/SynapseFoundationModelsBridge.swift; sourceTree = "<group>"; };
-		B70000000000000000000043 /* SynapseFoundationModelsBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseFoundationModelsBridge.m; path = Synapse/SynapseFoundationModelsBridge.m; sourceTree = "<group>"; };
-		C90000000000000000000041 /* SynapseCloudKitBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseCloudKitBridge.swift; path = Synapse/SynapseCloudKitBridge.swift; sourceTree = "<group>"; };
-		C90000000000000000000043 /* SynapseCloudKitBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseCloudKitBridge.m; path = Synapse/SynapseCloudKitBridge.m; sourceTree = "<group>"; };
-		D80000000000000000000041 /* SynapseAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseAppIntents.swift; path = Synapse/SynapseAppIntents.swift; sourceTree = "<group>"; };
-		E90000000000000000000041 /* SynapseVisionBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseVisionBridge.swift; path = Synapse/SynapseVisionBridge.swift; sourceTree = "<group>"; };
-		E90000000000000000000043 /* SynapseVisionBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseVisionBridge.m; path = Synapse/SynapseVisionBridge.m; sourceTree = "<group>"; };
 		A10000000000000000000013 /* SynapseWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SynapseWidgetsBundle.swift; sourceTree = "<group>"; };
 		A10000000000000000000014 /* SynapseWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SynapseWidgets.swift; sourceTree = "<group>"; };
 		A10000000000000000000015 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10000000000000000000016 /* SynapseWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SynapseWidgets.entitlements; sourceTree = "<group>"; };
 		A10000000000000000000017 /* SynapseWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SynapseWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000035 /* SynapseWidgetBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseWidgetBridge.m; path = Synapse/SynapseWidgetBridge.m; sourceTree = "<group>"; };
+		A10000000000000000000037 /* SynapseCalendarBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseCalendarBridge.swift; path = Synapse/SynapseCalendarBridge.swift; sourceTree = "<group>"; };
+		A10000000000000000000039 /* SynapseCalendarBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseCalendarBridge.m; path = Synapse/SynapseCalendarBridge.m; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Synapse/SplashScreen.storyboard; sourceTree = "<group>"; };
+		B70000000000000000000041 /* SynapseFoundationModelsBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseFoundationModelsBridge.swift; path = Synapse/SynapseFoundationModelsBridge.swift; sourceTree = "<group>"; };
+		B70000000000000000000043 /* SynapseFoundationModelsBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseFoundationModelsBridge.m; path = Synapse/SynapseFoundationModelsBridge.m; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
+		C90000000000000000000041 /* SynapseCloudKitBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseCloudKitBridge.swift; path = Synapse/SynapseCloudKitBridge.swift; sourceTree = "<group>"; };
+		C90000000000000000000043 /* SynapseCloudKitBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseCloudKitBridge.m; path = Synapse/SynapseCloudKitBridge.m; sourceTree = "<group>"; };
 		CE459697E245019ED41DD03F /* SynapseShareExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = SynapseShareExtension.entitlements; sourceTree = "<group>"; };
+		D80000000000000000000041 /* SynapseAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseAppIntents.swift; path = Synapse/SynapseAppIntents.swift; sourceTree = "<group>"; };
+		E90000000000000000000041 /* SynapseVisionBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseVisionBridge.swift; path = Synapse/SynapseVisionBridge.swift; sourceTree = "<group>"; };
+		E90000000000000000000043 /* SynapseVisionBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseVisionBridge.m; path = Synapse/SynapseVisionBridge.m; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Synapse/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Synapse-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Synapse-Bridging-Header.h"; path = "Synapse/Synapse-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -469,6 +469,8 @@
 				"${PODS_CONFIGURATION_BUILD_DIR}/RNSVG/RNSVGFilters.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/expo-dev-launcher/EXDevLauncher.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/expo-dev-menu/EXDevMenu.bundle",
 			);
 			name = "[CP] Copy Pods Resources";
 			outputPaths = (
@@ -482,6 +484,8 @@
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNSVGFilters.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXDevLauncher.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXDevMenu.bundle",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -584,6 +588,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.12;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mohammedsaruwar.synapse.shareextension;
 				PRODUCT_NAME = SynapseShareExtension;
 				SDKROOT = iphoneos;
@@ -680,6 +685,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.12;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.mohammedsaruwar.synapse.shareextension;
 				PRODUCT_NAME = SynapseShareExtension;
 				SDKROOT = iphoneos;

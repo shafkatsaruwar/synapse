@@ -3,18 +3,35 @@ import WidgetKit
 
 private enum SynapseWidgetDestination {
   static func url(for screen: String) -> URL {
-    URL(string: "myapp://widget/\(screen)")!
+    var components = URLComponents(string: "myapp:///")!
+    components.queryItems = [URLQueryItem(name: "widgetTarget", value: screen)]
+    return components.url!
+  }
+
+  static func caregiverActionURL(mode: String) -> URL {
+    var components = URLComponents(string: "myapp:///")!
+    components.queryItems = [
+      URLQueryItem(name: "widgetTarget", value: "caregiverdashboard"),
+      URLQueryItem(name: "mode", value: mode),
+    ]
+    return components.url!
   }
 
   static func hydrationQuickSipURL() -> URL {
-    var components = URLComponents(string: "myapp://widget/hydration")!
-    components.queryItems = [URLQueryItem(name: "mode", value: "quick-sip")]
+    var components = URLComponents(string: "myapp:///")!
+    components.queryItems = [
+      URLQueryItem(name: "widgetTarget", value: "hydration"),
+      URLQueryItem(name: "mode", value: "quick-sip"),
+    ]
     return components.url!
   }
 
   static func prnLogURL(for medicationId: String) -> URL {
-    var components = URLComponents(string: "myapp://widget/prnlog")!
-    components.queryItems = [URLQueryItem(name: "medId", value: medicationId)]
+    var components = URLComponents(string: "myapp:///")!
+    components.queryItems = [
+      URLQueryItem(name: "widgetTarget", value: "prnlog"),
+      URLQueryItem(name: "medId", value: medicationId),
+    ]
     return components.url!
   }
 }
@@ -133,6 +150,107 @@ private struct SynapseWidgetSnapshot: Codable {
     let checkInTimer: String?
   }
 
+  struct Caregiver: Codable {
+    struct Item: Codable {
+      let kind: String
+      let text: String
+      let tone: String
+    }
+
+    let hasProfile: Bool
+    let name: String
+    let age: Int?
+    let relation: String?
+    let status: String
+    let statusText: String
+    let tone: String
+    let primaryText: String
+    let secondaryText: String?
+    let actionText: String?
+    let items: [Item]
+    let missedCount: Int
+
+    enum CodingKeys: String, CodingKey {
+      case hasProfile
+      case name
+      case age
+      case relation
+      case status
+      case statusText
+      case tone
+      case primaryText
+      case secondaryText
+      case actionText
+      case items
+      case missedCount
+    }
+
+    init(
+      hasProfile: Bool,
+      name: String,
+      age: Int?,
+      relation: String?,
+      status: String,
+      statusText: String,
+      tone: String,
+      primaryText: String,
+      secondaryText: String?,
+      actionText: String?,
+      items: [Item],
+      missedCount: Int
+    ) {
+      self.hasProfile = hasProfile
+      self.name = name
+      self.age = age
+      self.relation = relation
+      self.status = status
+      self.statusText = statusText
+      self.tone = tone
+      self.primaryText = primaryText
+      self.secondaryText = secondaryText
+      self.actionText = actionText
+      self.items = items
+      self.missedCount = missedCount
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      hasProfile = try container.decode(Bool.self, forKey: .hasProfile)
+      name = try container.decode(String.self, forKey: .name)
+      age = try container.decodeIfPresent(Int.self, forKey: .age)
+      relation = try container.decodeIfPresent(String.self, forKey: .relation)
+      let decodedStatus = try container.decode(String.self, forKey: .status)
+      status = decodedStatus == "needs_attention" ? "attention" : decodedStatus
+      statusText = try container.decode(String.self, forKey: .statusText)
+      tone = try container.decode(String.self, forKey: .tone)
+      primaryText = try container.decode(String.self, forKey: .primaryText)
+      secondaryText = try container.decodeIfPresent(String.self, forKey: .secondaryText)
+      actionText = try container.decodeIfPresent(String.self, forKey: .actionText)
+      if let decodedItems = try? container.decode([Item].self, forKey: .items) {
+        items = decodedItems
+      } else {
+        let legacyItems = (try? container.decode([String].self, forKey: .items)) ?? []
+        items = legacyItems.map { Item(kind: "legacy", text: $0, tone: "muted") }
+      }
+      missedCount = try container.decode(Int.self, forKey: .missedCount)
+    }
+
+    static let placeholder = Caregiver(
+      hasProfile: false,
+      name: "Managed person",
+      age: nil,
+      relation: nil,
+      status: "attention",
+      statusText: "Set up profile",
+      tone: "yellow",
+      primaryText: "Profile needed",
+      secondaryText: "Open Synapse",
+      actionText: "Open Synapse",
+      items: [Item(kind: "setup", text: "Managed person missing", tone: "yellow")],
+      missedCount: 0
+    )
+  }
+
   let medication: Medication?
   let appointment: Appointment?
   let prnMedication: PrnMedication?
@@ -140,7 +258,59 @@ private struct SynapseWidgetSnapshot: Codable {
   let hydration: Hydration
   let sickMode: SickMode
   let mentalHealth: MentalHealth
+  let caregiver: Caregiver
   let updatedAt: Date
+
+  enum CodingKeys: String, CodingKey {
+    case appearance
+    case medication
+    case appointment
+    case prnMedication
+    case wellness
+    case hydration
+    case sickMode
+    case mentalHealth
+    case caregiver
+    case updatedAt
+  }
+
+  init(
+    appearance: String,
+    medication: Medication?,
+    appointment: Appointment?,
+    prnMedication: PrnMedication?,
+    wellness: Wellness,
+    hydration: Hydration,
+    sickMode: SickMode,
+    mentalHealth: MentalHealth,
+    caregiver: Caregiver,
+    updatedAt: Date
+  ) {
+    self.appearance = appearance
+    self.medication = medication
+    self.appointment = appointment
+    self.prnMedication = prnMedication
+    self.wellness = wellness
+    self.hydration = hydration
+    self.sickMode = sickMode
+    self.mentalHealth = mentalHealth
+    self.caregiver = caregiver
+    self.updatedAt = updatedAt
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    appearance = try container.decode(String.self, forKey: .appearance)
+    medication = try container.decodeIfPresent(Medication.self, forKey: .medication)
+    appointment = try container.decodeIfPresent(Appointment.self, forKey: .appointment)
+    prnMedication = try container.decodeIfPresent(PrnMedication.self, forKey: .prnMedication)
+    wellness = try container.decode(Wellness.self, forKey: .wellness)
+    hydration = try container.decode(Hydration.self, forKey: .hydration)
+    sickMode = try container.decode(SickMode.self, forKey: .sickMode)
+    mentalHealth = try container.decode(MentalHealth.self, forKey: .mentalHealth)
+    caregiver = try container.decodeIfPresent(Caregiver.self, forKey: .caregiver) ?? .placeholder
+    updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+  }
 
   static let placeholder = SynapseWidgetSnapshot(
     appearance: "system",
@@ -198,6 +368,7 @@ private struct SynapseWidgetSnapshot: Codable {
       nextCheckInText: "No check-in scheduled",
       checkInTimer: nil
     ),
+    caregiver: .placeholder,
     updatedAt: Date()
   )
 }
@@ -247,6 +418,7 @@ private struct SynapseWidgetPalette {
   let red: Color
   let blue: Color
   let green: Color
+  let yellow: Color
   let line: Color
   let track: Color
 
@@ -257,6 +429,7 @@ private struct SynapseWidgetPalette {
     red: Color(red: 0.72, green: 0.17, blue: 0.20),
     blue: Color(red: 0.25, green: 0.46, blue: 0.87),
     green: Color(red: 0.20, green: 0.62, blue: 0.35),
+    yellow: Color(red: 0.78, green: 0.49, blue: 0.05),
     line: Color.black.opacity(0.08),
     track: Color.black.opacity(0.08)
   )
@@ -268,6 +441,7 @@ private struct SynapseWidgetPalette {
     red: Color(red: 0.72, green: 0.17, blue: 0.20),
     blue: Color(red: 0.25, green: 0.46, blue: 0.87),
     green: Color(red: 0.20, green: 0.62, blue: 0.35),
+    yellow: Color(red: 0.78, green: 0.49, blue: 0.05),
     line: Color.black.opacity(0.08),
     track: Color.black.opacity(0.08)
   )
@@ -279,6 +453,7 @@ private struct SynapseWidgetPalette {
     red: Color(red: 0.92, green: 0.28, blue: 0.35),
     blue: Color(red: 0.53, green: 0.70, blue: 1.0),
     green: Color(red: 0.43, green: 0.87, blue: 0.53),
+    yellow: Color(red: 0.96, green: 0.72, blue: 0.24),
     line: Color.white.opacity(0.12),
     track: Color.white.opacity(0.14)
   )
@@ -1026,6 +1201,237 @@ private struct MentalHealthWidgetView: View {
   }
 }
 
+private func caregiverToneColor(_ caregiver: SynapseWidgetSnapshot.Caregiver, palette: SynapseWidgetPalette) -> Color {
+  switch caregiver.tone {
+  case "red":
+    return palette.red
+  case "green":
+    return palette.green
+  default:
+    return palette.yellow
+  }
+}
+
+private func caregiverItemTone(_ item: SynapseWidgetSnapshot.Caregiver.Item, palette: SynapseWidgetPalette) -> Color {
+  switch item.tone {
+  case "red":
+    return palette.red
+  case "yellow":
+    return palette.yellow
+  case "green":
+    return palette.green
+  default:
+    return palette.ink
+  }
+}
+
+private func caregiverStatusDot(_ caregiver: SynapseWidgetSnapshot.Caregiver) -> String {
+  switch caregiver.status {
+  case "urgent":
+    return "🔴"
+  case "all_good":
+    return "🟢"
+  default:
+    return "🟡"
+  }
+}
+
+private func caregiverItemIcon(_ item: SynapseWidgetSnapshot.Caregiver.Item) -> String {
+  switch item.kind {
+  case "missed":
+    return "🔴"
+  case "next":
+    return "🕒"
+  case "nolog":
+    return "⚠️"
+  case "good":
+    return "🟢"
+  default:
+    return "•"
+  }
+}
+
+private func caregiverPersonText(_ caregiver: SynapseWidgetSnapshot.Caregiver, includeRelation: Bool) -> String {
+  var details: [String] = []
+  if let age = caregiver.age {
+    details.append("\(age)y")
+  }
+  if includeRelation, let relation = caregiver.relation, !relation.isEmpty {
+    details.append(relation)
+  }
+  return details.isEmpty ? caregiver.name : "\(caregiver.name) (\(details.joined(separator: " · ")))"
+}
+
+private struct CaregiverStatusPill: View {
+  let caregiver: SynapseWidgetSnapshot.Caregiver
+  let palette: SynapseWidgetPalette
+  let compact: Bool
+
+  var body: some View {
+    let tone = caregiverToneColor(caregiver, palette: palette)
+    HStack(spacing: compact ? 5 : 7) {
+      Text(caregiverStatusDot(caregiver))
+        .font(.system(size: compact ? 9 : 10, weight: .bold))
+      Text(caregiver.statusText)
+        .font(.system(size: compact ? 11 : 12, weight: .bold))
+        .lineLimit(1)
+        .minimumScaleFactor(0.76)
+    }
+    .foregroundStyle(tone)
+    .padding(.vertical, compact ? 6 : 7)
+    .padding(.horizontal, compact ? 8 : 10)
+    .background(tone.opacity(0.14))
+    .clipShape(Capsule())
+  }
+}
+
+private struct CaregiverWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.widgetFamily) private var family
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    WidgetCard(palette: palette) {
+      if family == .systemMedium {
+        CaregiverMediumView(caregiver: entry.snapshot.caregiver, palette: palette)
+      } else {
+        CaregiverSmallView(caregiver: entry.snapshot.caregiver, palette: palette)
+      }
+    }
+  }
+}
+
+private struct CaregiverSmallView: View {
+  let caregiver: SynapseWidgetSnapshot.Caregiver
+  let palette: SynapseWidgetPalette
+
+  var body: some View {
+    let tone = caregiverToneColor(caregiver, palette: palette)
+    VStack(alignment: .leading, spacing: 0) {
+      HStack(spacing: 5) {
+        Image(systemName: "person.fill")
+          .font(.system(size: 11, weight: .semibold))
+        Text(caregiverPersonText(caregiver, includeRelation: false))
+          .font(.system(size: 13, weight: .medium))
+          .lineLimit(1)
+          .minimumScaleFactor(0.78)
+      }
+      .foregroundStyle(palette.muted)
+
+      Spacer().frame(height: 8)
+
+      Text("\(caregiverStatusDot(caregiver)) \(caregiver.primaryText)")
+        .font(.system(size: 17, weight: .bold))
+        .foregroundStyle(tone)
+        .lineLimit(1)
+        .minimumScaleFactor(0.70)
+
+      Spacer().frame(height: 10)
+
+      VStack(alignment: .leading, spacing: 5) {
+        ForEach(Array(caregiver.items.prefix(2).enumerated()), id: \.offset) { _, item in
+          Text("\(caregiverItemIcon(item)) \(item.text)")
+            .font(.system(size: 12, weight: item.tone == "red" ? .semibold : .regular))
+            .foregroundStyle(caregiverItemTone(item, palette: palette))
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
+        }
+        if caregiver.items.isEmpty, let secondary = caregiver.secondaryText {
+          Text(secondary)
+            .font(.system(size: 12, weight: .regular))
+            .foregroundStyle(palette.muted)
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
+        }
+      }
+
+      Spacer(minLength: 0)
+
+      if let actionText = caregiver.actionText {
+        Text(actionText)
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(palette.muted)
+          .lineLimit(1)
+          .minimumScaleFactor(0.78)
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+}
+
+private struct CaregiverMediumView: View {
+  let caregiver: SynapseWidgetSnapshot.Caregiver
+  let palette: SynapseWidgetPalette
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .firstTextBaseline, spacing: 10) {
+        HStack(spacing: 6) {
+          Image(systemName: "person.fill")
+            .font(.system(size: 12, weight: .semibold))
+          Text(caregiverPersonText(caregiver, includeRelation: true))
+            .font(.system(size: 15, weight: .medium))
+            .lineLimit(1)
+            .minimumScaleFactor(0.76)
+        }
+        .foregroundStyle(palette.ink)
+        Spacer(minLength: 4)
+        CaregiverStatusPill(caregiver: caregiver, palette: palette, compact: false)
+      }
+
+      VStack(alignment: .leading, spacing: 7) {
+        ForEach(Array(caregiver.items.prefix(3).enumerated()), id: \.offset) { _, item in
+          HStack(spacing: 7) {
+            Text(caregiverItemIcon(item))
+              .font(.system(size: 12, weight: .semibold))
+              .frame(width: 18, alignment: .leading)
+            Text(item.text)
+              .font(.system(size: 13, weight: item.tone == "red" ? .semibold : .regular))
+              .foregroundStyle(caregiverItemTone(item, palette: palette))
+              .lineLimit(1)
+              .minimumScaleFactor(0.76)
+          }
+        }
+        if caregiver.items.isEmpty {
+          Text(caregiver.secondaryText ?? "All caught up")
+            .font(.system(size: 13, weight: .regular))
+            .foregroundStyle(palette.muted)
+            .lineLimit(1)
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+
+      Spacer(minLength: 0)
+
+      HStack(spacing: 10) {
+        Link(destination: SynapseWidgetDestination.caregiverActionURL(mode: "log-med")) {
+          Text("Log Med")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(palette.ink)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(palette.red.opacity(0.12))
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+
+        Link(destination: SynapseWidgetDestination.caregiverActionURL(mode: "add-note")) {
+          Text("Add Note")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(palette.ink)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(palette.track.opacity(0.85))
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+}
+
 struct SynapseOverviewWidget: Widget {
   let kind = "SynapseOverviewWidget"
 
@@ -1139,6 +1545,21 @@ struct SynapseMentalHealthWidget: Widget {
     .configurationDisplayName("I'm not okay")
     .description("Start or check your mental health day and the next hourly check-in.")
     .supportedFamilies([.systemSmall])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapseCaregiverWidget: Widget {
+  let kind = "SynapseCaregiverWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      CaregiverWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "caregiverdashboard"))
+    }
+    .configurationDisplayName("Caregiver Status")
+    .description("See missed meds, next dose, and daily log status for the managed person.")
+    .supportedFamilies([.systemSmall, .systemMedium])
     .contentMarginsDisabled()
   }
 }

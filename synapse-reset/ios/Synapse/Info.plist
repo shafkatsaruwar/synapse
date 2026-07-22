@@ -27,6 +27,7 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
+          <string>synapse</string>
           <string>myapp</string>
           <string>com.mohammedsaruwar.synapse</string>
         </array>

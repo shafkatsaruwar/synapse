@@ -1,6 +1,7 @@
 import { NativeModules, Platform } from "react-native";
 import {
   appointmentStorage,
+  caregiverProfileStorage,
   healthLogStorage,
   healthProfileStorage,
   hydrationStorage,
@@ -13,6 +14,7 @@ import {
   convertHydrationToMl,
   formatHydrationAmount,
   type Appointment,
+  type CaregiverProfile,
   type HealthLog,
   type HydrationEntry,
   type Medication,
@@ -88,6 +90,20 @@ type WidgetSnapshot = {
     nextCheckInText: string;
     checkInTimer: string | null;
   };
+  caregiver: {
+    hasProfile: boolean;
+    name: string;
+    age: number | null;
+    relation: string | null;
+    status: "all_good" | "attention" | "urgent";
+    statusText: string;
+    tone: "green" | "yellow" | "red";
+    primaryText: string;
+    secondaryText: string | null;
+    actionText: string | null;
+    items: { kind: "missed" | "next" | "nolog" | "setup" | "good"; text: string; tone: "red" | "yellow" | "green" | "muted" }[];
+    missedCount: number;
+  };
   updatedAt: string;
 };
 
@@ -115,6 +131,15 @@ function doseDetail(dose: MedicationDose) {
     return `${dose.amount.trim()} ${dose.unit?.trim() || ""} • ${dose.timeOfDay}`.trim();
   }
   return dose.timeOfDay;
+}
+
+function formatWidgetTime(value?: string) {
+  if (!value?.includes(":")) return null;
+  const [rawHour, rawMinute] = value.split(":").map((part) => parseInt(part, 10));
+  if (!Number.isFinite(rawHour) || !Number.isFinite(rawMinute)) return null;
+  const hour = rawHour % 12 || 12;
+  const suffix = rawHour >= 12 ? "PM" : "AM";
+  return `${hour}:${String(rawMinute).padStart(2, "0")} ${suffix}`;
 }
 
 function fallbackDose(id: string, timeOfDay: string): MedicationDose {
@@ -543,6 +568,128 @@ function buildMentalHealthSnapshot(mentalHealthMode: MentalHealthModeData) {
   };
 }
 
+function buildCaregiverWidgetSnapshot(
+  profile: CaregiverProfile | null,
+  medications: Medication[],
+  logs: { medicationId: string; doseIndex?: number; taken: boolean }[],
+  todayLog: HealthLog | undefined,
+) {
+  const name = profile?.name?.trim() || "Managed person";
+  const hasProfile = !!profile?.name?.trim();
+  const age = typeof profile?.age === "number" && Number.isFinite(profile.age) ? profile.age : null;
+  const relation = profile?.relation?.trim() || null;
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const careRecipientMeds = medications
+    .map((med) => normalizeMedication(med))
+    .filter((med) => med.active && (med.entryOwner ?? "self") === "care_recipient" && (med.medicationType ?? "scheduled") !== "prn");
+
+  const doseStatuses = careRecipientMeds.flatMap((medication) =>
+    (medication.doses ?? []).map((dose, doseIndex) => {
+      const scheduledMinutes = getDoseSortMinutes(dose);
+      const taken = logs.some((log) => log.medicationId === medication.id && (log.doseIndex ?? 0) === doseIndex && log.taken);
+      return { medication, dose, doseIndex, scheduledMinutes, taken };
+    })
+  );
+
+  const missedDoses = doseStatuses
+    .filter((item) => !item.taken && item.scheduledMinutes < currentMinutes)
+    .sort((a, b) => a.scheduledMinutes - b.scheduledMinutes);
+  const nextDose = doseStatuses
+    .filter((item) => !item.taken && item.scheduledMinutes >= currentMinutes)
+    .sort((a, b) => a.scheduledMinutes - b.scheduledMinutes)[0] ?? null;
+  const hasTodayLog = !!todayLog;
+
+  const doseTime = (item: NonNullable<typeof nextDose>) => formatWidgetTime(item.dose.reminderTime);
+
+  const items: { kind: "missed" | "next" | "nolog" | "setup" | "good"; text: string; tone: "red" | "yellow" | "green" | "muted" }[] = [];
+  if (missedDoses.length > 0) {
+    items.push({
+      kind: "missed",
+      text: `${missedDoses.length} missed dose${missedDoses.length === 1 ? "" : "s"}`,
+      tone: "red",
+    });
+  }
+  if (nextDose) {
+    items.push({
+      kind: "next",
+      text: `Next dose: ${doseTime(nextDose) ?? "soon"}`,
+      tone: "muted",
+    });
+  }
+  if (!hasTodayLog) {
+    items.push({ kind: "nolog", text: "No logs today", tone: "yellow" });
+  }
+
+  if (!hasProfile) {
+    return {
+      hasProfile,
+      name,
+      age,
+      relation,
+      status: "attention" as const,
+      statusText: "Set up profile",
+      tone: "yellow" as const,
+      primaryText: "Profile needed",
+      secondaryText: "Open Synapse",
+      actionText: "Open Synapse",
+      items: [{ kind: "setup" as const, text: "Managed person missing", tone: "yellow" as const }],
+      missedCount: 0,
+    };
+  }
+
+  if (missedDoses.length > 0) {
+    return {
+      hasProfile,
+      name,
+      age,
+      relation,
+      status: "urgent" as const,
+      statusText: "Urgent",
+      tone: "red" as const,
+      primaryText: `${missedDoses.length} missed dose${missedDoses.length === 1 ? "" : "s"}`,
+      secondaryText: "Tap to log",
+      actionText: "Tap to log",
+      items: items.slice(0, 3),
+      missedCount: missedDoses.length,
+    };
+  }
+
+  if (nextDose || !hasTodayLog) {
+    return {
+      hasProfile,
+      name,
+      age,
+      relation,
+      status: "attention" as const,
+      statusText: "Needs attention",
+      tone: "yellow" as const,
+      primaryText: "Needs attention",
+      secondaryText: !hasTodayLog ? "No logs today" : `Next: ${doseTime(nextDose) ?? "soon"}`,
+      actionText: "Check in",
+      items: items.slice(0, 3),
+      missedCount: 0,
+    };
+  }
+
+  return {
+    hasProfile,
+    name,
+    age,
+    relation,
+    status: "all_good" as const,
+    statusText: "All good",
+    tone: "green" as const,
+    primaryText: "All good",
+    secondaryText: nextDose ? `Next: ${doseTime(nextDose) ?? "soon"}` : "All caught up",
+    actionText: null,
+    items: [
+      { kind: "good" as const, text: nextDose ? `Next: ${doseTime(nextDose) ?? "soon"}` : "All caught up", tone: "green" as const },
+    ],
+    missedCount: 0,
+  };
+}
+
 async function getNextAppointmentSnapshot(appointments: Appointment[]) {
   const now = new Date();
   const graceWindowMs = 1000 * 60 * 60 * 2;
@@ -571,11 +718,13 @@ export async function syncWidgetSnapshot() {
   if (Platform.OS !== "ios" || !APP_WIDGET_BRIDGE?.saveSnapshot) return;
 
   const today = getToday();
-  const [medications, appointments, profile, todayLog, todaySymptoms, todayHydration, sickMode, mentalHealthMode] = await Promise.all([
+  const [medications, appointments, profile, caregiverProfile, todayLog, caregiverTodayLog, todaySymptoms, todayHydration, sickMode, mentalHealthMode] = await Promise.all([
     medicationStorage.getAll(),
     appointmentStorage.getAll(),
     healthProfileStorage.get(),
+    caregiverProfileStorage.get(),
     healthLogStorage.getByDate(today),
+    healthLogStorage.getByDate(today, "care_recipient"),
     symptomStorage.getByDate(today),
     hydrationStorage.getByDateRange(today, today),
     sickModeStorage.get(),
@@ -593,6 +742,7 @@ export async function syncWidgetSnapshot() {
     hydration,
     sickMode: buildSickModeSnapshot(sickMode, medications, logs),
     mentalHealth: buildMentalHealthSnapshot(mentalHealthMode),
+    caregiver: buildCaregiverWidgetSnapshot(caregiverProfile, medications, logs, caregiverTodayLog),
     updatedAt: new Date().toISOString(),
   };
 

@@ -561,7 +561,6 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
                   style={[styles.appearanceRow, isSelected && styles.appearanceRowActive]}
                   onPress={() => {
                     setSelectedAppearance(opt.id);
-                    void setThemeId(opt.id);
                     Haptics.selectionAsync();
                   }}
                   accessibilityRole="radio"
@@ -709,7 +708,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     (stepId === "role" && onboardingRole === "caregiver" && !onboardingCaredForName.trim());
 
   return (
-    <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
+    <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad, backgroundColor: previewColors.background }]}>
       <StatusBar barStyle={statusBarStyle} backgroundColor={previewColors.background} translucent={false} />
       <View style={styles.sliderWrap}>
         <Animated.View

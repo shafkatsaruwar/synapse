@@ -1228,6 +1228,10 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 12),
     paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
   };
+  const simpleContentPadding = {
+    paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : insets.top + 24),
+    paddingBottom: contentPadding.paddingBottom,
+  };
   const simpleModeBottomBleed = Platform.OS === "web" ? 108 : insets.bottom + 96;
   const fabBottom = Platform.OS === "web"
     ? (modeUI.isSimpleMode ? 132 : 148)
@@ -1272,7 +1276,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={[
-            contentPadding,
+            simpleContentPadding,
             styles.scrollViewContent,
           ]}
           showsVerticalScrollIndicator={false}

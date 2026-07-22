@@ -47,7 +47,7 @@ interface EmergencyCardScreenProps {
   onNavigate?: (screen: string) => void;
 }
 
-export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCardScreenProps) {
+export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { colors: C } = useTheme();
@@ -246,9 +246,6 @@ export default function EmergencyCardScreen({ onBack, onNavigate }: EmergencyCar
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Pressable onPress={onBack} style={styles.backBtn} accessibilityLabel="Go back">
-            <Ionicons name="arrow-back" size={24} color={C.text} />
-          </Pressable>
           <Text style={styles.title}>Emergency Card</Text>
           <Text style={styles.subtitle}>Create a card to show or share in an emergency</Text>
         </View>
@@ -463,7 +460,6 @@ function makeStyles(C: Theme) {
     container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 24 },
     header: { marginBottom: 24 },
-    backBtn: { marginBottom: 12, alignSelf: "flex-start" },
     title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
     subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginTop: 4 },
     section: { marginBottom: 24 },

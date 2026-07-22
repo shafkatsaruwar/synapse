@@ -15,6 +15,12 @@ import {
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { getHomeScreenBadgeCount } from "@/lib/nav-badge-counts";
+import {
+  reportMissedAppointmentIfNeeded,
+  reportMissedMedicationIfNeeded,
+  reportNoActivityIfNeeded,
+  reportSickModeActivatedIfNeeded,
+} from "@/lib/caregiver-linking";
 
 const REFILL_THRESHOLD = 5;
 const MEDICATION_CATEGORY = "MEDICATION_REMINDER";
@@ -116,6 +122,9 @@ export async function syncRecoveryTrackingCheckIn(): Promise<void> {
     ]);
     const recoveryActive = profile.recoveryTrackingEnabled === true || settings.sickMode === true || sickMode.active === true;
     if (!recoveryActive) return;
+    await reportSickModeActivatedIfNeeded().catch((error) => {
+      console.warn("Caregiver recovery mode report failed", error);
+    });
 
     const startedAtRaw = sickMode.startedAt || profile.recoveryTrackingStartedAt;
     if (!startedAtRaw) return;
@@ -660,6 +669,28 @@ function getScheduledDoseCount(med: Awaited<ReturnType<typeof medicationStorage.
   return Math.max(1, normalized.doses?.length ?? 1);
 }
 
+function reminderTimeToMinutes(value?: string): number | null {
+  if (!value) return null;
+  const [hourRaw, minuteRaw] = value.split(":");
+  const hour = Number.parseInt(hourRaw ?? "", 10);
+  const minute = Number.parseInt(minuteRaw ?? "", 10);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  return hour * 60 + minute;
+}
+
+function getDoseReminderTime(
+  med: Awaited<ReturnType<typeof medicationStorage.getAll>>[number],
+  doseIndex: number
+): { minutes: number; label: string } {
+  const normalized = normalizeMedication(med);
+  const dose = normalized.doses?.[doseIndex];
+  const fallback = DEFAULT_REMINDER_TIMES[dose?.timeOfDay ?? "Morning"] ?? DEFAULT_REMINDER_TIMES.Morning;
+  const fallbackMinutes = fallback.hour * 60 + fallback.minute;
+  const minutes = reminderTimeToMinutes(dose?.reminderTime) ?? fallbackMinutes;
+  const label = dose?.reminderTime ?? `${String(fallback.hour).padStart(2, "0")}:${String(fallback.minute).padStart(2, "0")}`;
+  return { minutes, label };
+}
+
 async function cancelMissedMedicationCheckIns(): Promise<void> {
   if (!isNative()) return;
   try {
@@ -682,17 +713,58 @@ async function syncMissedMedicationCheckIn(): Promise<void> {
       medicationStorage.getAll(),
       medicationLogStorage.getByDate(today),
     ]);
+    const settings = await settingsStorage.get();
     const scheduledMeds = meds.filter((med) => med.active !== false && med.medicationType !== "prn");
-    if (scheduledMeds.length === 0) return;
+    if (scheduledMeds.length === 0) {
+      await reportNoActivityIfNeeded().catch((error) => {
+        console.warn("Caregiver no-activity report failed", error);
+      });
+      return;
+    }
+    const currentMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+    const missedDoseEvents: Array<{
+      medicationId: string;
+      medicationName: string;
+      doseIndex: number;
+      doseLabel: string;
+      missedAt: string;
+    }> = [];
 
     const missedDoseCount = scheduledMeds
       .reduce((total, med) => {
         const doseCount = getScheduledDoseCount(med);
-        const takenCount = Array.from({ length: doseCount }, (_, doseIndex) =>
-          logs.some((log) => log.medicationId === med.id && (log.doseIndex ?? 0) === doseIndex && log.taken)
-        ).filter(Boolean).length;
-        return total + Math.max(0, doseCount - takenCount);
+        const missedForMed = Array.from({ length: doseCount }, (_, doseIndex) => {
+          const taken = logs.some((log) => log.medicationId === med.id && (log.doseIndex ?? 0) === doseIndex && log.taken);
+          const reminder = getDoseReminderTime(med, doseIndex);
+          const missed = !taken && reminder.minutes < currentMinutes;
+          if (missed) {
+            missedDoseEvents.push({
+              medicationId: med.id,
+              medicationName: med.name ?? "Medication",
+              doseIndex,
+              doseLabel: reminder.label,
+              missedAt: new Date().toISOString(),
+            });
+          }
+          return missed;
+        }).filter(Boolean).length;
+        return total + missedForMed;
       }, 0);
+
+    await Promise.all(
+      missedDoseEvents.map((event) =>
+        reportMissedMedicationIfNeeded({
+          patientName: settings.name,
+          ...event,
+        }).catch((error) => {
+          console.warn("Caregiver missed medication report failed", error);
+          return { reported: false, error };
+        })
+      )
+    );
+    await reportNoActivityIfNeeded().catch((error) => {
+      console.warn("Caregiver no-activity report failed", error);
+    });
 
     for (let dayOffset = 0; dayOffset < MISSED_MEDICATION_CHECK_IN_DAYS; dayOffset++) {
       if (dayOffset === 0 && missedDoseCount <= 0) continue;
@@ -1113,6 +1185,12 @@ export async function syncAllFromSettings(): Promise<void> {
         });
       }
     }
+    await reportMissedAppointmentIfNeeded().catch((error) => {
+      console.warn("Caregiver missed appointment report failed", error);
+    });
+    await reportNoActivityIfNeeded().catch((error) => {
+      console.warn("Caregiver no-activity report failed", error);
+    });
 
     if (!notifDaily) {
       await cancelNotification(NOTIFICATION_IDS.dailyCheckIn);

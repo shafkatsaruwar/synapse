@@ -6,12 +6,10 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Colors from "@/constants/colors";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { raised } from "@/constants/raised";
 import { conditionStorage, type HealthCondition } from "@/lib/storage";
 import conditionsDatabase from "@/constants/conditions.json";
-
-const C = Colors.dark;
 
 interface Props {
   onBack?: () => void;
@@ -21,6 +19,8 @@ export default function HealthProfileConditionsScreen({ onBack }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const { colors: C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const [conditions, setConditions] = useState<HealthCondition[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -343,7 +343,7 @@ export default function HealthProfileConditionsScreen({ onBack }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
   backBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 16, minHeight: 44 },
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
   addConditionText: { fontWeight: "600", fontSize: 15, color: C.tint },
 
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.68)", justifyContent: "center", alignItems: "center", padding: 24 },
-  modal: { width: "100%", maxWidth: 400, backgroundColor: "#1C1719", borderRadius: 20, padding: 20, maxHeight: "80%", ...raised("lg", "#24364F") },
+  modal: { width: "100%", maxWidth: 400, backgroundColor: C.surface, borderRadius: 20, padding: 20, maxHeight: "80%", ...raised("lg", C.text) },
   modalTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 16 },
 
   searchContainer: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.surfaceElevated, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: C.border, marginBottom: 12, ...raised("sm", "#6A7BA0") },
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
   cancelBtn: { alignItems: "center", paddingVertical: 14, marginTop: 8, minHeight: 44 },
   cancelText: { fontWeight: "600", fontSize: 15, color: C.textSecondary },
 
-  stressPromptCard: { width: "100%", maxWidth: 340, backgroundColor: "#1C1719", borderRadius: 20, padding: 24, alignItems: "center", ...raised("lg", "#24364F") },
+  stressPromptCard: { width: "100%", maxWidth: 340, backgroundColor: C.surface, borderRadius: 20, padding: 24, alignItems: "center", ...raised("lg", C.text) },
   stressPromptTitle: { fontWeight: "700", fontSize: 18, color: C.text, marginBottom: 8 },
   stressPromptText: { fontWeight: "400", fontSize: 14, color: C.textSecondary, textAlign: "center", lineHeight: 20, marginBottom: 24 },
   stressPromptActions: { flexDirection: "row", gap: 12, width: "100%" },

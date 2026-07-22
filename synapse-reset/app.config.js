@@ -22,7 +22,7 @@ module.exports = {
     version: "1.13",
     orientation: "default",
     icon: "./assets/icon.png",
-    scheme: "myapp",
+    scheme: ["synapse", "myapp"],
     userInterfaceStyle: "automatic",
     splash: {
       image: "./assets/splash-icon.png",
@@ -86,15 +86,11 @@ module.exports = {
     experiments: { typedRoutes: true },
     extra: {
       eas: { projectId: "2ae7d5f4-1514-408d-b1ec-250da7c8ccfa" },
-      // Hardcoded Supabase project config so EAS/TestFlight builds always have a URL/anon key,
-      // even if .env is missing at build time.
-      supabaseUrl: "https://rzorszhxnavzrgramzja.supabase.co",
-      supabaseAnonKey:
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6b3Jzemh4bmF2enJncmFtemphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNDU2MTAsImV4cCI6MjA4NzYyMTYxMH0.eKrR7ND2DcbrHEfRAanTWvvEUm8Zn9W-x-OQ8yav4GE",
+      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
+      supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
       apiUrl: (process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_APP_URL || "https://synapse-health.vercel.app").replace(/\/$/, ""),
-      EXPO_PUBLIC_SUPABASE_URL: "https://rzorszhxnavzrgramzja.supabase.co",
-      EXPO_PUBLIC_SUPABASE_ANON_KEY:
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6b3Jzemh4bmF2enJncmFtemphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNDU2MTAsImV4cCI6MjA4NzYyMTYxMH0.eKrR7ND2DcbrHEfRAanTWvvEUm8Zn9W-x-OQ8yav4GE",
+      EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
       EXPO_PUBLIC_APP_URL: (process.env.EXPO_PUBLIC_APP_URL ?? "https://synapse-health.vercel.app").replace(/\/$/, ""),
       EXPO_PUBLIC_API_URL: (process.env.EXPO_PUBLIC_API_URL ?? "https://synapse-health.vercel.app").replace(/\/$/, ""),
       EXPO_PUBLIC_DOMAIN: process.env.EXPO_PUBLIC_DOMAIN ?? "",

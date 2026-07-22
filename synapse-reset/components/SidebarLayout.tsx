@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Constants from "expo-constants";
 import { useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
+import { useRole } from "@/contexts/RoleContext";
 import GlassView from "@/components/GlassView";
 import { useSynapseHQPanel } from "@/components/SynapseHQPanel";
 import VisualScanImportModal from "@/screens/VisualScanImportModal";
@@ -46,6 +47,8 @@ const SIMPLE_NAV_ITEMS: NavItem[] = [
 
 const NAV_ITEMS: NavItem[] = [
   { key: "dashboard", label: "Dashboard", icon: "grid-outline", iconActive: "grid" },
+  { key: "caregiverdashboard", label: "Caregiver Dashboard", icon: "people-outline", iconActive: "people" },
+  { key: "managedperson", label: "Managed Person", icon: "accessibility-outline", iconActive: "accessibility" },
   { key: "log", label: "Daily Log", icon: "heart-outline", iconActive: "heart" },
   { key: "healthdata", label: "Vitals", icon: "analytics-outline", iconActive: "analytics" },
   { key: "medications", label: "Medications", icon: "medical-outline", iconActive: "medical" },
@@ -77,6 +80,7 @@ const MORE_ITEMS = NAV_ITEMS.filter((n) => !PRIMARY_KEYS.includes(n.key));
 
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
   { title: "Main", keys: ["dashboard"] },
+  { title: "Caregiver", keys: ["caregiverdashboard", "managedperson"] },
   { title: "Emergency", keys: ["emergency", "emergencycard"] },
   { title: "Primary", keys: ["log", "medications", "healthdata", "appointments", "symptoms"] },
   { title: "Diagnostics", keys: ["labwork", "imaging"] },
@@ -141,6 +145,7 @@ export default function SidebarLayout({
   ).current;
   const { signOut } = useAuth();
   const { colors: C, themeId } = useTheme();
+  const { role } = useRole();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
   const [developerModeActive, setDeveloperModeActive] = useState(false);
   const synapseHQ = useSynapseHQPanel(setDeveloperModeActive);
@@ -151,6 +156,10 @@ export default function SidebarLayout({
   const [badgeCounts, setBadgeCounts] = useState<NavBadgeCounts>({});
   const menuButtonRef = useRef<View>(null);
   const emergencyCardRef = useRef<View>(null);
+  const caregiverDashboardRef = useRef<View>(null);
+  const recordsGroupRef = useRef<View>(null);
+  const labWorkRef = useRef<View>(null);
+  const imagingRef = useRef<View>(null);
   const simpleNavRef = useRef<View>(null);
   const simpleAddFabRef = useRef<View>(null);
   const showUniversalAdd = activeScreen !== "medications" && activeScreen !== "cycletracking";
@@ -166,8 +175,18 @@ export default function SidebarLayout({
 
   useEffect(() => {
     if (!registerTarget || !unregisterTarget || !moreOpen) return;
-    registerTarget("emergencycard", () => measureInWindow(emergencyCardRef));
-    return () => unregisterTarget("emergencycard");
+    registerTarget("emergencycard-menu", () => measureInWindow(emergencyCardRef));
+    registerTarget("caregiverdashboard-menu", () => measureInWindow(caregiverDashboardRef));
+    registerTarget("records-menu", () => measureInWindow(recordsGroupRef));
+    registerTarget("labwork-menu", () => measureInWindow(labWorkRef));
+    registerTarget("imaging-menu", () => measureInWindow(imagingRef));
+    return () => {
+      unregisterTarget("emergencycard-menu");
+      unregisterTarget("caregiverdashboard-menu");
+      unregisterTarget("records-menu");
+      unregisterTarget("labwork-menu");
+      unregisterTarget("imaging-menu");
+    };
   }, [registerTarget, unregisterTarget, moreOpen]);
 
   useEffect(() => {
@@ -226,7 +245,7 @@ export default function SidebarLayout({
     };
   }, [moreOpen]);
 
-  const alwaysNavKeys = ["dashboard", "medications", "symptoms", "labwork", "imaging", "timeline", "settings", "privacy", "emergency", "emergencycard"];
+  const alwaysNavKeys = ["dashboard", "caregiverdashboard", "managedperson", "medications", "symptoms", "labwork", "imaging", "timeline", "settings", "privacy", "emergency", "emergencycard"];
   const enabledKeysSet = new Set(
     enabledSections !== undefined
       ? [...alwaysNavKeys, ...enabledSections]
@@ -420,7 +439,7 @@ export default function SidebarLayout({
           ]}
         >
           {Platform.OS === "web" ? (
-            <View style={[styles.mobileNav, styles.mobileNavFallback]}>
+            <View style={[styles.mobileNav, simpleMode && styles.mobileNavSimple, styles.mobileNavFallback]}>
               <View style={styles.mobileNavContent}>
                 {bottomNavItems.map((item) => {
                   const active = activeScreen === item.key;
@@ -441,13 +460,18 @@ export default function SidebarLayout({
                       <View style={styles.mobileNavIconWrap}>
                         <Ionicons
                           name={active ? item.iconActive : item.icon}
-                          size={24}
+                          size={simpleMode ? 22 : 24}
                           color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
                         />
                         {renderIconBadge(badgeCount)}
                       </View>
                       {simpleMode ? (
-                        <Text style={[styles.mobileNavLabel, active && styles.mobileNavLabelActive]}>
+                        <Text
+                          style={[styles.mobileNavLabel, active && styles.mobileNavLabelActive]}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.76}
+                        >
                           {item.label}
                         </Text>
                       ) : null}
@@ -457,7 +481,7 @@ export default function SidebarLayout({
               </View>
             </View>
           ) : (
-            <GlassView variant="nav" tint={themeId === "dark" ? "dark" : "light"} style={styles.mobileNav}>
+            <GlassView variant="nav" tint={themeId === "dark" ? "dark" : "light"} style={[styles.mobileNav, simpleMode && styles.mobileNavSimple]}>
               <View style={styles.mobileNavContent}>
                 {bottomNavItems.map((item) => {
                   const active = activeScreen === item.key;
@@ -478,13 +502,18 @@ export default function SidebarLayout({
                       <View style={styles.mobileNavIconWrap}>
                         <Ionicons
                           name={active ? item.iconActive : item.icon}
-                          size={24}
+                          size={simpleMode ? 22 : 24}
                           color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
                         />
                         {renderIconBadge(badgeCount)}
                       </View>
                       {simpleMode ? (
-                        <Text style={[styles.mobileNavLabel, active && styles.mobileNavLabelActive]}>
+                        <Text
+                          style={[styles.mobileNavLabel, active && styles.mobileNavLabelActive]}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.76}
+                        >
                           {item.label}
                         </Text>
                       ) : null}
@@ -598,36 +627,36 @@ export default function SidebarLayout({
             },
           ]}
         >
-          <View ref={simpleAddFabRef} collapsable={false}>
-            <Pressable
-              style={styles.simpleAddFab}
-              onPress={toggleSimpleAdd}
-              accessibilityRole="button"
-              accessibilityLabel={simpleAddOpen ? "Close quick add" : "Open quick add"}
-              accessibilityHint={simpleAddOpen ? "Close add options" : "Open scan and quick add options"}
+          <Pressable
+            ref={simpleAddFabRef}
+            collapsable={false}
+            style={styles.simpleAddFab}
+            onPress={toggleSimpleAdd}
+            accessibilityRole="button"
+            accessibilityLabel={simpleAddOpen ? "Close quick add" : "Open quick add"}
+            accessibilityHint={simpleAddOpen ? "Close add options" : "Open scan and quick add options"}
+          >
+            <Animated.View
+              style={{
+                transform: [
+                  {
+                    rotate: simpleAddFabSpin.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["0deg", "45deg"],
+                    }),
+                  },
+                  {
+                    scale: simpleAddFabSpin.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 1.04],
+                    }),
+                  },
+                ],
+              }}
             >
-              <Animated.View
-                style={{
-                  transform: [
-                    {
-                      rotate: simpleAddFabSpin.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ["0deg", "45deg"],
-                      }),
-                    },
-                    {
-                      scale: simpleAddFabSpin.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [1, 1.04],
-                      }),
-                    },
-                  ],
-                }}
-              >
-                <Ionicons name="add" size={30} color="#fff" />
-              </Animated.View>
-            </Pressable>
-          </View>
+              <Ionicons name="add" size={30} color="#fff" />
+            </Animated.View>
+          </Pressable>
         </View>
       </View>
       ) : null}
@@ -642,7 +671,7 @@ export default function SidebarLayout({
         }}
       />
 
-      {!simpleMode && !isWide && (
+      {(!simpleMode || walkthroughMenuOpen === true) && !isWide && (
       <Modal
           visible={moreOpen}
           transparent
@@ -697,28 +726,49 @@ export default function SidebarLayout({
                 </View>
 
                 {DRAWER_GROUPS.map((group, groupIndex) => {
+                  if (group.title === "Caregiver" && role !== "caregiver") return null;
                   const navItems = group.keys
                     .map((key) => NAV_ITEMS.find((n) => n.key === key))
                     .filter((n): n is NavItem => n != null && moreItemsFiltered.some((m) => m.key === n.key));
                   const items: NavItem[] = navItems;
                   if (items.length === 0) return null;
                   const isFirstGroup = groupIndex === 0;
+                  const isRecordsGroup = group.title === "Diagnostics";
                   return (
                     <View
                       key={group.title}
+                      ref={isRecordsGroup ? recordsGroupRef : undefined}
                       style={[styles.drawerGroup, isFirstGroup && styles.drawerGroupFirst]}
+                      collapsable={false}
                     >
                       <Text style={styles.drawerGroupTitle}>{group.title}</Text>
                       {items.map((item) => {
                         const isLogout = item.key === "logout";
                         const active = !isLogout && activeScreen === item.key;
                         const isEmergencyCard = item.key === "emergencycard";
+                        const isCaregiverDashboard = item.key === "caregiverdashboard";
+                        const isLabWork = item.key === "labwork";
+                        const isImaging = item.key === "imaging";
                         const dimmed = !isLogout && sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
                         const accentColor = sickMode ? C.red : C.accent;
                         const itemColor = active ? accentColor : C.textSecondary;
                         const badgeCount = getBadgeCount(item.key);
                         return (
-                          <View key={item.key} ref={isEmergencyCard ? emergencyCardRef : undefined} collapsable={false}>
+                          <View
+                            key={item.key}
+                            ref={
+                              isEmergencyCard
+                                ? emergencyCardRef
+                                : isCaregiverDashboard
+                                  ? caregiverDashboardRef
+                                  : isLabWork
+                                    ? labWorkRef
+                                    : isImaging
+                                      ? imagingRef
+                                      : undefined
+                            }
+                            collapsable={false}
+                          >
                             <Pressable
                               style={({ pressed }) => [
                                 styles.drawerRow,
@@ -895,6 +945,11 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       paddingHorizontal: 10,
       overflow: "hidden",
     },
+    mobileNavSimple: {
+      borderRadius: 28,
+      paddingVertical: 8,
+      paddingHorizontal: 8,
+    },
     mobileNavFallback: {
       backgroundColor: themeId === "light" ? "rgba(255,255,255,0.85)" : "rgba(28,28,30,0.9)",
       borderWidth: 1,
@@ -916,7 +971,9 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     },
     mobileNavItemSimple: {
       minWidth: 0,
-      gap: 4,
+      gap: 2,
+      paddingVertical: 6,
+      paddingHorizontal: 4,
     },
     mobileNavIconWrap: {
       position: "relative",
@@ -947,9 +1004,10 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     },
     mobileNavLabel: {
       fontWeight: "600",
-      fontSize: 11,
+      fontSize: 10,
       color: "#8E8E93",
       textAlign: "center",
+      maxWidth: "100%",
     },
     mobileNavLabelActive: {
       color: C.accent,

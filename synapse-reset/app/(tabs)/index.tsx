@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { View, StyleSheet, Alert, Platform, AppState, Linking, Modal, Pressable, Text, Animated, useWindowDimensions, Image } from "react-native";
+import TextInput from "@/components/DoneTextInput";
 import { useLocalSearchParams } from "expo-router";
 import Constants from "expo-constants";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -42,6 +43,8 @@ import EmergencyCardScreen from "@/screens/EmergencyCardScreen";
 import MeetFounderScreen from "@/screens/MeetFounderScreen";
 import FeedbackScreen from "@/screens/FeedbackScreen";
 import IcsImportPreviewScreen from "@/screens/IcsImportPreviewScreen";
+import CaregiverDashboardScreen from "@/screens/CaregiverDashboardScreen";
+import ManagedPersonScreen from "@/screens/ManagedPersonScreen";
 import {
   hydrationStorage,
   medicationLogStorage,
@@ -51,6 +54,7 @@ import {
   settingsStorage,
   sickModeStorage,
   type FeedbackSentiment,
+  type RecordOwner,
 } from "@/lib/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -76,6 +80,7 @@ import {
   trackFeedbackWidgetLaunch,
 } from "@/lib/feedback-service";
 import { useAppMode } from "@/contexts/AppModeContext";
+import { useRole } from "@/contexts/RoleContext";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { getPendingIcsImport, type IcsImportPayload } from "@/lib/ics-import";
 import { processPendingAppIntentActions } from "@/lib/app-intents";
@@ -328,6 +333,9 @@ export default function MainScreen() {
   const [feedbackInitialSentiment, setFeedbackInitialSentiment] = useState<FeedbackSentiment | null>(null);
   const [feedbackEntrySource, setFeedbackEntrySource] = useState<"settings" | "prompt">("settings");
   const [simpleAddMedicationToken, setSimpleAddMedicationToken] = useState(0);
+  const [simpleAddMedicationOwner, setSimpleAddMedicationOwner] = useState<RecordOwner>("self");
+  const [simpleAddMedicationReturnScreen, setSimpleAddMedicationReturnScreen] = useState("dashboard");
+  const [caregiverLaunchAction, setCaregiverLaunchAction] = useState<"log-med" | "add-note" | null>(null);
   const [simpleAddAppointmentToken, setSimpleAddAppointmentToken] = useState(0);
   const [calendarImportToken, setCalendarImportToken] = useState(0);
   const [simpleAddSymptomToken, setSimpleAddSymptomToken] = useState(0);
@@ -443,11 +451,20 @@ export default function MainScreen() {
       const queryTarget = parsed.searchParams.get("widgetTarget");
       const modeParam = parsed.searchParams.get("mode");
       const pathParts = parsed.pathname.split("/").filter(Boolean);
+      const synapseRouteId = parsed.protocol === "synapse:" ? pathParts[0] : undefined;
       const isAppointmentImportRoute =
         (parsed.host === "import" && pathParts[0]?.toLowerCase() === "appointment")
         || (pathParts[0]?.toLowerCase() === "import" && pathParts[1]?.toLowerCase() === "appointment");
       const route = (queryTarget || (parsed.host === "widget" ? pathParts[0] : parsed.host) || "").toLowerCase();
-      const normalizedRoute = route === "prn-log" ? "prnlog" : route === "daily-log" ? "logtoday" : route;
+      const normalizedRoute =
+        route === "prn-log" ? "prnlog"
+        : route === "daily-log" ? "logtoday"
+        : route === "sick-mode" ? "sickmode"
+        : route === "labs" ? "labwork"
+        : route === "monthly-review" ? "monthlycheckin"
+        : route === "recovery" ? "sickmode"
+        : route === "notes" ? "logtoday"
+        : route;
 
       if (isAppointmentImportRoute) {
         void (async () => {
@@ -476,7 +493,40 @@ export default function MainScreen() {
         return true;
       }
 
-      if (normalizedRoute === "medications" || normalizedRoute === "appointments" || normalizedRoute === "logtoday") {
+      if (normalizedRoute === "caregiverdashboard") {
+        if (modeParam === "log-med" || modeParam === "add-note") {
+          setCaregiverLaunchAction(modeParam);
+        }
+        setActiveScreen("caregiverdashboard");
+        setRefreshKey((k) => k + 1);
+        trackFeedbackWidgetLaunch().catch(() => {});
+        return true;
+      }
+
+      if (normalizedRoute === "dashboard") {
+        setActiveScreen("dashboard");
+        setRefreshKey((k) => k + 1);
+        trackFeedbackWidgetLaunch().catch(() => {});
+        return true;
+      }
+
+      if (normalizedRoute === "medications") {
+        setActiveScreen("medications");
+        if (synapseRouteId) void openMedicationPrompt(synapseRouteId);
+        setRefreshKey((k) => k + 1);
+        trackFeedbackWidgetLaunch().catch(() => {});
+        return true;
+      }
+
+      if (normalizedRoute === "appointments") {
+        if (synapseRouteId) setFocusedAppointmentId(synapseRouteId);
+        setActiveScreen("appointments");
+        setRefreshKey((k) => k + 1);
+        trackFeedbackWidgetLaunch().catch(() => {});
+        return true;
+      }
+
+      if (normalizedRoute === "logtoday" || normalizedRoute === "symptoms" || normalizedRoute === "labwork" || normalizedRoute === "imaging" || normalizedRoute === "monthlycheckin") {
         setActiveScreen(normalizedRoute);
         setRefreshKey((k) => k + 1);
         trackFeedbackWidgetLaunch().catch(() => {});
@@ -542,7 +592,7 @@ export default function MainScreen() {
     }
 
     return false;
-  }, [handlePrnWidgetLog, handleQuickSip, processQueuedAppIntentActions]);
+  }, [handlePrnWidgetLog, handleQuickSip, openMedicationPrompt, processQueuedAppIntentActions]);
 
   const handleIcsImportClose = useCallback(() => {
     setShowIcsImportPreview(false);
@@ -721,6 +771,8 @@ export default function MainScreen() {
 
   const handleQuickAddNavigate = useCallback((target: "medication" | "appointment" | "symptom" | "calendar" | "labwork" | "imaging") => {
     if (target === "medication") {
+      setSimpleAddMedicationOwner("self");
+      setSimpleAddMedicationReturnScreen("dashboard");
       setActiveScreen("medications");
       setSimpleAddMedicationToken((value) => value + 1);
       return;
@@ -750,7 +802,27 @@ export default function MainScreen() {
 
   const handleSimpleMedicationAddConsumed = useCallback(() => {
     setSimpleAddMedicationToken(0);
+    setSimpleAddMedicationOwner("self");
   }, []);
+
+  const handleAddMedicationForManagedPerson = useCallback(() => {
+    setSimpleAddMedicationOwner("care_recipient");
+    setSimpleAddMedicationReturnScreen("caregiverdashboard");
+    setActiveScreen("medications");
+    setSimpleAddMedicationToken((value) => value + 1);
+  }, []);
+
+  const handleOpenHydration = useCallback(() => {
+    setActiveScreen("eating");
+    setPendingHydrationLaunch(true);
+    setHydrationLaunchToken((value) => value + 1);
+  }, []);
+
+  const handleSimpleMedicationSaveComplete = useCallback(() => {
+    setActiveScreen(simpleAddMedicationReturnScreen);
+    setSimpleAddMedicationReturnScreen("dashboard");
+    setRefreshKey((k) => k + 1);
+  }, [simpleAddMedicationReturnScreen]);
 
   // Register navigate callback for notification tap routing
   useEffect(() => {
@@ -799,6 +871,16 @@ export default function MainScreen() {
 
     if (normalizedTarget === "prnlog" && resolvedMedId) {
       void handlePrnWidgetLog(resolvedMedId);
+      return;
+    }
+
+    if (normalizedTarget === "caregiverdashboard") {
+      if (targetMode === "log-med" || targetMode === "add-note") {
+        setCaregiverLaunchAction(targetMode);
+      }
+      setActiveScreen("caregiverdashboard");
+      setRefreshKey((k) => k + 1);
+      trackFeedbackWidgetLaunch().catch(() => {});
       return;
     }
 
@@ -968,13 +1050,23 @@ export default function MainScreen() {
 
   const handleWalkthroughStepEnter = useCallback(async (stepId: string | null) => {
     switch (stepId) {
+      case "home":
       case "medication":
       case "dailylog":
       case "appointments":
         setWalkthroughMenuOpen(false);
         setActiveScreen("dashboard");
         return;
-      case "menu":
+      case "quickadd":
+      case "sickmode":
+        setActiveScreen("dashboard");
+        setWalkthroughMenuOpen(false);
+        return;
+      case "caregiver":
+      case "records":
+      case "mentalhealth":
+      case "insights":
+      case "widgets":
         setActiveScreen("dashboard");
         setWalkthroughMenuOpen(true);
         return;
@@ -990,8 +1082,12 @@ export default function MainScreen() {
     }
   }, []);
 
-  const { colors: C } = useTheme();
-  const styles = useMemo(() => makeStyles(C), [C]);
+  const { colors: C, themeId } = useTheme();
+  const { caregiverProfile, needsCaregiverOnboarding, saveCaregiverProfile } = useRole();
+  const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
+  const [caregiverNameDraft, setCaregiverNameDraft] = useState("");
+  const [caregiverAgeDraft, setCaregiverAgeDraft] = useState("");
+  const [caregiverRelationDraft, setCaregiverRelationDraft] = useState("");
   const isLastSimpleTourStep = simpleModeTourStep === SIMPLE_MODE_TOUR_CARDS.length - 1;
   const medicationReminderModal = (
     <Modal
@@ -1001,7 +1097,7 @@ export default function MainScreen() {
       onRequestClose={() => setMedicationPrompt(null)}
     >
       <View style={styles.modalBackdrop}>
-        <View style={styles.feedbackPromptCard}>
+        <View style={styles.caregiverOnboardingCard}>
           <Text style={styles.feedbackPromptTitle}>Take this exact med</Text>
           <Text style={styles.feedbackPromptBody}>
             {medicationPrompt ? `${medicationPrompt.name}${medicationPrompt.dosage ? ` • ${medicationPrompt.dosage}` : ""}` : ""}
@@ -1021,6 +1117,70 @@ export default function MainScreen() {
               style={({ pressed }) => [styles.feedbackPromptSecondary, pressed && styles.whatsNewButtonPressed]}
             >
               <Text style={styles.feedbackPromptSecondaryText}>Not yet</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+  const caregiverOnboardingModal = (
+    <Modal
+      animationType="fade"
+      transparent
+      visible={needsCaregiverOnboarding}
+      onRequestClose={() => {}}
+    >
+      <View style={styles.caregiverModalBackdrop}>
+        <View style={styles.caregiverOnboardingCard}>
+          <Text style={styles.feedbackPromptTitle}>Set up caregiver mode</Text>
+          <Text style={styles.feedbackPromptBody}>Who are you managing care for?</Text>
+          <TextInput
+            style={styles.caregiverInput}
+            value={caregiverNameDraft}
+            onChangeText={setCaregiverNameDraft}
+            placeholder="Name"
+            placeholderTextColor={C.textTertiary}
+          />
+          <TextInput
+            style={styles.caregiverInput}
+            value={caregiverAgeDraft}
+            onChangeText={setCaregiverAgeDraft}
+            placeholder="Age"
+            placeholderTextColor={C.textTertiary}
+            keyboardType="number-pad"
+          />
+          <TextInput
+            style={styles.caregiverInput}
+            value={caregiverRelationDraft}
+            onChangeText={setCaregiverRelationDraft}
+            placeholder="Relation optional"
+            placeholderTextColor={C.textTertiary}
+          />
+          <View style={styles.feedbackPromptActions}>
+            <Pressable
+              onPress={async () => {
+                const name = caregiverNameDraft.trim();
+                if (!name) {
+                  Alert.alert("Name required", "Add the managed person’s name.");
+                  return;
+                }
+                await saveCaregiverProfile({
+                  name,
+                  age: caregiverAgeDraft.trim() ? Math.max(0, parseInt(caregiverAgeDraft, 10) || 0) : 0,
+                  relation: caregiverRelationDraft.trim() || undefined,
+                  medications: caregiverProfile?.medications ?? [],
+                  appointments: caregiverProfile?.appointments ?? [],
+                  logs: caregiverProfile?.logs ?? [],
+                });
+                setCaregiverNameDraft("");
+                setCaregiverAgeDraft("");
+                setCaregiverRelationDraft("");
+                setActiveScreen("caregiverdashboard");
+                setRefreshKey((k) => k + 1);
+              }}
+              style={({ pressed }) => [styles.feedbackPromptPrimary, pressed && styles.whatsNewButtonPressed]}
+            >
+              <Text style={styles.feedbackPromptPrimaryText}>Continue</Text>
             </Pressable>
           </View>
         </View>
@@ -1065,6 +1225,18 @@ export default function MainScreen() {
     switch (activeScreen) {
       case "dashboard":
         return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
+      case "caregiverdashboard":
+        return (
+          <CaregiverDashboardScreen
+            onNavigate={handleNavigate}
+            onAddMedicationForManagedPerson={handleAddMedicationForManagedPerson}
+            onOpenHydration={handleOpenHydration}
+            launchAction={caregiverLaunchAction}
+            onLaunchActionConsumed={() => setCaregiverLaunchAction(null)}
+          />
+        );
+      case "managedperson":
+        return <ManagedPersonScreen onBack={() => handleNavigate("caregiverdashboard")} />;
       case "log":
         return <DailyLogScreen key={refreshKey} />;
       case "logtoday":
@@ -1072,7 +1244,7 @@ export default function MainScreen() {
       case "healthdata":
         return <HealthDataScreen />;
       case "medications":
-        return <MedicationsScreen simpleOpenAddToken={simpleAddMedicationToken} onSimpleOpenAddConsumed={handleSimpleMedicationAddConsumed} onSimpleSaveComplete={handleSimpleSaveReturnToDashboard} />;
+        return <MedicationsScreen simpleOpenAddToken={simpleAddMedicationToken} simpleOpenAddOwner={simpleAddMedicationOwner} onSimpleOpenAddConsumed={handleSimpleMedicationAddConsumed} onSimpleSaveComplete={handleSimpleMedicationSaveComplete} />;
       case "symptoms":
         return <SymptomsScreen onActivateSickMode={handleActivateSickMode} simpleOpenAddToken={simpleAddSymptomToken} />;
       case "documents":
@@ -1132,9 +1304,9 @@ export default function MainScreen() {
       case "cycletracking":
         return <CycleTrackingScreen onBack={() => handleNavigate("settings")} />;
       case "emergency":
-        return <EmergencyProtocolScreen onBack={() => handleNavigate("settings")} />;
+        return <EmergencyProtocolScreen onBack={() => handleNavigate("dashboard")} />;
       case "emergencycard":
-        return <EmergencyCardScreen onBack={() => handleNavigate("settings")} onNavigate={handleNavigate} />;
+        return <EmergencyCardScreen onBack={() => handleNavigate("dashboard")} onNavigate={handleNavigate} />;
       case "editprofile":
         return (
           <EditProfileScreen
@@ -1215,6 +1387,7 @@ export default function MainScreen() {
             }}
           />
           {simpleModeTourOverlay}
+          {caregiverOnboardingModal}
           {medicationReminderModal}
           <Modal
             animationType="fade"
@@ -1297,6 +1470,7 @@ export default function MainScreen() {
           }}
         />
         {simpleModeTourOverlay}
+        {caregiverOnboardingModal}
         {medicationReminderModal}
         <IcsImportPreviewScreen
           visible={showIcsImportPreview}
@@ -1368,7 +1542,10 @@ export default function MainScreen() {
   );
 }
 
-function makeStyles(C: Theme) {
+function makeStyles(C: Theme, themeId: string) {
+  const solidSurface = themeId === "dark" ? "#191416" : themeId === "light" ? "#FFFFFF" : "#FFF9F1";
+  const solidElevated = themeId === "dark" ? "#241F22" : themeId === "light" ? "#FFFFFF" : "#FFFCF7";
+  const modalBorder = themeId === "dark" ? "rgba(255,250,247,0.16)" : "rgba(255,255,255,0.92)";
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -1382,27 +1559,33 @@ function makeStyles(C: Theme) {
     },
     modalBackdrop: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.28)",
+      backgroundColor: themeId === "dark" ? "rgba(0,0,0,0.76)" : "rgba(10,12,12,0.52)",
+      justifyContent: "center",
+      paddingHorizontal: 22,
+    },
+    caregiverModalBackdrop: {
+      flex: 1,
+      backgroundColor: themeId === "dark" ? "rgba(0,0,0,0.74)" : "rgba(13,11,12,0.54)",
       justifyContent: "center",
       paddingHorizontal: 22,
     },
     simpleTourCard: {
-      backgroundColor: C.surface,
+      backgroundColor: solidSurface,
       borderRadius: 28,
       paddingHorizontal: 24,
       paddingTop: 24,
       paddingBottom: 20,
       borderWidth: 1,
-      borderColor: C.borderLight,
+      borderColor: modalBorder,
       gap: 14,
       shadowColor: "#000",
-      shadowOpacity: 0.12,
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 10 },
-      elevation: 8,
+      shadowOpacity: 0.2,
+      shadowRadius: 22,
+      shadowOffset: { width: 0, height: 12 },
+      elevation: 12,
     },
     simpleTourDim: {
-      backgroundColor: "rgba(0,0,0,0.30)",
+      backgroundColor: themeId === "dark" ? "rgba(0,0,0,0.72)" : "rgba(10,12,12,0.50)",
     },
     simpleTourSpotlight: {
       position: "absolute",
@@ -1426,12 +1609,12 @@ function makeStyles(C: Theme) {
     simpleTourArrowUp: {
       top: -SIMPLE_TOUR_ARROW_SIZE,
       borderBottomWidth: SIMPLE_TOUR_ARROW_SIZE,
-      borderBottomColor: C.surface,
+      borderBottomColor: solidSurface,
     },
     simpleTourArrowDown: {
       bottom: -SIMPLE_TOUR_ARROW_SIZE,
       borderTopWidth: SIMPLE_TOUR_ARROW_SIZE,
-      borderTopColor: C.surface,
+      borderTopColor: solidSurface,
     },
     simpleTourDots: {
       flexDirection: "row",
@@ -1482,9 +1665,9 @@ function makeStyles(C: Theme) {
       flex: 1,
       minHeight: 52,
       borderRadius: 18,
-      backgroundColor: C.surfaceElevated,
+      backgroundColor: solidElevated,
       borderWidth: 1,
-      borderColor: C.borderLight,
+      borderColor: modalBorder,
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: 18,
@@ -1500,34 +1683,49 @@ function makeStyles(C: Theme) {
       color: C.text,
     },
     whatsNewCard: {
-      backgroundColor: C.surface,
+      backgroundColor: solidSurface,
       borderRadius: 28,
       paddingHorizontal: 24,
       paddingTop: 24,
       paddingBottom: 20,
       borderWidth: 1,
-      borderColor: C.borderLight,
+      borderColor: modalBorder,
       gap: 12,
       shadowColor: "#000",
-      shadowOpacity: 0.12,
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 10 },
-      elevation: 8,
+      shadowOpacity: 0.2,
+      shadowRadius: 22,
+      shadowOffset: { width: 0, height: 12 },
+      elevation: 12,
     },
     feedbackPromptCard: {
-      backgroundColor: C.surface,
+      backgroundColor: solidSurface,
       borderRadius: 26,
       paddingHorizontal: 24,
       paddingTop: 24,
       paddingBottom: 18,
       borderWidth: 1,
-      borderColor: C.borderLight,
+      borderColor: modalBorder,
       gap: 14,
       shadowColor: "#000",
-      shadowOpacity: 0.12,
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 10 },
-      elevation: 8,
+      shadowOpacity: 0.2,
+      shadowRadius: 22,
+      shadowOffset: { width: 0, height: 12 },
+      elevation: 12,
+    },
+    caregiverOnboardingCard: {
+      backgroundColor: solidSurface,
+      borderRadius: 26,
+      paddingHorizontal: 24,
+      paddingTop: 24,
+      paddingBottom: 18,
+      borderWidth: 1,
+      borderColor: modalBorder,
+      gap: 14,
+      shadowColor: "#000",
+      shadowOpacity: 0.16,
+      shadowRadius: 22,
+      shadowOffset: { width: 0, height: 12 },
+      elevation: 12,
     },
     feedbackPromptTitle: {
       fontSize: 28,
@@ -1545,7 +1743,18 @@ function makeStyles(C: Theme) {
       width: "100%",
       height: 180,
       borderRadius: 20,
-      backgroundColor: C.surfaceElevated,
+      backgroundColor: solidElevated,
+    },
+    caregiverInput: {
+      borderWidth: 1,
+      borderColor: C.borderLight,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      backgroundColor: solidElevated,
+      color: C.text,
+      fontSize: 16,
+      fontWeight: "700",
     },
     feedbackPromptActions: {
       gap: 12,
@@ -1567,9 +1776,9 @@ function makeStyles(C: Theme) {
     feedbackPromptSecondary: {
       minHeight: 54,
       borderRadius: 18,
-      backgroundColor: C.surfaceElevated,
+      backgroundColor: solidElevated,
       borderWidth: 1,
-      borderColor: C.borderLight,
+      borderColor: modalBorder,
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: 18,
@@ -1640,9 +1849,9 @@ function makeStyles(C: Theme) {
       flex: 1,
       minHeight: 52,
       borderRadius: 18,
-      backgroundColor: C.surfaceElevated,
+      backgroundColor: solidElevated,
       borderWidth: 1,
-      borderColor: C.borderLight,
+      borderColor: modalBorder,
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: 18,

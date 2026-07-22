@@ -260,7 +260,7 @@ export default function SymptomsScreen({ onActivateSickMode, simpleOpenAddToken 
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={[styles.content, styles.simpleContent, {
-            paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
+            paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : insets.top + 24),
             paddingBottom: isWide ? 56 : (Platform.OS === "web" ? 148 : insets.bottom + 140),
           }]}
           showsVerticalScrollIndicator={false}

@@ -10,6 +10,7 @@ import {
   ScrollView,
   Alert,
   Image,
+  Share,
 } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import * as ImagePicker from "expo-image-picker";
@@ -42,12 +43,21 @@ import {
   type WidgetAppearancePreference,
   type AppMode,
 } from "@/lib/storage";
+import { useRole } from "@/contexts/RoleContext";
 import { getToday } from "@/lib/date-utils";
 import { isCurrentMonthRamadan } from "@/lib/hijri";
 import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { raised } from "@/constants/raised";
 import { getCloudKitBackupStatus, restoreFromICloud, saveToICloud } from "@/lib/cloudkit-backup";
+import {
+  generatePatientLinkCode,
+  getCaregiverLinkState,
+  linkCaregiverWithCode,
+  sendCaregiverReminder,
+  unlinkCaregiverUser,
+  type CaregiverLinkState,
+} from "@/lib/caregiver-linking";
 
 const SECTION_LABELS: Record<string, string> = {
   log: "Daily Log", healthdata: "Vitals", medications: "Medications", symptoms: "Symptoms",
@@ -93,6 +103,14 @@ const SIMPLE_TEXT_SIZE_OPTIONS: { id: TextSizeSetting; label: string }[] = [
 ];
 
 type CloudKitStatus = Awaited<ReturnType<typeof getCloudKitBackupStatus>>;
+type CaregiverOnboardingStep =
+  | "entry"
+  | "role"
+  | "patient-trust"
+  | "patient-code"
+  | "caregiver-intent"
+  | "caregiver-code"
+  | "confirmation";
 
 const PROFILE_IMAGE_DIR = `${FileSystem.documentDirectory ?? ""}profile-images/`;
 
@@ -149,9 +167,11 @@ export default function SettingsScreen({
   const isWide = width >= 768;
   const { user } = useAuth();
   const { appMode, setAppMode } = useAppMode();
+  const { role: activeRole, caregiverProfile, setRole, saveCaregiverProfile } = useRole();
   const { textSize, setTextSize, textScale } = useDisplaySettings();
   const { colors: C, preference, setThemeId, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
+  const authUserId = (user as { id?: string } | null)?.id ?? null;
 
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
   const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", widgetAppearance: "system", backupCriticalMedications: [] });
@@ -172,6 +192,14 @@ export default function SettingsScreen({
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [cloudStatus, setCloudStatus] = useState<CloudKitStatus | null>(null);
   const [cloudBusy, setCloudBusy] = useState(false);
+  const [caregiverLinkState, setCaregiverLinkState] = useState<CaregiverLinkState | null>(null);
+  const [caregiverLinkBusy, setCaregiverLinkBusy] = useState(false);
+  const [caregiverCodeCopied, setCaregiverCodeCopied] = useState(false);
+  const [caregiverCodeNow, setCaregiverCodeNow] = useState(Date.now());
+  const [showCaregiverOnboarding, setShowCaregiverOnboarding] = useState(false);
+  const [caregiverOnboardingStep, setCaregiverOnboardingStep] = useState<CaregiverOnboardingStep>("entry");
+  const [caregiverOnboardingCode, setCaregiverOnboardingCode] = useState("");
+  const [caregiverOnboardingError, setCaregiverOnboardingError] = useState("");
 
   const handleResetApp = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -214,9 +242,28 @@ export default function SettingsScreen({
     getCloudKitBackupStatus().then(setCloudStatus).catch(() => {});
   }, []);
 
+  const refreshCaregiverLinkState = useCallback(() => {
+    getCaregiverLinkState(authUserId).then(setCaregiverLinkState).catch(() => setCaregiverLinkState(null));
+  }, [authUserId]);
+
   useEffect(() => {
     refreshCloudStatus();
   }, [refreshCloudStatus]);
+
+  useEffect(() => {
+    refreshCaregiverLinkState();
+  }, [refreshCaregiverLinkState, activeRole, profile.userRole]);
+
+  useEffect(() => {
+    const interval = setInterval(refreshCaregiverLinkState, 5000);
+    return () => clearInterval(interval);
+  }, [refreshCaregiverLinkState]);
+
+  useEffect(() => {
+    if (!caregiverLinkState?.pendingCode) return undefined;
+    const interval = setInterval(() => setCaregiverCodeNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [caregiverLinkState?.pendingCode]);
 
   useEffect(() => {
     if ((openAppearanceModalToken ?? 0) > 0) {
@@ -316,6 +363,7 @@ export default function SettingsScreen({
 
   const updateRole = async (role: UserRole) => {
     setRoleDetailsEditing(false);
+    await setRole(role);
     await handleSaveProfile({ ...profile, userRole: role });
   };
 
@@ -325,17 +373,33 @@ export default function SettingsScreen({
 
   const handleBackupNow = async () => {
     Haptics.selectionAsync();
+    if (cloudStatus && !cloudStatus.available) {
+      Alert.alert(
+        "CloudKit unavailable",
+        cloudStatus.accountStatus === "native_bridge_missing"
+          ? "CloudKit needs a native iOS build. Expo Go cannot access Synapse’s iCloud container."
+          : cloudStatus.accountStatus === "no_account"
+            ? "Sign in to iCloud on this device, then try again."
+            : "CloudKit is not available right now. Synapse will keep your data local until iCloud is ready.",
+      );
+      return;
+    }
     setCloudBusy(true);
     try {
       const result = await saveToICloud();
       refreshCloudStatus();
       if (result.skipped) {
-        Alert.alert("iCloud unavailable", "Synapse will keep working offline and try again later.");
+        Alert.alert(
+          "iCloud backup unavailable",
+          "Synapse needs a native iOS build to save private app data to iCloud. Expo Go cannot access this app’s iCloud container.",
+        );
       } else if (result.error) {
-        Alert.alert("Backup unavailable", "Could not reach iCloud right now. Synapse will try again later.");
+        Alert.alert("iCloud backup failed", result.error.message);
       } else {
-        Alert.alert("Backed up", "Your Synapse data is saved privately in iCloud.");
+        Alert.alert("Backed up", "Your latest Synapse backup is saved privately in iCloud.");
       }
+    } catch (error) {
+      Alert.alert("Backup failed", error instanceof Error ? error.message : "Could not save a backup right now.");
     } finally {
       setCloudBusy(false);
     }
@@ -343,9 +407,20 @@ export default function SettingsScreen({
 
   const handleRestoreCloudKit = () => {
     Haptics.selectionAsync();
+    if (cloudStatus && !cloudStatus.available) {
+      Alert.alert(
+        "CloudKit unavailable",
+        cloudStatus.accountStatus === "native_bridge_missing"
+          ? "CloudKit needs a native iOS build. Expo Go cannot access Synapse’s iCloud container."
+          : cloudStatus.accountStatus === "no_account"
+            ? "Sign in to iCloud on this device, then try again."
+            : "CloudKit is not available right now. No file picker fallback will be used.",
+      );
+      return;
+    }
     Alert.alert(
       "Restore from iCloud?",
-      "If iCloud has newer Synapse data, it will replace the local data on this device.",
+      "Synapse will find your latest private iCloud backup and restore it on this device.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -354,18 +429,23 @@ export default function SettingsScreen({
           onPress: async () => {
             setCloudBusy(true);
             try {
-              const result = await restoreFromICloud({ uploadLocalIfNewer: false });
+              const result = await restoreFromICloud({ uploadLocalIfNewer: false, forceRestoreLatest: true });
               await loadData();
               onRestoreComplete?.();
               syncWidgetSnapshot().catch(() => {});
               refreshCloudStatus();
               if (result.restored) {
-                Alert.alert("Restored", "Your iCloud backup has been restored.");
+                Alert.alert("Restored", "Your latest iCloud backup has been restored.");
               } else if (result.error) {
-                Alert.alert("Restore unavailable", "Could not reach iCloud right now.");
+                Alert.alert("iCloud restore failed", result.error.message);
               } else {
-                Alert.alert("Already current", "No newer iCloud backup was found.");
+                Alert.alert(
+                  "No iCloud backup found",
+                  "Synapse could not find a private iCloud backup for this Apple ID yet.",
+                );
               }
+            } catch (error) {
+              Alert.alert("Restore failed", error instanceof Error ? error.message : "Could not restore right now.");
             } finally {
               setCloudBusy(false);
             }
@@ -373,6 +453,122 @@ export default function SettingsScreen({
         },
       ]
     );
+  };
+
+  const openCaregiverOnboarding = () => {
+    setCaregiverOnboardingStep("entry");
+    setCaregiverOnboardingCode("");
+    setCaregiverOnboardingError("");
+    setShowCaregiverOnboarding(true);
+    Haptics.selectionAsync().catch(() => {});
+  };
+
+  const closeCaregiverOnboarding = () => {
+    setShowCaregiverOnboarding(false);
+    setCaregiverOnboardingError("");
+  };
+
+  const preparePatientCaregiverCode = async () => {
+    setCaregiverLinkBusy(true);
+    setCaregiverOnboardingError("");
+    try {
+      if (activeRole !== "self" || profile.userRole !== "self") {
+        await updateRole("self");
+      }
+      const result = await generatePatientLinkCode(authUserId);
+      if (result.error || !result.code) {
+        setCaregiverOnboardingError(result.error?.message ?? "We couldn’t create a code. Try again.");
+        return;
+      }
+      await refreshCaregiverLinkState();
+      setCaregiverCodeNow(Date.now());
+      setCaregiverOnboardingStep("patient-code");
+    } finally {
+      setCaregiverLinkBusy(false);
+    }
+  };
+
+  const completeCaregiverOnboardingLink = async () => {
+    if (caregiverOnboardingCode.trim().length !== 6) return;
+    setCaregiverLinkBusy(true);
+    setCaregiverOnboardingError("");
+    try {
+      const result = await linkCaregiverWithCode(caregiverOnboardingCode, authUserId);
+      if (result.error) {
+        setCaregiverOnboardingError(result.error.message);
+        return;
+      }
+      if (activeRole !== "caregiver" || profile.userRole !== "caregiver") {
+        await updateRole("caregiver");
+      }
+      await refreshCaregiverLinkState();
+      setCaregiverOnboardingStep("confirmation");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } finally {
+      setCaregiverLinkBusy(false);
+    }
+  };
+
+  const caregiverShareMessage = (code: string) =>
+    `Hey, I’m using Synapse to stay on track with my health.\n\nHere’s my connection code: ${code}\nIt expires in 15 minutes.\n\nOpen Synapse → Caregiver → Enter code`;
+
+  const handleShareCaregiverCode = async () => {
+    const code = caregiverLinkState?.pendingCode;
+    if (!code) return;
+    await Haptics.selectionAsync().catch(() => {});
+    await Share.share({ message: caregiverShareMessage(code) });
+  };
+
+  const handleCopyCaregiverCode = async () => {
+    const code = caregiverLinkState?.pendingCode;
+    if (!code) return;
+    try {
+      const Clipboard = await import("expo-clipboard");
+      await Clipboard.setStringAsync(code);
+      setCaregiverCodeCopied(true);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setTimeout(() => setCaregiverCodeCopied(false), 1800);
+    } catch {
+      await Share.share({ message: code });
+    }
+  };
+
+  const handleUnlinkCaregiverUser = (targetUserId: string) => {
+    Alert.alert("Unlink caregiver connection?", "Missed-medication sharing will stop for this connection.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Unlink",
+        style: "destructive",
+        onPress: async () => {
+          setCaregiverLinkBusy(true);
+          try {
+            const result = await unlinkCaregiverUser(targetUserId, authUserId);
+            if (result.error) {
+              Alert.alert("Could not unlink", result.error.message);
+              return;
+            }
+            await refreshCaregiverLinkState();
+          } finally {
+            setCaregiverLinkBusy(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleSendCaregiverReminder = async (patientUserId: string) => {
+    Haptics.selectionAsync();
+    setCaregiverLinkBusy(true);
+    try {
+      const result = await sendCaregiverReminder(patientUserId, "Don't forget your medication", authUserId);
+      if (result.error) {
+        Alert.alert("Could not send reminder", result.error.message);
+        return;
+      }
+      Alert.alert("Reminder sent", "We sent a medication reminder.");
+    } finally {
+      setCaregiverLinkBusy(false);
+    }
   };
 
   const dateObj = new Date();
@@ -399,6 +595,16 @@ export default function SettingsScreen({
       backupEmergencyProtocols: undefined,
       backupCriticalMedications: profile.backupCriticalMedications ?? [],
     });
+    if (profile.userRole === "caregiver") {
+      await saveCaregiverProfile({
+        name: profile.caredForName?.trim() || caregiverProfile?.name || "",
+        age: profile.caredForAge ?? caregiverProfile?.age ?? 0,
+        relation: caregiverProfile?.relation,
+        medications: caregiverProfile?.medications ?? [],
+        appointments: caregiverProfile?.appointments ?? [],
+        logs: caregiverProfile?.logs ?? [],
+      });
+    }
     setRoleDetailsEditing(false);
   };
 
@@ -408,6 +614,14 @@ export default function SettingsScreen({
       caredForAge: profile.caredForAge != null ? profile.caredForAge : undefined,
       backupEmergencyProtocols: profile.backupEmergencyProtocols,
       backupCriticalMedications: profile.backupCriticalMedications ?? [],
+    });
+    await saveCaregiverProfile({
+      name: profile.caredForName?.trim() || caregiverProfile?.name || "",
+      age: profile.caredForAge ?? caregiverProfile?.age ?? 0,
+      relation: caregiverProfile?.relation,
+      medications: caregiverProfile?.medications ?? [],
+      appointments: caregiverProfile?.appointments ?? [],
+      logs: caregiverProfile?.logs ?? [],
     });
     setRoleDetailsEditing(false);
   };
@@ -419,6 +633,10 @@ export default function SettingsScreen({
     paddingTop: isWide ? 28 : Platform.OS === "web" ? 40 : 12,
     paddingBottom: isWide ? 40 : Platform.OS === "web" ? 118 : insets.bottom + 100,
     paddingHorizontal: 24,
+  };
+  const simpleContentPadding = {
+    ...contentPadding,
+    paddingTop: isWide ? 28 : Platform.OS === "web" ? 40 : insets.top + 24,
   };
 
   const shortcutCardMap = {
@@ -546,13 +764,297 @@ export default function SettingsScreen({
   const simpleSectionTitleSize = Math.round(20 * textScale);
   const simpleBodySize = Math.round(17 * textScale);
   const simpleActionSize = Math.round(16 * textScale);
+  const currentLinkRole: "patient" | "caregiver" = activeRole === "caregiver" || profile.userRole === "caregiver" ? "caregiver" : "patient";
+  const linkedUsers = caregiverLinkState?.linkedUsers ?? [];
+  const hasLinkedUsers = linkedUsers.length > 0;
+  const linkCodeExpiresMs = caregiverLinkState?.pendingCodeExpiresAt ? new Date(caregiverLinkState.pendingCodeExpiresAt).getTime() : 0;
+  const linkCodeSecondsLeft = linkCodeExpiresMs ? Math.max(0, Math.ceil((linkCodeExpiresMs - caregiverCodeNow) / 1000)) : 0;
+  const linkCodeExpired = Boolean(caregiverLinkState?.pendingCode && linkCodeExpiresMs && linkCodeSecondsLeft <= 0);
+  const linkCodeCountdownLabel = caregiverLinkState?.pendingCode
+    ? linkCodeExpired
+      ? "Expired"
+      : `Expires in ${Math.floor(linkCodeSecondsLeft / 60)}:${String(linkCodeSecondsLeft % 60).padStart(2, "0")}`
+    : "";
+
+  const caregiverOnboardingBack = () => {
+    setCaregiverOnboardingError("");
+    if (caregiverOnboardingStep === "role") setCaregiverOnboardingStep("entry");
+    else if (caregiverOnboardingStep === "patient-trust" || caregiverOnboardingStep === "caregiver-intent") setCaregiverOnboardingStep("role");
+    else if (caregiverOnboardingStep === "patient-code") setCaregiverOnboardingStep("patient-trust");
+    else if (caregiverOnboardingStep === "caregiver-code") setCaregiverOnboardingStep("caregiver-intent");
+  };
+
+  const caregiverOnboardingModal = (
+    <Modal visible={showCaregiverOnboarding} transparent animationType="fade" onRequestClose={closeCaregiverOnboarding}>
+      <View style={styles.caregiverOnboardingOverlay}>
+        <ScrollView
+          style={styles.caregiverOnboardingModal}
+          contentContainerStyle={styles.caregiverOnboardingModalContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.caregiverOnboardingTopRow}>
+            {caregiverOnboardingStep !== "entry" && caregiverOnboardingStep !== "confirmation" ? (
+              <Pressable style={styles.caregiverOnboardingIconButton} onPress={caregiverOnboardingBack} accessibilityLabel="Back">
+                <Ionicons name="arrow-back" size={21} color={C.text} />
+              </Pressable>
+            ) : <View style={styles.caregiverOnboardingIconButton} />}
+            <Pressable style={styles.caregiverOnboardingIconButton} onPress={closeCaregiverOnboarding} accessibilityLabel="Close">
+              <Ionicons name="close" size={22} color={C.textSecondary} />
+            </Pressable>
+          </View>
+
+          {caregiverOnboardingStep === "entry" ? (
+            <>
+              <View style={styles.caregiverOnboardingHeroIcon}>
+                <Ionicons name="heart-outline" size={28} color={C.tint} />
+              </View>
+              <Text style={styles.caregiverOnboardingTitle}>Stay connected to care</Text>
+              <Text style={styles.caregiverOnboardingBody}>
+                Share the moments that matter, like missed medication, check-ins, and sick mode, with someone you trust.
+              </Text>
+              <View style={styles.caregiverTrustCallout}>
+                <Ionicons name="shield-checkmark-outline" size={20} color={C.green} />
+                <Text style={styles.caregiverTrustCalloutText}>You stay in control and can unlink anytime.</Text>
+              </View>
+              <Pressable style={styles.caregiverOnboardingPrimary} onPress={() => setCaregiverOnboardingStep("role")}>
+                <Text style={styles.caregiverOnboardingPrimaryText}>Add someone</Text>
+              </Pressable>
+              <Pressable style={styles.caregiverOnboardingTextButton} onPress={closeCaregiverOnboarding}>
+                <Text style={styles.caregiverOnboardingTextButtonText}>Skip</Text>
+              </Pressable>
+            </>
+          ) : null}
+
+          {caregiverOnboardingStep === "role" ? (
+            <>
+              <Text style={styles.caregiverOnboardingTitle}>How do you want to connect?</Text>
+              <Text style={styles.caregiverOnboardingBody}>Choose the option that fits you. You can change this later.</Text>
+              <Pressable
+                style={styles.caregiverRoleChoice}
+                onPress={() => {
+                  setCaregiverOnboardingStep("patient-trust");
+                }}
+              >
+                <View style={styles.caregiverRoleChoiceIcon}><Ionicons name="person-outline" size={22} color={C.tint} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.caregiverRoleChoiceTitle}>I want a caregiver</Text>
+                  <Text style={styles.caregiverRoleChoiceBody}>Invite someone you trust to receive important alerts.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={19} color={C.textTertiary} />
+              </Pressable>
+              <Pressable
+                style={styles.caregiverRoleChoice}
+                onPress={() => {
+                  setCaregiverOnboardingStep("caregiver-intent");
+                }}
+              >
+                <View style={styles.caregiverRoleChoiceIcon}><Ionicons name="people-outline" size={22} color={C.tint} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.caregiverRoleChoiceTitle}>I’m helping someone</Text>
+                  <Text style={styles.caregiverRoleChoiceBody}>Connect with a patient using their private code.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={19} color={C.textTertiary} />
+              </Pressable>
+            </>
+          ) : null}
+
+          {caregiverOnboardingStep === "patient-trust" ? (
+            <>
+              <View style={styles.caregiverOnboardingHeroIcon}><Ionicons name="lock-closed-outline" size={27} color={C.tint} /></View>
+              <Text style={styles.caregiverOnboardingTitle}>Your health stays yours</Text>
+              <Text style={styles.caregiverOnboardingBody}>Your caregiver only receives important alerts. Synapse does not share your full logs or detailed history.</Text>
+              {["Only important care alerts", "No full health-data sharing", "Unlink whenever you want"].map((label) => (
+                <View key={label} style={styles.caregiverBenefitRow}>
+                  <Ionicons name="checkmark-circle" size={20} color={C.green} />
+                  <Text style={styles.caregiverBenefitText}>{label}</Text>
+                </View>
+              ))}
+              {caregiverOnboardingError ? <Text style={styles.caregiverOnboardingError}>{caregiverOnboardingError}</Text> : null}
+              <Pressable style={[styles.caregiverOnboardingPrimary, caregiverLinkBusy && { opacity: 0.55 }]} onPress={preparePatientCaregiverCode} disabled={caregiverLinkBusy}>
+                <Text style={styles.caregiverOnboardingPrimaryText}>{caregiverLinkBusy ? "Creating code..." : "Create approval code"}</Text>
+              </Pressable>
+            </>
+          ) : null}
+
+          {caregiverOnboardingStep === "patient-code" ? (
+            <>
+              <Text style={styles.caregiverOnboardingTitle}>Share this private code</Text>
+              <Text style={styles.caregiverOnboardingBody}>Send it only to the person you want as your caregiver.</Text>
+              <View style={[styles.caregiverOnboardingCodeBox, linkCodeExpired && styles.linkCodeBoxExpired]}>
+                <Text style={[styles.caregiverOnboardingCode, linkCodeExpired && styles.linkCodeTextExpired]}>{caregiverLinkState?.pendingCode ?? "------"}</Text>
+                <Text style={styles.linkCodeMeta}>{linkCodeCountdownLabel}</Text>
+              </View>
+              <Text style={styles.caregiverOnboardingPrivacy}>This code expires in 15 minutes for your privacy.</Text>
+              <View style={styles.caregiverOnboardingActionRow}>
+                <Pressable style={[styles.caregiverOnboardingPrimary, styles.caregiverOnboardingHalfButton]} onPress={handleShareCaregiverCode} disabled={linkCodeExpired}>
+                  <Ionicons name="share-outline" size={18} color="#fff" />
+                  <Text style={styles.caregiverOnboardingPrimaryText}>Share</Text>
+                </Pressable>
+                <Pressable style={[styles.caregiverOnboardingSecondary, styles.caregiverOnboardingHalfButton]} onPress={handleCopyCaregiverCode} disabled={linkCodeExpired}>
+                  <Ionicons name="copy-outline" size={18} color={C.tint} />
+                  <Text style={styles.caregiverOnboardingSecondaryText}>{caregiverCodeCopied ? "Copied" : "Copy"}</Text>
+                </Pressable>
+              </View>
+              <Pressable style={styles.caregiverOnboardingTextButton} onPress={closeCaregiverOnboarding}>
+                <Text style={styles.caregiverOnboardingTextButtonText}>Done</Text>
+              </Pressable>
+            </>
+          ) : null}
+
+          {caregiverOnboardingStep === "caregiver-intent" ? (
+            <>
+              <View style={styles.caregiverOnboardingHeroIcon}><Ionicons name="notifications-outline" size={27} color={C.tint} /></View>
+              <Text style={styles.caregiverOnboardingTitle}>Helpful signals, not surveillance</Text>
+              <Text style={styles.caregiverOnboardingBody}>You’ll receive a quiet nudge when something may need attention.</Text>
+              {[
+                ["medical-outline", "Missed medications"],
+                ["calendar-outline", "Missed appointments"],
+                ["shield-outline", "Sick mode activated"],
+              ].map(([icon, label]) => (
+                <View key={label} style={styles.caregiverBenefitRow}>
+                  <Ionicons name={icon as React.ComponentProps<typeof Ionicons>["name"]} size={20} color={C.tint} />
+                  <Text style={styles.caregiverBenefitText}>{label}</Text>
+                </View>
+              ))}
+              <Text style={styles.caregiverOnboardingPrivacy}>The patient must approve the connection and can unlink anytime.</Text>
+              <Pressable style={styles.caregiverOnboardingPrimary} onPress={() => setCaregiverOnboardingStep("caregiver-code")}>
+                <Text style={styles.caregiverOnboardingPrimaryText}>Enter their code</Text>
+              </Pressable>
+            </>
+          ) : null}
+
+          {caregiverOnboardingStep === "caregiver-code" ? (
+            <>
+              <Text style={styles.caregiverOnboardingTitle}>Enter approval code</Text>
+              <Text style={styles.caregiverOnboardingBody}>Ask the patient for the six-character code shown in their Synapse app.</Text>
+              <TextInput
+                style={styles.caregiverOnboardingInput}
+                value={caregiverOnboardingCode}
+                onChangeText={(text) => {
+                  setCaregiverOnboardingError("");
+                  setCaregiverOnboardingCode(text.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6));
+                }}
+                placeholder="ABC123"
+                placeholderTextColor={C.textTertiary}
+                autoCapitalize="characters"
+                maxLength={6}
+              />
+              {caregiverOnboardingError ? <Text style={styles.caregiverOnboardingError}>{caregiverOnboardingError}</Text> : null}
+              <Pressable
+                style={[styles.caregiverOnboardingPrimary, (caregiverLinkBusy || caregiverOnboardingCode.length !== 6) && { opacity: 0.5 }]}
+                onPress={completeCaregiverOnboardingLink}
+                disabled={caregiverLinkBusy || caregiverOnboardingCode.length !== 6}
+              >
+                <Text style={styles.caregiverOnboardingPrimaryText}>{caregiverLinkBusy ? "Connecting..." : "Link caregiver"}</Text>
+              </Pressable>
+            </>
+          ) : null}
+
+          {caregiverOnboardingStep === "confirmation" ? (
+            <>
+              <View style={[styles.caregiverOnboardingHeroIcon, { backgroundColor: C.green + "18" }]}>
+                <Ionicons name="checkmark" size={30} color={C.green} />
+              </View>
+              <Text style={styles.caregiverOnboardingTitle}>You’re connected</Text>
+              <Text style={styles.caregiverOnboardingBody}>Important care signals can now reach you. The patient remains in control of the connection.</Text>
+              <Pressable
+                style={styles.caregiverOnboardingPrimary}
+                onPress={() => {
+                  closeCaregiverOnboarding();
+                  onNavigate?.("caregiverdashboard");
+                }}
+              >
+                <Text style={styles.caregiverOnboardingPrimaryText}>Open caregiver dashboard</Text>
+              </Pressable>
+              <Pressable style={styles.caregiverOnboardingTextButton} onPress={closeCaregiverOnboarding}>
+                <Text style={styles.caregiverOnboardingTextButtonText}>Done</Text>
+              </Pressable>
+            </>
+          ) : null}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+
+  const renderCaregiverLinkingSection = (simple = false) => (
+    <View style={styles.embeddedLinkingSection}>
+      <View style={styles.linkHeaderRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={simple ? [styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }] : styles.sectionTitle}>
+            Caregiver linking
+          </Text>
+          <Text style={[styles.desc, simple && { fontSize: simpleBodySize, marginBottom: 0 }]}>
+            Share missed-medication alerts with one trusted person.
+          </Text>
+        </View>
+        <View style={[styles.linkStatusPill, hasLinkedUsers && styles.linkStatusPillLinked]}>
+          <Text style={[styles.linkStatusText, hasLinkedUsers && styles.linkStatusTextLinked]}>{hasLinkedUsers ? "Linked" : "Not linked"}</Text>
+        </View>
+      </View>
+
+      {currentLinkRole === "patient" ? (
+        <View style={styles.linkSection}>
+          {hasLinkedUsers ? (
+            <Text style={styles.linkHelpText}>Caregiver alerts are active for this connection.</Text>
+          ) : (
+            <>
+              <Text style={styles.linkHelpText}>Connect with one trusted person for important alerts and check-ins.</Text>
+              <Pressable style={styles.secondaryBtn} onPress={openCaregiverOnboarding}>
+                <Text style={styles.secondaryBtnText}>Set up connection</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      ) : hasLinkedUsers ? null : (
+        <View style={styles.linkSection}>
+          <Text style={styles.linkHelpText}>Use the patient’s private approval code to connect.</Text>
+          <Pressable style={styles.secondaryBtn} onPress={openCaregiverOnboarding}>
+            <Text style={styles.secondaryBtnText}>Set up connection</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {hasLinkedUsers ? (
+        <View style={styles.linkedUsersWrap}>
+          {linkedUsers.map((linkedUserId) => (
+            <View key={linkedUserId} style={styles.linkedUserRow}>
+              <View style={styles.linkedUserIcon}>
+                <Ionicons name={currentLinkRole === "caregiver" ? "heart-outline" : "people-outline"} size={17} color={C.tint} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.linkedUserTitle}>{currentLinkRole === "caregiver" ? "Linked patient" : "Linked caregiver"}</Text>
+                <Text style={styles.linkedUserMeta} numberOfLines={1}>{linkedUserId}</Text>
+              </View>
+              {currentLinkRole === "caregiver" ? (
+                <Pressable
+                  style={styles.linkMiniButton}
+                  onPress={() => handleSendCaregiverReminder(linkedUserId)}
+                  disabled={caregiverLinkBusy}
+                >
+                  <Text style={styles.linkMiniButtonText}>Remind</Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                style={styles.linkMiniButton}
+                onPress={() => handleUnlinkCaregiverUser(linkedUserId)}
+                disabled={caregiverLinkBusy}
+              >
+                <Text style={styles.linkMiniButtonText}>Unlink</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
 
   if (appMode === "simple") {
     return (
       <View style={styles.container}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[contentPadding, styles.scrollViewContent, styles.simpleSettingsContent]}
+          contentContainerStyle={[simpleContentPadding, styles.scrollViewContent, styles.simpleSettingsContent]}
           showsVerticalScrollIndicator={false}
           bounces={true}
         >
@@ -601,7 +1103,7 @@ export default function SettingsScreen({
                 { id: "self" as const, label: "Just me" },
                 { id: "caregiver" as const, label: "I help someone" },
               ].map((option) => {
-                const active = (profile.userRole ?? "self") === option.id;
+                const active = activeRole === option.id || (profile.userRole ?? "self") === option.id;
                 return (
                   <Pressable
                     key={option.id}
@@ -615,7 +1117,7 @@ export default function SettingsScreen({
                 );
               })}
             </View>
-            {(profile.userRole ?? "self") === "caregiver" ? (
+            {activeRole === "caregiver" || (profile.userRole ?? "self") === "caregiver" ? (
               <View style={styles.simplePersonCard}>
                 <View style={styles.simplePersonHeader}>
                   <View style={styles.simplePersonAvatar}>
@@ -682,6 +1184,7 @@ export default function SettingsScreen({
                 ) : null}
               </View>
             ) : null}
+            {renderCaregiverLinkingSection(true)}
           </GlassView>
 
           <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
@@ -739,6 +1242,7 @@ export default function SettingsScreen({
             </View>
           ) : null}
         </ScrollView>
+        {caregiverOnboardingModal}
 
         <Modal visible={showResetConfirm} transparent animationType="fade">
           <Pressable style={styles.overlay} onPress={() => setShowResetConfirm(false)}>
@@ -855,7 +1359,7 @@ export default function SettingsScreen({
         </GlassView>
 
         <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
-          <Text style={styles.sectionTitle}>iCloud Backup</Text>
+          <Text style={styles.sectionTitle}>CloudKit Backup</Text>
           <Text style={styles.desc}>
             Private CloudKit backup for medications, appointments, logs, labs, imaging, and health notes.
           </Text>
@@ -868,7 +1372,13 @@ export default function SettingsScreen({
             <Text style={[styles.syncedText, !cloudStatus?.available && { color: C.textTertiary }]}>
               {cloudStatus?.available
                 ? formatBackupTime(cloudStatus.lastSyncedAt ?? cloudStatus.cloudLastUpdatedAt)
-                : "iCloud will sync when available"}
+                : cloudStatus?.accountStatus === "native_bridge_missing"
+                  ? "iCloud backup needs a native iOS build"
+                  : cloudStatus?.accountStatus === "unsupported_platform"
+                    ? "iCloud backup is iOS-only"
+                    : cloudStatus?.lastError
+                      ? `iCloud error: ${cloudStatus.lastError}`
+                      : "iCloud will sync when available"}
             </Text>
           </View>
           <View style={styles.backupActions}>
@@ -893,14 +1403,14 @@ export default function SettingsScreen({
           <Text style={styles.sectionTitle}>Role</Text>
           <Text style={[styles.desc, { marginBottom: 12 }]}>Tell Synapse who this setup is for so the app can stay context-aware.</Text>
           <View style={styles.roleRow}>
-            {(["self", "caregiver", "backup"] as UserRole[]).map((role) => {
-              const active = (profile.userRole ?? "self") === role;
-              const label = role === "self" ? "Self" : role === "caregiver" ? "Caregiver" : "Backup Person";
+            {(["self", "caregiver", "backup"] as UserRole[]).map((roleOption) => {
+              const active = activeRole === roleOption || (profile.userRole ?? "self") === roleOption;
+              const label = roleOption === "self" ? "Self" : roleOption === "caregiver" ? "Caregiver" : "Backup Person";
               return (
                 <Pressable
-                  key={role}
+                  key={roleOption}
                   style={[styles.roleChip, active && styles.roleChipActive]}
-                  onPress={() => updateRole(role)}
+                  onPress={() => updateRole(roleOption)}
                 >
                   <Text style={[styles.roleChipText, active && styles.roleChipTextActive]}>{label}</Text>
                 </Pressable>
@@ -908,7 +1418,7 @@ export default function SettingsScreen({
             })}
           </View>
 
-          {(profile.userRole ?? "self") === "caregiver" ? (
+          {activeRole === "caregiver" || (profile.userRole ?? "self") === "caregiver" ? (
             <View style={styles.rolePersonCard}>
               <View style={styles.rolePersonHeader}>
                 <View style={styles.rolePersonAvatar}>
@@ -1021,6 +1531,7 @@ export default function SettingsScreen({
               <Text style={styles.primaryBtnText}>Save role details</Text>
             </Pressable>
           ) : null}
+          {renderCaregiverLinkingSection(false)}
         </GlassView>
 
         <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={styles.groupCard}>
@@ -1130,6 +1641,7 @@ export default function SettingsScreen({
           </Pressable>
         )}
       </ScrollView>
+      {caregiverOnboardingModal}
 
       <Modal visible={showResetConfirm} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowResetConfirm(false)}>
@@ -1474,6 +1986,86 @@ function makeStyles(C: Theme, themeId: string) {
     outlineBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "center" },
     outlineBtnText: { fontWeight: "600", fontSize: 14, color: C.text },
     backupActions: { flexDirection: "row", gap: 10, marginTop: 8 },
+    embeddedLinkingSection: {
+      marginTop: 22,
+      paddingTop: 20,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: C.border,
+    },
+    linkHeaderRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+    linkStatusPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.tint + "44" },
+    linkStatusText: { fontWeight: "800", fontSize: 11, color: C.tint },
+    linkStatusPillLinked: { backgroundColor: C.green + "18", borderColor: C.green + "55" },
+    linkStatusTextLinked: { color: C.green },
+    linkSection: { gap: 10, marginTop: 4 },
+    linkLabel: { fontWeight: "700", fontSize: 13, color: C.textSecondary },
+    linkHelpText: { fontWeight: "500", fontSize: 13, color: C.textTertiary, lineHeight: 18 },
+    linkCodeBox: { borderRadius: 16, borderWidth: 1, borderColor: C.tint + "44", backgroundColor: C.tintLight, paddingHorizontal: 16, paddingVertical: 12 },
+    linkCodeText: { fontWeight: "900", fontSize: 26, color: C.tint, letterSpacing: 4, textAlign: "center" },
+    linkCodeMeta: { marginTop: 4, fontWeight: "700", fontSize: 11, color: C.textSecondary, textAlign: "center" },
+    linkCodeBoxExpired: { backgroundColor: C.surface, borderColor: C.border },
+    linkCodeTextExpired: { color: C.textTertiary },
+    linkShareActions: { flexDirection: "row", gap: 10 },
+    linkShareButton: { flex: 1.25, minHeight: 44, borderRadius: 12, backgroundColor: C.tint, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 10 },
+    linkShareButtonText: { fontWeight: "800", fontSize: 12, color: "#fff" },
+    linkCopyButton: { flex: 1, minHeight: 44, borderRadius: 12, backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.tint + "33", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 10 },
+    linkCopyButtonText: { fontWeight: "800", fontSize: 12, color: C.tint },
+    linkCopiedText: { fontWeight: "800", fontSize: 12, color: C.green, textAlign: "center" },
+    linkRefreshButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 4 },
+    linkRefreshText: { fontWeight: "800", fontSize: 12, color: C.tint },
+    linkInput: { minHeight: 52, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.34)", paddingHorizontal: 16, fontWeight: "900", fontSize: 18, color: C.text, letterSpacing: 2, textAlign: "center" },
+    linkedUsersWrap: { gap: 8, marginTop: 4 },
+    linkedUserRow: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.28)", padding: 10 },
+    linkedUserIcon: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.tintLight },
+    linkedUserTitle: { fontWeight: "800", fontSize: 13, color: C.text },
+    linkedUserMeta: { fontWeight: "600", fontSize: 10, color: C.textTertiary, marginTop: 2 },
+    linkMiniButton: { minHeight: 34, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", backgroundColor: C.surface },
+    linkMiniButtonText: { fontWeight: "800", fontSize: 11, color: C.tint },
+    caregiverOnboardingOverlay: {
+      flex: 1,
+      backgroundColor: modalOverlay(),
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 20,
+      paddingVertical: 36,
+    },
+    caregiverOnboardingModal: {
+      width: "100%",
+      maxWidth: 460,
+      maxHeight: "92%",
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: C.border,
+      backgroundColor: modalSurface(C),
+      ...raised("lg"),
+    },
+    caregiverOnboardingModalContent: { padding: 22 },
+    caregiverOnboardingTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+    caregiverOnboardingIconButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+    caregiverOnboardingHeroIcon: { width: 58, height: 58, borderRadius: 18, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center", marginBottom: 18 },
+    caregiverOnboardingTitle: { color: C.text, fontSize: 26, lineHeight: 31, fontWeight: "900", marginBottom: 10 },
+    caregiverOnboardingBody: { color: C.textSecondary, fontSize: 16, lineHeight: 23, fontWeight: "500", marginBottom: 20 },
+    caregiverTrustCallout: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, backgroundColor: C.green + "12", padding: 13, marginBottom: 22 },
+    caregiverTrustCalloutText: { flex: 1, color: C.text, fontSize: 14, lineHeight: 19, fontWeight: "700" },
+    caregiverOnboardingPrimary: { minHeight: 52, borderRadius: 14, backgroundColor: C.tint, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 16, marginTop: 12 },
+    caregiverOnboardingPrimaryText: { color: "#fff", fontSize: 15, fontWeight: "800", textAlign: "center" },
+    caregiverOnboardingSecondary: { minHeight: 52, borderRadius: 14, backgroundColor: C.tintLight, borderWidth: 1, borderColor: C.tint + "33", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 16, marginTop: 12 },
+    caregiverOnboardingSecondaryText: { color: C.tint, fontSize: 15, fontWeight: "800" },
+    caregiverOnboardingTextButton: { minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 6 },
+    caregiverOnboardingTextButtonText: { color: C.textSecondary, fontSize: 14, fontWeight: "700" },
+    caregiverRoleChoice: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated, padding: 14, marginTop: 12 },
+    caregiverRoleChoiceIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
+    caregiverRoleChoiceTitle: { color: C.text, fontSize: 15, fontWeight: "800", marginBottom: 3 },
+    caregiverRoleChoiceBody: { color: C.textSecondary, fontSize: 13, lineHeight: 18, fontWeight: "500" },
+    caregiverBenefitRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 38 },
+    caregiverBenefitText: { color: C.text, fontSize: 15, fontWeight: "600" },
+    caregiverOnboardingError: { color: C.red, fontSize: 13, lineHeight: 18, fontWeight: "700", marginTop: 12 },
+    caregiverOnboardingCodeBox: { borderRadius: 18, borderWidth: 1, borderColor: C.tint + "44", backgroundColor: C.tintLight, paddingHorizontal: 16, paddingVertical: 20, marginTop: 4 },
+    caregiverOnboardingCode: { color: C.tint, fontSize: 32, fontWeight: "900", letterSpacing: 6, textAlign: "center" },
+    caregiverOnboardingPrivacy: { color: C.textTertiary, fontSize: 13, lineHeight: 18, fontWeight: "600", textAlign: "center", marginTop: 12 },
+    caregiverOnboardingActionRow: { flexDirection: "row", gap: 10 },
+    caregiverOnboardingHalfButton: { flex: 1 },
+    caregiverOnboardingInput: { minHeight: 62, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated, color: C.text, fontSize: 24, fontWeight: "900", letterSpacing: 5, textAlign: "center", paddingHorizontal: 16, marginVertical: 6 },
     roleRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
     roleChip: {
       paddingHorizontal: 14,

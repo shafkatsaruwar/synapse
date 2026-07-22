@@ -6,7 +6,8 @@ import Constants from "expo-constants";
  * Returns empty string when none are set (avoids localhost on physical device).
  */
 export function getApiUrl(): string {
-  const extra = (Constants.expoConfig?.extra ?? Constants.manifest?.extra) as Record<string, unknown> | undefined;
+  const legacyManifest = Constants.manifest as { extra?: Record<string, unknown> } | null | undefined;
+  const extra = (Constants.expoConfig?.extra ?? legacyManifest?.extra) as Record<string, unknown> | undefined;
   const from = (key: string) =>
     (typeof extra?.[key] === "string" ? (extra[key] as string).trim() : null) || process.env[key]?.trim() || "";
   const apiUrl = from("EXPO_PUBLIC_API_URL") || from("EXPO_PUBLIC_APP_URL");

@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useEffect, useMemo } from "react";
-import { StyleSheet, Text, Pressable } from "react-native";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { StyleSheet, Text, Pressable, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import { measureInWindow, useWalkthroughTargets } from "@/contexts/WalkthroughContext";
 import { settingsStorage, sickModeStorage, enableRecoveryTracking } from "@/lib/storage";
 import { syncRecoveryTrackingCheckIn } from "@/lib/notification-manager";
 
@@ -16,6 +17,10 @@ export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKe
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const [isActive, setIsActive] = useState(false);
+  const buttonRef = useRef<View>(null);
+  const walkthrough = useWalkthroughTargets();
+  const registerTarget = walkthrough?.registerTarget;
+  const unregisterTarget = walkthrough?.unregisterTarget;
 
   const load = useCallback(async () => {
     const settings = await settingsStorage.get();
@@ -25,6 +30,12 @@ export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKe
   useEffect(() => {
     load();
   }, [load, refreshKey]);
+
+  useEffect(() => {
+    if (!registerTarget || !unregisterTarget) return;
+    registerTarget("sickmode-header", () => measureInWindow(buttonRef));
+    return () => unregisterTarget("sickmode-header");
+  }, [registerTarget, unregisterTarget]);
 
   const handlePress = async () => {
     if (isActive) {
@@ -43,6 +54,7 @@ export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKe
 
   return (
     <Pressable
+      ref={buttonRef}
       style={({ pressed }) => [
         styles.pill,
         isActive && styles.pillActive,

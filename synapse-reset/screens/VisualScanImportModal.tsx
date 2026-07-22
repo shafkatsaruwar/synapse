@@ -11,6 +11,7 @@ import {
   medicationStorage,
   type Appointment,
   type Imaging,
+  type LabResult,
   type LabWork,
   type Medication,
 } from "@/lib/storage";
@@ -21,9 +22,15 @@ import {
   parseLabScan,
   parseMedicationScan,
   recognizeTextFromImage,
+  recognizeTextFromPDF,
   type VisualScanType,
 } from "@/lib/visual-scan";
 import { modalOverlay, modalSurface, modalSurfaceElevated } from "@/lib/modal-colors";
+
+let DocumentPicker: any = null;
+try {
+  DocumentPicker = require("expo-document-picker");
+} catch {}
 
 type Props = {
   visible: boolean;
@@ -49,6 +56,8 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
   const [labTestName, setLabTestName] = useState("");
   const [labDate, setLabDate] = useState(new Date().toISOString().slice(0, 10));
   const [labNotes, setLabNotes] = useState("");
+  const [labDocumentUri, setLabDocumentUri] = useState<string | undefined>(undefined);
+  const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [imagingType, setImagingType] = useState("");
   const [imagingBodyArea, setImagingBodyArea] = useState("");
   const [imagingDoctor, setImagingDoctor] = useState("");
@@ -68,6 +77,8 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
     setLabTestName("");
     setLabDate(new Date().toISOString().slice(0, 10));
     setLabNotes("");
+    setLabDocumentUri(undefined);
+    setLabResults([]);
     setImagingType("");
     setImagingBodyArea("");
     setImagingDoctor("");
@@ -125,9 +136,10 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
     if (type === "lab") {
       const parsed = parseLabScan(text);
       setLabDoctor(parsed.doctorName);
-      setLabTestName("Lab Work");
+      setLabTestName(parsed.results.length ? "Imported lab report" : "Lab Work");
       setLabDate(parsed.date);
       setLabNotes(parsed.notes);
+      setLabResults(parsed.results);
       return;
     }
     const parsed = parseImagingScan(text);
@@ -136,6 +148,50 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
     setImagingDoctor(parsed.doctorName);
     setImagingDate(parsed.date);
     setImagingNotes(parsed.notes);
+  };
+
+  const scanPDF = async () => {
+    if (scanType !== "lab") {
+      Alert.alert("PDF import is for labs", "Switch to Lab first, then choose a PDF report.");
+      return;
+    }
+    if (!DocumentPicker?.getDocumentAsync) {
+      Alert.alert("PDF picker unavailable", "Install expo-document-picker in this native build to choose PDF reports.");
+      return;
+    }
+
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "application/pdf",
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+
+    setIsScanning(true);
+    try {
+      const text = await recognizeTextFromPDF(result.assets[0].uri);
+      setRawText(text);
+      setLabDocumentUri(result.assets[0].uri);
+      applyParsedText(text, "lab");
+    } catch (error: any) {
+      Alert.alert("PDF scan failed", error?.message || "Could not read text from that PDF.");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const updateLabResult = (index: number, updates: Partial<LabResult>) => {
+    setLabResults((current) =>
+      current.map((result, itemIndex) => itemIndex === index ? { ...result, ...updates } : result)
+    );
+  };
+
+  const deleteLabResult = (index: number) => {
+    setLabResults((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const addLabResult = () => {
+    setLabResults((current) => [...current, { name: "", value: 0, unit: "" }]);
   };
 
   const changeType = (type: VisualScanType) => {
@@ -188,10 +244,25 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
 
     if (scanType === "lab") {
       if (!labTestName.trim()) return Alert.alert("Lab test name needed", "Add a test name before saving.");
+      const cleanedResults = labResults
+        .map((result) => ({
+          name: result.name.trim(),
+          value: Number(result.value),
+          unit: result.unit.trim(),
+          referenceRange: result.referenceRange?.trim() || undefined,
+        }))
+        .filter((result) => result.name && Number.isFinite(result.value) && result.unit);
+
+      if (rawText && cleanedResults.length === 0) {
+        return Alert.alert("Review needed", "Keep at least one parsed lab result or add one manually before saving.");
+      }
+
       const saved = await labWorkStorage.save({
         testName: labTestName.trim(),
         date: labDate.trim(),
         notes: labNotes.trim(),
+        results: cleanedResults,
+        documentUri: labDocumentUri,
         status: "completed",
         source: "scan",
       } as Omit<LabWork, "id">);
@@ -247,6 +318,12 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
                 <Ionicons name="image-outline" size={18} color={C.text} />
                 <Text style={styles.secondaryBtnText}>Photo</Text>
               </Pressable>
+              {scanType === "lab" ? (
+                <Pressable style={styles.secondaryBtn} onPress={scanPDF} disabled={isScanning}>
+                  <Ionicons name="document-text-outline" size={18} color={C.text} />
+                  <Text style={styles.secondaryBtnText}>PDF</Text>
+                </Pressable>
+              ) : null}
             </View>
 
             {scanType === "medication" ? (
@@ -267,6 +344,57 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
                 <Field label="Doctor" value={labDoctor} onChangeText={setLabDoctor} styles={styles} colors={C} />
                 <Field label="Test name" value={labTestName} onChangeText={setLabTestName} styles={styles} colors={C} placeholder="CBC, metabolic panel, iron panel..." />
                 <Field label="Date" value={labDate} onChangeText={setLabDate} styles={styles} colors={C} placeholder="YYYY-MM-DD" />
+                <View style={styles.reviewHeader}>
+                  <View>
+                    <Text style={styles.reviewTitle}>Review extracted results</Text>
+                    <Text style={styles.reviewSub}>Edit or delete anything that looks wrong.</Text>
+                  </View>
+                  <Pressable style={styles.addResultBtn} onPress={addLabResult}>
+                    <Ionicons name="add" size={18} color={C.tint} />
+                  </Pressable>
+                </View>
+                {labResults.length === 0 ? (
+                  <View style={styles.emptyReview}>
+                    <Text style={styles.emptyReviewText}>No structured results found yet. Scan a clearer report or add rows manually.</Text>
+                  </View>
+                ) : (
+                  <View style={styles.resultList}>
+                    {labResults.map((result, index) => (
+                      <View key={`${result.name}-${index}`} style={styles.resultCard}>
+                        <View style={styles.resultTopRow}>
+                          <Text style={styles.resultIndex}>Result {index + 1}</Text>
+                          <Pressable style={styles.deleteResultBtn} onPress={() => deleteLabResult(index)}>
+                            <Ionicons name="trash-outline" size={17} color={C.red} />
+                          </Pressable>
+                        </View>
+                        <Field label="Test name" value={result.name} onChangeText={(value) => updateLabResult(index, { name: value })} styles={styles} colors={C} placeholder="Glucose" />
+                        <View style={styles.resultGrid}>
+                          <View style={{ flex: 1 }}>
+                            <Field
+                              label="Value"
+                              value={String(result.value)}
+                              onChangeText={(value) => updateLabResult(index, { value: Number(value) })}
+                              styles={styles}
+                              colors={C}
+                              placeholder="95"
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Field label="Unit" value={result.unit} onChangeText={(value) => updateLabResult(index, { unit: value })} styles={styles} colors={C} placeholder="mg/dL" />
+                          </View>
+                        </View>
+                        <Field
+                          label="Reference range optional"
+                          value={result.referenceRange ?? ""}
+                          onChangeText={(value) => updateLabResult(index, { referenceRange: value })}
+                          styles={styles}
+                          colors={C}
+                          placeholder="70-99 mg/dL"
+                        />
+                      </View>
+                    ))}
+                  </View>
+                )}
                 <Field label="Notes" value={labNotes} onChangeText={setLabNotes} styles={styles} colors={C} multiline />
               </>
             ) : (
@@ -357,6 +485,18 @@ function makeStyles(C: Theme) {
     label: { fontWeight: "700", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
     input: { fontWeight: "500", fontSize: 14, color: C.text, backgroundColor: surfaceElevated, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
     textArea: { minHeight: 110, lineHeight: 20 },
+    reviewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 2, marginBottom: 10 },
+    reviewTitle: { fontSize: 15, fontWeight: "900", color: C.text },
+    reviewSub: { fontSize: 12, fontWeight: "600", color: C.textSecondary, marginTop: 2 },
+    addResultBtn: { width: 38, height: 38, borderRadius: 14, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
+    emptyReview: { borderRadius: 14, borderWidth: 1, borderColor: C.border, backgroundColor: surfaceElevated, padding: 12, marginBottom: 14 },
+    emptyReviewText: { color: C.textSecondary, fontSize: 13, fontWeight: "600", lineHeight: 18 },
+    resultList: { gap: 10, marginBottom: 14 },
+    resultCard: { borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: surfaceElevated, padding: 12 },
+    resultTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+    resultIndex: { fontSize: 12, fontWeight: "900", color: C.textSecondary, textTransform: "uppercase" },
+    deleteResultBtn: { width: 32, height: 32, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.red + "12" },
+    resultGrid: { flexDirection: "row", gap: 10 },
     rawBox: { borderRadius: 14, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, padding: 12, marginBottom: 14 },
     rawLabel: { fontWeight: "800", fontSize: 11, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
     rawText: { fontWeight: "400", fontSize: 12, color: C.textSecondary, lineHeight: 18 },

@@ -12,5 +12,6 @@ struct SynapseWidgetsBundle: WidgetBundle {
     SynapseHydrationWidget()
     SynapseSickModeWidget()
     SynapseMentalHealthWidget()
+    SynapseCaregiverWidget()
   }
 }

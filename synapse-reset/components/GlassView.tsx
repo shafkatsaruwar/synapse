@@ -45,9 +45,9 @@ export default function GlassView({
   }
   return (
     <BlurView intensity={resolvedIntensity} tint={tint} style={[styles.blur, variantStyle, style]}>
-      <View pointerEvents="none" style={styles.cornerGlow} />
+      <View pointerEvents="none" style={[styles.cornerGlow, tint === "dark" && styles.cornerGlowDark]} />
       {content}
-      <View pointerEvents="none" style={styles.edgeShine} />
+      <View pointerEvents="none" style={[styles.edgeShine, tint === "dark" && styles.edgeShineDark]} />
     </BlurView>
   );
 }
@@ -81,6 +81,13 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.94)",
     opacity: 0.92,
   },
+  edgeShineDark: {
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 0.5,
+    borderColor: "rgba(255,255,255,0.28)",
+    opacity: 0.38,
+  },
   cornerGlow: {
     position: "absolute",
     top: -60,
@@ -90,6 +97,14 @@ const styles = StyleSheet.create({
     borderRadius: 80,
     backgroundColor: "rgba(255,255,255,0.42)",
     transform: [{ rotate: "-16deg" }],
+  },
+  cornerGlowDark: {
+    top: -82,
+    left: -66,
+    width: 140,
+    height: 104,
+    backgroundColor: "rgba(255,255,255,0.10)",
+    opacity: 0.42,
   },
   card: {
     backgroundColor: "rgba(255,255,255,0.34)",

@@ -6,12 +6,13 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClientProvider } from "@tanstack/react-query";
 import * as SplashScreen from "expo-splash-screen";
-import { File } from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import KeyboardDoneBar from "@/components/KeyboardDoneBar";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AppModeProvider } from "@/contexts/AppModeContext";
 import { DisplaySettingsProvider } from "@/contexts/DisplaySettingsContext";
+import { RoleProvider } from "@/contexts/RoleContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { queryClient } from "@/lib/query-client";
 import {
@@ -62,8 +63,7 @@ export default function RootLayout() {
     async function handleUrl(url: string) {
       if (!url.startsWith("file://") || !url.toLowerCase().endsWith(".ics")) return;
       try {
-        const file = new File(url);
-        const content = await file.text();
+        const content = await FileSystem.readAsStringAsync(url);
         const parsed = parseICS(content);
         if (parsed) fireICSImport(parsed);
       } catch {
@@ -92,10 +92,12 @@ export default function RootLayout() {
             <DisplaySettingsProvider>
               <ThemeProvider>
                 <AppModeProvider>
-                  <AuthProvider>
-                    <Stack screenOptions={{ headerShown: false }} />
-                    <KeyboardDoneBar />
-                  </AuthProvider>
+                  <RoleProvider>
+                    <AuthProvider>
+                      <Stack screenOptions={{ headerShown: false }} />
+                      <KeyboardDoneBar />
+                    </AuthProvider>
+                  </RoleProvider>
                 </AppModeProvider>
               </ThemeProvider>
             </DisplaySettingsProvider>

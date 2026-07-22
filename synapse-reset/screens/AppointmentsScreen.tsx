@@ -1338,7 +1338,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={[styles.content, styles.simpleAppointmentsContent, {
-            paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
+            paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : insets.top + 24),
             paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
           }]}
           showsVerticalScrollIndicator={false}

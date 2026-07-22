@@ -147,6 +147,18 @@ export default function LabWorkScreen() {
                     <Text style={styles.cardTitle}>{record.testName}</Text>
                     <Text style={styles.cardMeta}>{formatDate(record.date)}</Text>
                     {doctorName ? <Text style={styles.cardSub}>Doctor: {doctorName}</Text> : null}
+                    {record.results?.length ? (
+                      <View style={styles.resultPreview}>
+                        {record.results.slice(0, 3).map((result, index) => (
+                          <Text key={`${result.name}-${index}`} style={styles.resultPreviewText}>
+                            {result.name}: {result.value} {result.unit}
+                          </Text>
+                        ))}
+                        {record.results.length > 3 ? (
+                          <Text style={styles.resultPreviewMore}>+{record.results.length - 3} more</Text>
+                        ) : null}
+                      </View>
+                    ) : null}
                   </View>
                   {record.status ? (
                     <View style={[styles.statusBadge, record.status === "pending" && styles.statusBadgePending]}>
@@ -244,6 +256,9 @@ function makeStyles(C: Theme) {
     cardTitle: { color: C.text, fontSize: 18, fontWeight: "800" },
     cardMeta: { color: C.textSecondary, fontSize: 14, fontWeight: "600", marginTop: 4 },
     cardSub: { color: C.textSecondary, fontSize: 13, marginTop: 3 },
+    resultPreview: { marginTop: 8, gap: 3 },
+    resultPreviewText: { color: C.text, fontSize: 13, fontWeight: "700" },
+    resultPreviewMore: { color: C.textSecondary, fontSize: 12, fontWeight: "800" },
     statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: C.green + "22" },
     statusBadgePending: { backgroundColor: C.orange + "22" },
     statusText: { color: C.textSecondary, fontSize: 11, fontWeight: "800", textTransform: "capitalize" },

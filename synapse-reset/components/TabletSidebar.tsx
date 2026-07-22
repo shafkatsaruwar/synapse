@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
 import { useAppMode } from "@/contexts/AppModeContext";
+import { useRole } from "@/contexts/RoleContext";
 import { useIsTablet } from "@/lib/device";
 import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
 import { featureFlags } from "@/constants/feature-flags";
@@ -24,6 +25,8 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { key: "dashboard", label: "Dashboard", icon: "grid-outline", iconActive: "grid" },
+  { key: "caregiverdashboard", label: "Caregiver Dashboard", icon: "people-outline", iconActive: "people" },
+  { key: "managedperson", label: "Managed Person", icon: "accessibility-outline", iconActive: "accessibility" },
   { key: "log", label: "Daily Log", icon: "heart-outline", iconActive: "heart" },
   { key: "healthdata", label: "Vitals", icon: "analytics-outline", iconActive: "analytics" },
   { key: "medications", label: "Medications", icon: "medical-outline", iconActive: "medical" },
@@ -53,6 +56,7 @@ const NAV_ITEMS: NavItem[] = [
 
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
   { title: "Main", keys: ["dashboard"] },
+  { title: "Caregiver", keys: ["caregiverdashboard", "managedperson"] },
   { title: "Emergency", keys: ["emergency", "emergencycard"] },
   { title: "Primary", keys: ["log", "medications", "healthdata", "appointments", "symptoms"] },
   { title: "Diagnostics", keys: ["labwork", "imaging"] },
@@ -70,6 +74,7 @@ const SIDEBAR_WIDTH = 280;
 export default function TabletSidebar({ activeScreen, onNavigate }: TabletSidebarProps) {
   const isTablet = useIsTablet();
   const { isSimpleMode } = useAppMode();
+  const { role } = useRole();
   const insets = useSafeAreaInsets();
   const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
@@ -83,8 +88,8 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
 
   useEffect(() => {
     if (!registerTarget || !unregisterTarget || !isTablet) return;
-    registerTarget("emergencycard", () => measureInWindow(emergencyCardRef));
-    return () => unregisterTarget("emergencycard");
+    registerTarget("emergencycard-menu", () => measureInWindow(emergencyCardRef));
+    return () => unregisterTarget("emergencycard-menu");
   }, [registerTarget, unregisterTarget, isTablet]);
 
   const loadBadges = useCallback(async () => {
@@ -136,6 +141,7 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
       </Text>
       <ScrollView style={styles.navScroll} contentContainerStyle={styles.navScrollContent} showsVerticalScrollIndicator={false}>
         {DRAWER_GROUPS.map((group, groupIndex) => {
+          if (group.title === "Caregiver" && role !== "caregiver") return null;
           const items = group.keys
             .map((key) => NAV_ITEMS.find((n) => n.key === key))
             .filter((n): n is NavItem => n != null);

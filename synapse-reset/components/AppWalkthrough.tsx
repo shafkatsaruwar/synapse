@@ -22,40 +22,95 @@ import { useWalkthroughTargets } from "@/contexts/WalkthroughContext";
 
 const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
+    id: "home",
+    title: "Your health command center",
+    body: "The dashboard pulls today’s meds, visits, recovery, and check-ins into one calm snapshot.",
+    targetIds: ["dailylog", "medication"],
+    enterDelayMs: 220,
+  },
+  {
     id: "medication",
     title: "Medications",
-    body: "Stay on track with your daily medications.",
+    body: "Track scheduled meds, PRNs, refills, pharmacies, prescribing doctors, photos, and dose history.",
     targetIds: ["medication", "menu"],
     enterDelayMs: 220,
   },
   {
     id: "dailylog",
-    title: "Daily Log",
-    body: "Log your mood, energy, and how you feel each day.",
+    title: "Daily logging that matters",
+    body: "Log energy, mood, sleep, fasting, symptoms, and notes so patterns are easier to spot later.",
     targetIds: ["dailylog"],
     enterDelayMs: 220,
   },
   {
     id: "appointments",
-    title: "Appointments",
-    body: "Keep track of upcoming doctor visits.",
+    title: "Appointments and visit prep",
+    body: "Store visits, doctors, travel guidance, notes, reschedules, cancellations, and Apple Calendar imports.",
     targetIds: ["appointments"],
     enterDelayMs: 220,
   },
   {
-    id: "menu",
-    title: "Navigation",
-    body: "Everything else lives here. Explore your health in one place.",
+    id: "quickadd",
+    title: "Fast adds from the plus button",
+    body: "Add meds, symptoms, appointments, calendar imports, labs, imaging, and quick logs without digging.",
+    targetIds: ["simple-add"],
+    enterDelayMs: 260,
+  },
+  {
+    id: "sickmode",
+    title: "Sick mode and recovery",
+    body: "Turn on sick mode for stress-dose support, temperature tracking, hydration, rest, and recovery check-ins.",
+    targetIds: ["sickmode-header", "menu"],
+    enterDelayMs: 180,
+  },
+  {
+    id: "caregiver",
+    title: "Caregiver mode",
+    body: "Switch modes to manage someone else with missed meds, next dose, no-log alerts, and caregiver widgets.",
+    targetIds: ["caregiverdashboard-menu", "menu"],
+    enterDelayMs: 320,
+  },
+  {
+    id: "emergencycard",
+    title: "Emergency card and protocols",
+    body: "Keep critical meds, allergy details, emergency contacts, and instructions easy to reach.",
+    targetIds: ["emergencycard-menu"],
+    enterDelayMs: 520,
+  },
+  {
+    id: "records",
+    title: "Records, labs, imaging",
+    body: "Keep lab work, imaging, vaccines, surgeries, documents, and medication comparisons in one place.",
+    targetIds: ["records-menu", "labwork-menu", "imaging-menu", "menu"],
+    enterDelayMs: 360,
+  },
+  {
+    id: "mentalhealth",
+    title: "Support modes",
+    body: "Use mental health day, comfort tools, goals, hydration, and food logging when the day needs extra support.",
     targetIds: ["menu"],
     enterDelayMs: 180,
   },
   {
-    id: "emergencycard",
-    title: "Emergency Card",
-    body: "Your emergency info is easy to reach whenever it matters most.",
-    enterDelayMs: 260,
+    id: "insights",
+    title: "Reports and insights",
+    body: "Turn your logs into reports, monthly check-ins, timelines, and insight summaries you can bring to care.",
+    targetIds: ["menu"],
+    enterDelayMs: 180,
   },
-  { id: "final", title: "Simple. Private. Built for you.", body: "", enterDelayMs: 120 },
+  {
+    id: "widgets",
+    title: "Widgets and reminders",
+    body: "Use iOS widgets, medication prompts, hydration shortcuts, appointment views, and caregiver status at a glance.",
+    targetIds: ["menu"],
+    enterDelayMs: 180,
+  },
+  {
+    id: "final",
+    title: "A lot of power, still private",
+    body: "Synapse is built for daily tracking, hard days, caregiver workflows, and organized medical context.",
+    enterDelayMs: 120,
+  },
 ];
 
 // ─── Layout constants ────────────────────────────────────────────────────────
@@ -64,7 +119,6 @@ const TOOLTIP_GAP       = 14;   // gap between spotlight edge and tooltip
 const ARROW_SIZE        = 11;   // half-base of the CSS triangle arrow
 const SPOTLIGHT_PADDING = 10;   // extra space around the target element
 const SPOTLIGHT_RADIUS  = 14;
-const DIM_COLOR         = "rgba(0,0,0,0.65)";
 
 // ─── Animation constants ─────────────────────────────────────────────────────
 
@@ -109,7 +163,7 @@ export default function AppWalkthrough({ visible, onComplete, onStepChange, onSt
 
   const insets  = useSafeAreaInsets();
   const { width: winWidth, height: winHeight } = useWindowDimensions();
-  const { colors: C } = useTheme();
+  const { colors: C, themeId } = useTheme();
   const targets = useWalkthroughTargets();
   const getTarget = targets?.getTarget;
   const walkthroughVersion = targets?.version;
@@ -213,7 +267,7 @@ export default function AppWalkthrough({ visible, onComplete, onStepChange, onSt
         return;
       }
 
-      const retryDeadline = Date.now() + 500;
+      const retryDeadline = Date.now() + 1100;
       let rect: Rect | null = null;
 
       while (!cancelled && Date.now() <= retryDeadline) {
@@ -297,7 +351,7 @@ export default function AppWalkthrough({ visible, onComplete, onStepChange, onSt
 
   // ── Layout ────────────────────────────────────────────────────────────────
   const tooltipWidth  = Math.min(winWidth - 32, 340);
-  const tooltipHeight = 180;
+  const tooltipHeight = 208;
 
   const spot = useMemo(
     () =>
@@ -342,7 +396,7 @@ export default function AppWalkthrough({ visible, onComplete, onStepChange, onSt
     transform: [{ translateY: Animated.multiply(tooltipSlide, new Animated.Value(arrowDirection)) }],
   };
 
-  const styles = useMemo(() => makeStyles(C), [C]);
+  const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
 
   if (!visible) return null;
 
@@ -452,11 +506,14 @@ export default function AppWalkthrough({ visible, onComplete, onStepChange, onSt
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-function makeStyles(C: Theme) {
+function makeStyles(C: Theme, themeId: string) {
+  const solidSurface = themeId === "dark" ? "#191416" : themeId === "light" ? "#FFFFFF" : "#FFF9F1";
+  const solidElevated = themeId === "dark" ? "#241F22" : themeId === "light" ? "#FFFFFF" : "#FFFCF7";
+  const modalBorder = themeId === "dark" ? "rgba(255,250,247,0.16)" : "rgba(255,255,255,0.92)";
   return StyleSheet.create({
     dimRect: {
       position: "absolute",
-      backgroundColor: DIM_COLOR,
+      backgroundColor: themeId === "dark" ? "rgba(0,0,0,0.72)" : "rgba(10,12,12,0.58)",
     },
     spotRing: {
       position: "absolute",
@@ -469,9 +526,11 @@ function makeStyles(C: Theme) {
       shadowRadius: 12,
     },
     tooltipCard: {
-      backgroundColor: C.surface,
+      backgroundColor: solidSurface,
       borderRadius: 20,
       padding: 22,
+      borderWidth: 1,
+      borderColor: modalBorder,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.22,
@@ -492,12 +551,12 @@ function makeStyles(C: Theme) {
       top: -ARROW_SIZE,
       borderTopWidth: 0,
       borderBottomWidth: ARROW_SIZE,
-      borderBottomColor: C.surface,
+      borderBottomColor: solidSurface,
     },
     arrowDown: {
       bottom: -ARROW_SIZE,
       borderTopWidth: ARROW_SIZE,
-      borderTopColor: C.surface,
+      borderTopColor: solidSurface,
       borderBottomWidth: 0,
     },
     // Step indicator dots
@@ -538,6 +597,10 @@ function makeStyles(C: Theme) {
     skipBtn: {
       paddingVertical: 10,
       paddingHorizontal: 16,
+      borderRadius: 11,
+      backgroundColor: solidElevated,
+      borderWidth: 1,
+      borderColor: modalBorder,
     },
     skipText: {
       fontSize: 15,
