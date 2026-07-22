@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import SuccessToast from "@/components/SuccessToast";
+import { useSuccess } from "@/lib/useSuccess";
 import ReadAloudButton from "@/components/ReadAloudButton";
 import {
   medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage,
@@ -48,6 +50,7 @@ export default function MedicationsScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const today = getToday();
+  const success = useSuccess();
 
   const [medications, setMedications] = useState<Medication[]>([]);
   const [medLogs, setMedLogs] = useState<MedicationLog[]>([]);
@@ -128,8 +131,10 @@ export default function MedicationsScreen() {
     };
     if (editingMed) {
       await medicationStorage.update(editingMed.id, data);
+      success.showSuccess("Medication updated successfully!");
     } else {
       await medicationStorage.save(data);
+      success.showSuccess("Medication added successfully!");
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowModal(false);
@@ -149,9 +154,11 @@ export default function MedicationsScreen() {
     if (log?.taken) {
       await medicationLogStorage.toggle(medId, today, doseIdx);
       Haptics.selectionAsync();
+      success.showSuccess("Dose unmarked");
     } else {
       await medicationLogStorage.toggle(medId, today, doseIdx);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      success.showSuccess("Dose recorded!");
     }
     loadData();
   };
@@ -172,6 +179,7 @@ export default function MedicationsScreen() {
         }
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      success.showSuccess("All doses recorded!");
       setNudgeMedId(null);
       loadData();
     }
@@ -216,6 +224,7 @@ export default function MedicationsScreen() {
     const current = sickData?.hydrationMl || 0;
     await updateSickData({ hydrationMl: current + ml });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    success.showSuccess(`+${ml}ml hydration logged!`);
   };
 
   const toggleFoodItem = async (key: "lightMeal" | "saltySnack" | "liquidCalories") => {
@@ -246,6 +255,7 @@ export default function MedicationsScreen() {
     setTempInput("");
     setShowTempModal(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    success.showSuccess(`${val}°F recorded!`);
     if (val >= 100 && !settings.sickMode) {
       Alert.alert("High Temperature", "Your temperature is ≥ 100°F. Consider activating Sick Mode in Settings.");
     }
@@ -693,6 +703,12 @@ export default function MedicationsScreen() {
       </Modal>
 
       <ReadAloudButton getText={getReadAloudText} />
+      <SuccessToast
+        message={success.message}
+        visible={success.visible}
+        onDismiss={success.dismiss}
+        duration={success.duration}
+      />
     </View>
   );
 }
