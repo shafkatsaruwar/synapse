@@ -530,7 +530,7 @@ const priorityLabelStyle = { fontWeight: "800" as const, fontSize: 12, color: "#
 
 export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardScreenProps) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const { colors: C, themeId } = useTheme();
   const { textScale } = useDisplaySettings();
   const styles = useMemo(() => makeStyles(C, textScale, themeId), [C, textScale, themeId]);
@@ -1458,7 +1458,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   }
 
   const main = (
-    <View style={[styles.container, { backgroundColor: isLightTheme ? "transparent" : C.background }]}>
+    <View style={[styles.container, { backgroundColor: isLightTheme ? "transparent" : C.background, height: Platform.OS === "web" ? height : undefined }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[contentPadding, styles.scrollViewContent, { paddingHorizontal: 0 }]}
