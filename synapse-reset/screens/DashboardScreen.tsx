@@ -1459,16 +1459,23 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   const main = (
     <View style={[styles.container, { backgroundColor: isLightTheme ? "transparent" : C.background }]}>
-      <ScrollView
-        style={[styles.scrollView, Platform.OS === "web" && { maxHeight: "100vh" }]}
-        contentContainerStyle={[contentPadding, styles.scrollViewContent, { paddingHorizontal: 0 }]}
-        showsVerticalScrollIndicator={true}
-        bounces={true}
-        alwaysBounceVertical={true}
-        nestedScrollEnabled={true}
-      >
-        {inner}
-      </ScrollView>
+      {Platform.OS === "web" ? (
+        <View style={{ flex: 1, overflowY: "auto" }}>
+          <View style={[contentPadding, { paddingHorizontal: 0 }]}>
+            {inner}
+          </View>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[contentPadding, styles.scrollViewContent, { paddingHorizontal: 0 }]}
+          showsVerticalScrollIndicator={true}
+          bounces={true}
+          alwaysBounceVertical={true}
+        >
+          {inner}
+        </ScrollView>
+      )}
       <Modal visible={showRecoverySetup} animationType="fade" transparent onRequestClose={() => setShowRecoverySetup(false)}>
         <View style={styles.recoveryModalBackdrop}>
           <View style={styles.recoveryModalCard}>
