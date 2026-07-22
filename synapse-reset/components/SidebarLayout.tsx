@@ -405,7 +405,7 @@ export default function SidebarLayout({
     <View style={styles.mobileContainer} {...swipePanResponder.panHandlers}>
       {shouldShowHeaderRow ? (
         <View style={[styles.mobileHeaderRow, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 4 }]}>
-          {isWide ? <View style={styles.headerSpacerLeft} /> : (
+          {isWide ? <View style={styles.headerSpacerLeft} /> : !shouldShowWebSidebar ? (
             <View ref={menuButtonRef} collapsable={false}>
               <Pressable
                 style={styles.mobileMenuBtn}
@@ -417,7 +417,7 @@ export default function SidebarLayout({
                 <Ionicons name="menu" size={26} color={C.text} />
               </Pressable>
             </View>
-          )}
+          ) : <View style={styles.headerSpacerLeft} />}
           {headerRight != null ? headerRight : <View style={styles.mobileHeaderSpacer} />}
         </View>
       ) : null}
