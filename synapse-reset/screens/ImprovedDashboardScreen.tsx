@@ -30,7 +30,15 @@ const C = {
   },
 };
 
-export default function ImprovedDashboardScreen() {
+interface ImprovedDashboardScreenProps {
+  onNavigate?: (screen: string) => void;
+  onRefreshKey?: number;
+}
+
+export default function ImprovedDashboardScreen({
+  onNavigate,
+  onRefreshKey,
+}: ImprovedDashboardScreenProps) {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [quickAddVisible, setQuickAddVisible] = useState(false);

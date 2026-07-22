@@ -8,10 +8,10 @@ import SidebarLayout from "@/components/SidebarLayout";
 import TabletSidebar from "@/components/TabletSidebar";
 import { useIsTablet } from "@/lib/device";
 import SickModeHeaderButton from "@/components/SickModeHeaderButton";
-import DashboardScreen from "@/screens/DashboardScreen";
+import ImprovedDashboardScreen from "@/screens/ImprovedDashboardScreen";
 import DailyLogScreen from "@/screens/DailyLogScreen";
 import MedicationsScreen from "@/screens/MedicationsScreen";
-import SymptomsScreen from "@/screens/SymptomsScreen";
+import ImprovedSymptomsScreen from "@/screens/ImprovedSymptomsScreen";
 import AppointmentsScreen from "@/screens/AppointmentsScreen";
 import LabWorkScreen from "@/screens/LabWorkScreen";
 import ImagingScreen from "@/screens/ImagingScreen";
@@ -1224,7 +1224,7 @@ export default function MainScreen() {
 
     switch (activeScreen) {
       case "dashboard":
-        return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
+        return <ImprovedDashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
       case "caregiverdashboard":
         return (
           <CaregiverDashboardScreen
@@ -1246,7 +1246,7 @@ export default function MainScreen() {
       case "medications":
         return <MedicationsScreen simpleOpenAddToken={simpleAddMedicationToken} simpleOpenAddOwner={simpleAddMedicationOwner} onSimpleOpenAddConsumed={handleSimpleMedicationAddConsumed} onSimpleSaveComplete={handleSimpleMedicationSaveComplete} />;
       case "symptoms":
-        return <SymptomsScreen onActivateSickMode={handleActivateSickMode} simpleOpenAddToken={simpleAddSymptomToken} />;
+        return <ImprovedSymptomsScreen onActivateSickMode={handleActivateSickMode} simpleOpenAddToken={simpleAddSymptomToken} />;
       case "documents":
         return <DocumentsScreen />;
       case "insights":
@@ -1342,7 +1342,7 @@ export default function MainScreen() {
           />
         );
       default:
-        return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
+        return <ImprovedDashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
     }
   };
 

@@ -25,7 +25,15 @@ const COMMON_SYMPTOMS = [
   "😰 Anxiety",
 ];
 
-export default function ImprovedSymptomsScreen() {
+interface ImprovedSymptomsScreenProps {
+  onActivateSickMode?: () => void;
+  simpleOpenAddToken?: string;
+}
+
+export default function ImprovedSymptomsScreen({
+  onActivateSickMode,
+  simpleOpenAddToken,
+}: ImprovedSymptomsScreenProps) {
   const insets = useSafeAreaInsets();
   const [selectedSymptom, setSelectedSymptom] = useState<string | null>(null);
   const [severity, setSeverity] = useState(5);
