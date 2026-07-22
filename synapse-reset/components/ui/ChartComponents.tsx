@@ -20,14 +20,8 @@ export function SimpleLineChart({
   const maxValue = Math.max(...data);
   const minValue = Math.min(...data);
   const range = maxValue - minValue || 1;
-  const width = Dimensions.get("window").width - 48; // Account for padding
-  const pointSpacing = width / (data.length - 1 || 1);
-
-  const points = data.map((value, i) => {
-    const y = height - ((value - minValue) / range) * height;
-    const x = i * pointSpacing;
-    return { x, y, value };
-  });
+  const width = Dimensions.get("window").width - 48;
+  const barWidth = width / data.length - 4;
 
   return (
     <View style={styles.chartContainer}>
@@ -44,43 +38,25 @@ export function SimpleLineChart({
           />
         ))}
 
-        {/* Line path visualization */}
-        <svg
-          style={StyleSheet.absoluteFill}
-          width={width}
-          height={height}
-        >
-          <polyline
-            points={points.map((p) => `${p.x},${p.y}`).join(" ")}
-            fill="none"
-            stroke={color}
-            strokeWidth="2"
-          />
-          {points.map((p, i) => (
-            <circle
-              key={i}
-              cx={p.x}
-              cy={p.y}
-              r="3"
-              fill={color}
-            />
-          ))}
-        </svg>
-
-        {/* Data points */}
-        {points.map((p, i) => (
-          <View
-            key={i}
-            style={[
-              styles.dataPoint,
-              {
-                left: p.x - 4,
-                top: p.y - 4,
-                backgroundColor: color,
-              },
-            ]}
-          />
-        ))}
+        {/* Bar visualization */}
+        <View style={styles.barsContainer}>
+          {data.map((value, i) => {
+            const barHeight = ((value - minValue) / range) * height;
+            return (
+              <View
+                key={i}
+                style={[
+                  styles.chartBar,
+                  {
+                    width: barWidth,
+                    height: Math.max(barHeight, 2),
+                    backgroundColor: color,
+                  },
+                ]}
+              />
+            );
+          })}
+        </View>
       </View>
 
       {/* Legend */}
@@ -109,44 +85,47 @@ export function ProgressRing({
   color = StatusColors.success,
   label,
 }: ProgressRingProps) {
-  const radius = (size - 8) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+  const clampedPercentage = Math.max(0, Math.min(100, percentage));
+  const rotation = (clampedPercentage / 100) * 360;
 
   return (
     <View style={[styles.ringContainer, { width: size, height: size }]}>
-      <svg
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        style={StyleSheet.absoluteFill}
-      >
-        {/* Background circle */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="#374151"
-          strokeWidth="4"
-        />
-        {/* Progress circle */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth="4"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </svg>
+      {/* Background circle */}
+      <View
+        style={[
+          styles.ringBackground,
+          {
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            borderWidth: 4,
+            borderColor: "#374151",
+          },
+        ]}
+      />
+
+      {/* Progress circle - simplified using border */}
+      <View
+        style={[
+          styles.ringProgress,
+          {
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            borderWidth: 4,
+            borderColor: color,
+            borderTopColor: "transparent",
+            borderRightColor: "transparent",
+            borderBottomColor: clampedPercentage > 50 ? color : "transparent",
+            transform: [{ rotate: `${rotation}deg` }],
+          },
+        ]}
+      />
+
+      {/* Center content */}
       <View style={styles.ringContent}>
         <Text style={styles.ringPercentage}>
-          {Math.round(percentage)}%
+          {Math.round(clampedPercentage)}%
         </Text>
         {label && <Text style={styles.ringLabel}>{label}</Text>}
       </View>
@@ -252,6 +231,17 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "#374151",
   },
+  barsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "flex-end",
+    gap: 4,
+    height: "100%",
+    paddingVertical: UITokens.spacing.md,
+  },
+  chartBar: {
+    borderRadius: 2,
+  },
   dataPoint: {
     position: "absolute",
     width: 8,
@@ -277,6 +267,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     margin: UITokens.spacing.lg,
+  },
+  ringBackground: {
+    position: "absolute",
+  },
+  ringProgress: {
+    position: "absolute",
   },
   ringContent: {
     position: "absolute",
