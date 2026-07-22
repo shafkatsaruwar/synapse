@@ -106,46 +106,50 @@ export default function ImprovedDashboardScreen({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Today's Metrics</Text>
           <View style={styles.metricsGrid}>
-            <MetricCard
-              label="Energy"
-              value={metrics.energy}
-              unit="/10"
-              status={metrics.energy >= 7 ? "good" : "warning"}
-              icon={<Text style={styles.icon}>⚡</Text>}
-              trend={metrics.energy > 5 ? "up" : "down"}
-              trendValue="+1 from yesterday"
-              style={{ width: "48%" }}
-            />
-            <MetricCard
-              label="Mood"
-              value={metrics.mood}
-              unit="/10"
-              status={metrics.mood >= 7 ? "good" : "warning"}
-              icon={<Text style={styles.icon}>😊</Text>}
-              trend="up"
-              trendValue="Stable"
-              style={{ width: "48%" }}
-            />
-            <MetricCard
-              label="Sleep"
-              value={metrics.sleep}
-              unit="h"
-              status={metrics.sleep >= 7 ? "good" : "warning"}
-              icon={<Text style={styles.icon}>😴</Text>}
-              trend={metrics.sleep > 6 ? "up" : "down"}
-              trendValue="-0.5h vs avg"
-              style={{ width: "48%" }}
-            />
-            <MetricCard
-              label="Adherence"
-              value={90}
-              unit="%"
-              status="good"
-              icon={<Text style={styles.icon}>✓</Text>}
-              trend="up"
-              trendValue="This week"
-              style={{ width: "48%" }}
-            />
+            <View style={styles.metricCard}>
+              <MetricCard
+                label="Energy"
+                value={metrics.energy}
+                unit="/10"
+                status={metrics.energy >= 7 ? "good" : "warning"}
+                icon={<Text style={styles.icon}>⚡</Text>}
+                trend={metrics.energy > 5 ? "up" : "down"}
+                trendValue="+1 from yesterday"
+              />
+            </View>
+            <View style={styles.metricCard}>
+              <MetricCard
+                label="Mood"
+                value={metrics.mood}
+                unit="/10"
+                status={metrics.mood >= 7 ? "good" : "warning"}
+                icon={<Text style={styles.icon}>😊</Text>}
+                trend="up"
+                trendValue="Stable"
+              />
+            </View>
+            <View style={styles.metricCard}>
+              <MetricCard
+                label="Sleep"
+                value={metrics.sleep}
+                unit="h"
+                status={metrics.sleep >= 7 ? "good" : "warning"}
+                icon={<Text style={styles.icon}>😴</Text>}
+                trend={metrics.sleep > 6 ? "up" : "down"}
+                trendValue="-0.5h vs avg"
+              />
+            </View>
+            <View style={styles.metricCard}>
+              <MetricCard
+                label="Adherence"
+                value={90}
+                unit="%"
+                status="good"
+                icon={<Text style={styles.icon}>✓</Text>}
+                trend="up"
+                trendValue="This week"
+              />
+            </View>
           </View>
           </View>
         </Pressable>
@@ -364,7 +368,10 @@ const makeStyles = (colors: any) => StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: UITokens.spacing.sm,
-    justifyContent: "space-between",
+  },
+  metricCard: {
+    flex: 1,
+    minWidth: "48%",
   },
 
   quickAddButton: {
