@@ -1458,9 +1458,9 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   }
 
   const main = (
-    <View style={[styles.container, { backgroundColor: isLightTheme ? "transparent" : C.background }]}>
+    <View style={[styles.container, { backgroundColor: isLightTheme ? "transparent" : C.background }, Platform.OS === "web" && { flex: 0 }]}>
       {Platform.OS === "web" ? (
-        <View style={{ flex: 1, overflowY: "auto" }}>
+        <View style={{ maxHeight: "100vh", overflowY: "auto", width: "100%" }}>
           <View style={[contentPadding, { paddingHorizontal: 0 }]}>
             {inner}
           </View>
