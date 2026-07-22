@@ -110,34 +110,42 @@ export default function ImprovedDashboardScreen({
                 <View style={styles.metricItem}>
                   <Text style={styles.metricItemIcon}>⚡</Text>
                   <Text style={styles.metricItemLabel}>Energy</Text>
-                  <Text style={[styles.metricItemValue, { color: metrics.energy >= 7 ? StatusColors.success : StatusColors.warning }]}>
-                    {metrics.energy}
-                  </Text>
-                  <Text style={styles.metricItemUnit}>/10</Text>
+                  <View style={styles.metricValueRow}>
+                    <Text style={[styles.metricItemValue, { color: metrics.energy >= 7 ? StatusColors.success : StatusColors.warning }]}>
+                      {metrics.energy}
+                    </Text>
+                    <Text style={styles.metricItemUnit}>/10</Text>
+                  </View>
                 </View>
                 <View style={styles.metricItem}>
                   <Text style={styles.metricItemIcon}>😊</Text>
                   <Text style={styles.metricItemLabel}>Mood</Text>
-                  <Text style={[styles.metricItemValue, { color: metrics.mood >= 7 ? StatusColors.success : StatusColors.warning }]}>
-                    {metrics.mood}
-                  </Text>
-                  <Text style={styles.metricItemUnit}>/10</Text>
+                  <View style={styles.metricValueRow}>
+                    <Text style={[styles.metricItemValue, { color: metrics.mood >= 7 ? StatusColors.success : StatusColors.warning }]}>
+                      {metrics.mood}
+                    </Text>
+                    <Text style={styles.metricItemUnit}>/10</Text>
+                  </View>
                 </View>
                 <View style={styles.metricItem}>
                   <Text style={styles.metricItemIcon}>😴</Text>
                   <Text style={styles.metricItemLabel}>Sleep</Text>
-                  <Text style={[styles.metricItemValue, { color: metrics.sleep >= 7 ? StatusColors.success : StatusColors.warning }]}>
-                    {metrics.sleep}
-                  </Text>
-                  <Text style={styles.metricItemUnit}>h</Text>
+                  <View style={styles.metricValueRow}>
+                    <Text style={[styles.metricItemValue, { color: metrics.sleep >= 7 ? StatusColors.success : StatusColors.warning }]}>
+                      {metrics.sleep}
+                    </Text>
+                    <Text style={styles.metricItemUnit}>h</Text>
+                  </View>
                 </View>
                 <View style={styles.metricItem}>
                   <Text style={styles.metricItemIcon}>✓</Text>
                   <Text style={styles.metricItemLabel}>Adherence</Text>
-                  <Text style={[styles.metricItemValue, { color: StatusColors.success }]}>
-                    90
-                  </Text>
-                  <Text style={styles.metricItemUnit}>%</Text>
+                  <View style={styles.metricValueRow}>
+                    <Text style={[styles.metricItemValue, { color: StatusColors.success }]}>
+                      90
+                    </Text>
+                    <Text style={styles.metricItemUnit}>%</Text>
+                  </View>
                 </View>
               </View>
             </View>
@@ -181,6 +189,23 @@ export default function ImprovedDashboardScreen({
               />
             </Pressable>
           )}
+        </View>
+
+        {/* Next Appointment */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Next Appointment</Text>
+          <Pressable onPress={() => onNavigate?.("appointments")}>
+            <StatusCard
+              icon={<Text style={styles.appointmentIcon}>📅</Text>}
+              title="Dr. Jordan LICSW"
+              value="in 8 days"
+              subtitle="Tuesday, July 29 at 10:00 AM"
+              status="info"
+            />
+          </Pressable>
+          <Pressable style={styles.prepButton} onPress={() => onNavigate?.("appointments")}>
+            <Text style={styles.prepButtonText}>📝 Add to prep checklist</Text>
+          </Pressable>
         </View>
 
         {/* Health Insights */}
@@ -258,23 +283,6 @@ export default function ImprovedDashboardScreen({
               />
             </Pressable>
           </View>
-        </View>
-
-        {/* Upcoming Appointment */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Next Appointment</Text>
-          <Pressable onPress={() => onNavigate?.("appointments")}>
-            <StatusCard
-              icon={<Text style={styles.appointmentIcon}>📅</Text>}
-              title="Dr. Jordan LICSW"
-              value="in 8 days"
-              subtitle="Tuesday, July 29 at 10:00 AM"
-              status="info"
-            />
-          </Pressable>
-          <Pressable style={styles.prepButton} onPress={() => onNavigate?.("appointments")}>
-            <Text style={styles.prepButtonText}>📝 Add to prep checklist</Text>
-          </Pressable>
         </View>
 
         <View style={styles.spacer} />
@@ -392,13 +400,17 @@ const makeStyles = (colors: any) => StyleSheet.create({
     textTransform: "uppercase",
     marginBottom: 2,
   },
+  metricValueRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 3,
+  },
   metricItemValue: {
     fontSize: 20,
     fontWeight: "700",
-    marginBottom: 2,
   },
   metricItemUnit: {
-    fontSize: 9,
+    fontSize: 10,
     color: colors.textSecondary,
     fontWeight: "500",
   },
