@@ -34,6 +34,7 @@ export default function ImprovedDashboardScreen({
 }: ImprovedDashboardScreenProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const styles = makeStyles(colors);
   const [loading, setLoading] = useState(false);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [metrics, setMetrics] = useState({
@@ -426,5 +427,3 @@ const makeStyles = (colors: any) => StyleSheet.create({
     height: UITokens.spacing.xl,
   },
 });
-
-const styles = makeStyles(colors);

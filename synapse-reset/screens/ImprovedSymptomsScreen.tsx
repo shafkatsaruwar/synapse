@@ -37,6 +37,7 @@ export default function ImprovedSymptomsScreen({
 }: ImprovedSymptomsScreenProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const styles = makeStyles(colors);
   const [selectedSymptom, setSelectedSymptom] = useState<string | null>(null);
   const [severity, setSeverity] = useState(5);
   const [duration, setDuration] = useState("hours");
@@ -527,5 +528,3 @@ const makeStyles = (colors: any) => StyleSheet.create({
     height: UITokens.spacing.xl,
   },
 });
-
-const styles = makeStyles(colors);
