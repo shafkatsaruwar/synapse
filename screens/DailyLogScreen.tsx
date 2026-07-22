@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import SuccessToast from "@/components/SuccessToast";
+import { useSuccess } from "@/lib/useSuccess";
 import { healthLogStorage, settingsStorage, type HealthLog, type UserSettings } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import RAMADAN_2026 from "@/constants/ramadan-timetable";
@@ -48,6 +50,7 @@ export default function DailyLogScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const todayStr = getToday();
+  const success = useSuccess();
 
   const now = new Date();
   const [viewYear, setViewYear] = useState(now.getFullYear());
@@ -140,6 +143,7 @@ export default function DailyLogScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaved(true);
     setLoggedDates((prev) => new Set([...prev, selectedDate]));
+    success.showSuccess("Daily log saved successfully!");
   };
 
   const closeModal = () => {
@@ -353,6 +357,12 @@ export default function DailyLogScreen() {
           </View>
         </View>
       </Modal>
+      <SuccessToast
+        message={success.message}
+        visible={success.visible}
+        onDismiss={success.dismiss}
+        duration={success.duration}
+      />
     </View>
   );
 }

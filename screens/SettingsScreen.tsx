@@ -15,6 +15,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import SuccessToast from "@/components/SuccessToast";
+import { useSuccess } from "@/lib/useSuccess";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   settingsStorage,
@@ -55,6 +57,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
   const isWide = width >= 768;
   const isTablet = useIsTablet();
   const { user, signOut } = useAuth();
+  const success = useSuccess();
   const [showQrTransfer, setShowQrTransfer] = useState(false);
 
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
@@ -101,6 +104,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     await settingsStorage.save(settings);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaved(true);
+    success.showSuccess("Settings saved!");
   };
 
   const toggleSection = (key: string) => {
@@ -119,6 +123,7 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
     setSettings((s) => ({ ...s, enabledSections: list.length > 0 ? list : (ALL_SECTION_KEYS as unknown as string[]) }));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowSectionsModal(false);
+    success.showSuccess("Sections updated!");
   };
 
   const handleBackupNow = async () => {
@@ -484,6 +489,12 @@ export default function SettingsScreen({ onResetApp, onNavigate, onRestoreComple
       </Modal>
 
       <QrTransferScreen visible={showQrTransfer} onClose={() => setShowQrTransfer(false)} />
+      <SuccessToast
+        message={success.message}
+        visible={success.visible}
+        onDismiss={success.dismiss}
+        duration={success.duration}
+      />
     </View>
   );
 }

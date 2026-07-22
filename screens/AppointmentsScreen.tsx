@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import SuccessToast from "@/components/SuccessToast";
+import { useSuccess } from "@/lib/useSuccess";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   appointmentStorage,
@@ -121,6 +123,7 @@ export default function AppointmentsScreen() {
   const { user } = useAuth();
   const isWide = width >= 768;
   const today = getToday();
+  const success = useSuccess();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -243,6 +246,7 @@ export default function AppointmentsScreen() {
       await replaceAppointmentsInSupabase(user.id, all);
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    success.showSuccess("Appointment added!");
     resetAptForm();
     setShowAptModal(false);
     loadData();
@@ -310,6 +314,7 @@ export default function AppointmentsScreen() {
       await replaceAppointmentsInSupabase(user.id, all);
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    success.showSuccess("Appointment updated!");
     resetAptForm();
     setShowAptModal(false);
     loadData();
@@ -592,6 +597,12 @@ export default function AppointmentsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      <SuccessToast
+        message={success.message}
+        visible={success.visible}
+        onDismiss={success.dismiss}
+        duration={success.duration}
+      />
     </View>
   );
 }
