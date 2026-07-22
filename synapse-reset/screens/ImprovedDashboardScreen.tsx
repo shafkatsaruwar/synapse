@@ -360,6 +360,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     padding: UITokens.spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
+    marginBottom: UITokens.spacing.md,
   },
   metricsBoxTitle: {
     fontSize: 14,
@@ -371,14 +372,14 @@ const makeStyles = (colors: any) => StyleSheet.create({
     display: "flex",
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: UITokens.spacing.sm,
+    gap: UITokens.spacing.md,
+    justifyContent: "space-between",
   },
   metricItem: {
-    flex: 1,
-    minWidth: "45%",
+    width: "48%",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: UITokens.spacing.xs,
+    paddingVertical: UITokens.spacing.md,
   },
   metricItemIcon: {
     fontSize: 18,
