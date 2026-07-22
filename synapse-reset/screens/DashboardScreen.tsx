@@ -1458,9 +1458,9 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   }
 
   const main = (
-    <View style={[styles.container, { backgroundColor: isLightTheme ? "transparent" : C.background, height: Platform.OS === "web" ? height : undefined }]}>
+    <View style={[styles.container, { backgroundColor: isLightTheme ? "transparent" : C.background }, Platform.OS === "web" && { height, overflow: "hidden" }]}>
       <ScrollView
-        style={styles.scrollView}
+        style={[styles.scrollView, Platform.OS === "web" && { height }]}
         contentContainerStyle={[contentPadding, styles.scrollViewContent, { paddingHorizontal: 0 }]}
         showsVerticalScrollIndicator={true}
         bounces={true}
