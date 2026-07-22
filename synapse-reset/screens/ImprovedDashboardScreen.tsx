@@ -90,11 +90,7 @@ export default function ImprovedDashboardScreen({
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <View style={styles.greetingRow}>
-              <Text style={styles.greetingEmoji}>👋</Text>
-              <Text style={styles.greeting}>Welcome back!</Text>
-            </View>
-            <Text style={styles.motivational}>You're doing great today</Text>
+            <Text style={styles.greeting}>Good morning</Text>
             <Text style={styles.date}>{getToday()}</Text>
           </View>
           <Pressable
@@ -317,30 +313,15 @@ const makeStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: UITokens.spacing.lg,
     paddingVertical: UITokens.spacing.lg,
   },
-  greetingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: UITokens.spacing.sm,
-  },
-  greetingEmoji: {
-    fontSize: 28,
-  },
   greeting: {
     fontSize: UITokens.typography.h1.fontSize,
     fontWeight: "700",
     color: colors.text,
   },
-  motivational: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: "500",
-    marginTop: UITokens.spacing.xs,
-    fontStyle: "italic",
-  },
   date: {
     fontSize: UITokens.typography.caption.fontSize,
     color: colors.textSecondary,
-    marginTop: 2,
+    marginTop: UITokens.spacing.xs,
   },
   syncButton: {
     width: 40,
