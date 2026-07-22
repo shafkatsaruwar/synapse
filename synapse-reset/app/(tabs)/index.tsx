@@ -342,6 +342,7 @@ export default function MainScreen() {
   const [focusedAppointmentId, setFocusedAppointmentId] = useState<string | null>(null);
   const [hydrationLaunchToken, setHydrationLaunchToken] = useState(0);
   const [pendingHydrationLaunch, setPendingHydrationLaunch] = useState(false);
+  const [webSidebarCollapsed, setWebSidebarCollapsed] = useState(false);
   const [icsImportPayload, setIcsImportPayload] = useState<IcsImportPayload | null>(null);
   const [showIcsImportPreview, setShowIcsImportPreview] = useState(false);
   const [medicationPrompt, setMedicationPrompt] = useState<null | {
@@ -1356,6 +1357,8 @@ export default function MainScreen() {
       headerRight={activeScreen === "dashboard" ? <SickModeHeaderButton onActivate={handleActivateSickMode} onNavigate={handleNavigate} refreshKey={refreshKey} /> : undefined}
       walkthroughStepId={walkthroughStepId}
       walkthroughMenuOpen={walkthroughMenuOpen}
+      webSidebarCollapsed={webSidebarCollapsed}
+      onWebSidebarToggle={setWebSidebarCollapsed}
     >
       {renderScreen()}
     </SidebarLayout>

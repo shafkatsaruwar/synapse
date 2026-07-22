@@ -107,6 +107,8 @@ interface SidebarLayoutProps {
   headerRight?: React.ReactNode;
   walkthroughStepId?: string | null;
   walkthroughMenuOpen?: boolean | null;
+  webSidebarCollapsed?: boolean;
+  onWebSidebarToggle?: (collapsed: boolean) => void;
 }
 
 export default function SidebarLayout({
@@ -119,13 +121,17 @@ export default function SidebarLayout({
   headerRight,
   walkthroughStepId,
   walkthroughMenuOpen,
+  webSidebarCollapsed = false,
+  onWebSidebarToggle,
 }: SidebarLayoutProps) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const isWide = width >= 768;
+  const isWebPlatform = Platform.OS === "web";
   const [moreOpen, setMoreOpen] = useState(false);
   const [simpleAddOpen, setSimpleAddOpen] = useState(false);
   const [showVisualScanModal, setShowVisualScanModal] = useState(false);
+  const [localWebSidebarCollapsed, setLocalWebSidebarCollapsed] = useState(webSidebarCollapsed);
   const drawerSlide = useRef(new Animated.Value(1)).current;
   const simpleAddFabSpin = useRef(new Animated.Value(0)).current;
   const simpleAddActionProgress = useRef(SIMPLE_ADD_ACTIONS.map(() => new Animated.Value(0))).current;
@@ -133,6 +139,10 @@ export default function SidebarLayout({
 
   const isWideRef = useRef(isWide);
   useEffect(() => { isWideRef.current = isWide; }, [isWide]);
+
+  useEffect(() => {
+    setLocalWebSidebarCollapsed(webSidebarCollapsed);
+  }, [webSidebarCollapsed]);
 
   const swipePanResponder = useRef(
     PanResponder.create({
@@ -386,7 +396,12 @@ export default function SidebarLayout({
     setShowVisualScanModal(true);
   }, [closeSimpleAdd]);
 
-  return (
+  const shouldShowWebSidebar = isWebPlatform && !isWide && !simpleMode;
+  const sidebarWidth = 260;
+  const collapsedSidebarWidth = 70;
+  const currentSidebarWidth = localWebSidebarCollapsed ? collapsedSidebarWidth : sidebarWidth;
+
+  const mainContent = (
     <View style={styles.mobileContainer} {...swipePanResponder.panHandlers}>
       {shouldShowHeaderRow ? (
         <View style={[styles.mobileHeaderRow, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 4 }]}>
@@ -832,6 +847,112 @@ export default function SidebarLayout({
       {__DEV__ ? synapseHQ.element : null}
     </View>
   );
+
+  if (shouldShowWebSidebar) {
+    return (
+      <View style={{ flexDirection: "row", height: "100%", backgroundColor: C.background }}>
+        {/* Web Sidebar */}
+        <View style={{
+          width: currentSidebarWidth,
+          backgroundColor: C.surface,
+          borderRightWidth: 1,
+          borderRightColor: C.border,
+          overflow: "hidden",
+          flexDirection: "column",
+        }}>
+          <View style={{ paddingTop: 12, paddingHorizontal: 8, paddingBottom: 8 }}>
+            <Pressable
+              style={{
+                width: 44,
+                height: 44,
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+              onPress={() => {
+                const newCollapsed = !localWebSidebarCollapsed;
+                setLocalWebSidebarCollapsed(newCollapsed);
+                onWebSidebarToggle?.(newCollapsed);
+              }}
+            >
+              <Ionicons
+                name={localWebSidebarCollapsed ? "menu" : "close"}
+                size={24}
+                color={C.text}
+              />
+            </Pressable>
+          </View>
+
+          {!localWebSidebarCollapsed && (
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingHorizontal: 4, paddingTop: 8 }}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              {DRAWER_GROUPS.map((group, groupIndex) => {
+                if (group.title === "Caregiver" && role !== "caregiver") return null;
+                const navItems = group.keys
+                  .map((key) => NAV_ITEMS.find((n) => n.key === key))
+                  .filter((n): n is NavItem => n != null);
+                if (navItems.length === 0) return null;
+
+                return (
+                  <View key={group.title} style={{ marginBottom: 12 }}>
+                    <Text style={{
+                      fontSize: 11,
+                      fontWeight: "600",
+                      color: C.textTertiary,
+                      paddingHorizontal: 8,
+                      marginBottom: 6,
+                      letterSpacing: 0.5,
+                    }}>
+                      {group.title}
+                    </Text>
+                    {navItems.map((item) => {
+                      const active = activeScreen === item.key;
+                      const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
+                      return (
+                        <Pressable
+                          key={item.key}
+                          onPress={() => onNavigate(item.key)}
+                          style={({ pressed }) => ({
+                            paddingVertical: 8,
+                            paddingHorizontal: 10,
+                            borderRadius: 12,
+                            marginBottom: 4,
+                            backgroundColor: active
+                              ? themeId === "dark" ? "rgba(199,58,74,0.18)" : "rgba(255,255,255,0.36)"
+                              : pressed ? themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.08)"
+                              : "transparent",
+                            opacity: dimmed ? 0.4 : 1,
+                            borderLeftWidth: active ? 3 : 0,
+                            borderLeftColor: active ? (sickMode ? C.red : C.accent) : "transparent",
+                          })}
+                        >
+                          <Ionicons
+                            name={active ? item.iconActive : item.icon}
+                            size={20}
+                            color={active ? (sickMode ? C.red : C.accent) : C.textSecondary}
+                          />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* Main Content */}
+        <View style={{ flex: 1 }}>
+          {mainContent}
+        </View>
+      </View>
+    );
+  }
+
+  return mainContent;
 }
 
 function makeStyles(C: Theme, themeId: ThemeId) {
