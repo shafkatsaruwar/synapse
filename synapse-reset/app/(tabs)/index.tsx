@@ -1460,7 +1460,7 @@ export default function MainScreen() {
     <AppBackground>
       <BiometricGate>
         <WalkthroughProvider>
-        <View style={styles.container}>{content}</View>
+        <View style={[styles.container, Platform.OS === "web" && { flex: 0, minHeight: "100vh" }]}>{content}</View>
         <AppWalkthrough
           visible={showWalkthrough}
           onStepChange={setWalkthroughStepId}
