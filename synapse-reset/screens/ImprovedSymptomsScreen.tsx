@@ -9,6 +9,7 @@ import {
   TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTheme } from "@/contexts/ThemeContext";
 import { StatusCard, EmptyState } from "@/components/ui";
 import { UITokens, StatusColors } from "@/constants/ui-design";
 
@@ -35,6 +36,7 @@ export default function ImprovedSymptomsScreen({
   simpleOpenAddToken,
 }: ImprovedSymptomsScreenProps) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const [selectedSymptom, setSelectedSymptom] = useState<string | null>(null);
   const [severity, setSeverity] = useState(5);
   const [duration, setDuration] = useState("hours");
@@ -71,7 +73,7 @@ export default function ImprovedSymptomsScreen({
   };
 
   return (
-    <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -293,10 +295,10 @@ function getSeverityColor(severity: number): string {
   return StatusColors.danger;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#111827",
+    backgroundColor: colors.background,
   },
   scroll: {
     flex: 1,
@@ -308,11 +310,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: UITokens.typography.h1.fontSize,
     fontWeight: "700",
-    color: "#F3F4F6",
+    color: colors.text,
   },
   subtitle: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
     marginTop: UITokens.spacing.xs,
   },
 
@@ -323,7 +325,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: UITokens.typography.h3.fontSize,
     fontWeight: "600",
-    color: "#F3F4F6",
+    color: colors.text,
     marginBottom: UITokens.spacing.md,
   },
 
@@ -333,21 +335,21 @@ const styles = StyleSheet.create({
     gap: UITokens.spacing.sm,
   },
   symptomButton: {
-    backgroundColor: "#1F2937",
+    backgroundColor: colors.surfaceElevated,
     paddingHorizontal: UITokens.spacing.md,
     paddingVertical: UITokens.spacing.sm,
     borderRadius: UITokens.borderRadius.full,
     borderWidth: 2,
-    borderColor: "#374151",
+    borderColor: colors.border,
   },
   symptomButtonActive: {
-    backgroundColor: StatusColors.warning,
-    borderColor: StatusColors.warning,
+    backgroundColor: colors.orange,
+    borderColor: colors.orange,
   },
   symptomButtonText: {
     fontSize: UITokens.typography.body.fontSize,
     fontWeight: "500",
-    color: "#F3F4F6",
+    color: colors.text,
   },
 
   sliderHeader: {
@@ -359,6 +361,7 @@ const styles = StyleSheet.create({
   severityValue: {
     fontSize: UITokens.typography.h3.fontSize,
     fontWeight: "700",
+    color: colors.text,
   },
   sliderContainer: {
     flexDirection: "row",
@@ -369,11 +372,11 @@ const styles = StyleSheet.create({
     flex: 1,
     aspectRatio: 1,
     borderRadius: UITokens.borderRadius.sm,
-    backgroundColor: "#1F2937",
+    backgroundColor: colors.surfaceElevated,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#374151",
+    borderColor: colors.border,
   },
   sliderButtonActive: {
     borderColor: "transparent",
@@ -381,10 +384,10 @@ const styles = StyleSheet.create({
   sliderButtonText: {
     fontSize: UITokens.typography.body.fontSize,
     fontWeight: "600",
-    color: "#9CA3AF",
+    color: colors.textSecondary,
   },
   sliderButtonTextActive: {
-    color: "white",
+    color: colors.text,
   },
   severityLabels: {
     flexDirection: "row",
@@ -393,7 +396,7 @@ const styles = StyleSheet.create({
   },
   severityLabel: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
     fontWeight: "500",
   },
 
@@ -403,16 +406,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   durationInput: {
-    backgroundColor: "#1F2937",
+    backgroundColor: colors.surfaceElevated,
     borderRadius: UITokens.borderRadius.md,
     padding: UITokens.spacing.md,
-    color: "#F3F4F6",
+    color: colors.text,
     fontSize: UITokens.typography.body.fontSize,
     fontWeight: "600",
     minWidth: 60,
     textAlign: "center",
     borderWidth: 2,
-    borderColor: "#374151",
+    borderColor: colors.border,
   },
   durationPickerRow: {
     flex: 1,
@@ -422,40 +425,40 @@ const styles = StyleSheet.create({
   durationButton: {
     flex: 1,
     paddingVertical: UITokens.spacing.md,
-    backgroundColor: "#1F2937",
+    backgroundColor: colors.surfaceElevated,
     borderRadius: UITokens.borderRadius.md,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#374151",
+    borderColor: colors.border,
   },
   durationButtonActive: {
-    backgroundColor: StatusColors.info,
-    borderColor: StatusColors.info,
+    backgroundColor: colors.cyan,
+    borderColor: colors.cyan,
   },
   durationButtonText: {
     fontSize: UITokens.typography.caption.fontSize,
     fontWeight: "600",
-    color: "#9CA3AF",
+    color: colors.textSecondary,
   },
   durationButtonTextActive: {
-    color: "white",
+    color: colors.text,
   },
 
   notesInput: {
-    backgroundColor: "#1F2937",
+    backgroundColor: colors.surfaceElevated,
     borderRadius: UITokens.borderRadius.md,
     padding: UITokens.spacing.md,
-    color: "#F3F4F6",
+    color: colors.text,
     fontSize: UITokens.typography.body.fontSize,
     borderWidth: 2,
-    borderColor: "#374151",
+    borderColor: colors.border,
     minHeight: 80,
     textAlignVertical: "top",
   },
 
   submitButton: {
-    backgroundColor: StatusColors.success,
+    backgroundColor: colors.green,
     borderRadius: UITokens.borderRadius.md,
     padding: UITokens.spacing.lg,
     minHeight: UITokens.touchTarget,
@@ -470,7 +473,7 @@ const styles = StyleSheet.create({
 
   symptomCard: {
     flexDirection: "row",
-    backgroundColor: "#1F2937",
+    backgroundColor: colors.surfaceElevated,
     borderRadius: UITokens.borderRadius.md,
     padding: UITokens.spacing.md,
     marginBottom: UITokens.spacing.md,
@@ -488,34 +491,35 @@ const styles = StyleSheet.create({
   symptomCardName: {
     fontSize: UITokens.typography.body.fontSize,
     fontWeight: "600",
-    color: "#F3F4F6",
+    color: colors.text,
   },
   symptomCardSeverity: {
     fontSize: UITokens.typography.body.fontSize,
     fontWeight: "700",
+    color: colors.text,
   },
   symptomCardDuration: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
     marginBottom: UITokens.spacing.xs,
   },
   symptomCardNotes: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#D1D5DB",
+    color: colors.textTertiary,
     fontStyle: "italic",
   },
   deleteButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: StatusColors.danger + "20",
+    backgroundColor: colors.redLight,
     justifyContent: "center",
     alignItems: "center",
     marginLeft: UITokens.spacing.md,
   },
   deleteButtonText: {
     fontSize: 16,
-    color: StatusColors.danger,
+    color: colors.red,
     fontWeight: "700",
   },
 
@@ -523,3 +527,5 @@ const styles = StyleSheet.create({
     height: UITokens.spacing.xl,
   },
 });
+
+const styles = makeStyles(colors);

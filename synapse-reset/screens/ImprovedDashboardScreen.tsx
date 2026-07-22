@@ -9,6 +9,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   StatusCard,
   MetricCard,
@@ -22,14 +23,6 @@ import {
 import { UITokens, StatusColors, DataVizColors } from "@/constants/ui-design";
 import { getToday } from "@/lib/date-utils";
 
-const C = {
-  dark: {
-    primary: "#111827",
-    secondary: "#1F2937",
-    tertiary: "#374151",
-  },
-};
-
 interface ImprovedDashboardScreenProps {
   onNavigate?: (screen: string) => void;
   onRefreshKey?: number;
@@ -40,6 +33,7 @@ export default function ImprovedDashboardScreen({
   onRefreshKey,
 }: ImprovedDashboardScreenProps) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const [loading, setLoading] = useState(false);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [metrics, setMetrics] = useState({
@@ -80,7 +74,7 @@ export default function ImprovedDashboardScreen({
   ];
 
   return (
-    <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -88,7 +82,7 @@ export default function ImprovedDashboardScreen({
           <RefreshControl
             refreshing={loading}
             onRefresh={handleRefresh}
-            tintColor={StatusColors.danger}
+            tintColor={colors.tint}
           />
         }
       >
@@ -282,10 +276,10 @@ export default function ImprovedDashboardScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: C.dark.primary,
+    backgroundColor: colors.background,
   },
   scroll: {
     flex: 1,
@@ -300,24 +294,24 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: UITokens.typography.h1.fontSize,
     fontWeight: "700",
-    color: "#F3F4F6",
+    color: colors.text,
   },
   date: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
     marginTop: UITokens.spacing.xs,
   },
   syncButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: C.dark.secondary,
+    backgroundColor: colors.surfaceElevated,
     justifyContent: "center",
     alignItems: "center",
   },
   syncIcon: {
     fontSize: 20,
-    color: StatusColors.danger,
+    color: colors.red,
   },
 
   section: {
@@ -327,7 +321,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: UITokens.typography.h2.fontSize,
     fontWeight: "700",
-    color: "#F3F4F6",
+    color: colors.text,
     marginBottom: UITokens.spacing.md,
   },
   sectionHeader: {
@@ -337,8 +331,8 @@ const styles = StyleSheet.create({
     marginBottom: UITokens.spacing.md,
   },
   badge: {
-    backgroundColor: StatusColors.success + "20",
-    color: StatusColors.success,
+    backgroundColor: colors.greenLight,
+    color: colors.green,
     paddingHorizontal: UITokens.spacing.md,
     paddingVertical: UITokens.spacing.xs,
     borderRadius: UITokens.borderRadius.full,
@@ -357,17 +351,17 @@ const styles = StyleSheet.create({
 
   quickAddButton: {
     flexDirection: "row",
-    backgroundColor: C.dark.secondary,
+    backgroundColor: colors.surfaceElevated,
     borderRadius: UITokens.borderRadius.md,
     padding: UITokens.spacing.md,
     alignItems: "center",
     minHeight: UITokens.touchTarget,
     borderWidth: 2,
-    borderColor: StatusColors.success,
+    borderColor: colors.green,
   },
   quickAddIcon: {
     fontSize: 28,
-    color: StatusColors.success,
+    color: colors.green,
     marginRight: UITokens.spacing.md,
     fontWeight: "700",
   },
@@ -377,16 +371,16 @@ const styles = StyleSheet.create({
   quickAddTitle: {
     fontSize: UITokens.typography.body.fontSize,
     fontWeight: "600",
-    color: "#F3F4F6",
+    color: colors.text,
   },
   quickAddDesc: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
     marginTop: UITokens.spacing.xs,
   },
   quickAddArrow: {
     fontSize: 20,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
   },
 
   icon: {
@@ -416,7 +410,7 @@ const styles = StyleSheet.create({
     marginTop: UITokens.spacing.md,
     paddingVertical: UITokens.spacing.md,
     paddingHorizontal: UITokens.spacing.lg,
-    backgroundColor: C.dark.secondary,
+    backgroundColor: colors.surfaceElevated,
     borderRadius: UITokens.borderRadius.md,
     alignItems: "center",
     minHeight: UITokens.touchTarget,
@@ -425,10 +419,12 @@ const styles = StyleSheet.create({
   prepButtonText: {
     fontSize: UITokens.typography.body.fontSize,
     fontWeight: "600",
-    color: "#9CA3AF",
+    color: colors.textSecondary,
   },
 
   spacer: {
     height: UITokens.spacing.xl,
   },
 });
+
+const styles = makeStyles(colors);
