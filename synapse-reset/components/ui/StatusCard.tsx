@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, ViewStyle } from "react-native";
+import { useTheme } from "@/contexts/ThemeContext";
 import { UITokens, StatusColors } from "@/constants/ui-design";
 
 interface StatusCardProps {
@@ -21,37 +22,39 @@ export function StatusCard({
   style,
   onPress,
 }: StatusCardProps) {
+  const { colors } = useTheme();
+  const dynamicStyles = makeStyles(colors);
   const statusColor = StatusColors[status] || StatusColors.info;
 
   return (
     <View
       style={[
-        styles.container,
+        dynamicStyles.container,
         { borderLeftColor: statusColor },
         style,
       ]}
       onTouchEnd={onPress}
     >
-      <View style={styles.iconContainer}>
+      <View style={dynamicStyles.iconContainer}>
         {icon}
       </View>
-      <View style={styles.content}>
-        <Text style={styles.title}>{title}</Text>
+      <View style={dynamicStyles.content}>
+        <Text style={dynamicStyles.title}>{title}</Text>
         {value && (
-          <Text style={[styles.value, { color: statusColor }]}>
+          <Text style={[dynamicStyles.value, { color: statusColor }]}>
             {value}
           </Text>
         )}
-        {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+        {subtitle && <Text style={dynamicStyles.subtitle}>{subtitle}</Text>}
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   container: {
     flexDirection: "row",
-    backgroundColor: "#1F2937",
+    backgroundColor: colors.surfaceElevated,
     borderRadius: UITokens.borderRadius.md,
     padding: UITokens.spacing.md,
     marginVertical: UITokens.spacing.sm,
@@ -70,16 +73,17 @@ const styles = StyleSheet.create({
   title: {
     fontSize: UITokens.typography.body.fontSize,
     fontWeight: "500",
-    color: "#F3F4F6",
+    color: colors.text,
     marginBottom: UITokens.spacing.xs,
   },
   value: {
     fontSize: UITokens.typography.h3.fontSize,
     fontWeight: "600",
     marginBottom: UITokens.spacing.xs,
+    color: colors.text,
   },
   subtitle: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
   },
 });

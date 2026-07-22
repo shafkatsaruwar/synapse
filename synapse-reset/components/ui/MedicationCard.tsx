@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet, Pressable, ViewStyle, Animated } from "react-native";
+import { useTheme } from "@/contexts/ThemeContext";
 import { UITokens, StatusColors } from "@/constants/ui-design";
 
 interface MedicationCardProps {
@@ -25,6 +26,8 @@ export function MedicationCard({
   onSkip,
   style,
 }: MedicationCardProps) {
+  const { colors } = useTheme();
+  const dynamicStyles = makeStyles(colors);
   const getSupplyColor = () => {
     switch (supplyStatus) {
       case "good":
@@ -47,19 +50,19 @@ export function MedicationCard({
 
   return (
     <Pressable
-      style={[styles.container, style]}
+      style={[dynamicStyles.container, style]}
       onPress={onLog}
       android_ripple={{ color: "rgba(239, 68, 68, 0.1)" }}
     >
-      <View style={styles.header}>
-        <Text style={styles.emoji}>{emoji}</Text>
-        <View style={styles.titleSection}>
-          <Text style={styles.name}>{name}</Text>
-          <Text style={styles.dosage}>{dosage}</Text>
+      <View style={dynamicStyles.header}>
+        <Text style={dynamicStyles.emoji}>{emoji}</Text>
+        <View style={dynamicStyles.titleSection}>
+          <Text style={dynamicStyles.name}>{name}</Text>
+          <Text style={dynamicStyles.dosage}>{dosage}</Text>
         </View>
         {adherencePercent !== undefined && (
-          <View style={[styles.adherenceRing, { borderColor: adherenceColor }]}>
-            <Text style={[styles.adherenceText, { color: adherenceColor }]}>
+          <View style={[dynamicStyles.adherenceRing, { borderColor: adherenceColor }]}>
+            <Text style={[dynamicStyles.adherenceText, { color: adherenceColor }]}>
               {adherencePercent}%
             </Text>
           </View>
@@ -67,23 +70,23 @@ export function MedicationCard({
       </View>
 
       {nextDoseIn && (
-        <View style={styles.nextDose}>
-          <Text style={styles.nextDoseLabel}>Next dose: </Text>
-          <Text style={styles.nextDoseTime}>{nextDoseIn}</Text>
+        <View style={dynamicStyles.nextDose}>
+          <Text style={dynamicStyles.nextDoseLabel}>Next dose: </Text>
+          <Text style={dynamicStyles.nextDoseTime}>{nextDoseIn}</Text>
         </View>
       )}
 
       {supplyStatus && (
-        <View style={styles.footer}>
+        <View style={dynamicStyles.footer}>
           <View
             style={[
-              styles.supplyBadge,
+              dynamicStyles.supplyBadge,
               { backgroundColor: getSupplyColor() + "20" },
             ]}
           >
             <Text
               style={[
-                styles.supplyText,
+                dynamicStyles.supplyText,
                 { color: getSupplyColor() },
               ]}
             >
@@ -96,21 +99,21 @@ export function MedicationCard({
       )}
 
       {(onLog || onSkip) && (
-        <View style={styles.actions}>
+        <View style={dynamicStyles.actions}>
           {onLog && (
             <Pressable
-              style={[styles.actionButton, styles.logButton]}
+              style={[dynamicStyles.actionButton, dynamicStyles.logButton]}
               onPress={onLog}
             >
-              <Text style={styles.actionButtonText}>✓ Log</Text>
+              <Text style={dynamicStyles.actionButtonText}>✓ Log</Text>
             </Pressable>
           )}
           {onSkip && (
             <Pressable
-              style={[styles.actionButton, styles.skipButton]}
+              style={[dynamicStyles.actionButton, dynamicStyles.skipButton]}
               onPress={onSkip}
             >
-              <Text style={styles.skipButtonText}>Skip</Text>
+              <Text style={dynamicStyles.skipButtonText}>Skip</Text>
             </Pressable>
           )}
         </View>
@@ -119,14 +122,14 @@ export function MedicationCard({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   container: {
-    backgroundColor: "#1F2937",
+    backgroundColor: colors.surfaceElevated,
     borderRadius: UITokens.borderRadius.md,
     padding: UITokens.spacing.md,
     marginVertical: UITokens.spacing.sm,
     borderWidth: 1,
-    borderColor: "#374151",
+    borderColor: colors.border,
   },
   header: {
     flexDirection: "row",
@@ -143,12 +146,12 @@ const styles = StyleSheet.create({
   name: {
     fontSize: UITokens.typography.h3.fontSize,
     fontWeight: "600",
-    color: "#F3F4F6",
+    color: colors.text,
     marginBottom: UITokens.spacing.xs,
   },
   dosage: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
   },
   adherenceRing: {
     width: 56,
@@ -168,17 +171,17 @@ const styles = StyleSheet.create({
     marginBottom: UITokens.spacing.md,
     paddingVertical: UITokens.spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: "#374151",
+    borderTopColor: colors.border,
     paddingTop: UITokens.spacing.md,
   },
   nextDoseLabel: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
   },
   nextDoseTime: {
     fontSize: UITokens.typography.body.fontSize,
     fontWeight: "600",
-    color: "#F59E0B",
+    color: colors.orange,
   },
   footer: {
     marginBottom: UITokens.spacing.md,
@@ -205,10 +208,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logButton: {
-    backgroundColor: "#10B981",
+    backgroundColor: colors.green,
   },
   skipButton: {
-    backgroundColor: "#374151",
+    backgroundColor: colors.border,
   },
   actionButtonText: {
     fontSize: UITokens.typography.body.fontSize,
@@ -218,6 +221,6 @@ const styles = StyleSheet.create({
   skipButtonText: {
     fontSize: UITokens.typography.body.fontSize,
     fontWeight: "600",
-    color: "#9CA3AF",
+    color: colors.textSecondary,
   },
 });

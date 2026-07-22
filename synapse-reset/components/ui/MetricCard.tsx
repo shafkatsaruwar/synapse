@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, ViewStyle } from "react-native";
+import { useTheme } from "@/contexts/ThemeContext";
 import { UITokens, StatusColors } from "@/constants/ui-design";
 
 interface MetricCardProps {
@@ -23,6 +24,8 @@ export function MetricCard({
   icon,
   style,
 }: MetricCardProps) {
+  const { colors } = useTheme();
+  const dynamicStyles = makeStyles(colors);
   const getStatusColor = () => {
     switch (status) {
       case "good":
@@ -45,18 +48,18 @@ export function MetricCard({
   const statusColor = getStatusColor();
 
   return (
-    <View style={[styles.container, style]}>
-      {icon && <View style={styles.icon}>{icon}</View>}
-      <Text style={styles.label}>{label}</Text>
-      <View style={styles.valueContainer}>
-        <Text style={[styles.value, { color: statusColor }]}>
+    <View style={[dynamicStyles.container, style]}>
+      {icon && <View style={dynamicStyles.icon}>{icon}</View>}
+      <Text style={dynamicStyles.label}>{label}</Text>
+      <View style={dynamicStyles.valueContainer}>
+        <Text style={[dynamicStyles.value, { color: statusColor }]}>
           {value}
         </Text>
-        {unit && <Text style={styles.unit}>{unit}</Text>}
+        {unit && <Text style={dynamicStyles.unit}>{unit}</Text>}
       </View>
       {trendValue && (
-        <View style={styles.trendContainer}>
-          <Text style={[styles.trend, { color: statusColor }]}>
+        <View style={dynamicStyles.trendContainer}>
+          <Text style={[dynamicStyles.trend, { color: statusColor }]}>
             {getTrendIcon()} {trendValue}
           </Text>
         </View>
@@ -64,13 +67,13 @@ export function MetricCard({
       {status && (
         <View
           style={[
-            styles.statusBadge,
+            dynamicStyles.statusBadge,
             { backgroundColor: statusColor + "20" },
           ]}
         >
           <Text
             style={[
-              styles.statusText,
+              dynamicStyles.statusText,
               { color: statusColor },
             ]}
           >
@@ -82,9 +85,9 @@ export function MetricCard({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   container: {
-    backgroundColor: "#1F2937",
+    backgroundColor: colors.surfaceElevated,
     borderRadius: UITokens.borderRadius.md,
     padding: UITokens.spacing.lg,
     minHeight: 140,
@@ -95,7 +98,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
     fontWeight: "500",
     textTransform: "uppercase",
     marginBottom: UITokens.spacing.sm,
@@ -108,10 +111,11 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 32,
     fontWeight: "700",
+    color: colors.text,
   },
   unit: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
     marginLeft: UITokens.spacing.xs,
   },
   trendContainer: {
