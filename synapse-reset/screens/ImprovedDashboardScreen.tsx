@@ -101,53 +101,45 @@ export default function ImprovedDashboardScreen({
           </Pressable>
         </View>
 
-        {/* Key Metrics Row */}
+        {/* Today's Metrics - Single Box */}
         <Pressable onPress={() => onNavigate?.("log")}>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Today's Metrics</Text>
-            <View style={styles.metricsGrid}>
-              <MetricCard
-                label="Energy"
-                value={metrics.energy}
-                unit="/10"
-                status={metrics.energy >= 7 ? "good" : "warning"}
-                icon={<Text style={styles.icon}>⚡</Text>}
-                trend={metrics.energy > 5 ? "up" : "down"}
-                trendValue="+1 from yesterday"
-                style={{ flex: 1, marginRight: UITokens.spacing.sm }}
-              />
-              <MetricCard
-                label="Mood"
-                value={metrics.mood}
-                unit="/10"
-                status={metrics.mood >= 7 ? "good" : "warning"}
-                icon={<Text style={styles.icon}>😊</Text>}
-                trend="up"
-                trendValue="Stable"
-                style={{ flex: 1, marginLeft: UITokens.spacing.sm }}
-              />
-            </View>
-            <View style={styles.metricsGrid}>
-              <MetricCard
-                label="Sleep"
-                value={metrics.sleep}
-                unit="h"
-                status={metrics.sleep >= 7 ? "good" : "warning"}
-                icon={<Text style={styles.icon}>😴</Text>}
-                trend={metrics.sleep > 6 ? "up" : "down"}
-                trendValue="-0.5h vs avg"
-                style={{ flex: 1, marginRight: UITokens.spacing.sm }}
-              />
-              <MetricCard
-                label="Adherence"
-                value={90}
-                unit="%"
-                status="good"
-                icon={<Text style={styles.icon}>✓</Text>}
-                trend="up"
-                trendValue="This week"
-                style={{ flex: 1, marginLeft: UITokens.spacing.sm }}
-              />
+            <View style={styles.metricsBox}>
+              <Text style={styles.metricsBoxTitle}>Today's Metrics</Text>
+              <View style={styles.metricsBoxGrid}>
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricItemIcon}>⚡</Text>
+                  <Text style={styles.metricItemLabel}>Energy</Text>
+                  <Text style={[styles.metricItemValue, { color: metrics.energy >= 7 ? StatusColors.success : StatusColors.warning }]}>
+                    {metrics.energy}
+                  </Text>
+                  <Text style={styles.metricItemUnit}>/10</Text>
+                </View>
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricItemIcon}>😊</Text>
+                  <Text style={styles.metricItemLabel}>Mood</Text>
+                  <Text style={[styles.metricItemValue, { color: metrics.mood >= 7 ? StatusColors.success : StatusColors.warning }]}>
+                    {metrics.mood}
+                  </Text>
+                  <Text style={styles.metricItemUnit}>/10</Text>
+                </View>
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricItemIcon}>😴</Text>
+                  <Text style={styles.metricItemLabel}>Sleep</Text>
+                  <Text style={[styles.metricItemValue, { color: metrics.sleep >= 7 ? StatusColors.success : StatusColors.warning }]}>
+                    {metrics.sleep}
+                  </Text>
+                  <Text style={styles.metricItemUnit}>h</Text>
+                </View>
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricItemIcon}>✓</Text>
+                  <Text style={styles.metricItemLabel}>Adherence</Text>
+                  <Text style={[styles.metricItemValue, { color: StatusColors.success }]}>
+                    90
+                  </Text>
+                  <Text style={styles.metricItemUnit}>%</Text>
+                </View>
+              </View>
             </View>
           </View>
         </Pressable>
@@ -362,10 +354,51 @@ const makeStyles = (colors: any) => StyleSheet.create({
     fontWeight: "600",
   },
 
-  metricsGrid: {
+  metricsBox: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: UITokens.borderRadius.md,
+    padding: UITokens.spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  metricsBoxTitle: {
+    fontSize: UITokens.typography.h3.fontSize,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: UITokens.spacing.md,
+  },
+  metricsBoxGrid: {
+    display: "flex",
     flexDirection: "row",
-    gap: UITokens.spacing.sm,
+    flexWrap: "wrap",
+    gap: UITokens.spacing.md,
+  },
+  metricItem: {
+    flex: 1,
+    minWidth: "45%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  metricItemIcon: {
+    fontSize: 24,
     marginBottom: UITokens.spacing.sm,
+  },
+  metricItemLabel: {
+    fontSize: UITokens.typography.caption.fontSize,
+    color: colors.textSecondary,
+    fontWeight: "500",
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  metricItemValue: {
+    fontSize: 26,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  metricItemUnit: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontWeight: "500",
   },
 
   quickAddButton: {
