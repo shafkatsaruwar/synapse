@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Dimensions } from "react-native";
+import { useTheme } from "@/contexts/ThemeContext";
 import { UITokens, StatusColors, DataVizColors } from "@/constants/ui-design";
 
 interface SimpleLineChartProps {
@@ -15,6 +16,8 @@ export function SimpleLineChart({
   color = DataVizColors.energy,
   height = 200,
 }: SimpleLineChartProps) {
+  const { colors } = useTheme();
+  const dynamicStyles = makeChartStyles(colors);
   if (data.length === 0) return null;
 
   const maxValue = Math.max(...data);
@@ -24,29 +27,29 @@ export function SimpleLineChart({
   const barWidth = width / data.length - 4;
 
   return (
-    <View style={styles.chartContainer}>
-      <Text style={styles.chartLabel}>{label}</Text>
-      <View style={[styles.chart, { height }]}>
+    <View style={dynamicStyles.chartContainer}>
+      <Text style={dynamicStyles.chartLabel}>{label}</Text>
+      <View style={[dynamicStyles.chart, { height }]}>
         {/* Grid lines */}
         {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
           <View
             key={i}
             style={[
-              styles.gridLine,
+              dynamicStyles.gridLine,
               { top: height * ratio },
             ]}
           />
         ))}
 
         {/* Bar visualization */}
-        <View style={styles.barsContainer}>
+        <View style={dynamicStyles.barsContainer}>
           {data.map((value, i) => {
             const barHeight = ((value - minValue) / range) * height;
             return (
               <View
                 key={i}
                 style={[
-                  styles.chartBar,
+                  dynamicStyles.chartBar,
                   {
                     width: barWidth,
                     height: Math.max(barHeight, 2),
@@ -60,11 +63,11 @@ export function SimpleLineChart({
       </View>
 
       {/* Legend */}
-      <View style={styles.chartLegend}>
-        <Text style={styles.chartMin}>
+      <View style={dynamicStyles.chartLegend}>
+        <Text style={dynamicStyles.chartMin}>
           Low: {minValue.toFixed(1)}
         </Text>
-        <Text style={styles.chartMax}>
+        <Text style={dynamicStyles.chartMax}>
           High: {maxValue.toFixed(1)}
         </Text>
       </View>
@@ -85,21 +88,23 @@ export function ProgressRing({
   color = StatusColors.success,
   label,
 }: ProgressRingProps) {
+  const { colors } = useTheme();
+  const dynamicStyles = makeChartStyles(colors);
   const clampedPercentage = Math.max(0, Math.min(100, percentage));
   const rotation = (clampedPercentage / 100) * 360;
 
   return (
-    <View style={[styles.ringContainer, { width: size, height: size }]}>
+    <View style={[dynamicStyles.ringContainer, { width: size, height: size }]}>
       {/* Background circle */}
       <View
         style={[
-          styles.ringBackground,
+          dynamicStyles.ringBackground,
           {
             width: size,
             height: size,
             borderRadius: size / 2,
             borderWidth: 4,
-            borderColor: "#374151",
+            borderColor: colors.border,
           },
         ]}
       />
@@ -107,7 +112,7 @@ export function ProgressRing({
       {/* Progress circle - simplified using border */}
       <View
         style={[
-          styles.ringProgress,
+          dynamicStyles.ringProgress,
           {
             width: size,
             height: size,
@@ -123,11 +128,11 @@ export function ProgressRing({
       />
 
       {/* Center content */}
-      <View style={styles.ringContent}>
-        <Text style={styles.ringPercentage}>
+      <View style={dynamicStyles.ringContent}>
+        <Text style={dynamicStyles.ringPercentage}>
           {Math.round(clampedPercentage)}%
         </Text>
-        {label && <Text style={styles.ringLabel}>{label}</Text>}
+        {label && <Text style={dynamicStyles.ringLabel}>{label}</Text>}
       </View>
     </View>
   );
@@ -209,27 +214,28 @@ export function BarChart({
   );
 }
 
-const styles = StyleSheet.create({
+const makeChartStyles = (colors: any) => StyleSheet.create({
   chartContainer: {
     marginVertical: UITokens.spacing.lg,
   },
   chartLabel: {
     fontSize: UITokens.typography.body.fontSize,
     fontWeight: "600",
-    color: "#F3F4F6",
+    color: colors.text,
     marginBottom: UITokens.spacing.md,
   },
   chart: {
-    backgroundColor: "#1F2937",
+    backgroundColor: colors.surfaceElevated,
     borderRadius: UITokens.borderRadius.md,
     padding: UITokens.spacing.md,
     position: "relative",
+    overflow: "hidden",
   },
   gridLine: {
     position: "absolute",
     width: "100%",
     height: 1,
-    backgroundColor: "#374151",
+    backgroundColor: colors.border,
   },
   barsContainer: {
     flexDirection: "row",
@@ -256,11 +262,11 @@ const styles = StyleSheet.create({
   },
   chartMin: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
   },
   chartMax: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
   },
 
   ringContainer: {
@@ -282,14 +288,16 @@ const styles = StyleSheet.create({
   ringPercentage: {
     fontSize: 28,
     fontWeight: "700",
-    color: "#F3F4F6",
+    color: colors.text,
   },
   ringLabel: {
     fontSize: UITokens.typography.caption.fontSize,
-    color: "#9CA3AF",
+    color: colors.textSecondary,
     marginTop: UITokens.spacing.xs,
   },
+});
 
+const styles = StyleSheet.create({
   heatmapContainer: {
     marginVertical: UITokens.spacing.lg,
   },

@@ -159,29 +159,28 @@ export default function ImprovedDashboardScreen({
           </Pressable>
         </View>
 
-        {/* Medications */}
+        {/* Next Medication */}
         <View style={styles.section}>
           <Pressable onPress={() => onNavigate?.("medications")}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Medications</Text>
-              <Text style={styles.badge}>2 Active</Text>
+              <Text style={styles.sectionTitle}>Next Medication</Text>
+              <Text style={styles.badge}>{medications.length} Active</Text>
             </View>
           </Pressable>
-          {medications.map((med, i) => (
-            <Pressable key={i} onPress={() => onNavigate?.("medications")}>
+          {medications.length > 0 && (
+            <Pressable onPress={() => onNavigate?.("medications")}>
               <MedicationCard
-                emoji={med.emoji}
-                name={med.name}
-                dosage={med.dosage}
-                nextDoseIn={med.nextDoseIn}
-                adherencePercent={med.adherencePercent}
-                supplyStatus={med.supplyStatus}
+                emoji={medications[0].emoji}
+                name={medications[0].name}
+                dosage={medications[0].dosage}
+                nextDoseIn={medications[0].nextDoseIn}
+                adherencePercent={medications[0].adherencePercent}
+                supplyStatus={medications[0].supplyStatus}
                 onLog={() => onNavigate?.("medications")}
                 onSkip={() => onNavigate?.("medications")}
-                style={{ marginBottom: UITokens.spacing.md }}
               />
             </Pressable>
-          ))}
+          )}
         </View>
 
         {/* Health Insights */}
