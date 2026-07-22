@@ -861,19 +861,24 @@ export default function SidebarLayout({
           overflow: "hidden",
           flexDirection: "column",
         }}>
-          <View style={{ paddingTop: 12, paddingHorizontal: 8, paddingBottom: 8 }}>
+          <View style={{ paddingTop: 12, paddingHorizontal: 8, paddingBottom: 8, alignItems: "center" }}>
             <Pressable
-              style={{
+              style={({ pressed }) => ({
                 width: 44,
                 height: 44,
                 justifyContent: "center",
                 alignItems: "center",
-              }}
+                borderRadius: 8,
+                backgroundColor: pressed ? C.surfaceElevated : "transparent",
+              })}
               onPress={() => {
                 const newCollapsed = !localWebSidebarCollapsed;
                 setLocalWebSidebarCollapsed(newCollapsed);
                 onWebSidebarToggle?.(newCollapsed);
               }}
+              accessibilityRole="button"
+              accessibilityLabel={localWebSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              accessibilityHint="Toggle sidebar expansion"
             >
               <Ionicons
                 name={localWebSidebarCollapsed ? "menu" : "close"}
