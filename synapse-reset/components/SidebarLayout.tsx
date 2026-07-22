@@ -425,7 +425,7 @@ export default function SidebarLayout({
       <View
         style={[
           styles.mobileContent,
-          Platform.OS === "web" && { flex: 0, minHeight: "100vh", overflowY: "auto" },
+          Platform.OS === "web" && { flex: 0, minHeight: "100vh", overflow: "auto" },
           {
             paddingHorizontal: simpleMode ? 0 : 8,
             paddingBottom: showBottomNav
