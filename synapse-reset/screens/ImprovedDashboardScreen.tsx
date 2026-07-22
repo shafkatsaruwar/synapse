@@ -102,8 +102,9 @@ export default function ImprovedDashboardScreen({
         </View>
 
         {/* Key Metrics Row */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Today's Metrics</Text>
+        <Pressable onPress={() => onNavigate?.("log")}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Today's Metrics</Text>
           <View style={styles.metricsGrid}>
             <MetricCard
               label="Energy"
@@ -142,13 +143,14 @@ export default function ImprovedDashboardScreen({
               trendValue="This week"
             />
           </View>
-        </View>
+          </View>
+        </Pressable>
 
         {/* Quick Actions */}
         <View style={styles.section}>
           <Pressable
             style={styles.quickAddButton}
-            onPress={() => setQuickAddVisible(true)}
+            onPress={() => onNavigate?.("eating")}
           >
             <Text style={styles.quickAddIcon}>+</Text>
             <View style={styles.quickAddContent}>
@@ -161,105 +163,118 @@ export default function ImprovedDashboardScreen({
 
         {/* Medications */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Medications</Text>
-            <Text style={styles.badge}>2 Active</Text>
-          </View>
+          <Pressable onPress={() => onNavigate?.("medications")}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Medications</Text>
+              <Text style={styles.badge}>2 Active</Text>
+            </View>
+          </Pressable>
           {medications.map((med, i) => (
-            <MedicationCard
-              key={i}
-              emoji={med.emoji}
-              name={med.name}
-              dosage={med.dosage}
-              nextDoseIn={med.nextDoseIn}
-              adherencePercent={med.adherencePercent}
-              supplyStatus={med.supplyStatus}
-              onLog={() => console.log("Logged:", med.name)}
-              onSkip={() => console.log("Skipped:", med.name)}
-              style={{ marginBottom: UITokens.spacing.md }}
-            />
+            <Pressable key={i} onPress={() => onNavigate?.("medications")}>
+              <MedicationCard
+                emoji={med.emoji}
+                name={med.name}
+                dosage={med.dosage}
+                nextDoseIn={med.nextDoseIn}
+                adherencePercent={med.adherencePercent}
+                supplyStatus={med.supplyStatus}
+                onLog={() => onNavigate?.("medications")}
+                onSkip={() => onNavigate?.("medications")}
+                style={{ marginBottom: UITokens.spacing.md }}
+              />
+            </Pressable>
           ))}
         </View>
 
         {/* Health Insights */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Health Insights</Text>
-          <StatusCard
-            icon={<Text style={styles.insightIcon}>📈</Text>}
-            title="Energy Trend"
-            value="↑ Improving"
-            subtitle="Up 2 points this week"
-            status="success"
-          />
-          <StatusCard
-            icon={<Text style={styles.insightIcon}>💧</Text>}
-            title="Hydration"
-            value="0L today"
-            subtitle="You're dehydrated, drink water"
-            status="warning"
-          />
-          <StatusCard
-            icon={<Text style={styles.insightIcon}>😴</Text>}
-            title="Sleep Quality"
-            value="Average"
-            subtitle="1h less than your baseline"
-            status="danger"
-          />
+          <Pressable onPress={() => onNavigate?.("log")}>
+            <StatusCard
+              icon={<Text style={styles.insightIcon}>📈</Text>}
+              title="Energy Trend"
+              value="↑ Improving"
+              subtitle="Up 2 points this week"
+              status="success"
+            />
+          </Pressable>
+          <Pressable onPress={() => onNavigate?.("eating")}>
+            <StatusCard
+              icon={<Text style={styles.insightIcon}>💧</Text>}
+              title="Hydration"
+              value="0L today"
+              subtitle="You're dehydrated, drink water"
+              status="warning"
+            />
+          </Pressable>
+          <Pressable onPress={() => onNavigate?.("log")}>
+            <StatusCard
+              icon={<Text style={styles.insightIcon}>😴</Text>}
+              title="Sleep Quality"
+              value="Average"
+              subtitle="1h less than your baseline"
+              status="danger"
+            />
+          </Pressable>
         </View>
 
         {/* Data Visualization */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Energy Trend (Last 7 Days)</Text>
-          <SimpleLineChart
-            data={[5, 6, 6, 7, 6.5, 7, 7]}
-            label="Daily Energy Levels"
-            color={DataVizColors.energy}
-            height={200}
-          />
-        </View>
+        <Pressable onPress={() => onNavigate?.("insights")}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Energy Trend (Last 7 Days)</Text>
+            <SimpleLineChart
+              data={[5, 6, 6, 7, 6.5, 7, 7]}
+              label="Daily Energy Levels"
+              color={DataVizColors.energy}
+              height={200}
+            />
+          </View>
+        </Pressable>
 
         {/* Medication Adherence Ring */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>This Week's Progress</Text>
           <View style={styles.ringRow}>
-            <View style={styles.ringItem}>
+            <Pressable style={styles.ringItem} onPress={() => onNavigate?.("medications")}>
               <ProgressRing
                 percentage={92}
                 size={100}
                 color={StatusColors.success}
                 label="Medications"
               />
-            </View>
-            <View style={styles.ringItem}>
+            </Pressable>
+            <Pressable style={styles.ringItem} onPress={() => onNavigate?.("eating")}>
               <ProgressRing
                 percentage={75}
                 size={100}
                 color={StatusColors.warning}
                 label="Hydration"
               />
-            </View>
-            <View style={styles.ringItem}>
+            </Pressable>
+            <Pressable style={styles.ringItem} onPress={() => onNavigate?.("log")}>
               <ProgressRing
                 percentage={60}
                 size={100}
                 color={StatusColors.danger}
                 label="Sleep Goal"
               />
-            </View>
+            </Pressable>
           </View>
         </View>
 
         {/* Upcoming Appointment */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Next Appointment</Text>
-          <StatusCard
-            icon={<Text style={styles.appointmentIcon}>📅</Text>}
-            title="Dr. Jordan LICSW"
-            value="in 8 days"
-            subtitle="Tuesday, July 29 at 10:00 AM"
-            status="info"
-          />
-          <Pressable style={styles.prepButton}>
+          <Pressable onPress={() => onNavigate?.("appointments")}>
+            <StatusCard
+              icon={<Text style={styles.appointmentIcon}>📅</Text>}
+              title="Dr. Jordan LICSW"
+              value="in 8 days"
+              subtitle="Tuesday, July 29 at 10:00 AM"
+              status="info"
+            />
+          </Pressable>
+          <Pressable style={styles.prepButton} onPress={() => onNavigate?.("appointments")}>
             <Text style={styles.prepButtonText}>📝 Add to prep checklist</Text>
           </Pressable>
         </View>
