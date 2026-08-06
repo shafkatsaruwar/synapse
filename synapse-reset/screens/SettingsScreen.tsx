@@ -1495,77 +1495,69 @@ export default function SettingsScreen({
                   <Text style={styles.rolePersonName}>{caredForNameLabel}</Text>
                   <Text style={styles.rolePersonMeta}>{caredForAgeLabel}</Text>
                 </View>
-                {!roleDetailsEditing ? (
-                  <Pressable
-                    style={styles.roleEditButton}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setRoleDetailsEditing(true);
-                    }}
-                  >
-                    <Ionicons name="pencil-outline" size={15} color={C.tint} />
-                    <Text style={styles.roleEditButtonText}>Edit</Text>
-                  </Pressable>
-                ) : null}
               </View>
-              {roleDetailsEditing ? (
-                <>
-                  <View style={styles.rolePersonFieldRow}>
-                    <View style={styles.rolePersonFieldName}>
-                      <Text style={styles.roleInlineLabel}>Name</Text>
-                      <TextInput
-                        style={styles.roleInlineInput}
-                        value={profile.caredForName ?? ""}
-                        onChangeText={(text) => setProfile((prev) => ({ ...prev, caredForName: text }))}
-                        placeholder="Name"
-                        placeholderTextColor={C.textTertiary}
-                      />
-                    </View>
-                    <View style={styles.rolePersonFieldAge}>
-                      <Text style={styles.roleInlineLabel}>Age</Text>
-                      <TextInput
-                        style={styles.roleInlineInput}
-                        value={profile.caredForAge != null ? String(profile.caredForAge) : ""}
-                        onChangeText={(text) =>
-                          setProfile((prev) => ({
-                            ...prev,
-                            caredForAge: text.trim() ? Math.max(0, parseInt(text, 10) || 0) : undefined,
-                          }))
-                        }
-                        placeholder="Age"
-                        placeholderTextColor={C.textTertiary}
-                        keyboardType="number-pad"
-                      />
-                    </View>
-                  </View>
-                  <View style={styles.rolePersonActionRow}>
-                    <Pressable
-                      style={styles.roleCancelButton}
-                      onPress={() => {
-                        Haptics.selectionAsync();
-                        setProfile((prev) => ({
-                          ...prev,
-                          caredForName: caregiverProfile?.name || prev.caredForName,
-                          caredForAge: caregiverProfile?.age || prev.caredForAge,
-                        }));
-                        setRoleDetailsEditing(false);
-                      }}
-                      accessibilityRole="button"
-                      accessibilityLabel="Cancel editing care recipient"
-                    >
-                      <Text style={styles.roleCancelButtonText}>Cancel</Text>
-                    </Pressable>
-                    <Pressable style={[styles.personSaveButton, { flex: 1, marginTop: 0 }]} onPress={saveCareRecipientDetails}>
-                      <Text style={styles.personSaveButtonText}>Save person</Text>
-                    </Pressable>
-                  </View>
-                </>
-              ) : null}
+
+              <View style={styles.rolePersonFieldRow}>
+                <View style={styles.rolePersonFieldName}>
+                  <Text style={styles.roleInlineLabel}>Name</Text>
+                  <TextInput
+                    style={styles.roleInlineInput}
+                    value={profile.caredForName ?? ""}
+                    onChangeText={(text) => {
+                      setRoleDetailsEditing(true);
+                      setProfile((prev) => ({ ...prev, caredForName: text }));
+                    }}
+                    placeholder="Name"
+                    placeholderTextColor={C.textTertiary}
+                  />
+                </View>
+                <View style={styles.rolePersonFieldAge}>
+                  <Text style={styles.roleInlineLabel}>Age</Text>
+                  <TextInput
+                    style={styles.roleInlineInput}
+                    value={profile.caredForAge != null ? String(profile.caredForAge) : ""}
+                    onChangeText={(text) => {
+                      setRoleDetailsEditing(true);
+                      setProfile((prev) => ({
+                        ...prev,
+                        caredForAge: text.trim() ? Math.max(0, parseInt(text, 10) || 0) : undefined,
+                      }));
+                    }}
+                    placeholder="Age"
+                    placeholderTextColor={C.textTertiary}
+                    keyboardType="number-pad"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.rolePersonActionRow}>
+                <Pressable
+                  style={styles.roleCancelButton}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setProfile((prev) => ({
+                      ...prev,
+                      caredForName: caregiverProfile?.name || "",
+                      caredForAge: caregiverProfile?.age || undefined,
+                    }));
+                    setRoleDetailsEditing(false);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel editing care recipient"
+                >
+                  <Text style={styles.roleCancelButtonText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={[styles.personSaveButton, { flex: 1, marginTop: 0 }]} onPress={saveCareRecipientDetails}>
+                  <Text style={styles.personSaveButtonText}>Save person</Text>
+                </Pressable>
+              </View>
+
               <Pressable
                 style={styles.roleRemoveButton}
                 onPress={handleRemoveCaregiverMode}
                 accessibilityRole="button"
                 accessibilityLabel="Remove care recipient"
+                testID="account-remove-care-recipient"
               >
                 <Ionicons name="trash-outline" size={16} color={C.red} />
                 <Text style={styles.roleRemoveButtonText}>Remove care recipient</Text>
