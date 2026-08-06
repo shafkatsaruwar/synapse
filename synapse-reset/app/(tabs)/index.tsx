@@ -1252,7 +1252,12 @@ export default function MainScreen() {
           />
         );
       case "managedperson":
-        return <ManagedPersonScreen onBack={() => handleNavigate("caregiverdashboard")} />;
+        return (
+          <ManagedPersonScreen
+            onBack={() => handleNavigate("caregiverdashboard")}
+            onRemoved={() => handleNavigate("settings")}
+          />
+        );
       case "log":
         return <DailyLogScreen key={refreshKey} />;
       case "logtoday":

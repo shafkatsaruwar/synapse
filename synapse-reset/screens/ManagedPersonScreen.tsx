@@ -63,7 +63,8 @@ export default function ManagedPersonScreen({ onBack, onRemoved }: ManagedPerson
             setAge("");
             setRelation("");
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            onRemoved?.() ?? onBack?.();
+            if (onRemoved) onRemoved();
+            else onBack?.();
           },
         },
       ],
