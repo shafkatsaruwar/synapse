@@ -9,15 +9,16 @@ import { useRole } from "@/contexts/RoleContext";
 
 interface ManagedPersonScreenProps {
   onBack?: () => void;
+  onRemoved?: () => void;
 }
 
-export default function ManagedPersonScreen({ onBack }: ManagedPersonScreenProps) {
+export default function ManagedPersonScreen({ onBack, onRemoved }: ManagedPersonScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
-  const { caregiverProfile, saveCaregiverProfile } = useRole();
+  const { caregiverProfile, saveCaregiverProfile, clearCaregiverMode } = useRole();
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
   const [relation, setRelation] = useState("");
@@ -44,6 +45,29 @@ export default function ManagedPersonScreen({ onBack }: ManagedPersonScreenProps
     });
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     onBack?.();
+  };
+
+  const removeManagedPerson = () => {
+    Haptics.selectionAsync().catch(() => {});
+    Alert.alert(
+      "Remove managed person?",
+      "This clears the care recipient on this device and switches you back to Self.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            await clearCaregiverMode();
+            setName("");
+            setAge("");
+            setRelation("");
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+            onRemoved?.() ?? onBack?.();
+          },
+        },
+      ],
+    );
   };
 
   const topPad = isWide ? 28 : Platform.OS === "web" ? 40 : insets.top + 10;
@@ -86,8 +110,16 @@ export default function ManagedPersonScreen({ onBack }: ManagedPersonScreenProps
             <Text style={styles.label}>Relation optional</Text>
             <TextInput style={styles.input} value={relation} onChangeText={setRelation} placeholder="Parent, spouse, child..." placeholderTextColor={C.textTertiary} />
           </View>
-          <Pressable style={styles.primaryButton} onPress={save}>
+          <Pressable style={styles.primaryButton} onPress={save} accessibilityRole="button" accessibilityLabel="Save profile">
             <Text style={styles.primaryButtonText}>Save profile</Text>
+          </Pressable>
+          <Pressable
+            style={styles.removeButton}
+            onPress={removeManagedPerson}
+            accessibilityRole="button"
+            accessibilityLabel="Remove managed person"
+          >
+            <Text style={styles.removeButtonText}>Remove managed person</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -116,5 +148,15 @@ function makeStyles(C: Theme, themeId: string) {
     input: { borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, color: C.text, fontWeight: "700", backgroundColor: solidElevated },
     primaryButton: { marginTop: 4, minHeight: 48, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.tint },
     primaryButtonText: { color: "#fff", fontWeight: "900", fontSize: 15 },
+    removeButton: {
+      minHeight: 48,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: C.red,
+      backgroundColor: C.redLight,
+    },
+    removeButtonText: { color: C.red, fontWeight: "900", fontSize: 15 },
   });
 }
