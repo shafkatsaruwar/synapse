@@ -1214,19 +1214,38 @@ export default function SettingsScreen({
                         />
                       </View>
                     </View>
-                    <Pressable style={styles.personSaveButton} onPress={saveSimpleRoleDetails}>
-                      <Text style={[styles.personSaveButtonText, { fontSize: simpleActionSize }]}>Save person</Text>
-                    </Pressable>
+                    <View style={styles.rolePersonActionRow}>
+                      <Pressable
+                        style={styles.roleCancelButton}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setProfile((prev) => ({
+                            ...prev,
+                            caredForName: caregiverProfile?.name || prev.caredForName,
+                            caredForAge: caregiverProfile?.age || prev.caredForAge,
+                          }));
+                          setRoleDetailsEditing(false);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Cancel editing care recipient"
+                      >
+                        <Text style={[styles.roleCancelButtonText, { fontSize: Math.max(13, simpleActionSize - 1) }]}>Cancel</Text>
+                      </Pressable>
+                      <Pressable style={[styles.personSaveButton, { flex: 1, marginTop: 0 }]} onPress={saveSimpleRoleDetails}>
+                        <Text style={[styles.personSaveButtonText, { fontSize: simpleActionSize }]}>Save person</Text>
+                      </Pressable>
+                    </View>
                   </>
                 ) : null}
                 <Pressable
                   style={styles.roleRemoveButton}
                   onPress={handleRemoveCaregiverMode}
                   accessibilityRole="button"
-                  accessibilityLabel="Remove caregiver mode"
+                  accessibilityLabel="Remove care recipient"
                 >
+                  <Ionicons name="trash-outline" size={16} color={C.red} />
                   <Text style={[styles.roleRemoveButtonText, { fontSize: Math.max(13, simpleActionSize - 1) }]}>
-                    Remove caregiver
+                    Remove care recipient
                   </Text>
                 </Pressable>
               </View>
@@ -2214,15 +2233,34 @@ function makeStyles(C: Theme, themeId: string) {
       ...raised("sm"),
     },
     personSaveButtonText: { fontWeight: "900", fontSize: 14, color: "#fff", letterSpacing: -0.2 },
-    roleRemoveButton: {
-      marginTop: 12,
-      minHeight: 44,
-      borderRadius: 14,
+    rolePersonActionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    roleCancelButton: {
+      minHeight: 48,
+      minWidth: 96,
+      paddingHorizontal: 16,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
       borderWidth: 1,
+      borderColor: C.border,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.7)",
+    },
+    roleCancelButtonText: { fontWeight: "800", fontSize: 14, color: C.text },
+    roleRemoveButton: {
+      marginTop: 2,
+      minHeight: 48,
+      borderRadius: 16,
+      borderWidth: 1.5,
       borderColor: C.red,
       backgroundColor: C.redLight,
       alignItems: "center",
       justifyContent: "center",
+      flexDirection: "row",
+      gap: 8,
       paddingHorizontal: 16,
     },
     roleRemoveButtonText: { fontWeight: "800", fontSize: 14, color: C.red },
