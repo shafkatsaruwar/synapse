@@ -1519,18 +1519,37 @@ export default function SettingsScreen({
                       />
                     </View>
                   </View>
-                  <Pressable style={styles.personSaveButton} onPress={saveCareRecipientDetails}>
-                    <Text style={styles.personSaveButtonText}>Save person</Text>
-                  </Pressable>
+                  <View style={styles.rolePersonActionRow}>
+                    <Pressable
+                      style={styles.roleCancelButton}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setProfile((prev) => ({
+                          ...prev,
+                          caredForName: caregiverProfile?.name || prev.caredForName,
+                          caredForAge: caregiverProfile?.age || prev.caredForAge,
+                        }));
+                        setRoleDetailsEditing(false);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancel editing care recipient"
+                    >
+                      <Text style={styles.roleCancelButtonText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable style={[styles.personSaveButton, { flex: 1, marginTop: 0 }]} onPress={saveCareRecipientDetails}>
+                      <Text style={styles.personSaveButtonText}>Save person</Text>
+                    </Pressable>
+                  </View>
                 </>
               ) : null}
               <Pressable
                 style={styles.roleRemoveButton}
                 onPress={handleRemoveCaregiverMode}
                 accessibilityRole="button"
-                accessibilityLabel="Remove caregiver mode"
+                accessibilityLabel="Remove care recipient"
               >
-                <Text style={styles.roleRemoveButtonText}>Remove caregiver</Text>
+                <Ionicons name="trash-outline" size={16} color={C.red} />
+                <Text style={styles.roleRemoveButtonText}>Remove care recipient</Text>
               </Pressable>
             </View>
           ) : null}
