@@ -23,6 +23,11 @@ import {
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import {
+  countDistinctTakenDoses,
+  countExpectedDosesInRange,
+} from "@/lib/medication-schedule";
+import { formatHydrationVolume } from "@/lib/hydration-format";
+import {
   formatCaregiverMedicationStatus,
   getCaregiverStatus,
   getCaregiverStatusLabel,
@@ -129,16 +134,17 @@ export default function CaregiverDashboardScreen({
   }[statusLabel];
 
   const scheduledMeds = medications.filter((med) => med.active && (med.medicationType ?? "scheduled") !== "prn");
-  const weeklyStart = new Date();
-  weeklyStart.setDate(weeklyStart.getDate() - 6);
-  const weeklyStartKey = weeklyStart.toISOString().slice(0, 10);
-  const weeklyDoseCount = scheduledMeds.reduce((sum, med) => sum + (med.doses?.length || 1) * 7, 0);
-  const weeklyTakenCount = useMemo(() => {
-    return medLogs.filter((log) => log.taken).length;
-  }, [medLogs]);
-  const adherence = weeklyDoseCount > 0 ? Math.min(100, Math.round((weeklyTakenCount / weeklyDoseCount) * 100)) : 0;
+  // medLogs are today-only — show today's adherence, not a fake weekly rate.
+  const todayExpected = countExpectedDosesInRange(scheduledMeds, [today]);
+  const todayTaken = countDistinctTakenDoses(
+    medLogs,
+    new Set(scheduledMeds.map((med) => med.id)),
+    today,
+    today,
+  );
+  const adherence = todayExpected > 0 ? Math.min(100, Math.round((todayTaken / todayExpected) * 100)) : 0;
   const appointmentsThisWeek = appointments.filter((apt) => apt.date >= today && apt.date <= new Date(Date.now() + 6 * 86400000).toISOString().slice(0, 10)).length;
-  const hydrationValue = hydrationTodayMl > 0 ? `${hydrationTodayMl} mL` : "Log";
+  const hydrationValue = hydrationTodayMl > 0 ? formatHydrationVolume(hydrationTodayMl) : "Log";
   const hydrationLabel = hydrationTodayMl > 0 ? "hydration today" : "hydration";
 
   const timeline: TimelineItem[] = useMemo(() => {
@@ -439,7 +445,7 @@ export default function CaregiverDashboardScreen({
         <View style={styles.snapshotRow}>
           <View style={styles.snapshotTile}>
             <Text style={styles.snapshotValue}>{adherence}%</Text>
-            <Text style={styles.snapshotLabel}>weekly adherence</Text>
+            <Text style={styles.snapshotLabel}>today’s adherence</Text>
           </View>
           <Pressable style={styles.snapshotTile} onPress={onOpenHydration} accessibilityRole="button" accessibilityLabel="Open hydration log">
             <Text style={styles.snapshotValue}>{hydrationValue}</Text>

@@ -134,16 +134,27 @@ export async function getCloudKitBackupStatus(): Promise<{
   }
 }
 
-export async function saveToICloud(): Promise<{ skipped?: boolean; error?: Error | null }> {
-  if (!isCloudKitAvailable() || !bridge) return { skipped: true };
-  if (saveInFlight) return { skipped: true };
+export async function saveToICloud(): Promise<{
+  skipped?: boolean;
+  skipReason?: string;
+  error?: Error | null;
+}> {
+  if (!isCloudKitAvailable() || !bridge) {
+    return {
+      skipped: true,
+      skipReason: Platform.OS === "ios" ? "native_bridge_missing" : "unsupported_platform",
+    };
+  }
+  if (saveInFlight) return { skipped: true, skipReason: "save_in_progress" };
 
   saveInFlight = true;
   try {
     const payload = await exportAllData();
     const localUpdatedAt = (await getLocalDataUpdatedAt()) ?? payload.exportDate ?? new Date().toISOString();
     const saved = await bridge.savePayload(JSON.stringify(payload), localUpdatedAt);
-    if (saved.available === false) return { skipped: true };
+    if (saved.available === false) {
+      return { skipped: true, skipReason: saved.status || "account_unavailable" };
+    }
     const syncedAt = saved.lastUpdated || localUpdatedAt;
     await setLocalDataUpdatedAt(syncedAt);
     await setLastSyncedAt(syncedAt);
@@ -160,16 +171,27 @@ export async function restoreFromICloud(options?: { uploadLocalIfNewer?: boolean
   restored: boolean;
   uploadedLocal?: boolean;
   skipped?: boolean;
+  skipReason?: string;
   error?: Error | null;
 }> {
-  if (!isCloudKitAvailable() || !bridge) return { restored: false, skipped: true };
-  if (restoreInFlight) return { restored: false, skipped: true };
+  if (!isCloudKitAvailable() || !bridge) {
+    return {
+      restored: false,
+      skipped: true,
+      skipReason: Platform.OS === "ios" ? "native_bridge_missing" : "unsupported_platform",
+    };
+  }
+  if (restoreInFlight) return { restored: false, skipped: true, skipReason: "restore_in_progress" };
 
   restoreInFlight = true;
   try {
     const cloud = await bridge.restorePayload();
-    if (cloud?.available === false) return { restored: false, skipped: true };
-    if (!cloud?.payload || !cloud.lastUpdated) return { restored: false, skipped: true };
+    if (cloud?.available === false) {
+      return { restored: false, skipped: true, skipReason: cloud.status || "account_unavailable" };
+    }
+    if (!cloud?.payload || !cloud.lastUpdated) {
+      return { restored: false, skipped: true, skipReason: "no_backup_found" };
+    }
 
     const localUpdatedAt = await getLocalDataUpdatedAt();
     const cloudTime = dateValue(cloud.lastUpdated);
@@ -190,7 +212,7 @@ export async function restoreFromICloud(options?: { uploadLocalIfNewer?: boolean
       return { restored: false, uploadedLocal: true, error: null };
     }
 
-    return { restored: false, skipped: true };
+    return { restored: false, skipped: true, skipReason: "local_up_to_date" };
   } catch (error) {
     await setLastError(error);
     return { restored: false, error: error instanceof Error ? error : new Error(String(error)) };

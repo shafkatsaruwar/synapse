@@ -23,6 +23,7 @@ import {
 import { getToday, getDaysAgo, formatDate } from "@/lib/date-utils";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { modalOverlay, modalSurface } from "@/lib/modal-colors";
+import { formatHydrationVolume } from "@/lib/hydration-format";
 
 const AMOUNTS: { key: EatingAmount; label: string }[] = [
   { key: "small", label: "Small" },
@@ -312,7 +313,7 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
             <View style={styles.hydrationSummaryCard}>
               <View>
                 <Text style={styles.hydrationSummaryLabel}>Total in range</Text>
-                <Text style={styles.hydrationSummaryValue}>{Math.round(hydrationTotalMl)} mL</Text>
+                <Text style={styles.hydrationSummaryValue}>{formatHydrationVolume(hydrationTotalMl)}</Text>
               </View>
               <Pressable
                 style={styles.quickSipBtn}

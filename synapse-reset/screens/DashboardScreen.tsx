@@ -57,6 +57,11 @@ import { buildRecoveryInsights } from "@/lib/recovery-insights";
 import { buildTodayAtAGlance } from "@/lib/today-at-a-glance";
 import { cancelRecoveryCheckIn, syncRecoveryTrackingCheckIn } from "@/lib/notification-manager";
 import { modalOverlay, modalSurface } from "@/lib/modal-colors";
+import {
+  countDistinctTakenDoses,
+  countExpectedDosesInRange,
+} from "@/lib/medication-schedule";
+import { formatHydrationVolume } from "@/lib/hydration-format";
 
 // Gradient pairs: [top (darker), bottom (lighter)]. Soft, desaturated, top-to-bottom.
 const PRIORITY_GRADIENTS: Record<string, [string, string]> = {
@@ -227,12 +232,16 @@ function getWeeklyInsightMessage(params: {
   adherencePercent: number | null;
   averageHydrationMl: number;
   hydrationGoalMl: number;
+  hydrationLoggedDays: number;
   appointmentCount: number;
   symptomCount: number;
   topSymptom?: string;
 }) {
   if (params.adherencePercent != null && params.adherencePercent < 70) {
     return "You’ve missed a few doses this week.";
+  }
+  if (params.hydrationLoggedDays === 0) {
+    return "No hydration logged this week yet.";
   }
   if (params.averageHydrationMl > 0 && params.averageHydrationMl < params.hydrationGoalMl) {
     return "You might be a bit dehydrated.";
@@ -810,11 +819,15 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const weeklySummary = useMemo(() => {
     const weekStart = addDays(today, -6);
     const weekDates = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
-    const activeScheduledMeds = medications.filter((med) => med.medicationType !== "prn");
-    const scheduledDoseCountPerDay = activeScheduledMeds.reduce((sum, med) => sum + getDoseCount(med), 0);
-    const totalScheduled = scheduledDoseCountPerDay * 7;
+    const activeScheduledMeds = medications.filter((med) => med.active && med.medicationType !== "prn");
     const medIds = new Set(activeScheduledMeds.map((med) => med.id));
-    const totalTaken = allMedLogs.filter((log) => log.taken && log.date >= weekStart && log.date <= today && medIds.has(log.medicationId)).length;
+    const totalScheduled = countExpectedDosesInRange(activeScheduledMeds, weekDates, {
+      logs: allMedLogs,
+      // Only inflate Hydrocortisone for days when sick mode is currently active today —
+      // avoid rewriting the whole historical week when sick mode was just toggled.
+      sickModeHydrocortisoneMultiplier: false,
+    });
+    const totalTaken = countDistinctTakenDoses(allMedLogs, medIds, weekStart, today);
     const adherencePercent = totalScheduled > 0 ? Math.round((totalTaken / totalScheduled) * 100) : null;
     const hydrationGoalMl = 2000;
     const hydrationByDate = new Map<string, number>();
@@ -823,8 +836,13 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       .forEach((entry) => {
         hydrationByDate.set(entry.date, (hydrationByDate.get(entry.date) ?? 0) + convertHydrationToMl(entry.amount, entry.unit));
       });
+    const hydrationLoggedDays = weekDates.filter((date) => (hydrationByDate.get(date) ?? 0) > 0).length;
     const hydrationTotalMl = weekDates.reduce((sum, date) => sum + (hydrationByDate.get(date) ?? 0), 0);
-    const averageHydrationMl = Math.round(hydrationTotalMl / 7);
+    // Average across days that actually have logs; fall back to full week only when empty
+    // so empty weeks stay at 0 instead of looking like a weird fraction.
+    const averageHydrationMl = hydrationLoggedDays > 0
+      ? Math.round(hydrationTotalMl / hydrationLoggedDays)
+      : 0;
     const weekAppointments = appointments.filter((appointment) => !appointment.status && appointment.date >= weekStart && appointment.date <= addDays(today, 6));
     const nextUpcomingAppointment = upcomingAppointments[0] ?? null;
     const weekSymptoms = symptoms.filter((symptom) => symptom.date >= weekStart && symptom.date <= today);
@@ -842,6 +860,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       adherencePercent,
       hydrationGoalMl,
       averageHydrationMl,
+      hydrationLoggedDays,
       appointmentCount: weekAppointments.length,
       nextUpcomingAppointment,
       symptomCount: weekSymptoms.length,
@@ -850,6 +869,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         adherencePercent,
         averageHydrationMl,
         hydrationGoalMl,
+        hydrationLoggedDays,
         appointmentCount: weekAppointments.length,
         symptomCount: weekSymptoms.length,
         topSymptom,
@@ -1045,8 +1065,14 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               accessibilityLabel="Open hydration"
             >
               <Text style={styles.weekMetricLabel}>Hydration</Text>
-              <Text style={styles.weekMetricValue}>{Math.round(weeklySummary.averageHydrationMl / 100) / 10}L</Text>
-              <Text style={styles.weekMetricMeta}>avg / day</Text>
+              <Text style={styles.weekMetricValue}>
+                {formatHydrationVolume(weeklySummary.averageHydrationMl)}
+              </Text>
+              <Text style={styles.weekMetricMeta}>
+                {weeklySummary.hydrationLoggedDays > 0
+                  ? `avg on ${weeklySummary.hydrationLoggedDays} day${weeklySummary.hydrationLoggedDays === 1 ? "" : "s"}`
+                  : "no logs yet"}
+              </Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.weekMetricTile, pressed && styles.snapshotPressed]}
