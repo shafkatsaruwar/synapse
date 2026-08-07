@@ -33,6 +33,30 @@ const AMOUNTS: { key: EatingAmount; label: string }[] = [
 
 const HYDRATION_UNITS: HydrationUnit[] = ["oz", "ml", "L", "glasses"];
 
+/** Suggested drinks for quick pick — no alcohol; custom names still allowed via text input. */
+const DEFAULT_DRINKS = [
+  "Water",
+  "Sparkling water",
+  "Soda",
+  "Coffee",
+  "Tea",
+  "Chai",
+  "Milk",
+  "Juice",
+  "Coconut water",
+  "Electrolyte drink",
+  "Smoothie",
+  "Sharbat",
+  "Lassi",
+  "Chaas",
+  "Nimbu pani",
+  "Rooh Afza",
+  "Jaljeera",
+  "Buttermilk",
+  "Falooda",
+  "Thandai",
+] as const;
+
 interface EatingScreenProps {
   initialTab?: "food" | "hydration";
   hydrationLaunchToken?: number;
@@ -456,13 +480,33 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
         <Pressable style={styles.modalOverlay} onPress={() => setShowHydrationAdd(false)}>
           <Pressable style={styles.modalBox} onPress={(ev) => ev.stopPropagation()}>
             <Text style={styles.modalTitle}>Log hydration</Text>
+            <Text style={styles.modalLabel}>Drink</Text>
+            <View style={styles.drinkChipWrap}>
+              {DEFAULT_DRINKS.map((drink) => {
+                const active = hydrationWhat.trim().toLowerCase() === drink.toLowerCase();
+                return (
+                  <Pressable
+                    key={drink}
+                    style={[styles.drinkChip, active && styles.drinkChipActive]}
+                    onPress={() => {
+                      setHydrationWhat(drink);
+                      Haptics.selectionAsync();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={`Select ${drink}`}
+                  >
+                    <Text style={[styles.drinkChipText, active && styles.drinkChipTextActive]}>{drink}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <TextInput
               style={styles.modalInput}
-              placeholder="What did you drink?"
+              placeholder="Or type another drink"
               placeholderTextColor={C.textTertiary}
               value={hydrationWhat}
               onChangeText={setHydrationWhat}
-              autoFocus
             />
             <TextInput
               style={styles.modalInput}
@@ -505,11 +549,32 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
           <Pressable style={styles.modalBox} onPress={(ev) => ev.stopPropagation()}>
             <Text style={styles.modalTitle}>Default sip</Text>
             <Text style={[styles.presetDesc, { marginBottom: 14 }]}>
-              What’s the regular amount of water you drink in one sip?
+              What’s the regular amount you drink in one sip?
             </Text>
+            <Text style={styles.modalLabel}>Drink</Text>
+            <View style={styles.drinkChipWrap}>
+              {DEFAULT_DRINKS.map((drink) => {
+                const active = presetWhat.trim().toLowerCase() === drink.toLowerCase();
+                return (
+                  <Pressable
+                    key={drink}
+                    style={[styles.drinkChip, active && styles.drinkChipActive]}
+                    onPress={() => {
+                      setPresetWhat(drink);
+                      Haptics.selectionAsync();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={`Select ${drink}`}
+                  >
+                    <Text style={[styles.drinkChipText, active && styles.drinkChipTextActive]}>{drink}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <TextInput
               style={styles.modalInput}
-              placeholder="Drink name"
+              placeholder="Or type another drink"
               placeholderTextColor={C.textTertiary}
               value={presetWhat}
               onChangeText={setPresetWhat}
@@ -595,7 +660,7 @@ function makeStyles(C: Theme) {
     quickSipBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.tint, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, ...raised("md", C.tint) },
     quickSipText: { fontWeight: "600", fontSize: 14, color: "#fff" },
     modalOverlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", padding: 24 },
-    modalBox: { backgroundColor: solidModalSurface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: C.border, ...raised("lg", "#24364F") },
+    modalBox: { backgroundColor: solidModalSurface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: C.border, maxHeight: "88%", ...raised("lg", "#24364F") },
     modalTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 16 },
     modalInput: { backgroundColor: C.surfaceElevated, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: C.text, marginBottom: 16, borderWidth: 1, borderColor: C.border },
     modalLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 8 },
@@ -605,6 +670,18 @@ function makeStyles(C: Theme) {
     amountChipActive: { backgroundColor: C.tintLight },
     amountChipText: { fontSize: 14, fontWeight: "500", color: C.textSecondary },
     amountChipTextActive: { color: C.tint },
+    drinkChipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+    drinkChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    drinkChipActive: { backgroundColor: C.tintLight, borderColor: C.tint },
+    drinkChipText: { fontWeight: "600", fontSize: 13, color: C.textSecondary },
+    drinkChipTextActive: { color: C.tint },
     modalActions: { flexDirection: "row", gap: 12, justifyContent: "flex-end" },
     modalCancel: { paddingVertical: 10, paddingHorizontal: 16 },
     modalCancelText: { fontSize: 16, color: C.textSecondary },
