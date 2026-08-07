@@ -1,3 +1,10 @@
+/**
+ * WARNING: This module does NOT provide AES encryption.
+ * It stores an integrity-style hash + base64 of the payload in AsyncStorage.
+ * Do not describe this as "AES-256", "encrypted at rest", or HIPAA-grade protection.
+ * Prefer expo-secure-store (or platform Keychain/Keystore) for secrets, and real
+ * authenticated encryption if you add field-level crypto later.
+ */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
 

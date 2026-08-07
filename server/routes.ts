@@ -3,23 +3,35 @@ import express from "express";
 import { createServer, type Server } from "node:http";
 import OpenAI from "openai";
 import { Resend } from "resend";
+import { requireApiAuth } from "./api-auth";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+let openaiClient: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("OpenAI API key is not configured");
+    }
+    openaiClient = new OpenAI({
+      apiKey,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    });
+  }
+  return openaiClient;
+}
 
 const largeBodyParser = express.json({ limit: "20mb" });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  app.post("/api/analyze-document", largeBodyParser, async (req: Request, res: Response) => {
+  app.post("/api/analyze-document", largeBodyParser, requireApiAuth, async (req: Request, res: Response) => {
     try {
       const { imageBase64, mimeType } = req.body;
       if (!imageBase64) {
         return res.status(400).json({ error: "Image data is required" });
       }
 
-      const response = await openai.chat.completions.create({
+      const response = await getOpenAI().chat.completions.create({
         model: "gpt-5-mini",
         max_completion_tokens: 4096,
         messages: [
@@ -57,18 +69,18 @@ If a field has no data, use an empty array. Be thorough and accurate. Only extra
       const parsed = JSON.parse(content);
       res.json(parsed);
     } catch (error: any) {
-      console.error("Document analysis error:", error?.message || error);
+      console.error("Document analysis error:", error?.message || "unknown");
       res.status(500).json({ error: "Failed to analyze document" });
     }
   });
 
-  app.post("/api/health-insights", largeBodyParser, async (req: Request, res: Response) => {
+  app.post("/api/health-insights", largeBodyParser, requireApiAuth, async (req: Request, res: Response) => {
     try {
       const { healthLogs, symptoms, medications, medLogs, vitals, fastingLogs, conditions, documents } = req.body;
 
       const prompt = buildInsightsPrompt({ healthLogs, symptoms, medications, medLogs, vitals, fastingLogs, conditions, documents });
 
-      const response = await openai.chat.completions.create({
+      const response = await getOpenAI().chat.completions.create({
         model: "gpt-5-mini",
         max_completion_tokens: 4096,
         messages: [
@@ -98,16 +110,16 @@ Be specific, use their actual data. Do not make up data. If insufficient data, s
       const parsed = JSON.parse(content);
       res.json(parsed);
     } catch (error: any) {
-      console.error("Health insights error:", error?.message || error);
+      console.error("Health insights error:", error?.message || "unknown");
       res.status(500).json({ error: "Failed to generate insights" });
     }
   });
 
-  app.post("/api/compare-medications", largeBodyParser, async (req: Request, res: Response) => {
+  app.post("/api/compare-medications", largeBodyParser, requireApiAuth, async (req: Request, res: Response) => {
     try {
       const { currentMedications, extractedMedications } = req.body;
 
-      const response = await openai.chat.completions.create({
+      const response = await getOpenAI().chat.completions.create({
         model: "gpt-5-mini",
         max_completion_tokens: 2048,
         messages: [
@@ -138,24 +150,24 @@ Match medications by name (accounting for brand/generic equivalents). Be conserv
       const parsed = JSON.parse(content);
       res.json(parsed);
     } catch (error: any) {
-      console.error("Medication comparison error:", error?.message || error);
+      console.error("Medication comparison error:", error?.message || "unknown");
       res.status(500).json({ error: "Failed to compare medications" });
     }
   });
 
-  app.post("/api/send-email", express.json(), async (req: Request, res: Response) => {
+  app.post("/api/send-email", express.json(), requireApiAuth, async (req: Request, res: Response) => {
     try {
       const apiKey = process.env.RESEND_API_KEY;
       if (!apiKey) {
         return res.status(500).json({ error: "RESEND_API_KEY is not set" });
       }
-      const { to, subject, html, from } = req.body;
+      const { to, subject, html } = req.body;
       if (!to || !subject) {
         return res.status(400).json({ error: "to and subject are required" });
       }
       const resend = new Resend(apiKey);
       const { data, error } = await resend.emails.send({
-        from: from || "Synapse <onboarding@resend.dev>",
+        from: process.env.RESEND_FROM_EMAIL || "Synapse <onboarding@resend.dev>",
         to: Array.isArray(to) ? to : [to],
         subject,
         html: html || "<p>No content</p>",
@@ -165,7 +177,7 @@ Match medications by name (accounting for brand/generic equivalents). Be conserv
       }
       res.json({ success: true, id: data?.id });
     } catch (error: any) {
-      console.error("Send email error:", error?.message || error);
+      console.error("Send email error:", error?.message || "unknown");
       res.status(500).json({ error: "Failed to send email" });
     }
   });

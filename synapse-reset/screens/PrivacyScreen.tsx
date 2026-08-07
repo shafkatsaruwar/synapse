@@ -72,7 +72,7 @@ export default function PrivacyScreen() {
       paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
     }]} showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>Privacy & Data</Text>
-      <Text style={styles.subtitle}>Your health data stays on your device</Text>
+      <Text style={styles.subtitle}>Personal wellness tracker — you control what leaves this device</Text>
 
       {(Platform.OS === "ios" || Platform.OS === "android") && (
         <View style={styles.card}>
@@ -82,7 +82,7 @@ export default function PrivacyScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.featureTitle}>App Lock (Face ID / Touch ID)</Text>
-              <Text style={styles.featureDesc}>Require biometric or device passcode when opening the app</Text>
+              <Text style={styles.featureDesc}>Require biometric or device passcode when opening the app on this device. App Lock is not available on web.</Text>
             </View>
             <Switch
               value={biometricLock}
@@ -98,11 +98,13 @@ export default function PrivacyScreen() {
       <View style={styles.card}>
         <View style={styles.featureRow}>
           <View style={[styles.featureIcon, { backgroundColor: C.greenLight }]}>
-            <Ionicons name="shield-checkmark" size={20} color={C.green} />
+            <Ionicons name="phone-portrait-outline" size={20} color={C.green} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.featureTitle}>Local-First Storage</Text>
-            <Text style={styles.featureDesc}>All data is stored on your device using encrypted local storage. Nothing is sent to external servers without your action.</Text>
+            <Text style={styles.featureDesc}>
+              Health logs are stored on this device by default (device storage). Optional features you turn on — such as iCloud backup, caregiver tools, or signed-in cloud sync — may copy data to Apple iCloud, Supabase, or other services you configure.
+            </Text>
           </View>
         </View>
       </View>
@@ -110,11 +112,13 @@ export default function PrivacyScreen() {
       <View style={styles.card}>
         <View style={styles.featureRow}>
           <View style={[styles.featureIcon, { backgroundColor: C.tintLight }]}>
-            <Ionicons name="lock-closed" size={20} color={C.tint} />
+            <Ionicons name="sparkles-outline" size={20} color={C.tint} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.featureTitle}>AI Processing</Text>
-            <Text style={styles.featureDesc}>Document analysis and insights use AI only when you explicitly request it. Your data is processed for the request and not stored by the AI service.</Text>
+            <Text style={styles.featureTitle}>AI Features (Optional)</Text>
+            <Text style={styles.featureDesc}>
+              Document scan and insights only run when you request them. That request sends the relevant health data to our API and a third-party AI provider (for example OpenAI) to process the response. Do not use AI features with data you are not comfortable sharing with those processors.
+            </Text>
           </View>
         </View>
       </View>
@@ -122,11 +126,13 @@ export default function PrivacyScreen() {
       <View style={styles.card}>
         <View style={styles.featureRow}>
           <View style={[styles.featureIcon, { backgroundColor: C.purpleLight }]}>
-            <Ionicons name="eye-off" size={20} color={C.purple} />
+            <Ionicons name="share-outline" size={20} color={C.purple} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.featureTitle}>No Third-Party Sharing</Text>
-            <Text style={styles.featureDesc}>Your health data is never shared with third parties, advertisers, or data brokers. You control who sees your data.</Text>
+            <Text style={styles.featureTitle}>Sharing & Export</Text>
+            <Text style={styles.featureDesc}>
+              Synapse does not sell your health data to advertisers. When you export, share, email, or enable caregiver/cloud features, you choose who receives a copy. Exports are unencrypted JSON — treat them like medical records.
+            </Text>
           </View>
         </View>
       </View>
@@ -134,11 +140,13 @@ export default function PrivacyScreen() {
       <View style={styles.card}>
         <View style={styles.featureRow}>
           <View style={[styles.featureIcon, { backgroundColor: C.cyanLight }]}>
-            <Ionicons name="heart" size={20} color={C.cyan} />
+            <Ionicons name="medkit-outline" size={20} color={C.cyan} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.featureTitle}>HealthKit Ready</Text>
-            <Text style={styles.featureDesc}>Data structure is designed for future Apple HealthKit integration. When available, you&apos;ll be able to sync vitals automatically.</Text>
+            <Text style={styles.featureTitle}>Not Medical Care / Not HIPAA</Text>
+            <Text style={styles.featureDesc}>
+              Synapse is a personal wellness and organization app, not a medical device, not a healthcare provider, and not a HIPAA covered entity or business associate product. It does not provide medical advice. Always follow your clinician’s guidance.
+            </Text>
           </View>
         </View>
       </View>
@@ -172,7 +180,7 @@ export default function PrivacyScreen() {
       <View style={styles.infoCard}>
         <Ionicons name="information-circle-outline" size={16} color={C.textTertiary} />
         <Text style={styles.infoText}>
-          Synapse is designed with a privacy-first approach. Local data stays primary on your device. Export All Data gives you a manual backup path, and AI features only process data when you explicitly ask for them.
+          Local data stays on this device unless you use optional cloud backup, caregiver linking, AI, email, or export. Review Settings for iCloud and account options. For the security posture of this project, see SECURITY.md in the repository.
         </Text>
       </View>
     </ScrollView>

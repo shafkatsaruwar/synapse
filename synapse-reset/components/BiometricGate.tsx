@@ -98,17 +98,12 @@ export default function BiometricGate({ children }: BiometricGateProps) {
 
   const handleTryAgain = () => {
     setError(null);
-    authenticate();
+    void authenticate();
   };
 
-  const handleCancel = () => {
+  // Cancel clears the error UI only — it must never unlock without auth.
+  const handleDismissError = () => {
     setError(null);
-    setUnlocked(true);
-  };
-
-  const handlePasscodeFallback = () => {
-    setError(null);
-    setUnlocked(true);
   };
 
   return (
@@ -124,53 +119,35 @@ export default function BiometricGate({ children }: BiometricGateProps) {
         <>
           <Text style={[styles.errorText, { color: C.red }]}>{error}</Text>
           {failCount >= 3 ? (
-            <View style={styles.errorActions}>
-              <Pressable
-                style={[styles.unlockBtn, { backgroundColor: C.tint, marginRight: 12, opacity: isAuthenticating ? 0.7 : 1 }]}
-                onPress={handlePasscodeFallback}
-                disabled={isAuthenticating}
-                accessibilityRole="button"
-                accessibilityLabel="Unlock with passcode"
-              >
-                <Text style={styles.unlockBtnText}>Unlock with passcode</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.cancelBtn, { borderColor: C.border }]}
-                onPress={handleCancel}
-                disabled={isAuthenticating}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel"
-              >
-                <Text style={[styles.cancelBtnText, { color: C.text }]}>Cancel</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={styles.errorActions}>
-              <Pressable
-                style={[styles.unlockBtn, { backgroundColor: C.tint, marginRight: 12, opacity: isAuthenticating ? 0.7 : 1 }]}
-                onPress={handleTryAgain}
-                disabled={isAuthenticating}
-                accessibilityRole="button"
-                accessibilityLabel="Try again"
-              >
-                <Text style={styles.unlockBtnText}>{isAuthenticating ? "Unlocking…" : "Try Again"}</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.cancelBtn, { borderColor: C.border }]}
-                onPress={handleCancel}
-                disabled={isAuthenticating}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel"
-              >
-                <Text style={[styles.cancelBtnText, { color: C.text }]}>Cancel</Text>
-              </Pressable>
-            </View>
-          )}
+            <Text style={[styles.hintText, { color: C.textTertiary }]}>
+              Keep trying with biometrics or your device passcode. There is no skip unlock.
+            </Text>
+          ) : null}
+          <View style={styles.errorActions}>
+            <Pressable
+              style={[styles.unlockBtn, { backgroundColor: C.tint, marginRight: 12, opacity: isAuthenticating ? 0.7 : 1 }]}
+              onPress={handleTryAgain}
+              disabled={isAuthenticating}
+              accessibilityRole="button"
+              accessibilityLabel="Try again"
+            >
+              <Text style={styles.unlockBtnText}>{isAuthenticating ? "Unlocking…" : "Try Again"}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.cancelBtn, { borderColor: C.border }]}
+              onPress={handleDismissError}
+              disabled={isAuthenticating}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss error"
+            >
+              <Text style={[styles.cancelBtnText, { color: C.text }]}>Dismiss</Text>
+            </Pressable>
+          </View>
         </>
       ) : (
         <Pressable
           style={[styles.unlockBtn, { backgroundColor: C.tint, opacity: isAuthenticating ? 0.7 : 1 }]}
-          onPress={authenticate}
+          onPress={() => void authenticate()}
           disabled={isAuthenticating}
           accessibilityRole="button"
           accessibilityLabel="Unlock with biometric or passcode"
@@ -215,6 +192,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 16,
     textAlign: "center",
+  },
+  hintText: {
+    fontSize: 13,
+    marginBottom: 16,
+    textAlign: "center",
+    lineHeight: 18,
+    paddingHorizontal: 8,
   },
   errorActions: {
     flexDirection: "row",

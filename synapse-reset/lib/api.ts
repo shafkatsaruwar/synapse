@@ -48,12 +48,24 @@ async function getAuthHeaders(): Promise<HeadersInit> {
   const session = await supabase?.auth.getSession();
   const token = session?.data.session?.access_token;
 
+  const legacyManifest = Constants.manifest as { extra?: Record<string, unknown> } | null | undefined;
+  const extra = (Constants.expoConfig?.extra ?? legacyManifest?.extra) as Record<string, unknown> | undefined;
+  const apiKey =
+    (typeof extra?.EXPO_PUBLIC_API_SHARED_SECRET === "string"
+      ? extra.EXPO_PUBLIC_API_SHARED_SECRET.trim()
+      : "") ||
+    process.env.EXPO_PUBLIC_API_SHARED_SECRET?.trim() ||
+    "";
+
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     Accept: "application/json",
   };
 
-  if (token) {
+  // Prefer shared API key for PHI routes; fall back to session bearer if present.
+  if (apiKey) {
+    headers["X-API-Key"] = apiKey;
+  } else if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 

@@ -116,6 +116,22 @@ export async function getLinkingUserId(authUserId?: string | null): Promise<stri
   return next;
 }
 
+function mapCaregiverCloudError(error: Error | null): Error | null {
+  if (!error) return null;
+  const message = error.message.toLowerCase();
+  if (
+    message.includes("row-level security") ||
+    message.includes("permission denied") ||
+    message.includes("rls") ||
+    message.includes("42501")
+  ) {
+    return new Error(
+      "Cloud caregiver linking is disabled for security. Use on-device caregiver mode, or re-enable linking with authenticated policies / Edge Functions."
+    );
+  }
+  return error;
+}
+
 function makeLinkCode(): string {
   let code = "";
   for (let index = 0; index < 6; index += 1) {
@@ -137,9 +153,9 @@ async function upsertLinkingUser(userId: string, role: CaregiverLinkRole, linked
   if (linkedUsers) payload.linked_users = linkedUsers;
   try {
     const { error } = await supabase.from("caregiver_users").upsert(payload, { onConflict: "user_id" });
-    return { error: error ? new Error(error.message) : null };
+    return { error: mapCaregiverCloudError(error ? new Error(error.message) : null) };
   } catch (error) {
-    return { error: error instanceof Error ? error : new Error("Network request failed") };
+    return { error: mapCaregiverCloudError(error instanceof Error ? error : new Error("Network request failed")) };
   }
 }
 
@@ -191,7 +207,7 @@ export async function generatePatientLinkCode(authUserId?: string | null): Promi
     .update({ claimed_at: new Date().toISOString() })
     .eq("patient_user_id", patientUserId)
     .is("claimed_at", null);
-  if (invalidateError) return { error: new Error(invalidateError.message) };
+  if (invalidateError) return { error: mapCaregiverCloudError(new Error(invalidateError.message)) };
 
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
   for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -202,7 +218,9 @@ export async function generatePatientLinkCode(authUserId?: string | null): Promi
       expires_at: expiresAt,
     });
     if (!error) return { code, expiresAt, error: null };
-    if (!error.message.toLowerCase().includes("duplicate")) return { error: new Error(error.message) };
+    if (!error.message.toLowerCase().includes("duplicate")) {
+      return { error: mapCaregiverCloudError(new Error(error.message)) };
+    }
   }
   return { error: new Error("Could not create a unique link code. Try again.") };
 }
