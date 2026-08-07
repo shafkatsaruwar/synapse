@@ -43,6 +43,7 @@ const DEFAULT_DRINKS = [
   "Chai",
   "Milk",
   "Juice",
+  "Lemonade",
   "Coconut water",
   "Electrolyte drink",
   "Smoothie",
