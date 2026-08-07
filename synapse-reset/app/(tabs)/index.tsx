@@ -1084,7 +1084,7 @@ export default function MainScreen() {
   }, []);
 
   const { colors: C, themeId } = useTheme();
-  const { caregiverProfile, needsCaregiverOnboarding, saveCaregiverProfile } = useRole();
+  const { caregiverProfile, needsCaregiverOnboarding, saveCaregiverProfile, clearCaregiverMode } = useRole();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
   const [caregiverNameDraft, setCaregiverNameDraft] = useState("");
   const [caregiverAgeDraft, setCaregiverAgeDraft] = useState("");
@@ -1129,7 +1129,9 @@ export default function MainScreen() {
       animationType="fade"
       transparent
       visible={needsCaregiverOnboarding}
-      onRequestClose={() => {}}
+      onRequestClose={() => {
+        void clearCaregiverMode();
+      }}
     >
       <View style={styles.caregiverModalBackdrop}>
         <View style={styles.caregiverOnboardingCard}>
@@ -1182,6 +1184,19 @@ export default function MainScreen() {
               style={({ pressed }) => [styles.feedbackPromptPrimary, pressed && styles.whatsNewButtonPressed]}
             >
               <Text style={styles.feedbackPromptPrimaryText}>Continue</Text>
+            </Pressable>
+            <Pressable
+              onPress={async () => {
+                setCaregiverNameDraft("");
+                setCaregiverAgeDraft("");
+                setCaregiverRelationDraft("");
+                await clearCaregiverMode();
+                setActiveScreen("settings");
+                setRefreshKey((k) => k + 1);
+              }}
+              style={({ pressed }) => [styles.feedbackPromptSecondary, pressed && styles.whatsNewButtonPressed]}
+            >
+              <Text style={styles.feedbackPromptSecondaryText}>Cancel</Text>
             </Pressable>
           </View>
         </View>
@@ -1237,7 +1252,12 @@ export default function MainScreen() {
           />
         );
       case "managedperson":
-        return <ManagedPersonScreen onBack={() => handleNavigate("caregiverdashboard")} />;
+        return (
+          <ManagedPersonScreen
+            onBack={() => handleNavigate("caregiverdashboard")}
+            onRemoved={() => handleNavigate("settings")}
+          />
+        );
       case "log":
         return <DailyLogScreen key={refreshKey} />;
       case "logtoday":

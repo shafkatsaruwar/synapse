@@ -1285,6 +1285,21 @@ export const caregiverProfileStorage = {
       console.warn("AsyncStorage caregiverProfile save failed", e);
     }
   },
+  clear: async () => {
+    try {
+      await AsyncStorage.removeItem(KEYS.CAREGIVER_PROFILE);
+      const healthProfile = await healthProfileStorage.get();
+      await healthProfileStorage.save({
+        ...healthProfile,
+        userRole: healthProfile.userRole === "caregiver" ? "self" : healthProfile.userRole,
+        caredForName: undefined,
+        caredForAge: undefined,
+      });
+      await markCloudKitBackupDirty();
+    } catch (e) {
+      console.warn("AsyncStorage caregiverProfile clear failed", e);
+    }
+  },
 };
 
 const DEFAULT_SICK_MODE: SickModeData = {

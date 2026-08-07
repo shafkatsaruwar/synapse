@@ -78,28 +78,71 @@ final class SynapseCloudKitBridge: NSObject {
         }
 
         let lastUpdated = self.parseISODate(lastUpdatedISO) ?? Date()
-        let record = CKRecord(
-          recordType: self.recordType,
-          recordID: CKRecord.ID(recordName: self.backupRecordName(for: lastUpdated))
-        )
-        record["userId"] = (userRecordID?.recordName ?? "unknown") as CKRecordValue
-        record["lastUpdated"] = lastUpdated as CKRecordValue
-        if let asset = self.makePayloadAsset(payload) {
-          record["payloadAsset"] = asset
-          record["payload"] = nil
-        } else {
-          record["payload"] = payload as CKRecordValue
-        }
-
-        self.database.save(record) { savedRecord, saveError in
-          if let saveError {
-            reject("icloud_save_failed", "Could not save iCloud backup.", saveError)
+        // Upsert a single well-known record so Production CloudKit does not need query indexes.
+        let recordID = CKRecord.ID(recordName: self.legacyRecordName)
+        self.database.fetch(withRecordID: recordID) { existing, fetchError in
+          if let fetchError = fetchError as? CKError, fetchError.code != .unknownItem {
+            reject("icloud_save_failed", "Could not prepare iCloud backup.", fetchError)
             return
           }
-          resolve(self.metadataDictionary(from: savedRecord ?? record))
+          if let fetchError, (fetchError as? CKError) == nil {
+            reject("icloud_save_failed", "Could not prepare iCloud backup.", fetchError)
+            return
+          }
+
+          let record = existing ?? CKRecord(recordType: self.recordType, recordID: recordID)
+          record["userId"] = (userRecordID?.recordName ?? "unknown") as CKRecordValue
+          record["lastUpdated"] = lastUpdated as CKRecordValue
+
+          let asset = self.makePayloadAsset(payload)
+          if let asset {
+            record["payloadAsset"] = asset
+            record["payload"] = nil
+          } else {
+            record["payload"] = payload as CKRecordValue
+          }
+
+          self.saveUserDataRecord(record, payload: payload, preferAsset: asset != nil, resolve: resolve, reject: reject)
         }
       }
     }
+  }
+
+  private func saveUserDataRecord(
+    _ record: CKRecord,
+    payload: String,
+    preferAsset: Bool,
+    resolve: @escaping RCTPromiseResolveBlock,
+    reject: @escaping RCTPromiseRejectBlock
+  ) {
+    database.save(record) { savedRecord, saveError in
+      if let saveError {
+        // Production schema may lack payloadAsset — retry with string payload only.
+        if preferAsset, self.isMissingFieldError(saveError) {
+          record["payloadAsset"] = nil
+          record["payload"] = payload as CKRecordValue
+          self.database.save(record) { fallbackRecord, fallbackError in
+            if let fallbackError {
+              reject("icloud_save_failed", "Could not save iCloud backup.", fallbackError)
+              return
+            }
+            resolve(self.metadataDictionary(from: fallbackRecord ?? record))
+          }
+          return
+        }
+        reject("icloud_save_failed", "Could not save iCloud backup.", saveError)
+        return
+      }
+      resolve(self.metadataDictionary(from: savedRecord ?? record))
+    }
+  }
+
+  private func isMissingFieldError(_ error: Error) -> Bool {
+    let nsError = error as NSError
+    let message = nsError.localizedDescription.lowercased()
+    return message.contains("payloadasset")
+      || (message.contains("field") && message.contains("not"))
+      || (error as? CKError)?.code == .invalidArguments
   }
 
   @objc(restorePayload:rejecter:)
@@ -169,46 +212,54 @@ final class SynapseCloudKitBridge: NSObject {
   }
 
   private func fetchLatestUserDataRecord(completion: @escaping (Result<CKRecord?, Error>) -> Void) {
-    let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
-    var latestRecord: CKRecord?
+    // Prefer the stable record first — does not require Production query indexes.
+    fetchUserDataRecord { legacyResult in
+      switch legacyResult {
+      case .failure(let error):
+        completion(.failure(error))
+      case .success(let legacyRecord):
+        // Best-effort: also scan for newer backup-* records if queries are available.
+        let query = CKQuery(recordType: self.recordType, predicate: NSPredicate(value: true))
+        var latestRecord: CKRecord? = legacyRecord
 
-    func consider(_ record: CKRecord) {
-      let recordDate = (record["lastUpdated"] as? Date) ?? Date.distantPast
-      let latestDate = (latestRecord?["lastUpdated"] as? Date) ?? Date.distantPast
-      if latestRecord == nil || recordDate > latestDate {
-        latestRecord = record
+        func consider(_ record: CKRecord) {
+          let recordDate = (record["lastUpdated"] as? Date) ?? Date.distantPast
+          let latestDate = (latestRecord?["lastUpdated"] as? Date) ?? Date.distantPast
+          if latestRecord == nil || recordDate > latestDate {
+            latestRecord = record
+          }
+        }
+
+        func finish() {
+          completion(.success(latestRecord))
+        }
+
+        func run(_ operation: CKQueryOperation) {
+          operation.resultsLimit = 100
+          operation.recordMatchedBlock = { _, result in
+            if case .success(let record) = result {
+              consider(record)
+            }
+          }
+          operation.queryResultBlock = { result in
+            switch result {
+            case .success(let cursor):
+              if let cursor {
+                run(CKQueryOperation(cursor: cursor))
+              } else {
+                finish()
+              }
+            case .failure:
+              // Query unavailable in Production — keep legacy record.
+              finish()
+            }
+          }
+          self.database.add(operation)
+        }
+
+        run(CKQueryOperation(query: query))
       }
     }
-
-    func run(_ operation: CKQueryOperation) {
-      operation.resultsLimit = 100
-      operation.recordMatchedBlock = { _, result in
-        if case .success(let record) = result {
-          consider(record)
-        }
-      }
-      operation.queryResultBlock = { result in
-        switch result {
-        case .success(let cursor):
-          if let cursor {
-            run(CKQueryOperation(cursor: cursor))
-          } else if let latestRecord {
-            completion(.success(latestRecord))
-          } else {
-            self.fetchUserDataRecord(completion: completion)
-          }
-        case .failure(let error):
-          if let ckError = error as? CKError, ckError.code == .unknownItem {
-            self.fetchUserDataRecord(completion: completion)
-            return
-          }
-          completion(.failure(error))
-        }
-      }
-      self.database.add(operation)
-    }
-
-    run(CKQueryOperation(query: query))
   }
 
   private func metadataDictionary(from record: CKRecord) -> [String: Any] {

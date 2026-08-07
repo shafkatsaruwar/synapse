@@ -13,6 +13,7 @@ interface RoleContextValue {
   needsCaregiverOnboarding: boolean;
   setRole: (role: UserRole) => Promise<void>;
   saveCaregiverProfile: (profile: CaregiverProfile) => Promise<void>;
+  clearCaregiverMode: () => Promise<void>;
   refreshRole: () => Promise<void>;
 }
 
@@ -54,6 +55,15 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     };
     setCaregiverProfile(safeProfile);
     await caregiverProfileStorage.save(safeProfile);
+    setRoleState("caregiver");
+    await syncWidgetSnapshot().catch(() => {});
+  }, []);
+
+  const clearCaregiverMode = useCallback(async () => {
+    setCaregiverProfile(null);
+    setRoleState("self");
+    await caregiverProfileStorage.clear();
+    await roleStorage.save("self");
     await syncWidgetSnapshot().catch(() => {});
   }, []);
 
@@ -64,9 +74,10 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       needsCaregiverOnboarding: role === "caregiver" && !caregiverProfile?.name?.trim(),
       setRole,
       saveCaregiverProfile,
+      clearCaregiverMode,
       refreshRole,
     }),
-    [caregiverProfile, refreshRole, role, saveCaregiverProfile, setRole]
+    [caregiverProfile, clearCaregiverMode, refreshRole, role, saveCaregiverProfile, setRole]
   );
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
@@ -81,6 +92,7 @@ export function useRole(): RoleContextValue {
       needsCaregiverOnboarding: false,
       setRole: async () => {},
       saveCaregiverProfile: async () => {},
+      clearCaregiverMode: async () => {},
       refreshRole: async () => {},
     };
   }

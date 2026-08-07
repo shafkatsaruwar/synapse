@@ -167,7 +167,7 @@ export default function SettingsScreen({
   const isWide = width >= 768;
   const { user } = useAuth();
   const { appMode, setAppMode } = useAppMode();
-  const { role: activeRole, caregiverProfile, setRole, saveCaregiverProfile } = useRole();
+  const { role: activeRole, caregiverProfile, setRole, saveCaregiverProfile, clearCaregiverMode } = useRole();
   const { textSize, setTextSize, textScale } = useDisplaySettings();
   const { colors: C, preference, setThemeId, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
@@ -371,17 +371,34 @@ export default function SettingsScreen({
     await handleSaveProfile({ ...profile, ...updates });
   };
 
+  const cloudKitUnavailableMessage = (status?: string | null) => {
+    switch (status) {
+      case "native_bridge_missing":
+        return "CloudKit needs a native iOS build. Expo Go cannot access Synapse’s iCloud container.";
+      case "unsupported_platform":
+        return "iCloud backup is only available on iOS.";
+      case "no_account":
+        return "Sign in to iCloud on this device, then try again.";
+      case "restricted":
+        return "iCloud is restricted on this device. Check Screen Time or MDM settings.";
+      case "temporarily_unavailable":
+        return "iCloud is temporarily unavailable. Try again in a moment.";
+      case "save_in_progress":
+      case "restore_in_progress":
+        return "A backup operation is already in progress. Try again in a moment.";
+      case "no_backup_found":
+        return "Synapse could not find a private iCloud backup for this Apple ID yet.";
+      case "account_unavailable":
+        return "CloudKit is not available right now. Synapse will keep your data local until iCloud is ready.";
+      default:
+        return "CloudKit is not available right now. Synapse will keep your data local until iCloud is ready.";
+    }
+  };
+
   const handleBackupNow = async () => {
     Haptics.selectionAsync();
     if (cloudStatus && !cloudStatus.available) {
-      Alert.alert(
-        "CloudKit unavailable",
-        cloudStatus.accountStatus === "native_bridge_missing"
-          ? "CloudKit needs a native iOS build. Expo Go cannot access Synapse’s iCloud container."
-          : cloudStatus.accountStatus === "no_account"
-            ? "Sign in to iCloud on this device, then try again."
-            : "CloudKit is not available right now. Synapse will keep your data local until iCloud is ready.",
-      );
+      Alert.alert("CloudKit unavailable", cloudKitUnavailableMessage(cloudStatus.accountStatus));
       return;
     }
     setCloudBusy(true);
@@ -389,10 +406,7 @@ export default function SettingsScreen({
       const result = await saveToICloud();
       refreshCloudStatus();
       if (result.skipped) {
-        Alert.alert(
-          "iCloud backup unavailable",
-          "Synapse needs a native iOS build to save private app data to iCloud. Expo Go cannot access this app’s iCloud container.",
-        );
+        Alert.alert("iCloud backup unavailable", cloudKitUnavailableMessage(result.skipReason || cloudStatus?.accountStatus));
       } else if (result.error) {
         Alert.alert("iCloud backup failed", result.error.message);
       } else {
@@ -408,14 +422,7 @@ export default function SettingsScreen({
   const handleRestoreCloudKit = () => {
     Haptics.selectionAsync();
     if (cloudStatus && !cloudStatus.available) {
-      Alert.alert(
-        "CloudKit unavailable",
-        cloudStatus.accountStatus === "native_bridge_missing"
-          ? "CloudKit needs a native iOS build. Expo Go cannot access Synapse’s iCloud container."
-          : cloudStatus.accountStatus === "no_account"
-            ? "Sign in to iCloud on this device, then try again."
-            : "CloudKit is not available right now. No file picker fallback will be used.",
-      );
+      Alert.alert("CloudKit unavailable", cloudKitUnavailableMessage(cloudStatus.accountStatus));
       return;
     }
     Alert.alert(
@@ -438,6 +445,8 @@ export default function SettingsScreen({
                 Alert.alert("Restored", "Your latest iCloud backup has been restored.");
               } else if (result.error) {
                 Alert.alert("iCloud restore failed", result.error.message);
+              } else if (result.skipped && result.skipReason && result.skipReason !== "no_backup_found") {
+                Alert.alert("iCloud restore unavailable", cloudKitUnavailableMessage(result.skipReason));
               } else {
                 Alert.alert(
                   "No iCloud backup found",
@@ -452,6 +461,34 @@ export default function SettingsScreen({
           },
         },
       ]
+    );
+  };
+
+  const handleRemoveCaregiverMode = () => {
+    Haptics.selectionAsync();
+    Alert.alert(
+      "Remove caregiver mode?",
+      "This clears the care recipient on this device and switches you back to Self. Linked remote caregivers can still be unlinked separately.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            await clearCaregiverMode();
+            setRoleDetailsEditing(false);
+            setProfile((prev) => ({
+              ...prev,
+              userRole: "self",
+              caredForName: undefined,
+              caredForAge: undefined,
+            }));
+            await loadData();
+            onRestoreComplete?.();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ],
     );
   };
 
@@ -1177,11 +1214,40 @@ export default function SettingsScreen({
                         />
                       </View>
                     </View>
-                    <Pressable style={styles.personSaveButton} onPress={saveSimpleRoleDetails}>
-                      <Text style={[styles.personSaveButtonText, { fontSize: simpleActionSize }]}>Save person</Text>
-                    </Pressable>
+                    <View style={styles.rolePersonActionRow}>
+                      <Pressable
+                        style={styles.roleCancelButton}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setProfile((prev) => ({
+                            ...prev,
+                            caredForName: caregiverProfile?.name || prev.caredForName,
+                            caredForAge: caregiverProfile?.age || prev.caredForAge,
+                          }));
+                          setRoleDetailsEditing(false);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Cancel editing care recipient"
+                      >
+                        <Text style={[styles.roleCancelButtonText, { fontSize: Math.max(13, simpleActionSize - 1) }]}>Cancel</Text>
+                      </Pressable>
+                      <Pressable style={[styles.personSaveButton, { flex: 1, marginTop: 0 }]} onPress={saveSimpleRoleDetails}>
+                        <Text style={[styles.personSaveButtonText, { fontSize: simpleActionSize }]}>Save person</Text>
+                      </Pressable>
+                    </View>
                   </>
                 ) : null}
+                <Pressable
+                  style={styles.roleRemoveButton}
+                  onPress={handleRemoveCaregiverMode}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove care recipient"
+                >
+                  <Ionicons name="trash-outline" size={16} color={C.red} />
+                  <Text style={[styles.roleRemoveButtonText, { fontSize: Math.max(13, simpleActionSize - 1) }]}>
+                    Remove care recipient
+                  </Text>
+                </Pressable>
               </View>
             ) : null}
             {renderCaregiverLinkingSection(true)}
@@ -1429,54 +1495,73 @@ export default function SettingsScreen({
                   <Text style={styles.rolePersonName}>{caredForNameLabel}</Text>
                   <Text style={styles.rolePersonMeta}>{caredForAgeLabel}</Text>
                 </View>
-                {!roleDetailsEditing ? (
-                  <Pressable
-                    style={styles.roleEditButton}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setRoleDetailsEditing(true);
-                    }}
-                  >
-                    <Ionicons name="pencil-outline" size={15} color={C.tint} />
-                    <Text style={styles.roleEditButtonText}>Edit</Text>
-                  </Pressable>
-                ) : null}
               </View>
-              {roleDetailsEditing ? (
-                <>
-                  <View style={styles.rolePersonFieldRow}>
-                    <View style={styles.rolePersonFieldName}>
-                      <Text style={styles.roleInlineLabel}>Name</Text>
-                      <TextInput
-                        style={styles.roleInlineInput}
-                        value={profile.caredForName ?? ""}
-                        onChangeText={(text) => setProfile((prev) => ({ ...prev, caredForName: text }))}
-                        placeholder="Name"
-                        placeholderTextColor={C.textTertiary}
-                      />
-                    </View>
-                    <View style={styles.rolePersonFieldAge}>
-                      <Text style={styles.roleInlineLabel}>Age</Text>
-                      <TextInput
-                        style={styles.roleInlineInput}
-                        value={profile.caredForAge != null ? String(profile.caredForAge) : ""}
-                        onChangeText={(text) =>
-                          setProfile((prev) => ({
-                            ...prev,
-                            caredForAge: text.trim() ? Math.max(0, parseInt(text, 10) || 0) : undefined,
-                          }))
-                        }
-                        placeholder="Age"
-                        placeholderTextColor={C.textTertiary}
-                        keyboardType="number-pad"
-                      />
-                    </View>
-                  </View>
-                  <Pressable style={styles.personSaveButton} onPress={saveCareRecipientDetails}>
-                    <Text style={styles.personSaveButtonText}>Save person</Text>
-                  </Pressable>
-                </>
-              ) : null}
+
+              <View style={styles.rolePersonFieldRow}>
+                <View style={styles.rolePersonFieldName}>
+                  <Text style={styles.roleInlineLabel}>Name</Text>
+                  <TextInput
+                    style={styles.roleInlineInput}
+                    value={profile.caredForName ?? ""}
+                    onChangeText={(text) => {
+                      setRoleDetailsEditing(true);
+                      setProfile((prev) => ({ ...prev, caredForName: text }));
+                    }}
+                    placeholder="Name"
+                    placeholderTextColor={C.textTertiary}
+                  />
+                </View>
+                <View style={styles.rolePersonFieldAge}>
+                  <Text style={styles.roleInlineLabel}>Age</Text>
+                  <TextInput
+                    style={styles.roleInlineInput}
+                    value={profile.caredForAge != null ? String(profile.caredForAge) : ""}
+                    onChangeText={(text) => {
+                      setRoleDetailsEditing(true);
+                      setProfile((prev) => ({
+                        ...prev,
+                        caredForAge: text.trim() ? Math.max(0, parseInt(text, 10) || 0) : undefined,
+                      }));
+                    }}
+                    placeholder="Age"
+                    placeholderTextColor={C.textTertiary}
+                    keyboardType="number-pad"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.rolePersonActionRow}>
+                <Pressable
+                  style={styles.roleCancelButton}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setProfile((prev) => ({
+                      ...prev,
+                      caredForName: caregiverProfile?.name || "",
+                      caredForAge: caregiverProfile?.age || undefined,
+                    }));
+                    setRoleDetailsEditing(false);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel editing care recipient"
+                >
+                  <Text style={styles.roleCancelButtonText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={[styles.personSaveButton, { flex: 1, marginTop: 0 }]} onPress={saveCareRecipientDetails}>
+                  <Text style={styles.personSaveButtonText}>Save person</Text>
+                </Pressable>
+              </View>
+
+              <Pressable
+                style={styles.roleRemoveButton}
+                onPress={handleRemoveCaregiverMode}
+                accessibilityRole="button"
+                accessibilityLabel="Remove care recipient"
+                testID="account-remove-care-recipient"
+              >
+                <Ionicons name="trash-outline" size={16} color={C.red} />
+                <Text style={styles.roleRemoveButtonText}>Remove care recipient</Text>
+              </Pressable>
             </View>
           ) : null}
 
@@ -2140,6 +2225,37 @@ function makeStyles(C: Theme, themeId: string) {
       ...raised("sm"),
     },
     personSaveButtonText: { fontWeight: "900", fontSize: 14, color: "#fff", letterSpacing: -0.2 },
+    rolePersonActionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    roleCancelButton: {
+      minHeight: 48,
+      minWidth: 96,
+      paddingHorizontal: 16,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: C.border,
+      backgroundColor: themeId === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.7)",
+    },
+    roleCancelButtonText: { fontWeight: "800", fontSize: 14, color: C.text },
+    roleRemoveButton: {
+      marginTop: 2,
+      minHeight: 48,
+      borderRadius: 16,
+      borderWidth: 1.5,
+      borderColor: C.red,
+      backgroundColor: C.redLight,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 8,
+      paddingHorizontal: 16,
+    },
+    roleRemoveButtonText: { fontWeight: "800", fontSize: 14, color: C.red },
     localHint: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 12 },
     toggleHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     toggle: { width: 48, height: 28, borderRadius: 14, backgroundColor: C.surfaceElevated, justifyContent: "center", paddingHorizontal: 3 },

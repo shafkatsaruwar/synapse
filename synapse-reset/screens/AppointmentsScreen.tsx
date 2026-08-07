@@ -290,12 +290,14 @@ function AppointmentDetailModal({
   const [explanation, setExplanation] = useState<AppointmentExplanation | null>(null);
   const [explanationLoading, setExplanationLoading] = useState(false);
   const [explanationError, setExplanationError] = useState("");
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
 
   useEffect(() => {
     setNotesExpanded(false);
     setExplanation(null);
     setExplanationError("");
     setExplanationLoading(false);
+    setShowActionsMenu(false);
   }, [appointment?.id]);
 
   if (!appointment) return null;
@@ -476,40 +478,100 @@ function AppointmentDetailModal({
             </View>
 
             <View style={styles.detailFooterActions}>
-              <Pressable style={styles.simpleAppointmentsPrimaryButton} onPress={() => { void onMarkDone(appointment); }}>
-                <Text style={styles.simpleAppointmentsPrimaryButtonText}>Mark as done</Text>
+              <Pressable
+                style={styles.simpleAppointmentsPrimaryButton}
+                onPress={() => setShowActionsMenu(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Open appointment actions"
+              >
+                <Text style={styles.simpleAppointmentsPrimaryButtonText}>Actions</Text>
               </Pressable>
-              <View style={styles.appointmentOptionsList}>
-                <Pressable style={styles.appointmentOptionButton} onPress={() => onEdit(appointment)}>
-                  <View style={styles.simpleAppointmentsActionLabel}>
-                    <Ionicons name="pencil" size={18} color={C.text} />
-                    <Text style={styles.appointmentOptionText}>Edit</Text>
-                  </View>
-                </Pressable>
-                <Pressable style={styles.appointmentOptionButton} onPress={() => onReschedule(appointment)}>
-                  <View style={styles.simpleAppointmentsActionLabel}>
-                    <Ionicons name="calendar-outline" size={18} color={C.text} />
-                    <Text style={styles.appointmentOptionText}>Reschedule</Text>
-                  </View>
-                </Pressable>
-                <Pressable style={[styles.appointmentOptionButton, styles.appointmentCancelOptionButton]} onPress={() => onCancel(appointment)}>
-                  <View style={styles.simpleAppointmentsActionLabel}>
-                    <Ionicons name="close-circle-outline" size={18} color={C.red} />
-                    <Text style={styles.appointmentCancelOptionText}>Cancel</Text>
-                  </View>
-                </Pressable>
-                {!!onDeleteSeries && (
-                  <Pressable style={[styles.appointmentOptionButton, styles.appointmentCancelOptionButton]} onPress={() => onDeleteSeries(appointment)}>
-                    <View style={styles.simpleAppointmentsActionLabel}>
-                      <Ionicons name="trash-outline" size={18} color={C.red} />
-                      <Text style={styles.appointmentCancelOptionText}>Delete series</Text>
-                    </View>
-                  </Pressable>
-                )}
-              </View>
             </View>
           </ScrollView>
         </View>
+
+        <Modal visible={showActionsMenu} transparent animationType="fade" onRequestClose={() => setShowActionsMenu(false)}>
+          <Pressable style={styles.overlay} onPress={() => setShowActionsMenu(false)}>
+            <Pressable style={styles.appointmentActionSheet} onPress={() => {}}>
+              <View style={styles.appointmentActionHeader}>
+                <Text style={styles.appointmentActionEyebrow}>Appointment options</Text>
+                <Text style={styles.appointmentActionTitle} numberOfLines={2}>{title}</Text>
+              </View>
+              <View style={styles.appointmentActionList}>
+                <Pressable
+                  style={styles.appointmentActionRow}
+                  onPress={() => {
+                    setShowActionsMenu(false);
+                    void onMarkDone(appointment);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Mark appointment as done"
+                >
+                  <Ionicons name="checkmark-circle-outline" size={20} color={C.text} />
+                  <Text style={styles.appointmentActionRowText}>Mark as done</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.appointmentActionRow}
+                  onPress={() => {
+                    setShowActionsMenu(false);
+                    onEdit(appointment);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit appointment"
+                >
+                  <Ionicons name="pencil-outline" size={20} color={C.text} />
+                  <Text style={styles.appointmentActionRowText}>Edit</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.appointmentActionRow}
+                  onPress={() => {
+                    setShowActionsMenu(false);
+                    onReschedule(appointment);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reschedule appointment"
+                >
+                  <Ionicons name="calendar-outline" size={20} color={C.text} />
+                  <Text style={styles.appointmentActionRowText}>Reschedule</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.appointmentActionRow, styles.appointmentActionRowDestructive]}
+                  onPress={() => {
+                    setShowActionsMenu(false);
+                    onCancel(appointment);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel appointment"
+                >
+                  <Ionicons name="close-circle-outline" size={20} color={C.red} />
+                  <Text style={styles.appointmentActionRowDestructiveText}>Cancel</Text>
+                </Pressable>
+                {!!onDeleteSeries && (
+                  <Pressable
+                    style={[styles.appointmentActionRow, styles.appointmentActionRowDestructive]}
+                    onPress={() => {
+                      setShowActionsMenu(false);
+                      onDeleteSeries(appointment);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete repeating appointment series"
+                  >
+                    <Ionicons name="trash-outline" size={20} color={C.red} />
+                    <Text style={styles.appointmentActionRowDestructiveText}>Delete series</Text>
+                  </Pressable>
+                )}
+              </View>
+              <Pressable
+                style={styles.appointmentActionClose}
+                onPress={() => setShowActionsMenu(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close appointment options"
+              >
+                <Text style={styles.appointmentActionCloseText}>Close</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     </Modal>
   );
