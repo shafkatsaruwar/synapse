@@ -479,6 +479,7 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
       <Modal visible={showHydrationAdd} transparent animationType="fade">
         <Pressable style={styles.modalOverlay} onPress={() => setShowHydrationAdd(false)}>
           <Pressable style={styles.modalBox} onPress={(ev) => ev.stopPropagation()}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>Log hydration</Text>
             <Text style={styles.modalLabel}>Drink</Text>
             <View style={styles.drinkChipWrap}>
@@ -540,6 +541,7 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
                 <Text style={styles.modalSaveText}>Save</Text>
               </Pressable>
             </View>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -547,6 +549,7 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
       <Modal visible={showPresetModal} transparent animationType="fade">
         <Pressable style={styles.modalOverlay} onPress={() => setShowPresetModal(false)}>
           <Pressable style={styles.modalBox} onPress={(ev) => ev.stopPropagation()}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>Default sip</Text>
             <Text style={[styles.presetDesc, { marginBottom: 14 }]}>
               What’s the regular amount you drink in one sip?
@@ -612,6 +615,7 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
                 <Text style={styles.modalSaveText}>Save default</Text>
               </Pressable>
             </View>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
