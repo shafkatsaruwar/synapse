@@ -178,6 +178,48 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
     setShowPresetModal(false);
   };
 
+  const handleTakeDefaultSip = async () => {
+    const amount = hydrationPreset.amount;
+    const unit = hydrationPreset.unit;
+    const what = hydrationPreset.what?.trim() || "Water";
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setPresetWhat(what);
+      setPresetAmount("");
+      setPresetUnit(unit);
+      setShowPresetModal(true);
+      return;
+    }
+
+    await hydrationStorage.save({
+      date: getToday(),
+      time: new Date().toISOString(),
+      what,
+      amount,
+      unit,
+    });
+
+    const sickMode = await sickModeStorage.get();
+    if (sickMode.active) {
+      const hydrationMl = convertHydrationToMl(amount, unit);
+      await sickModeStorage.save({
+        ...sickMode,
+        hydrationMl: sickMode.hydrationMl + hydrationMl,
+      });
+    }
+
+    await syncWidgetSnapshot().catch(() => {});
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    loadHydrationData();
+  };
+
+  const openDefaultSipEditor = () => {
+    setPresetWhat(hydrationPreset.what || "Water");
+    setPresetAmount(String(hydrationPreset.amount || ""));
+    setPresetUnit(hydrationPreset.unit);
+    setShowPresetModal(true);
+    Haptics.selectionAsync();
+  };
+
   const groupedByDate = entries.reduce<Record<string, EatingEntry[]>>((acc, e) => {
     if (!acc[e.date]) acc[e.date] = [];
     acc[e.date].push(e);
@@ -212,7 +254,7 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
           <View>
             <Text style={styles.title}>Eating</Text>
             <Text style={styles.subtitle}>
-              {tab === "food" ? "What you ate, roughly how much" : "Track drinks, quick sips, and widget preset"}
+              {tab === "food" ? "What you ate, roughly how much" : "Track drinks and one-tap default sips"}
             </Text>
           </View>
           <Pressable
@@ -297,18 +339,27 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
           )
         ) : (
           <>
-            <View style={styles.presetCard}>
+            <Pressable
+              style={styles.presetCard}
+              onPress={openDefaultSipEditor}
+              accessibilityRole="button"
+              accessibilityLabel="Set default sip amount"
+            >
               <View style={styles.presetHeader}>
-                <View>
-                  <Text style={styles.presetTitle}>Widget quick sip</Text>
-                  <Text style={styles.presetMeta}>{hydrationPreset.what} • {formatHydrationAmount(hydrationPreset.amount, hydrationPreset.unit)}</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.presetTitle}>Default sip</Text>
+                  <Text style={styles.presetMeta}>
+                    {hydrationPreset.what} • {formatHydrationAmount(hydrationPreset.amount, hydrationPreset.unit)}
+                  </Text>
                 </View>
-                <Pressable style={styles.presetEditBtn} onPress={() => setShowPresetModal(true)}>
-                  <Text style={styles.presetEditText}>Edit</Text>
-                </Pressable>
+                <View style={styles.presetEditBtn}>
+                  <Text style={styles.presetEditText}>Set</Text>
+                </View>
               </View>
-              <Text style={styles.presetDesc}>This is what the Hydration widget uses when someone taps Take a Sip.</Text>
-            </View>
+              <Text style={styles.presetDesc}>
+                Tap to set your regular water amount. Take a Sip will add that amount automatically.
+              </Text>
+            </Pressable>
 
             <View style={styles.hydrationSummaryCard}>
               <View>
@@ -317,12 +368,9 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
               </View>
               <Pressable
                 style={styles.quickSipBtn}
-                onPress={() => {
-                  setHydrationWhat(hydrationPreset.what);
-                  setHydrationAmount(String(hydrationPreset.amount));
-                  setHydrationUnit(hydrationPreset.unit);
-                  setShowHydrationAdd(true);
-                }}
+                onPress={() => { void handleTakeDefaultSip(); }}
+                accessibilityRole="button"
+                accessibilityLabel="Take a sip using your default amount"
               >
                 <Ionicons name="water-outline" size={16} color="#fff" />
                 <Text style={styles.quickSipText}>Take a Sip</Text>
@@ -333,7 +381,7 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
               <View style={styles.empty}>
                 <Ionicons name="water-outline" size={40} color={C.textTertiary} />
                 <Text style={styles.emptyTitle}>No hydration logs</Text>
-                <Text style={styles.emptyDesc}>Tap + or Take a Sip to log a drink</Text>
+                <Text style={styles.emptyDesc}>Set a Default sip, then tap Take a Sip</Text>
               </View>
             ) : (
               hydrationDates.map((date) => (
@@ -455,22 +503,25 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
       <Modal visible={showPresetModal} transparent animationType="fade">
         <Pressable style={styles.modalOverlay} onPress={() => setShowPresetModal(false)}>
           <Pressable style={styles.modalBox} onPress={(ev) => ev.stopPropagation()}>
-            <Text style={styles.modalTitle}>Hydration widget preset</Text>
+            <Text style={styles.modalTitle}>Default sip</Text>
+            <Text style={[styles.presetDesc, { marginBottom: 14 }]}>
+              What’s the regular amount of water you drink in one sip?
+            </Text>
             <TextInput
               style={styles.modalInput}
               placeholder="Drink name"
               placeholderTextColor={C.textTertiary}
               value={presetWhat}
               onChangeText={setPresetWhat}
-              autoFocus
             />
             <TextInput
               style={styles.modalInput}
-              placeholder="Sip amount"
+              placeholder="e.g. 8"
               placeholderTextColor={C.textTertiary}
               value={presetAmount}
               onChangeText={setPresetAmount}
               keyboardType="decimal-pad"
+              autoFocus
             />
             <Text style={styles.modalLabel}>Unit</Text>
             <View style={styles.amountRowWrap}>
@@ -493,7 +544,7 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
                 onPress={handleSavePreset}
                 disabled={!presetWhat.trim() || !presetAmount.trim()}
               >
-                <Text style={styles.modalSaveText}>Save preset</Text>
+                <Text style={styles.modalSaveText}>Save default</Text>
               </Pressable>
             </View>
           </Pressable>
