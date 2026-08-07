@@ -103,7 +103,21 @@ export default function PrivacyScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.featureTitle}>Local-First Storage</Text>
             <Text style={styles.featureDesc}>
-              Health logs are stored on this device by default (device storage). Optional features you turn on — such as iCloud backup, caregiver tools, or signed-in cloud sync — may copy data to Apple iCloud, Supabase, or other services you configure.
+              Health logs are stored on this device by default (device storage). Optional features you turn on — such as iCloud backup, Apple Health import, caregiver tools, or signed-in cloud sync — may copy or import data when you use them.
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.featureRow}>
+          <View style={[styles.featureIcon, { backgroundColor: C.pinkLight }]}>
+            <Ionicons name="heart-circle-outline" size={20} color={C.pink} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.featureTitle}>Apple Health (Optional)</Text>
+            <Text style={styles.featureDesc}>
+              On iOS you can connect Apple Health to import selected vitals into Synapse. This is read-only and only runs when you connect or sync. Synapse is not HIPAA compliant and does not provide medical advice.
             </Text>
           </View>
         </View>

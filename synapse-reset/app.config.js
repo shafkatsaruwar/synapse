@@ -37,10 +37,16 @@ module.exports = {
         "com.apple.developer.icloud-container-identifiers": ["iCloud.com.mohammedsaruwar.synapse"],
         "com.apple.developer.icloud-services": ["CloudKit"],
         "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)com.mohammedsaruwar.synapse",
+        "com.apple.developer.healthkit": true,
+        "com.apple.developer.healthkit.access": [],
       },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSFaceIDUsageDescription: "Unlock Synapse with Face ID to keep your health data private.",
+        NSHealthShareUsageDescription:
+          "Synapse reads heart rate, blood pressure, weight, temperature, oxygen, and blood glucose from Apple Health when you choose Connect Apple Health. Data stays on your device unless you use optional cloud features.",
+        NSHealthUpdateUsageDescription:
+          "Synapse does not write to Apple Health in this version.",
         NSCalendarsUsageDescription: "Synapse uses read-only calendar access so you can import selected events as appointments.",
         NSCalendarsFullAccessUsageDescription: "Synapse uses read-only calendar access so you can import selected events as appointments.",
         NSCalendarsWriteOnlyAccessUsageDescription: "Synapse can add appointment events to Calendar when you choose to export them.",
@@ -82,6 +88,16 @@ module.exports = {
       "expo-font",
       "expo-notifications",
       "@react-native-community/datetimepicker",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          NSHealthShareUsageDescription:
+            "Synapse reads heart rate, blood pressure, weight, temperature, oxygen, and blood glucose from Apple Health when you choose Connect Apple Health. Data stays on your device unless you use optional cloud features.",
+          NSHealthUpdateUsageDescription:
+            "Synapse does not write to Apple Health in this version.",
+          background: false,
+        },
+      ],
     ],
     experiments: { typedRoutes: true },
     extra: {
