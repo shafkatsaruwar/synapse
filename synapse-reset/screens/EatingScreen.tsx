@@ -33,6 +33,31 @@ const AMOUNTS: { key: EatingAmount; label: string }[] = [
 
 const HYDRATION_UNITS: HydrationUnit[] = ["oz", "ml", "L", "glasses"];
 
+/** Suggested drinks for quick pick — no alcohol; custom names still allowed via text input. */
+const DEFAULT_DRINKS = [
+  "Water",
+  "Sparkling water",
+  "Soda",
+  "Coffee",
+  "Tea",
+  "Chai",
+  "Milk",
+  "Juice",
+  "Lemonade",
+  "Coconut water",
+  "Electrolyte drink",
+  "Smoothie",
+  "Sharbat",
+  "Lassi",
+  "Chaas",
+  "Nimbu pani",
+  "Rooh Afza",
+  "Jaljeera",
+  "Buttermilk",
+  "Falooda",
+  "Thandai",
+] as const;
+
 interface EatingScreenProps {
   initialTab?: "food" | "hydration";
   hydrationLaunchToken?: number;
@@ -178,6 +203,48 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
     setShowPresetModal(false);
   };
 
+  const handleTakeDefaultSip = async () => {
+    const amount = hydrationPreset.amount;
+    const unit = hydrationPreset.unit;
+    const what = hydrationPreset.what?.trim() || "Water";
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setPresetWhat(what);
+      setPresetAmount("");
+      setPresetUnit(unit);
+      setShowPresetModal(true);
+      return;
+    }
+
+    await hydrationStorage.save({
+      date: getToday(),
+      time: new Date().toISOString(),
+      what,
+      amount,
+      unit,
+    });
+
+    const sickMode = await sickModeStorage.get();
+    if (sickMode.active) {
+      const hydrationMl = convertHydrationToMl(amount, unit);
+      await sickModeStorage.save({
+        ...sickMode,
+        hydrationMl: sickMode.hydrationMl + hydrationMl,
+      });
+    }
+
+    await syncWidgetSnapshot().catch(() => {});
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    loadHydrationData();
+  };
+
+  const openDefaultSipEditor = () => {
+    setPresetWhat(hydrationPreset.what || "Water");
+    setPresetAmount(String(hydrationPreset.amount || ""));
+    setPresetUnit(hydrationPreset.unit);
+    setShowPresetModal(true);
+    Haptics.selectionAsync();
+  };
+
   const groupedByDate = entries.reduce<Record<string, EatingEntry[]>>((acc, e) => {
     if (!acc[e.date]) acc[e.date] = [];
     acc[e.date].push(e);
@@ -212,7 +279,7 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
           <View>
             <Text style={styles.title}>Eating</Text>
             <Text style={styles.subtitle}>
-              {tab === "food" ? "What you ate, roughly how much" : "Track drinks, quick sips, and widget preset"}
+              {tab === "food" ? "What you ate, roughly how much" : "Track drinks and one-tap default sips"}
             </Text>
           </View>
           <Pressable
@@ -297,18 +364,27 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
           )
         ) : (
           <>
-            <View style={styles.presetCard}>
+            <Pressable
+              style={styles.presetCard}
+              onPress={openDefaultSipEditor}
+              accessibilityRole="button"
+              accessibilityLabel="Set default sip amount"
+            >
               <View style={styles.presetHeader}>
-                <View>
-                  <Text style={styles.presetTitle}>Widget quick sip</Text>
-                  <Text style={styles.presetMeta}>{hydrationPreset.what} • {formatHydrationAmount(hydrationPreset.amount, hydrationPreset.unit)}</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.presetTitle}>Default sip</Text>
+                  <Text style={styles.presetMeta}>
+                    {hydrationPreset.what} • {formatHydrationAmount(hydrationPreset.amount, hydrationPreset.unit)}
+                  </Text>
                 </View>
-                <Pressable style={styles.presetEditBtn} onPress={() => setShowPresetModal(true)}>
-                  <Text style={styles.presetEditText}>Edit</Text>
-                </Pressable>
+                <View style={styles.presetEditBtn}>
+                  <Text style={styles.presetEditText}>Set</Text>
+                </View>
               </View>
-              <Text style={styles.presetDesc}>This is what the Hydration widget uses when someone taps Take a Sip.</Text>
-            </View>
+              <Text style={styles.presetDesc}>
+                Tap to set your regular water amount. Take a Sip will add that amount automatically.
+              </Text>
+            </Pressable>
 
             <View style={styles.hydrationSummaryCard}>
               <View>
@@ -317,12 +393,9 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
               </View>
               <Pressable
                 style={styles.quickSipBtn}
-                onPress={() => {
-                  setHydrationWhat(hydrationPreset.what);
-                  setHydrationAmount(String(hydrationPreset.amount));
-                  setHydrationUnit(hydrationPreset.unit);
-                  setShowHydrationAdd(true);
-                }}
+                onPress={() => { void handleTakeDefaultSip(); }}
+                accessibilityRole="button"
+                accessibilityLabel="Take a sip using your default amount"
               >
                 <Ionicons name="water-outline" size={16} color="#fff" />
                 <Text style={styles.quickSipText}>Take a Sip</Text>
@@ -333,7 +406,7 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
               <View style={styles.empty}>
                 <Ionicons name="water-outline" size={40} color={C.textTertiary} />
                 <Text style={styles.emptyTitle}>No hydration logs</Text>
-                <Text style={styles.emptyDesc}>Tap + or Take a Sip to log a drink</Text>
+                <Text style={styles.emptyDesc}>Set a Default sip, then tap Take a Sip</Text>
               </View>
             ) : (
               hydrationDates.map((date) => (
@@ -407,14 +480,35 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
       <Modal visible={showHydrationAdd} transparent animationType="fade">
         <Pressable style={styles.modalOverlay} onPress={() => setShowHydrationAdd(false)}>
           <Pressable style={styles.modalBox} onPress={(ev) => ev.stopPropagation()}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>Log hydration</Text>
+            <Text style={styles.modalLabel}>Drink</Text>
+            <View style={styles.drinkChipWrap}>
+              {DEFAULT_DRINKS.map((drink) => {
+                const active = hydrationWhat.trim().toLowerCase() === drink.toLowerCase();
+                return (
+                  <Pressable
+                    key={drink}
+                    style={[styles.drinkChip, active && styles.drinkChipActive]}
+                    onPress={() => {
+                      setHydrationWhat(drink);
+                      Haptics.selectionAsync();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={`Select ${drink}`}
+                  >
+                    <Text style={[styles.drinkChipText, active && styles.drinkChipTextActive]}>{drink}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <TextInput
               style={styles.modalInput}
-              placeholder="What did you drink?"
+              placeholder="Or type another drink"
               placeholderTextColor={C.textTertiary}
               value={hydrationWhat}
               onChangeText={setHydrationWhat}
-              autoFocus
             />
             <TextInput
               style={styles.modalInput}
@@ -448,6 +542,7 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
                 <Text style={styles.modalSaveText}>Save</Text>
               </Pressable>
             </View>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -455,22 +550,47 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
       <Modal visible={showPresetModal} transparent animationType="fade">
         <Pressable style={styles.modalOverlay} onPress={() => setShowPresetModal(false)}>
           <Pressable style={styles.modalBox} onPress={(ev) => ev.stopPropagation()}>
-            <Text style={styles.modalTitle}>Hydration widget preset</Text>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Text style={styles.modalTitle}>Default sip</Text>
+            <Text style={[styles.presetDesc, { marginBottom: 14 }]}>
+              What’s the regular amount you drink in one sip?
+            </Text>
+            <Text style={styles.modalLabel}>Drink</Text>
+            <View style={styles.drinkChipWrap}>
+              {DEFAULT_DRINKS.map((drink) => {
+                const active = presetWhat.trim().toLowerCase() === drink.toLowerCase();
+                return (
+                  <Pressable
+                    key={drink}
+                    style={[styles.drinkChip, active && styles.drinkChipActive]}
+                    onPress={() => {
+                      setPresetWhat(drink);
+                      Haptics.selectionAsync();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={`Select ${drink}`}
+                  >
+                    <Text style={[styles.drinkChipText, active && styles.drinkChipTextActive]}>{drink}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <TextInput
               style={styles.modalInput}
-              placeholder="Drink name"
+              placeholder="Or type another drink"
               placeholderTextColor={C.textTertiary}
               value={presetWhat}
               onChangeText={setPresetWhat}
-              autoFocus
             />
             <TextInput
               style={styles.modalInput}
-              placeholder="Sip amount"
+              placeholder="e.g. 8"
               placeholderTextColor={C.textTertiary}
               value={presetAmount}
               onChangeText={setPresetAmount}
               keyboardType="decimal-pad"
+              autoFocus
             />
             <Text style={styles.modalLabel}>Unit</Text>
             <View style={styles.amountRowWrap}>
@@ -493,9 +613,10 @@ export default function EatingScreen({ initialTab = "food", hydrationLaunchToken
                 onPress={handleSavePreset}
                 disabled={!presetWhat.trim() || !presetAmount.trim()}
               >
-                <Text style={styles.modalSaveText}>Save preset</Text>
+                <Text style={styles.modalSaveText}>Save default</Text>
               </Pressable>
             </View>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -544,7 +665,7 @@ function makeStyles(C: Theme) {
     quickSipBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.tint, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, ...raised("md", C.tint) },
     quickSipText: { fontWeight: "600", fontSize: 14, color: "#fff" },
     modalOverlay: { flex: 1, backgroundColor: modalOverlay(), justifyContent: "center", padding: 24 },
-    modalBox: { backgroundColor: solidModalSurface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: C.border, ...raised("lg", "#24364F") },
+    modalBox: { backgroundColor: solidModalSurface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: C.border, maxHeight: "88%", ...raised("lg", "#24364F") },
     modalTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 16 },
     modalInput: { backgroundColor: C.surfaceElevated, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: C.text, marginBottom: 16, borderWidth: 1, borderColor: C.border },
     modalLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginBottom: 8 },
@@ -554,6 +675,18 @@ function makeStyles(C: Theme) {
     amountChipActive: { backgroundColor: C.tintLight },
     amountChipText: { fontSize: 14, fontWeight: "500", color: C.textSecondary },
     amountChipTextActive: { color: C.tint },
+    drinkChipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+    drinkChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    drinkChipActive: { backgroundColor: C.tintLight, borderColor: C.tint },
+    drinkChipText: { fontWeight: "600", fontSize: 13, color: C.textSecondary },
+    drinkChipTextActive: { color: C.tint },
     modalActions: { flexDirection: "row", gap: 12, justifyContent: "flex-end" },
     modalCancel: { paddingVertical: 10, paddingHorizontal: 16 },
     modalCancelText: { fontSize: 16, color: C.textSecondary },
