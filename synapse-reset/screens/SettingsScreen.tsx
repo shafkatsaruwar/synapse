@@ -23,6 +23,7 @@ import { useDisplaySettings, type TextSizeSetting } from "@/contexts/DisplaySett
 import { useAppMode } from "@/contexts/AppModeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import GlassView from "@/components/GlassView";
+import LegalDisclaimer from "@/components/LegalDisclaimer";
 import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 import {
   settingsStorage,
@@ -1307,6 +1308,7 @@ export default function SettingsScreen({
               </Pressable>
             </View>
           ) : null}
+          <LegalDisclaimer variant="banner" style={{ marginTop: 8 }} />
         </ScrollView>
         {caregiverOnboardingModal}
 
@@ -1711,6 +1713,8 @@ export default function SettingsScreen({
           <Ionicons name={saved ? "checkmark-circle" : "save-outline"} size={18} color="#fff" />
           <Text style={styles.saveBtnText}>{saved ? "Saved" : "Save Settings"}</Text>
         </Pressable>
+
+        <LegalDisclaimer variant="banner" style={{ marginTop: 4 }} />
 
         {onResetApp && (
           <Pressable

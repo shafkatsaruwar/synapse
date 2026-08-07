@@ -24,6 +24,7 @@ import { useModeAwareScreen } from "@/contexts/AppModeContext";
 import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import GlassView from "@/components/GlassView";
 import { raised } from "@/constants/raised";
+import LegalDisclaimer from "@/components/LegalDisclaimer";
 import {
   healthLogStorage,
   medicationStorage,
@@ -1379,17 +1380,21 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
       {renderHealthSnapshotCard()}
 
+      {(featureFlags.documentScannerEnabled) && (
+        <LegalDisclaimer variant="ai" style={{ marginTop: 4 }} />
+      )}
+
       <View style={[styles.grid, isWide && styles.gridWide]}>
         {featureFlags.documentScannerEnabled && (
           <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.cardGlass, isWide && styles.cardWide]}>
-            <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("documents")} accessibilityLabel="Document Scanner" accessibilityRole="button" accessibilityHint="Upload lab reports and prescriptions for AI extraction">
+            <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("documents")} accessibilityLabel="Document Scanner" accessibilityRole="button" accessibilityHint="Upload lab reports and prescriptions for AI extraction, not medical advice">
               <View style={[styles.cardHeader, { marginBottom: 0 }]}>
                 <View style={[styles.cardIcon, { backgroundColor: C.pinkLight }]}>
                   <Ionicons name="scan" size={16} color={C.pink} />
                 </View>
                 <Text style={styles.cardLabel}>Document Scanner</Text>
               </View>
-              <Text style={styles.reportDesc}>Upload lab reports and prescriptions for AI extraction</Text>
+              <Text style={styles.reportDesc}>Extract text from labs and prescriptions into your records. Not medical advice.</Text>
               <View style={styles.reportBtn}>
                 <Ionicons name="arrow-forward" size={16} color={C.tint} />
                 <Text style={styles.reportBtnText}>Scan Documents</Text>
@@ -1400,14 +1405,14 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
         {featureFlags.documentScannerEnabled && (
           <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.cardGlass, isWide && styles.cardWide]}>
-            <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("insights")} accessibilityLabel="AI Health Insights" accessibilityRole="button" accessibilityHint="Get personalized analysis of your health patterns">
+            <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("insights")} accessibilityLabel="AI Health Insights" accessibilityRole="button" accessibilityHint="Pattern highlights from your logs for awareness only, not medical advice">
               <View style={[styles.cardHeader, { marginBottom: 0 }]}>
                 <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
                   <Ionicons name="sparkles" size={16} color={C.accent} />
                 </View>
                 <Text style={styles.cardLabel}>AI Health Insights</Text>
               </View>
-              <Text style={styles.reportDesc}>Get personalized analysis of your health patterns</Text>
+              <Text style={styles.reportDesc}>Pattern highlights from your logs — not a diagnosis or medical advice.</Text>
               <View style={styles.reportBtn}>
                 <Ionicons name="arrow-forward" size={16} color={C.tint} />
                 <Text style={styles.reportBtnText}>View Insights</Text>

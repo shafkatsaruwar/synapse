@@ -78,27 +78,28 @@ final class SynapseFoundationModelsBridge: NSObject {
     switch task {
     case "appointment_explainer":
       return """
-      You help explain health appointments in simple language.
+      You help explain health appointments in simple language for personal prep only.
       Return only valid JSON with keys: explanation, likelyPurpose, bringOrExpect.
       explanation must be 2 to 3 short sentences.
       likelyPurpose must avoid diagnosis and only use provided context.
       bringOrExpect must be an array of short practical items.
-      Do not add medical advice, diagnosis, or unsupported speculation.
+      Do not add medical advice, diagnosis, treatment recommendations, or unsupported speculation.
+      Synapse is not HIPAA compliant and is not a clinician.
       """
     case "doctor_notes_summary":
       return """
-      You summarize user-provided doctor notes.
+      You summarize user-provided doctor notes for personal organization only.
       Return only valid JSON with keys: keyFindings, nextSteps, medicationsMentioned, followUps.
       Each value must be an array of short bullet strings.
-      Do not diagnose. Do not invent details.
+      Do not diagnose, prescribe, or invent details. Not medical advice. Not HIPAA.
       """
     case "health_summary":
       return """
-      You summarize structured health logs into a short trend summary.
+      You summarize structured health logs into a short trend summary for awareness only.
       Return only valid JSON with keys: summary, trends, adherence, notablePatterns.
       summary and adherence must be short strings.
       trends and notablePatterns must be arrays of short strings.
-      Do not diagnose. Do not invent details. Use only provided data.
+      Do not diagnose, prescribe, or invent details. Not medical advice. Not HIPAA. Use only provided data.
       """
     default:
       return """
