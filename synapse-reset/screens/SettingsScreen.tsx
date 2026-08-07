@@ -51,6 +51,13 @@ import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { raised } from "@/constants/raised";
 import { getCloudKitBackupStatus, restoreFromICloud, saveToICloud } from "@/lib/cloudkit-backup";
 import {
+  connectAppleHealth,
+  disconnectAppleHealth,
+  getAppleHealthStatus,
+  syncAppleHealthVitals,
+  type AppleHealthStatus,
+} from "@/lib/apple-health";
+import {
   generatePatientLinkCode,
   getCaregiverLinkState,
   linkCaregiverWithCode,
@@ -192,6 +199,8 @@ export default function SettingsScreen({
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [cloudStatus, setCloudStatus] = useState<CloudKitStatus | null>(null);
   const [cloudBusy, setCloudBusy] = useState(false);
+  const [appleHealthStatus, setAppleHealthStatus] = useState<AppleHealthStatus | null>(null);
+  const [appleHealthBusy, setAppleHealthBusy] = useState(false);
   const [caregiverLinkState, setCaregiverLinkState] = useState<CaregiverLinkState | null>(null);
   const [caregiverLinkBusy, setCaregiverLinkBusy] = useState(false);
   const [caregiverCodeCopied, setCaregiverCodeCopied] = useState(false);
@@ -242,6 +251,10 @@ export default function SettingsScreen({
     getCloudKitBackupStatus().then(setCloudStatus).catch(() => {});
   }, []);
 
+  const refreshAppleHealthStatus = useCallback(() => {
+    getAppleHealthStatus().then(setAppleHealthStatus).catch(() => {});
+  }, []);
+
   const refreshCaregiverLinkState = useCallback(() => {
     getCaregiverLinkState(authUserId).then(setCaregiverLinkState).catch(() => setCaregiverLinkState(null));
   }, [authUserId]);
@@ -249,6 +262,10 @@ export default function SettingsScreen({
   useEffect(() => {
     refreshCloudStatus();
   }, [refreshCloudStatus]);
+
+  useEffect(() => {
+    refreshAppleHealthStatus();
+  }, [refreshAppleHealthStatus]);
 
   useEffect(() => {
     refreshCaregiverLinkState();
@@ -461,6 +478,69 @@ export default function SettingsScreen({
           },
         },
       ]
+    );
+  };
+
+  const handleConnectAppleHealth = async () => {
+    setAppleHealthBusy(true);
+    try {
+      const result = await connectAppleHealth();
+      if (!result.ok) {
+        Alert.alert("Apple Health", result.error || "Could not connect.");
+        return;
+      }
+      const sync = await syncAppleHealthVitals(30);
+      refreshAppleHealthStatus();
+      if (sync.ok) {
+        Alert.alert(
+          "Apple Health connected",
+          sync.imported > 0
+            ? `Imported ${sync.imported} recent reading${sync.imported === 1 ? "" : "s"} into Vitals.`
+            : "Connected. No new readings found in the last 30 days — open Vitals and tap Sync anytime.",
+        );
+      } else {
+        Alert.alert("Connected", sync.error || "Connected, but sync could not finish. Try Sync again from Vitals.");
+      }
+    } finally {
+      setAppleHealthBusy(false);
+    }
+  };
+
+  const handleSyncAppleHealth = async () => {
+    setAppleHealthBusy(true);
+    try {
+      const sync = await syncAppleHealthVitals(30);
+      refreshAppleHealthStatus();
+      if (sync.ok) {
+        Alert.alert(
+          "Synced",
+          sync.imported > 0
+            ? `Updated ${sync.imported} reading${sync.imported === 1 ? "" : "s"} from Apple Health.`
+            : "No new Apple Health readings to import.",
+        );
+      } else {
+        Alert.alert("Sync failed", sync.error || "Could not sync Apple Health.");
+      }
+    } finally {
+      setAppleHealthBusy(false);
+    }
+  };
+
+  const handleDisconnectAppleHealth = () => {
+    Alert.alert(
+      "Disconnect Apple Health?",
+      "Synapse will stop syncing new readings. Existing imported vitals stay on this device.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: async () => {
+            await disconnectAppleHealth();
+            refreshAppleHealthStatus();
+          },
+        },
+      ],
     );
   };
 
@@ -1462,6 +1542,59 @@ export default function SettingsScreen({
             >
               <Text style={styles.outlineBtnText}>Restore</Text>
             </Pressable>
+          </View>
+        </GlassView>
+
+        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
+          <Text style={styles.sectionTitle}>Apple Health</Text>
+          <Text style={styles.desc}>
+            Connect Apple Health to import heart rate, blood pressure, weight, temperature, oxygen, and blood glucose into Vitals. Read-only — Synapse does not write back to Apple Health. Not medical advice and not HIPAA.
+          </Text>
+          <View style={styles.syncedBadge}>
+            <Ionicons
+              name={appleHealthStatus?.connected ? "heart-circle-outline" : "heart-outline"}
+              size={15}
+              color={appleHealthStatus?.connected ? C.green : C.textTertiary}
+            />
+            <Text style={[styles.syncedText, !appleHealthStatus?.connected && { color: C.textTertiary }]}>
+              {appleHealthStatus?.connected
+                ? appleHealthStatus.lastSyncAt
+                  ? `Connected · last sync ${new Date(appleHealthStatus.lastSyncAt).toLocaleString()}`
+                  : "Connected"
+                : appleHealthStatus?.reason
+                  ? appleHealthStatus.reason
+                  : Platform.OS === "ios"
+                    ? "Not connected"
+                    : "Apple Health is iOS-only"}
+            </Text>
+          </View>
+          <View style={styles.backupActions}>
+            {appleHealthStatus?.connected ? (
+              <>
+                <Pressable
+                  style={[styles.secondaryBtn, appleHealthBusy && { opacity: 0.55 }]}
+                  onPress={handleSyncAppleHealth}
+                  disabled={appleHealthBusy || Platform.OS !== "ios"}
+                >
+                  <Text style={styles.secondaryBtnText}>{appleHealthBusy ? "Working..." : "Sync now"}</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.outlineBtn, appleHealthBusy && { opacity: 0.55 }]}
+                  onPress={handleDisconnectAppleHealth}
+                  disabled={appleHealthBusy}
+                >
+                  <Text style={styles.outlineBtnText}>Disconnect</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                style={[styles.secondaryBtn, appleHealthBusy && { opacity: 0.55 }]}
+                onPress={handleConnectAppleHealth}
+                disabled={appleHealthBusy || Platform.OS !== "ios"}
+              >
+                <Text style={styles.secondaryBtnText}>{appleHealthBusy ? "Working..." : "Connect Apple Health"}</Text>
+              </Pressable>
+            )}
           </View>
         </GlassView>
 

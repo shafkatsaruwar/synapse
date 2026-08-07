@@ -18,5 +18,9 @@
     </array>
     <key>com.apple.developer.ubiquity-kvstore-identifier</key>
     <string>$(TeamIdentifierPrefix)com.mohammedsaruwar.synapse</string>
+    <key>com.apple.developer.healthkit</key>
+    <true/>
+    <key>com.apple.developer.healthkit.access</key>
+    <array/>
   </dict>
 </plist>

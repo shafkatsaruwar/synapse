@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from "react";
 import {
-  StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, useWindowDimensions,
+  StyleSheet, Text, View, ScrollView, Pressable, Modal, Platform, useWindowDimensions, Alert,
 } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,9 +11,15 @@ import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { vitalStorage, healthLogStorage, type Vital, type HealthLog } from "@/lib/storage";
 import { getDaysAgo, formatDate, getToday } from "@/lib/date-utils";
 import { modalOverlay, modalSurface } from "@/lib/modal-colors";
+import {
+  connectAppleHealth,
+  getAppleHealthStatus,
+  syncAppleHealthVitals,
+  type AppleHealthStatus,
+} from "@/lib/apple-health";
 
 type Category = "weight" | "blood_pressure" | "blood_sugar" | "heart_rate" | "body_temperature" | "oxygen_saturation" | "sleep" | "hydration" | "labs";
-type VitalSource = "manual" | "apple_watch" | "blood_pressure_monitor" | "other";
+type VitalSource = "manual" | "apple_watch" | "apple_health" | "blood_pressure_monitor" | "other";
 
 function getCategories(C: Theme): { key: Category; label: string; icon: string; color: string; unit: string; units: string[] }[] {
   return [
@@ -31,6 +37,7 @@ function getCategories(C: Theme): { key: Category; label: string; icon: string; 
 
 const VITAL_SOURCE_OPTIONS: { value: VitalSource; label: string }[] = [
   { value: "manual", label: "Manual entry" },
+  { value: "apple_health", label: "Apple Health" },
   { value: "apple_watch", label: "Apple Watch" },
   { value: "blood_pressure_monitor", label: "Blood pressure monitor" },
   { value: "other", label: "Other" },
@@ -91,11 +98,18 @@ export default function HealthDataScreen() {
   const [editingVital, setEditingVital] = useState<Vital | null>(null);
   const [editValue, setEditValue] = useState("");
   const [editUnit, setEditUnit] = useState("");
+  const [appleHealthStatus, setAppleHealthStatus] = useState<AppleHealthStatus | null>(null);
+  const [appleHealthBusy, setAppleHealthBusy] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [v, l] = await Promise.all([vitalStorage.getAll(), healthLogStorage.getAll()]);
+    const [v, l, healthStatus] = await Promise.all([
+      vitalStorage.getAll(),
+      healthLogStorage.getAll(),
+      getAppleHealthStatus(),
+    ]);
     setVitals(v);
     setLogs(l);
+    setAppleHealthStatus(healthStatus);
   }, []);
 
   React.useEffect(() => { loadData(); }, [loadData]);
@@ -186,6 +200,33 @@ export default function HealthDataScreen() {
     loadData();
   };
 
+  const handleAppleHealthAction = async () => {
+    setAppleHealthBusy(true);
+    try {
+      if (!appleHealthStatus?.connected) {
+        const connected = await connectAppleHealth();
+        if (!connected.ok) {
+          Alert.alert("Apple Health", connected.error || "Could not connect.");
+          return;
+        }
+      }
+      const sync = await syncAppleHealthVitals(30);
+      await loadData();
+      if (sync.ok) {
+        Alert.alert(
+          appleHealthStatus?.connected ? "Synced" : "Connected",
+          sync.imported > 0
+            ? `Imported ${sync.imported} reading${sync.imported === 1 ? "" : "s"} from Apple Health.`
+            : "No new Apple Health readings found for the last 30 days.",
+        );
+      } else {
+        Alert.alert("Apple Health", sync.error || "Sync failed.");
+      }
+    } finally {
+      setAppleHealthBusy(false);
+    }
+  };
+
   const editCategoryUnits = editingVital && CATEGORIES.find((c) => editingVital.type.toLowerCase().includes(c.key.replace("_", " ")) || editingVital.type === c.label);
   const editUnits = editCategoryUnits?.units?.length ? editCategoryUnits.units : [editingVital?.unit || ""].filter(Boolean);
 
@@ -202,6 +243,32 @@ export default function HealthDataScreen() {
             <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>Add</Text>
           </Pressable>
         </View>
+
+        {Platform.OS === "ios" ? (
+          <View style={styles.card}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <Ionicons name="heart-circle-outline" size={22} color={C.pink} />
+              <Text style={styles.cardTitle}>Apple Health</Text>
+            </View>
+            <Text style={styles.emptyText}>
+              {appleHealthStatus?.connected
+                ? "Connected. Sync imports recent heart rate, BP, weight, temp, SpO₂, and glucose. Not medical advice."
+                : appleHealthStatus?.reason || "Connect Apple Health to import recent vitals into Synapse. Read-only. Not medical advice / not HIPAA."}
+            </Text>
+            <Pressable
+              style={[styles.addBtn, { alignSelf: "flex-start", marginTop: 12, opacity: appleHealthBusy ? 0.6 : 1 }]}
+              onPress={handleAppleHealthAction}
+              disabled={appleHealthBusy}
+              accessibilityRole="button"
+              accessibilityLabel={appleHealthStatus?.connected ? "Sync Apple Health" : "Connect Apple Health"}
+            >
+              <Ionicons name="sync-outline" size={16} color="#fff" />
+              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>
+                {appleHealthBusy ? "Working…" : appleHealthStatus?.connected ? "Sync now" : "Connect Apple Health"}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRow}>
           {CATEGORIES.map((c) => (

@@ -252,7 +252,7 @@ export interface Pharmacy {
 
 export type AppointmentStatus = "completed" | "rescheduled" | "cancelled";
 
-export type AppointmentSource = "manual" | "scan" | "calendar" | "import" | "mychart_import" | "calendar_import";
+export type AppointmentSource = "manual" | "scan" | "calendar" | "import" | "calendar_import";
 
 export interface Appointment {
   id: string;
@@ -341,7 +341,9 @@ export interface Vital {
   type: string;
   value: string;
   unit: string;
-  source?: "manual" | "apple_watch" | "blood_pressure_monitor" | "other";
+  source?: "manual" | "apple_watch" | "apple_health" | "blood_pressure_monitor" | "other";
+  /** Stable id from an external source (e.g. Apple Health sample UUID) to avoid duplicates on sync. */
+  externalId?: string;
   bloodPressureSystolic?: number;
   bloodPressureDiastolic?: number;
   heartRate?: number;
