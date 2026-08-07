@@ -16,7 +16,7 @@ export default function AuthStub() {
       <Text style={styles.title}>Sign in</Text>
       <Text style={styles.subtitle}>Sign in to back up and sync your data</Text>
       <Text style={styles.body}>
-        Accounts have been removed. All data now stays locally on your device.
+        Sign-in is optional and used for cloud features you choose to enable. Health logs remain local-first on this device unless you sync, back up, export, or use AI features.
       </Text>
     </View>
   );

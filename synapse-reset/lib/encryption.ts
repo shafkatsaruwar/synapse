@@ -1,3 +1,9 @@
+/**
+ * WARNING: Despite the name, this is NOT reversible encryption and is NOT AES-256.
+ * Current behavior hashes/transforms payloads in a way that must not be marketed
+ * as protecting PHI at rest. Health logs in storage.ts use AsyncStorage directly.
+ * Kept for legacy helpers only — do not expand usage for compliance claims.
+ */
 import * as Crypto from "expo-crypto";
 import { secureStorage } from "./secure-storage";
 

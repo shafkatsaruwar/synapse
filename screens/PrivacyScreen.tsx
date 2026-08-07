@@ -58,16 +58,16 @@ export default function PrivacyScreen() {
       paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
     }]} showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>Privacy & Data</Text>
-      <Text style={styles.subtitle}>Your health data stays on your device</Text>
+      <Text style={styles.subtitle}>Personal wellness tracker — you control what leaves this device</Text>
 
       <View style={styles.card}>
         <View style={styles.featureRow}>
           <View style={[styles.featureIcon, { backgroundColor: C.greenLight }]}>
-            <Ionicons name="shield-checkmark" size={20} color={C.green} />
+            <Ionicons name="phone-portrait-outline" size={20} color={C.green} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.featureTitle}>Local-First Storage</Text>
-            <Text style={styles.featureDesc}>All data is stored on your device using encrypted local storage. Nothing is sent to external servers without your action.</Text>
+            <Text style={styles.featureDesc}>Health logs are stored on this device by default. Optional cloud, caregiver, or AI features may send data only when you use them.</Text>
           </View>
         </View>
       </View>
@@ -75,11 +75,11 @@ export default function PrivacyScreen() {
       <View style={styles.card}>
         <View style={styles.featureRow}>
           <View style={[styles.featureIcon, { backgroundColor: C.tintLight }]}>
-            <Ionicons name="lock-closed" size={20} color={C.tint} />
+            <Ionicons name="sparkles-outline" size={20} color={C.tint} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.featureTitle}>AI Processing</Text>
-            <Text style={styles.featureDesc}>Document analysis and insights use AI only when you explicitly request it. Your data is processed for the request and not stored by the AI service.</Text>
+            <Text style={styles.featureTitle}>AI Features (Optional)</Text>
+            <Text style={styles.featureDesc}>Document analysis and insights send selected data to our API and a third-party AI provider only when you request them.</Text>
           </View>
         </View>
       </View>
@@ -87,11 +87,11 @@ export default function PrivacyScreen() {
       <View style={styles.card}>
         <View style={styles.featureRow}>
           <View style={[styles.featureIcon, { backgroundColor: C.purpleLight }]}>
-            <Ionicons name="eye-off" size={20} color={C.purple} />
+            <Ionicons name="share-outline" size={20} color={C.purple} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.featureTitle}>No Third-Party Sharing</Text>
-            <Text style={styles.featureDesc}>Your health data is never shared with third parties, advertisers, or data brokers. You control who sees your data.</Text>
+            <Text style={styles.featureTitle}>Sharing & Export</Text>
+            <Text style={styles.featureDesc}>Synapse does not sell health data to advertisers. Exports and shares are under your control and are unencrypted JSON.</Text>
           </View>
         </View>
       </View>
@@ -99,11 +99,11 @@ export default function PrivacyScreen() {
       <View style={styles.card}>
         <View style={styles.featureRow}>
           <View style={[styles.featureIcon, { backgroundColor: C.cyanLight }]}>
-            <Ionicons name="heart" size={20} color={C.cyan} />
+            <Ionicons name="medkit-outline" size={20} color={C.cyan} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.featureTitle}>HealthKit Ready</Text>
-            <Text style={styles.featureDesc}>Data structure is designed for future Apple HealthKit integration. When available, you'll be able to sync vitals automatically.</Text>
+            <Text style={styles.featureTitle}>Not Medical Care / Not HIPAA</Text>
+            <Text style={styles.featureDesc}>Synapse is a personal wellness app, not a medical device or HIPAA covered-entity product. It does not provide medical advice.</Text>
           </View>
         </View>
       </View>
@@ -137,7 +137,7 @@ export default function PrivacyScreen() {
       <View style={styles.infoCard}>
         <Ionicons name="information-circle-outline" size={16} color={C.textTertiary} />
         <Text style={styles.infoText}>
-          Synapse is designed with a privacy-first approach. Your health data never leaves your device unless you explicitly export it. AI features only process data when you click the generate button.
+          Synapse keeps health logs local by default. Optional cloud backup, caregiver tools, AI, email, or export may send data when you use those features.
         </Text>
       </View>
     </ScrollView>

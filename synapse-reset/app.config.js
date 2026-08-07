@@ -94,6 +94,7 @@ module.exports = {
       EXPO_PUBLIC_APP_URL: (process.env.EXPO_PUBLIC_APP_URL ?? "https://synapse-health.vercel.app").replace(/\/$/, ""),
       EXPO_PUBLIC_API_URL: (process.env.EXPO_PUBLIC_API_URL ?? "https://synapse-health.vercel.app").replace(/\/$/, ""),
       EXPO_PUBLIC_DOMAIN: process.env.EXPO_PUBLIC_DOMAIN ?? "",
+      EXPO_PUBLIC_API_SHARED_SECRET: process.env.EXPO_PUBLIC_API_SHARED_SECRET ?? "",
     },
     // Env from .env or EAS is baked into extra above; production fallback for apiUrl so native builds never use localhost.
     owner: "mohammedsaruwars-organization",

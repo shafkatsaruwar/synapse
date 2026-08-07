@@ -91,9 +91,15 @@ export default function MeetFounderScreen() {
 
       {/* Section: Privacy First */}
       <Section emoji="🔒" title="Privacy First">
-        <Text style={styles.bodyText}>Your data stays with you.</Text>
-        <BulletList items={["No servers", "No tracking", "No accounts"]} />
-        <Text style={styles.bodyText}>Everything lives on your device.</Text>
+        <Text style={styles.bodyText}>Your health logs stay on your device by default.</Text>
+        <BulletList
+          items={[
+            "Local-first storage",
+            "No ads or data brokers",
+            "Optional cloud, caregiver, and AI only when you use them",
+          ]}
+        />
+        <Text style={styles.bodyText}>You choose what leaves this device.</Text>
       </Section>
 
       {/* Section: What's Next */}
