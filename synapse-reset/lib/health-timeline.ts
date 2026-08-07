@@ -7,6 +7,7 @@ import {
   type MedicationLog,
   type Symptom,
 } from "@/lib/storage";
+import { getLocalDateKeyFromIso, getLocalTimeHHMMFromIso } from "@/lib/date-utils";
 
 export type TimelineEventType = "appointment" | "med" | "symptom" | "lab" | "imaging";
 
@@ -22,6 +23,8 @@ export type TimelineEvent = {
   relatedMedicationId?: string;
   contextBlocks: string[];
   metadata: Record<string, unknown>;
+  /** Absolute ms for sorting — prefer recordedAt when available. */
+  sortAt: number;
 };
 
 export type TimelineFilter = "all" | "appointment" | "med" | "lab" | "imaging";
@@ -46,10 +49,20 @@ function appointmentLabel(appointments: Appointment[], id?: string) {
   return `${appointment.doctorName}${appointment.date ? ` on ${appointment.date}` : ""}`;
 }
 
-function toTimestamp(event: TimelineEvent) {
-  const time = event.time?.trim() || "12:00";
-  const parsed = new Date(`${event.date}T${time.length === 5 ? `${time}:00` : time}`);
+/** Parse local calendar date + optional HH:MM as local wall time. */
+function localDateTimeMs(date: string, time?: string) {
+  const hhmm = (time?.trim() || "12:00").slice(0, 5);
+  const normalized = hhmm.length === 5 ? `${hhmm}:00` : hhmm;
+  const parsed = new Date(`${date}T${normalized}`);
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
+function sortAtFromIsoOrDate(iso: string | undefined, date: string, time?: string) {
+  if (iso) {
+    const ms = new Date(iso).getTime();
+    if (!Number.isNaN(ms)) return ms;
+  }
+  return localDateTimeMs(date, time);
 }
 
 export function buildHealthTimeline(input: TimelineInput): TimelineEvent[] {
@@ -76,6 +89,7 @@ export function buildHealthTimeline(input: TimelineInput): TimelineEvent[] {
         appointment.source === "scan" ? "Source: scan" : "",
       ].filter(Boolean),
       metadata: { ...appointment, source: appointment.source } as unknown as Record<string, unknown>,
+      sortAt: localDateTimeMs(appointment.date, appointment.time),
     });
   });
 
@@ -88,13 +102,17 @@ export function buildHealthTimeline(input: TimelineInput): TimelineEvent[] {
       const dose = medication.doses?.[log.doseIndex ?? 0];
       const doseText = dose?.amount && dose?.unit ? `${dose.amount} ${dose.unit}` : medication.dosage || medication.frequency;
 
+      // Prefer local wall-clock from recordedAt — never slice ISO "T21:15:00.000Z" (that is UTC).
+      const localTime = getLocalTimeHHMMFromIso(log.recordedAt) || log.scheduledTime;
+      const localDate = log.recordedAt ? getLocalDateKeyFromIso(log.recordedAt) : log.date;
+
       events.push({
         id: `med-${log.id}`,
         type: "med",
         title: medication.name || "Medication",
         subtitle: doseText || "Medication logged",
-        date: log.date,
-        time: log.recordedAt?.slice(11, 16) || log.scheduledTime,
+        date: localDate,
+        time: localTime,
         relatedDoctorId: medication.doctorId,
         relatedMedicationId: medication.id,
         contextBlocks: [
@@ -104,6 +122,7 @@ export function buildHealthTimeline(input: TimelineInput): TimelineEvent[] {
           log.notes ? `Note: ${log.notes}` : "",
         ].filter(Boolean),
         metadata: { medication, log },
+        sortAt: sortAtFromIsoOrDate(log.recordedAt, localDate, localTime),
       });
     });
 
@@ -125,6 +144,7 @@ export function buildHealthTimeline(input: TimelineInput): TimelineEvent[] {
         lab.source === "scan" ? "Source: scan" : "",
       ].filter(Boolean),
       metadata: lab as unknown as Record<string, unknown>,
+      sortAt: localDateTimeMs(lab.date),
     });
   });
 
@@ -145,30 +165,36 @@ export function buildHealthTimeline(input: TimelineInput): TimelineEvent[] {
         scan.source === "scan" ? "Source: scan" : "",
       ].filter(Boolean),
       metadata: scan as unknown as Record<string, unknown>,
+      sortAt: localDateTimeMs(scan.date),
     });
   });
 
   input.symptoms.forEach((symptom) => {
+    const localTime = getLocalTimeHHMMFromIso(symptom.recordedAt);
+    const localDate = symptom.recordedAt ? getLocalDateKeyFromIso(symptom.recordedAt) : symptom.date;
     events.push({
       id: `symptom-${symptom.id}`,
       type: "symptom",
       title: symptom.name || "Symptom",
       subtitle: `Severity ${symptom.severity}/10`,
-      date: symptom.date,
-      time: symptom.recordedAt?.slice(11, 16),
+      date: localDate,
+      time: localTime,
       contextBlocks: [
         symptom.trigger ? `Trigger: ${symptom.trigger}` : "",
         symptom.durationMinutes ? `Duration: ${symptom.durationMinutes} min` : "",
         symptom.notes ? `Note: ${symptom.notes}` : "",
       ].filter(Boolean),
       metadata: symptom as unknown as Record<string, unknown>,
+      sortAt: sortAtFromIsoOrDate(symptom.recordedAt, localDate, localTime),
     });
   });
 
-  return events.sort((a, b) => toTimestamp(b) - toTimestamp(a));
+  // Most recent first so “just logged” appears at the top (times are local wall-clock).
+  return events.sort((a, b) => b.sortAt - a.sortAt || a.title.localeCompare(b.title));
 }
 
 export function groupTimelineByDay(events: TimelineEvent[]) {
+  // Preserve event order. With newest-first events, day groups appear newest → older.
   return events.reduce<{ date: string; events: TimelineEvent[] }[]>((groups, event) => {
     const group = groups.find((item) => item.date === event.date);
     if (group) {

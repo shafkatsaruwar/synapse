@@ -32,6 +32,22 @@ export function getToday(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** Local calendar date (YYYY-MM-DD) for an ISO/timestamp string. */
+export function getLocalDateKeyFromIso(value?: string): string {
+  if (!value) return getToday();
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return getToday();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Local HH:MM from an ISO/timestamp string (never use string.slice on Zulu times). */
+export function getLocalTimeHHMMFromIso(value?: string): string | undefined {
+  if (!value) return undefined;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 export function getDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
