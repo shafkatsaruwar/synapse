@@ -94,7 +94,7 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     id: "insights",
     title: "Reports and insights",
-    body: "Turn your logs into reports, monthly check-ins, timelines, and insight summaries you can bring to care.",
+    body: "Turn your logs into reports and summaries for awareness — not medical advice. Synapse is not HIPAA compliant.",
     targetIds: ["menu"],
     enterDelayMs: 180,
   },
@@ -107,8 +107,8 @@ const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   },
   {
     id: "final",
-    title: "A lot of power, still private",
-    body: "Synapse is built for daily tracking, hard days, caregiver workflows, and organized medical context.",
+    title: "A lot of power, still personal",
+    body: "Synapse helps you organize daily health life. It does not provide medical advice and is not HIPAA compliant.",
     enterDelayMs: 120,
   },
 ];

@@ -18,6 +18,8 @@ import { getDaysAgo, formatDate, formatDateWithYear, getToday } from "@/lib/date
 import { buildRecoveryInsights, type RecoveryStatusLabel } from "@/lib/recovery-insights";
 import { generateHealthSummary, type HealthGeneratedSummary } from "@/lib/foundation-models";
 import { raised } from "@/constants/raised";
+import LegalDisclaimer from "@/components/LegalDisclaimer";
+import { LEGAL } from "@/constants/legal-disclaimers";
 
 interface SummaryEvent {
   date: string;
@@ -356,10 +358,11 @@ export default function ReportsScreen() {
         <View style={styles.aiSummaryHeader}>
           <View>
             <Text style={styles.cardTitle}>On-device Summary</Text>
-            <Text style={styles.aiSummarySubtext}>Quiet trends from this report window.</Text>
+            <Text style={styles.aiSummarySubtext}>Quiet trends from this report window — awareness only.</Text>
           </View>
           <Ionicons name="sparkles-outline" size={18} color={C.purple} />
         </View>
+        <LegalDisclaimer variant="insights" />
         <Pressable
           style={[styles.aiSummaryButton, generatedSummaryLoading && styles.generateBtnDisabled]}
           onPress={handleGenerateHealthSummary}
@@ -372,6 +375,7 @@ export default function ReportsScreen() {
         {!!generatedSummaryError && <Text style={styles.aiSummaryError}>{generatedSummaryError}</Text>}
         {generatedSummary ? (
           <View style={styles.aiSummaryResult}>
+            <Text style={[styles.aiSummaryText, { fontWeight: "600" }]}>{LEGAL.banner}</Text>
             <Text style={styles.aiSummaryText}>{generatedSummary.summary}</Text>
             {!!generatedSummary.adherence && <Text style={styles.aiSummaryText}>{generatedSummary.adherence}</Text>}
             {[...generatedSummary.trends, ...generatedSummary.notablePatterns].map((item) => (

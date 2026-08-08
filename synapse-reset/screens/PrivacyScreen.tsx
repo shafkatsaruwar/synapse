@@ -9,6 +9,8 @@ import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { exportAllData, clearAllData } from "@/lib/storage";
 import { getBiometricLockEnabled, setBiometricLockEnabled } from "@/lib/biometric-storage";
+import { LEGAL } from "@/constants/legal-disclaimers";
+import LegalDisclaimer from "@/components/LegalDisclaimer";
 
 export default function PrivacyScreen() {
   const { colors: C } = useTheme();
@@ -73,6 +75,7 @@ export default function PrivacyScreen() {
     }]} showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>Privacy & Data</Text>
       <Text style={styles.subtitle}>Personal wellness tracker — you control what leaves this device</Text>
+      <LegalDisclaimer variant="banner" />
 
       {(Platform.OS === "ios" || Platform.OS === "android") && (
         <View style={styles.card}>
@@ -131,7 +134,7 @@ export default function PrivacyScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.featureTitle}>AI Features (Optional)</Text>
             <Text style={styles.featureDesc}>
-              Document scan and insights only run when you request them. That request sends the relevant health data to our API and a third-party AI provider (for example OpenAI) to process the response. Do not use AI features with data you are not comfortable sharing with those processors.
+              {LEGAL.aiScope} Document scan and insights only run when you request them and may send data to our API and a third-party AI provider.
             </Text>
           </View>
         </View>
@@ -157,9 +160,9 @@ export default function PrivacyScreen() {
             <Ionicons name="medkit-outline" size={20} color={C.cyan} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.featureTitle}>Not Medical Care / Not HIPAA</Text>
+            <Text style={styles.featureTitle}>{LEGAL.privacyTitle}</Text>
             <Text style={styles.featureDesc}>
-              Synapse is a personal wellness and organization app, not a medical device, not a healthcare provider, and not a HIPAA covered entity or business associate product. It does not provide medical advice. Always follow your clinician’s guidance.
+              {LEGAL.privacyBody}
             </Text>
           </View>
         </View>
