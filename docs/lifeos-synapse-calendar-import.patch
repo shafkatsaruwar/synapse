@@ -1,0 +1,640 @@
+From 312f53af6ec882cd03aa85c5dd6ce1c0400b637a Mon Sep 17 00:00:00 2001
+From: Cursor Agent <cursoragent@cursor.com>
+Date: Sat, 8 Aug 2026 22:54:19 +0000
+Subject: [PATCH] Import Synapse meds and appointments into LifeOS calendar
+
+Add Synapse as a calendar source with replace-on-import day-plan merge,
+Settings paste import on web and mobile, and lifeos://import/synapse deep
+link handling so health events appear on Today's schedule.
+---
+ __tests__/synapseImport.test.ts               |  29 +++++
+ __tests__/validation.test.ts                  |  14 +++
+ app/page.tsx                                  |  65 ++++++++++-
+ lib/synapseImport.ts                          | 104 ++++++++++++++++++
+ lib/validation.ts                             |   2 +-
+ lifeos-mobile/App.tsx                         |   2 +
+ .../src/components/SynapseImportBridge.tsx    |  51 +++++++++
+ lifeos-mobile/src/lib/synapseImport.ts        | 102 +++++++++++++++++
+ lifeos-mobile/src/screens/DashboardScreen.tsx |   8 +-
+ lifeos-mobile/src/screens/SettingsScreen.tsx  |  73 +++++++++++-
+ lifeos-mobile/src/types.ts                    |   2 +-
+ 11 files changed, 445 insertions(+), 7 deletions(-)
+ create mode 100644 __tests__/synapseImport.test.ts
+ create mode 100644 lib/synapseImport.ts
+ create mode 100644 lifeos-mobile/src/components/SynapseImportBridge.tsx
+ create mode 100644 lifeos-mobile/src/lib/synapseImport.ts
+
+diff --git a/__tests__/synapseImport.test.ts b/__tests__/synapseImport.test.ts
+new file mode 100644
+index 0000000..350445c
+--- /dev/null
++++ b/__tests__/synapseImport.test.ts
+@@ -0,0 +1,29 @@
++import { mergeSynapseCalendarEvents, parseSynapseDayPlan } from "../lib/synapseImport";
++
++describe("synapseImport", () => {
++  it("parses a day-plan payload and replaces prior synapse events", () => {
++    const events = parseSynapseDayPlan(
++      JSON.stringify({
++        v: 1,
++        events: [
++          {
++            id: "synapse-med-a-2026-08-08-0",
++            title: "Med A",
++            start: "2026-08-08T08:00",
++            source: "Synapse",
++            color: "#4b8bdc",
++          },
++        ],
++      }),
++    );
++    expect(events).toHaveLength(1);
++    const merged = mergeSynapseCalendarEvents(
++      [
++        { id: "lifeos-1", title: "Focus" },
++        { id: "synapse-med-old", title: "Old" },
++      ],
++      events,
++    );
++    expect(merged.map((e) => e.id)).toEqual(["lifeos-1", "synapse-med-a-2026-08-08-0"]);
++  });
++});
+diff --git a/__tests__/validation.test.ts b/__tests__/validation.test.ts
+index 1096585..9f2c021 100644
+--- a/__tests__/validation.test.ts
++++ b/__tests__/validation.test.ts
+@@ -158,5 +158,19 @@ describe('Data Validation', () => {
+       const result = validateCalendarEvents(events);
+       expect(result.success).toBe(false);
+     });
++
++    it('accepts Synapse source', () => {
++      const events = [
++        {
++          id: 'synapse-med-1-2026-07-10-0',
++          title: 'Hydrocortisone',
++          start: '2026-07-10T08:00',
++          source: 'Synapse',
++          color: '#4b8bdc',
++        },
++      ];
++      const result = validateCalendarEvents(events);
++      expect(result.success).toBe(true);
++    });
+   });
+ });
+diff --git a/app/page.tsx b/app/page.tsx
+index 060e01d..8e4c750 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -70,6 +70,7 @@ import {
+   nowIso,
+   studyAbroadToCalendarEvents,
+ } from "@/lib/studyAbroadHelpers";
++import { mergeSynapseCalendarEvents, parseSynapseDayPlan } from "@/lib/synapseImport";
+ import type { ParsedTask } from "@/lib/useNLTaskCreation";
+ import { useTaskBreakdown } from "@/lib/useTaskBreakdown";
+ import {
+@@ -94,7 +95,7 @@ type SpaceKind = "class" | "project" | "maintenance";
+ type ProjectIcon = "Zap" | "Aperture" | "Sparkles" | "FileText" | "UserRound" | "FolderKanban" | "BriefcaseBusiness" | "Camera" | "Code2" | "HeartPulse" | "Utensils" | "BookOpen";
+ type Resource = { id: string; name: string; type: string; size: number; url: string; uploadedAt: string; classId?: string; projectName?: string; storagePath?: string; storage?: "cloud" | "local" };
+ type Project = { name: string; desc: string; progress: number; color: string; icon: typeof Home; iconName: ProjectIcon; tasks: number; kind: ProjectKind };
+-type CalendarEvent = { id: string; title: string; start: string; end?: string; source: "LifeOS" | "iCal" | "Google" | "Outlook" | "Work"; color: string; notes?: string; location?: string };
++type CalendarEvent = { id: string; title: string; start: string; end?: string; source: "LifeOS" | "iCal" | "Google" | "Outlook" | "Work" | "Synapse"; color: string; notes?: string; location?: string };
+ type ClassRecord = { id: string; code: string; name: string; term: string; instructor: string; color: string; location?: string; credits?: number; semesterStart?: string; semesterEnd?: string; archived?: boolean };
+ type Note = { id: string; title: string; body: string; classId?: string; projectName?: string; template?: "blank" | "lined" | "dotted" | "cornell" | "meeting"; /** Handwriting from mobile (Apple PencilKit PKDrawing base64, or legacy strokes); preserved on web updates */ ink?: { version?: 1 | 2; format?: "pencilkit"; data?: string; pencilKitData?: string; strokes?: Array<{ id: string; color: string; width: number; tool: "pen" | "highlighter" | "eraser"; points: Array<{ x: number; y: number; t?: number }> }>; height?: number; updatedAt?: number }; updatedAt: string };
+ type AmbientActivity = { title: string; startedAt: string; note?: string; spaceName?: string; spaceColor?: string };
+@@ -918,6 +919,15 @@ export default function LifeOS() {
+     window.addEventListener("lifeos:google-calendar-events", importGoogleEvents);
+     return () => window.removeEventListener("lifeos:google-calendar-events", importGoogleEvents);
+   }, []);
++  useEffect(() => {
++    const importSynapseEvents = (event: Event) => {
++      const incoming = (event as CustomEvent<CalendarEvent[]>).detail;
++      if (!Array.isArray(incoming)) return;
++      setCalendarEvents((current) => mergeSynapseCalendarEvents(current, incoming) as CalendarEvent[]);
++    };
++    window.addEventListener("lifeos:synapse-calendar-events", importSynapseEvents);
++    return () => window.removeEventListener("lifeos:synapse-calendar-events", importSynapseEvents);
++  }, []);
+   useEffect(() => {
+     const handler = (e: KeyboardEvent) => {
+       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette(true); }
+@@ -2101,6 +2111,7 @@ export default function LifeOS() {
+             {view === "Brain" && <BrainView items={brainItems} onCapture={() => setCapture(true)} onArchive={(index) => { setBrainItems(items => items.filter((_, i) => i !== index)); flash("Thought archived"); }} />}
+             {view === "Settings" && <SettingsView dark={dark} setDark={setDark} settings={settingsState} update={updateSettings} tasks={tasks} projects={projectItems} events={calendarEvents} brainItems={brainItems} flash={flash} onSync={syncFromCloud} onReset={resetLocalData} onExport={exportData} onImport={importData} user={user} onLogout={handleLogout} />}
+             {view === "Settings" && <CalendarConnections user={user} flash={flash} />}
++            {view === "Settings" && <SynapseDayPlanImport flash={flash} />}
+             {!["Life", "School", "Work", "Study Abroad", "Now", "Today", "Spaces", "Library", "Dashboard", "Tasks", "Calendar", "Notes", "Brain", "Resources", "Settings"].includes(view) && <ComingSoon view={view} onFocus={() => setFocus(true)} />}
+           </motion.div>
+         </AnimatePresence>
+@@ -3536,6 +3547,58 @@ function CalendarConnections({ user, flash }: { user?: any; flash: (message: str
+   return <section className="card settings-card calendar-hub"><div className="card-head"><div><span className="section-icon violet"><CalendarDays size={14} /></span><h2>Calendar connections</h2></div><span className="calendar-hub-note">Read-only imports</span></div><div className="calendar-auto-refresh"><span><CheckCircle2 size={14} /> Automatic refresh is on</span><small>Connected calendars update every 5 minutes while LifeOS is open.</small></div><div className="calendar-provider-tabs" role="tablist" aria-label="Calendar providers">{choices.map(choice => <button key={choice.id} role="tab" aria-selected={provider === choice.id} className={provider === choice.id ? "selected" : ""} onClick={() => setProvider(choice.id)}><b>{choice.number}</b><span>{choice.name}<small>{choice.detail}</small></span></button>)}</div><div className="calendar-provider-content">{provider === "apple" && <ICloudCalendarIntegration user={user} flash={flash} />}{provider === "google" && <GoogleCalendarIntegration user={user} flash={flash} />}</div></section>;
+ }
+ 
++function SynapseDayPlanImport({ flash }: { flash: (message: string) => void }) {
++  const [text, setText] = useState("");
++  const [error, setError] = useState("");
++  const [busy, setBusy] = useState(false);
++  const importPlan = () => {
++    try {
++      setBusy(true);
++      setError("");
++      const events = parseSynapseDayPlan(text);
++      if (!events.length) throw new Error("No Synapse events found in that paste.");
++      window.dispatchEvent(new CustomEvent("lifeos:synapse-calendar-events", { detail: events }));
++      setText("");
++      flash(`${events.length} Synapse event${events.length === 1 ? "" : "s"} imported into your calendar`);
++    } catch (reason) {
++      setError(reason instanceof Error ? reason.message : "Could not import Synapse day plan.");
++    } finally {
++      setBusy(false);
++    }
++  };
++  return (
++    <section className="card settings-card">
++      <div className="card-head">
++        <div>
++          <span className="section-icon blue"><HeartPulse size={14} /></span>
++          <h2>Synapse health day plan</h2>
++        </div>
++      </div>
++      <div className="settings-body">
++        <div className="integration-empty">
++          <strong>See upcoming meds and appointments beside your LifeOS day.</strong>
++          <p>In Synapse → Settings → LifeOS, tap Share day plan. Then paste the JSON here. Each import replaces earlier Synapse events so the plan stays current.</p>
++        </div>
++        <label htmlFor="synapse-day-plan">Synapse day-plan JSON</label>
++        <textarea
++          id="synapse-day-plan"
++          value={text}
++          onChange={(event) => setText(event.target.value)}
++          placeholder='{"v":1,"events":[...]}'
++          rows={5}
++        />
++        <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
++          <button className="primary" type="button" disabled={busy || !text.trim()} onClick={importPlan}>
++            {busy ? "Importing…" : "Import Synapse plan"}
++          </button>
++        </div>
++        {error ? <p className="gmail-error" role="alert">{error}</p> : null}
++        <p className="settings-note">Read-only planning view. Log doses and change appointments in Synapse.</p>
++      </div>
++    </section>
++  );
++}
++
+ function GoogleCalendarIntegration({ user, flash }: { user?: any; flash: (message: string) => void }) {
+   const [loading, setLoading] = useState(true);
+   const [busy, setBusy] = useState(false);
+diff --git a/lib/synapseImport.ts b/lib/synapseImport.ts
+new file mode 100644
+index 0000000..1202ec0
+--- /dev/null
++++ b/lib/synapseImport.ts
+@@ -0,0 +1,104 @@
++/** Synapse → LifeOS day-plan import helpers (shared by web + mobile). */
++
++export type SynapseCalendarEvent = {
++  id: string;
++  title: string;
++  start: string;
++  end?: string;
++  source: "Synapse";
++  color: string;
++  notes?: string;
++  location?: string;
++};
++
++export type SynapseDayPlanPayload = {
++  v: 1;
++  exportedAt?: string;
++  windowDays?: number;
++  events: SynapseCalendarEvent[];
++};
++
++export function isSynapseEventId(id: string) {
++  return id.startsWith("synapse-");
++}
++
++function base64UrlToUtf8(value: string) {
++  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
++  const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
++  const b64 = padded + pad;
++  const atobFn =
++    typeof globalThis.atob === "function"
++      ? globalThis.atob.bind(globalThis)
++      : typeof Buffer !== "undefined"
++        ? (input: string) => Buffer.from(input, "base64").toString("binary")
++        : null;
++  if (!atobFn) throw new Error("Base64 decoding is unavailable.");
++  const binary = atobFn(b64);
++  const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
++  return new TextDecoder().decode(bytes);
++}
++
++function normalizeEvent(raw: unknown): SynapseCalendarEvent | null {
++  if (!raw || typeof raw !== "object") return null;
++  const event = raw as Record<string, unknown>;
++  if (typeof event.id !== "string" || !event.id.startsWith("synapse-")) return null;
++  if (typeof event.title !== "string" || !event.title.trim()) return null;
++  if (typeof event.start !== "string" || !event.start.trim()) return null;
++  return {
++    id: event.id,
++    title: event.title.trim(),
++    start: event.start,
++    end: typeof event.end === "string" && event.end ? event.end : undefined,
++    source: "Synapse",
++    color: typeof event.color === "string" && event.color ? event.color : "#4b8bdc",
++    notes: typeof event.notes === "string" && event.notes ? event.notes : undefined,
++    location: typeof event.location === "string" && event.location ? event.location : undefined,
++  };
++}
++
++/** Parse JSON day-plan text, a bare events array, or a deep-link URL with ?payload=. */
++export function parseSynapseDayPlan(raw: string): SynapseCalendarEvent[] {
++  const text = raw.trim();
++  if (!text) return [];
++
++  if (text.startsWith("lifeos://") || text.includes("payload=")) {
++    try {
++      const match = text.match(/[?&]payload=([^&]+)/);
++      if (match?.[1]) return parseSynapseDayPlan(base64UrlToUtf8(decodeURIComponent(match[1])));
++      const url = new URL(text.includes("://") ? text : `https://lifeos.local/import/synapse?${text.replace(/^\?/, "")}`);
++      const payload = url.searchParams.get("payload");
++      if (payload) return parseSynapseDayPlan(base64UrlToUtf8(payload));
++    } catch {
++      // fall through to JSON parse
++    }
++  }
++
++  let parsed: unknown;
++  try {
++    parsed = JSON.parse(text);
++  } catch {
++    throw new Error("Paste a Synapse day-plan JSON export (from Synapse → Settings → LifeOS).");
++  }
++
++  if (Array.isArray(parsed)) {
++    return parsed.map(normalizeEvent).filter((item): item is SynapseCalendarEvent => item != null);
++  }
++
++  if (parsed && typeof parsed === "object") {
++    const payload = parsed as SynapseDayPlanPayload;
++    if (Array.isArray(payload.events)) {
++      return payload.events.map(normalizeEvent).filter((item): item is SynapseCalendarEvent => item != null);
++    }
++  }
++
++  throw new Error("Unrecognized Synapse day-plan format.");
++}
++
++/** Replace prior Synapse-sourced events (by id prefix) with the latest import. */
++export function mergeSynapseCalendarEvents<T extends { id: string }>(
++  existing: T[],
++  incoming: SynapseCalendarEvent[],
++): Array<T | SynapseCalendarEvent> {
++  const kept = existing.filter((event) => !isSynapseEventId(event.id));
++  return [...kept, ...incoming];
++}
+diff --git a/lib/validation.ts b/lib/validation.ts
+index e7a69a0..e5e693a 100644
+--- a/lib/validation.ts
++++ b/lib/validation.ts
+@@ -44,7 +44,7 @@ export const CalendarEventSchema = z.object({
+   title: z.string(),
+   start: z.string(), // ISO datetime
+   end: z.string().optional(),
+-  source: z.enum(['LifeOS', 'iCal', 'Google', 'Outlook', 'Work']),
++  source: z.enum(['LifeOS', 'iCal', 'Google', 'Outlook', 'Work', 'Synapse']),
+   color: z.string(),
+   notes: z.string().optional(),
+   location: z.string().optional(),
+diff --git a/lifeos-mobile/App.tsx b/lifeos-mobile/App.tsx
+index 224534e..aef6ec3 100644
+--- a/lifeos-mobile/App.tsx
++++ b/lifeos-mobile/App.tsx
+@@ -11,6 +11,7 @@ import { LifeOSContext, type AppState } from "./src/lib/LifeOSContext";
+ import { applyOtaUpdateIfAvailable } from "./src/lib/ota";
+ import { resolveTheme } from "./src/lib/theme";
+ import { SignIn } from "./src/components/Auth";
++import { SynapseImportBridge } from "./src/components/SynapseImportBridge";
+ import { RootNavigator } from "./src/navigation/RootNavigator";
+ 
+ // Required once at module load so the OAuth redirect from Google's web
+@@ -277,6 +278,7 @@ export default function App() {
+     <GestureHandlerRootView style={styles.root}>
+       <SafeAreaProvider>
+         <LifeOSContext.Provider value={state}>
++          <SynapseImportBridge />
+           <RootNavigator />
+         </LifeOSContext.Provider>
+       </SafeAreaProvider>
+diff --git a/lifeos-mobile/src/components/SynapseImportBridge.tsx b/lifeos-mobile/src/components/SynapseImportBridge.tsx
+new file mode 100644
+index 0000000..e4f1242
+--- /dev/null
++++ b/lifeos-mobile/src/components/SynapseImportBridge.tsx
+@@ -0,0 +1,51 @@
++import { useEffect, useRef } from "react";
++import { Alert, Linking } from "react-native";
++import { mergeSynapseCalendarEvents, parseSynapseDayPlan } from "../lib/synapseImport";
++import { useLifeOS } from "../lib/LifeOSContext";
++
++function isSynapseImportUrl(url: string | null) {
++  if (!url) return false;
++  return url.startsWith("lifeos://import/synapse") || url.includes("import/synapse");
++}
++
++/** Listens for lifeos://import/synapse deep links and merges Synapse day-plan events. */
++export function SynapseImportBridge() {
++  const { workspace, updateCalendar } = useLifeOS();
++  const workspaceRef = useRef(workspace);
++  workspaceRef.current = workspace;
++
++  useEffect(() => {
++    const applyUrl = (url: string | null) => {
++      if (!isSynapseImportUrl(url) || !url) return;
++      try {
++        const events = parseSynapseDayPlan(url);
++        if (!events.length) {
++          Alert.alert(
++            "Synapse import",
++            "Opened from Synapse, but no events were in the link. Paste the day-plan JSON in Settings → Synapse.",
++          );
++          return;
++        }
++        const merged = mergeSynapseCalendarEvents(workspaceRef.current.calendar, events);
++        void updateCalendar(merged as typeof workspaceRef.current.calendar);
++        Alert.alert(
++          "Synapse day plan imported",
++          `${events.length} health event${events.length === 1 ? "" : "s"} added to your calendar. Prior Synapse events were replaced.`,
++        );
++      } catch (error) {
++        Alert.alert(
++          "Synapse import",
++          error instanceof Error
++            ? error.message
++            : "Could not read that Synapse day plan. Paste the JSON in Settings → Synapse.",
++        );
++      }
++    };
++
++    void Linking.getInitialURL().then(applyUrl);
++    const sub = Linking.addEventListener("url", ({ url }) => applyUrl(url));
++    return () => sub.remove();
++  }, [updateCalendar]);
++
++  return null;
++}
+diff --git a/lifeos-mobile/src/lib/synapseImport.ts b/lifeos-mobile/src/lib/synapseImport.ts
+new file mode 100644
+index 0000000..5cfaebe
+--- /dev/null
++++ b/lifeos-mobile/src/lib/synapseImport.ts
+@@ -0,0 +1,102 @@
++/** Re-export / local copy of Synapse day-plan import helpers for the Expo app. */
++
++export type SynapseCalendarEvent = {
++  id: string;
++  title: string;
++  start: string;
++  end?: string;
++  source: "Synapse";
++  color: string;
++  notes?: string;
++  location?: string;
++};
++
++export type SynapseDayPlanPayload = {
++  v: 1;
++  exportedAt?: string;
++  windowDays?: number;
++  events: SynapseCalendarEvent[];
++};
++
++export function isSynapseEventId(id: string) {
++  return id.startsWith("synapse-");
++}
++
++function base64UrlToUtf8(value: string) {
++  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
++  const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
++  const b64 = padded + pad;
++  const atobFn =
++    typeof globalThis.atob === "function"
++      ? globalThis.atob.bind(globalThis)
++      : typeof Buffer !== "undefined"
++        ? (input: string) => Buffer.from(input, "base64").toString("binary")
++        : null;
++  if (!atobFn) throw new Error("Base64 decoding is unavailable.");
++  const binary = atobFn(b64);
++  const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
++  return new TextDecoder().decode(bytes);
++}
++
++function normalizeEvent(raw: unknown): SynapseCalendarEvent | null {
++  if (!raw || typeof raw !== "object") return null;
++  const event = raw as Record<string, unknown>;
++  if (typeof event.id !== "string" || !event.id.startsWith("synapse-")) return null;
++  if (typeof event.title !== "string" || !event.title.trim()) return null;
++  if (typeof event.start !== "string" || !event.start.trim()) return null;
++  return {
++    id: event.id,
++    title: event.title.trim(),
++    start: event.start,
++    end: typeof event.end === "string" && event.end ? event.end : undefined,
++    source: "Synapse",
++    color: typeof event.color === "string" && event.color ? event.color : "#4b8bdc",
++    notes: typeof event.notes === "string" && event.notes ? event.notes : undefined,
++    location: typeof event.location === "string" && event.location ? event.location : undefined,
++  };
++}
++
++export function parseSynapseDayPlan(raw: string): SynapseCalendarEvent[] {
++  const text = raw.trim();
++  if (!text) return [];
++
++  if (text.startsWith("lifeos://") || text.includes("payload=")) {
++    try {
++      const match = text.match(/[?&]payload=([^&]+)/);
++      if (match?.[1]) return parseSynapseDayPlan(base64UrlToUtf8(decodeURIComponent(match[1])));
++      const url = new URL(text.includes("://") ? text : `https://lifeos.local/import/synapse?${text.replace(/^\?/, "")}`);
++      const payload = url.searchParams.get("payload");
++      if (payload) return parseSynapseDayPlan(base64UrlToUtf8(payload));
++    } catch {
++      // fall through
++    }
++  }
++
++  let parsed: unknown;
++  try {
++    parsed = JSON.parse(text);
++  } catch {
++    throw new Error("Paste a Synapse day-plan JSON export (from Synapse → Settings → LifeOS).");
++  }
++
++  if (Array.isArray(parsed)) {
++    return parsed.map(normalizeEvent).filter((item): item is SynapseCalendarEvent => item != null);
++  }
++
++  if (parsed && typeof parsed === "object") {
++    const payload = parsed as SynapseDayPlanPayload;
++    if (Array.isArray(payload.events)) {
++      return payload.events.map(normalizeEvent).filter((item): item is SynapseCalendarEvent => item != null);
++    }
++  }
++
++  throw new Error("Unrecognized Synapse day-plan format.");
++}
++
++export function mergeSynapseCalendarEvents<T extends { id: string }>(
++  existing: T[],
++  incoming: SynapseCalendarEvent[],
++): Array<T | SynapseCalendarEvent> {
++  const kept = existing.filter((event) => !isSynapseEventId(event.id));
++  return [...kept, ...incoming];
++}
+diff --git a/lifeos-mobile/src/screens/DashboardScreen.tsx b/lifeos-mobile/src/screens/DashboardScreen.tsx
+index b0a2370..bc3a560 100644
+--- a/lifeos-mobile/src/screens/DashboardScreen.tsx
++++ b/lifeos-mobile/src/screens/DashboardScreen.tsx
+@@ -142,13 +142,17 @@ export function DashboardScreen() {
+                   <View style={[styles.eventLine, { backgroundColor: event.color || theme.accent }]} />
+                   <View style={styles.grow}>
+                     <Text style={[styles.eventTitle, { color: theme.text }]} numberOfLines={1}>{event.title}</Text>
+-                    <Text style={[styles.eventNotes, { color: theme.muted }]} numberOfLines={1}>{event.notes || (event.source === "LifeOS" ? "Focus block" : event.source)}</Text>
++                    <Text style={[styles.eventNotes, { color: theme.muted }]} numberOfLines={1}>
++                      {event.source === "Synapse"
++                        ? event.notes || "Synapse"
++                        : event.notes || (event.source === "LifeOS" ? "Focus block" : event.source)}
++                    </Text>
+                   </View>
+                 </View>
+               );
+             })
+           ) : (
+-            <Empty title="No events scheduled for today" body="" />
++            <Empty title="No events scheduled for today" body="Share a day plan from Synapse → Settings → LifeOS to see meds and appointments here." />
+           )}
+         </Card>
+ 
+diff --git a/lifeos-mobile/src/screens/SettingsScreen.tsx b/lifeos-mobile/src/screens/SettingsScreen.tsx
+index 654e71e..3b01aad 100644
+--- a/lifeos-mobile/src/screens/SettingsScreen.tsx
++++ b/lifeos-mobile/src/screens/SettingsScreen.tsx
+@@ -1,20 +1,46 @@
+ import Feather from "@expo/vector-icons/Feather";
+ import * as WebBrowser from "expo-web-browser";
+ import { useMemo, useState } from "react";
+-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
++import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+ import { signOut } from "firebase/auth";
+ import { ActionButton, Card, Eyebrow, Page, SegmentedControl, Title } from "../components/UI";
+ import { useLifeOS } from "../lib/LifeOSContext";
+ import { API_BASE } from "../lib/api";
+ import { auth } from "../lib/firebase";
++import { mergeSynapseCalendarEvents, parseSynapseDayPlan } from "../lib/synapseImport";
+ import { SPACE_COLORS } from "../lib/theme";
+ import type { EnergyLevel, ThemeMode } from "../types";
+ 
+ export function SettingsScreen() {
+-  const { user, workspace, theme, dark, updateSettings, sync } = useLifeOS();
++  const { user, workspace, theme, dark, updateSettings, updateCalendar, sync } = useLifeOS();
+   const [name, setName] = useState(workspace.settings.preferredName ?? "");
++  const [synapsePaste, setSynapsePaste] = useState("");
++  const [synapseBusy, setSynapseBusy] = useState(false);
+   const themeMode = workspace.settings.themeMode ?? "system";
+   const accent = workspace.settings.accent?.trim() || theme.accent;
++  const synapseEventCount = workspace.calendar.filter((event) => event.id.startsWith("synapse-")).length;
++
++  const importSynapsePlan = () => {
++    setSynapseBusy(true);
++    try {
++      const events = parseSynapseDayPlan(synapsePaste);
++      if (!events.length) {
++        Alert.alert("Synapse", "No Synapse events found in that paste.");
++        return;
++      }
++      const merged = mergeSynapseCalendarEvents(workspace.calendar, events);
++      void updateCalendar(merged as typeof workspace.calendar);
++      setSynapsePaste("");
++      Alert.alert(
++        "Imported",
++        `${events.length} Synapse event${events.length === 1 ? "" : "s"} added. Previous Synapse events were replaced.`,
++      );
++    } catch (error) {
++      Alert.alert("Synapse import", error instanceof Error ? error.message : "Could not import day plan.");
++    } finally {
++      setSynapseBusy(false);
++    }
++  };
+   const accentOptions = useMemo(() => {
+     const normalized = accent.toLowerCase();
+     if (SPACE_COLORS.some((color) => color.toLowerCase() === normalized)) return [...SPACE_COLORS];
+@@ -170,6 +196,49 @@ export function SettingsScreen() {
+           </View>
+         </Card>
+ 
++        <Card>
++          <View style={styles.sectionHead}>
++            <View style={[styles.sectionIcon, { backgroundColor: theme.soft }]}>
++              <Feather name="heart" size={14} color={theme.accent} />
++            </View>
++            <Text style={[styles.cardLabel, { color: theme.text }]}>Synapse</Text>
++          </View>
++          <Text style={{ color: theme.muted, fontSize: 13, lineHeight: 18 }}>
++            Import upcoming medications and appointments from Synapse so they show on Today&apos;s schedule. Re-import replaces earlier Synapse events.
++          </Text>
++          <Text style={{ color: theme.muted, fontSize: 12, marginTop: 8 }}>
++            {synapseEventCount
++              ? `${synapseEventCount} Synapse event${synapseEventCount === 1 ? "" : "s"} on your calendar`
++              : "No Synapse events yet"}
++          </Text>
++          <TextInput
++            value={synapsePaste}
++            onChangeText={setSynapsePaste}
++            placeholder='Paste Synapse day-plan JSON {"v":1,"events":[...]}'
++            placeholderTextColor={theme.muted}
++            multiline
++            style={[
++              styles.input,
++              {
++                color: theme.text,
++                borderColor: theme.border,
++                marginTop: 12,
++                minHeight: 96,
++                paddingTop: 10,
++                textAlignVertical: "top",
++              },
++            ]}
++          />
++          <View style={[styles.row, { marginTop: 12 }]}>
++            <ActionButton
++              label={synapseBusy ? "Importing…" : "Import Synapse plan"}
++              icon="download"
++              quiet
++              onPress={importSynapsePlan}
++            />
++          </View>
++        </Card>
++
+         <Card>
+           <View style={styles.sectionHead}>
+             <View style={[styles.sectionIcon, { backgroundColor: theme.soft }]}>
+diff --git a/lifeos-mobile/src/types.ts b/lifeos-mobile/src/types.ts
+index b78d575..82d3e13 100644
+--- a/lifeos-mobile/src/types.ts
++++ b/lifeos-mobile/src/types.ts
+@@ -73,7 +73,7 @@ export type CalendarEvent = {
+   title: string;
+   start: string;
+   end?: string;
+-  source?: "LifeOS" | "iCal" | "Google" | "Outlook";
++  source?: "LifeOS" | "iCal" | "Google" | "Outlook" | "Synapse";
+   color?: string;
+   notes?: string;
+ };
+-- 
+2.43.0
+
