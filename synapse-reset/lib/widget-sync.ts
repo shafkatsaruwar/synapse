@@ -5,18 +5,21 @@ import {
   healthLogStorage,
   healthProfileStorage,
   hydrationStorage,
+  labWorkStorage,
   medicationLogStorage,
   medicationStorage,
   mentalHealthModeStorage,
   normalizeMedication,
   sickModeStorage,
   symptomStorage,
+  vitalStorage,
   convertHydrationToMl,
   formatHydrationAmount,
   type Appointment,
   type CaregiverProfile,
   type HealthLog,
   type HydrationEntry,
+  type LabWork,
   type Medication,
   type MedicationDose,
   type MentalHealthModeData,
@@ -26,6 +29,8 @@ import {
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { getAppointmentTravelEstimate } from "@/lib/appointment-travel";
+import { buildRecoveryInsights } from "@/lib/recovery-insights";
+import { isMedicationScheduledOnDate } from "@/lib/medication-schedule";
 
 type WidgetSnapshot = {
   appearance: WidgetAppearancePreference;
@@ -44,6 +49,48 @@ type WidgetSnapshot = {
     startsAt: string | null;
     whenText: string;
     travelText: string | null;
+    location: string | null;
+    notes: string | null;
+    prepHint: string;
+  };
+  recovery: {
+    active: boolean;
+    title: string;
+    statusText: string;
+    tone: "green" | "blue" | "orange";
+    focusText: string | null;
+    nextAction: string;
+  };
+  pain: {
+    hasPain: boolean;
+    name: string;
+    severity: number | null;
+    statusText: string;
+    tone: "green" | "orange" | "red";
+    nextAction: string;
+  };
+  medicationDay: {
+    taken: number;
+    expected: number;
+    summaryText: string;
+    nextAction: string;
+    doses: { name: string; detail: string; timeText: string; taken: boolean }[];
+  };
+  labs: {
+    hasItems: boolean;
+    title: string;
+    statusText: string;
+    tone: "blue" | "orange" | "green";
+    nextAction: string;
+    items: { name: string; detail: string; pending: boolean }[];
+  };
+  report14Day: {
+    statusLabel: string;
+    summaryText: string;
+    tone: "green" | "blue" | "orange";
+    adherenceText: string;
+    nextAction: string;
+    insights: string[];
   };
   prnMedication: null | {
     id: string;
@@ -705,12 +752,194 @@ async function getNextAppointmentSnapshot(appointments: Appointment[]) {
   if (!upcoming.length) return null;
   const { appointment, startsAt } = upcoming[0];
   const travelText = await getAppointmentTravelEstimate(appointment, null, { allowPermissionPrompt: false });
+  const notes = appointment.notes?.trim() || appointment.arrivalInstructions?.trim() || null;
+  const prepHint = travelText
+    ? "Leave with time to spare"
+    : notes
+      ? "Review notes before you go"
+      : "Open Synapse to prep";
   return {
     doctorName: appointment.doctorName || "Appointment",
     detail: simplifyAppointmentDetail(appointment.specialty || appointment.location || "Upcoming visit"),
     startsAt: startsAt.toISOString(),
     whenText: formatAppointmentWhen(startsAt),
     travelText,
+    location: appointment.location?.trim() || null,
+    notes,
+    prepHint,
+  };
+}
+
+function buildRecoverySnapshot(
+  sickMode: SickModeData,
+  profile: { recoveryTrackingEnabled?: boolean; recoveryFocus?: string },
+) {
+  const sessionRecovery = sickMode.active && sickMode.recoveryMode === true;
+  const tracking = profile.recoveryTrackingEnabled === true;
+  const active = sessionRecovery || tracking;
+  const focus = profile.recoveryFocus?.trim() || null;
+  if (!active) {
+    return {
+      active: false,
+      title: "Recovery Today",
+      statusText: "No recovery focus",
+      tone: "blue" as const,
+      focusText: null,
+      nextAction: "Open recovery when you need it",
+    };
+  }
+  return {
+    active: true,
+    title: "Recovery Today",
+    statusText: sessionRecovery ? "Easing back" : "Tracking recovery",
+    tone: "green" as const,
+    focusText: focus,
+    nextAction: sessionRecovery ? "Keep resting · check temp" : "Review how today feels",
+  };
+}
+
+function buildPainSnapshot(symptoms: Symptom[], todayLog: HealthLog | undefined) {
+  const topSymptom = pickTopSymptom(symptoms);
+  const chestPain = typeof todayLog?.chestPain === "number" ? todayLog.chestPain : 0;
+  const fromSymptom = topSymptom && /pain|ache|migraine|headache/i.test(topSymptom.name)
+    ? topSymptom
+    : null;
+  const severity = fromSymptom?.severity ?? (chestPain > 0 ? chestPain : null);
+  const name = fromSymptom?.name ?? (chestPain > 0 ? "Chest discomfort" : "Pain");
+
+  if (severity == null || severity <= 0) {
+    return {
+      hasPain: false,
+      name: "Pain",
+      severity: null,
+      statusText: "Nothing flagged",
+      tone: "green" as const,
+      nextAction: "Log if something hurts",
+    };
+  }
+
+  const tone = severity >= 7 ? ("red" as const) : severity >= 4 ? ("orange" as const) : ("green" as const);
+  return {
+    hasPain: true,
+    name,
+    severity,
+    statusText: severity >= 7 ? "Needs attention" : severity >= 4 ? "Watch today" : "Mild · noted",
+    tone,
+    nextAction: severity >= 7 ? "Open Symptoms to review" : "Tap to update",
+  };
+}
+
+function buildMedicationDaySnapshot(
+  medications: Medication[],
+  logs: { medicationId: string; doseIndex?: number; taken: boolean }[],
+  today: string,
+) {
+  const doses: { name: string; detail: string; timeText: string; taken: boolean }[] = [];
+  for (const raw of medications) {
+    const med = normalizeMedication(raw);
+    if (!med.active || (med.medicationType ?? "scheduled") === "prn") continue;
+    if (!isMedicationScheduledOnDate(med, today)) continue;
+    (med.doses ?? []).forEach((dose, doseIndex) => {
+      const taken = logs.some((log) => log.medicationId === med.id && (log.doseIndex ?? 0) === doseIndex && log.taken);
+      doses.push({
+        name: med.name || "Medication",
+        detail: doseDetail(dose),
+        timeText: formatWidgetTime(dose.reminderTime) || dose.timeOfDay,
+        taken,
+      });
+    });
+  }
+  doses.sort((a, b) => a.timeText.localeCompare(b.timeText));
+  const expected = doses.length;
+  const taken = doses.filter((d) => d.taken).length;
+  return {
+    taken,
+    expected,
+    summaryText: expected === 0 ? "No scheduled doses today" : `${taken} of ${expected} taken`,
+    nextAction: expected === 0 ? "Add meds in Synapse" : taken >= expected ? "All caught up" : "Log the next dose",
+    doses: doses.slice(0, 8),
+  };
+}
+
+function buildLabsSnapshot(labs: LabWork[]) {
+  const pending = labs
+    .filter((lab) => (lab.status ?? "completed") === "pending")
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  const recent = labs
+    .filter((lab) => (lab.status ?? "completed") !== "pending")
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  if (!labs.length) {
+    return {
+      hasItems: false,
+      title: "Labs",
+      statusText: "No labs yet",
+      tone: "blue" as const,
+      nextAction: "Add or scan a result",
+      items: [] as { name: string; detail: string; pending: boolean }[],
+    };
+  }
+
+  if (pending.length) {
+    return {
+      hasItems: true,
+      title: "Labs",
+      statusText: `${pending.length} pending review`,
+      tone: "orange" as const,
+      nextAction: "Review pending labs",
+      items: pending.slice(0, 3).map((lab) => ({
+        name: lab.testName || "Lab",
+        detail: lab.date || "Date TBD",
+        pending: true,
+      })),
+    };
+  }
+
+  const top = recent[0];
+  return {
+    hasItems: true,
+    title: "Labs",
+    statusText: "Latest on file",
+    tone: "green" as const,
+    nextAction: "Open reports",
+    items: top
+      ? [{ name: top.testName || "Lab", detail: top.date || "Recent", pending: false }]
+      : [],
+  };
+}
+
+function buildReport14DaySnapshot(input: {
+  logs: HealthLog[];
+  vitals: Awaited<ReturnType<typeof vitalStorage.getAll>>;
+  symptoms: Symptom[];
+  medications: Medication[];
+  medicationLogs: Awaited<ReturnType<typeof medicationLogStorage.getAll>>;
+}) {
+  const summary = buildRecoveryInsights({
+    logs: input.logs,
+    vitals: input.vitals,
+    symptoms: input.symptoms,
+    medications: input.medications,
+    medicationLogs: input.medicationLogs,
+    rangeDays: 14,
+  });
+  const tone =
+    summary.statusLabel === "Worsening"
+      ? ("orange" as const)
+      : summary.statusLabel === "Improving"
+        ? ("green" as const)
+        : ("blue" as const);
+  const adherence =
+    summary.todayMedicationExpected > 0
+      ? `Meds today ${summary.todayMedicationTaken}/${summary.todayMedicationExpected}`
+      : "No med schedule today";
+  return {
+    statusLabel: summary.statusLabel,
+    summaryText: summary.summaryText || "Pattern over the last 14 days",
+    tone,
+    adherenceText: adherence,
+    nextAction: "Open 14-day report",
+    insights: (summary.insights || []).slice(0, 2),
   };
 }
 
@@ -718,7 +947,23 @@ export async function syncWidgetSnapshot() {
   if (Platform.OS !== "ios" || !APP_WIDGET_BRIDGE?.saveSnapshot) return;
 
   const today = getToday();
-  const [medications, appointments, profile, caregiverProfile, todayLog, caregiverTodayLog, todaySymptoms, todayHydration, sickMode, mentalHealthMode] = await Promise.all([
+  const [
+    medications,
+    appointments,
+    profile,
+    caregiverProfile,
+    todayLog,
+    caregiverTodayLog,
+    todaySymptoms,
+    todayHydration,
+    sickMode,
+    mentalHealthMode,
+    allLabs,
+    allLogs,
+    allVitals,
+    allSymptoms,
+    allMedLogs,
+  ] = await Promise.all([
     medicationStorage.getAll(),
     appointmentStorage.getAll(),
     healthProfileStorage.get(),
@@ -729,6 +974,11 @@ export async function syncWidgetSnapshot() {
     hydrationStorage.getByDateRange(today, today),
     sickModeStorage.get(),
     mentalHealthModeStorage.get(),
+    labWorkStorage.getAll(),
+    healthLogStorage.getAll(),
+    vitalStorage.getAll(),
+    symptomStorage.getAll(),
+    medicationLogStorage.getAll(),
   ]);
   const logs = await medicationLogStorage.getByDate(today);
   const hydration = await buildHydrationSnapshot(todayHydration);
@@ -743,6 +993,17 @@ export async function syncWidgetSnapshot() {
     sickMode: buildSickModeSnapshot(sickMode, medications, logs),
     mentalHealth: buildMentalHealthSnapshot(mentalHealthMode),
     caregiver: buildCaregiverWidgetSnapshot(caregiverProfile, medications, logs, caregiverTodayLog),
+    recovery: buildRecoverySnapshot(sickMode, profile),
+    pain: buildPainSnapshot(todaySymptoms, todayLog),
+    medicationDay: buildMedicationDaySnapshot(medications, logs, today),
+    labs: buildLabsSnapshot(allLabs),
+    report14Day: buildReport14DaySnapshot({
+      logs: allLogs,
+      vitals: allVitals,
+      symptoms: allSymptoms,
+      medications,
+      medicationLogs: allMedLogs,
+    }),
     updatedAt: new Date().toISOString(),
   };
 

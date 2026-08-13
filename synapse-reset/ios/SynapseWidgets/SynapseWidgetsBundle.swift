@@ -4,14 +4,19 @@ import WidgetKit
 @main
 struct SynapseWidgetsBundle: WidgetBundle {
   var body: some Widget {
-    SynapseOverviewWidget()
-    SynapseMedicationWidget()
-    SynapseAppointmentWidget()
-    SynapseWellnessWidget()
-    SynapsePrnMedicationWidget()
+    SynapseRecoveryWidget()
     SynapseHydrationWidget()
+    SynapsePrnMedicationWidget()
+    SynapseMedicationWidget()
+    SynapsePainWidget()
     SynapseSickModeWidget()
-    SynapseMentalHealthWidget()
+    SynapseWellnessWidget()
+    SynapseMedicationDayWidget()
+    SynapseAppointmentWidget()
     SynapseCaregiverWidget()
+    SynapseMentalHealthWidget()
+    SynapseLabsWidget()
+    SynapseReportWidget()
+    SynapseOverviewWidget()
   }
 }
