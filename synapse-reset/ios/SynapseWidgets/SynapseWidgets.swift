@@ -1,6 +1,8 @@
 import SwiftUI
 import WidgetKit
 
+// MARK: - Deep links
+
 private enum SynapseWidgetDestination {
   static func url(for screen: String) -> URL {
     var components = URLComponents(string: "myapp:///")!
@@ -36,6 +38,8 @@ private enum SynapseWidgetDestination {
   }
 }
 
+// MARK: - Snapshot store
+
 private enum SynapseWidgetStore {
   static let suiteName = "group.com.mohammedsaruwar.synapse"
   static let snapshotKey = "synapse_widget_snapshot"
@@ -63,21 +67,20 @@ private enum SynapseWidgetStore {
     decoder.dateDecodingStrategy = .custom { decoder in
       let container = try decoder.singleValueContainer()
       let value = try container.decode(String.self)
-
       if let date = Self.iso8601WithFractionalSeconds.date(from: value) ?? Self.iso8601.date(from: value) {
         return date
       }
-
       throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid ISO8601 date: \(value)")
     }
 
     guard let decoded = try? decoder.decode(SynapseWidgetSnapshot.self, from: data) else {
       return .placeholder
     }
-
     return decoded
   }
 }
+
+// MARK: - Snapshot model
 
 private struct SynapseWidgetSnapshot: Codable {
   let appearance: String
@@ -98,6 +101,45 @@ private struct SynapseWidgetSnapshot: Codable {
     let startsAt: Date?
     let whenText: String
     let travelText: String?
+    let location: String?
+    let notes: String?
+    let prepHint: String
+
+    enum CodingKeys: String, CodingKey {
+      case doctorName, detail, startsAt, whenText, travelText, location, notes, prepHint
+    }
+
+    init(
+      doctorName: String,
+      detail: String,
+      startsAt: Date?,
+      whenText: String,
+      travelText: String?,
+      location: String?,
+      notes: String?,
+      prepHint: String
+    ) {
+      self.doctorName = doctorName
+      self.detail = detail
+      self.startsAt = startsAt
+      self.whenText = whenText
+      self.travelText = travelText
+      self.location = location
+      self.notes = notes
+      self.prepHint = prepHint
+    }
+
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      doctorName = try c.decode(String.self, forKey: .doctorName)
+      detail = try c.decode(String.self, forKey: .detail)
+      startsAt = try c.decodeIfPresent(Date.self, forKey: .startsAt)
+      whenText = try c.decode(String.self, forKey: .whenText)
+      travelText = try c.decodeIfPresent(String.self, forKey: .travelText)
+      location = try c.decodeIfPresent(String.self, forKey: .location)
+      notes = try c.decodeIfPresent(String.self, forKey: .notes)
+      prepHint = try c.decodeIfPresent(String.self, forKey: .prepHint) ?? "Open Synapse to prep"
+    }
   }
 
   struct PrnMedication: Codable {
@@ -171,18 +213,8 @@ private struct SynapseWidgetSnapshot: Codable {
     let missedCount: Int
 
     enum CodingKeys: String, CodingKey {
-      case hasProfile
-      case name
-      case age
-      case relation
-      case status
-      case statusText
-      case tone
-      case primaryText
-      case secondaryText
-      case actionText
-      case items
-      case missedCount
+      case hasProfile, name, age, relation, status, statusText, tone
+      case primaryText, secondaryText, actionText, items, missedCount
     }
 
     init(
@@ -214,25 +246,25 @@ private struct SynapseWidgetSnapshot: Codable {
     }
 
     init(from decoder: Decoder) throws {
-      let container = try decoder.container(keyedBy: CodingKeys.self)
-      hasProfile = try container.decode(Bool.self, forKey: .hasProfile)
-      name = try container.decode(String.self, forKey: .name)
-      age = try container.decodeIfPresent(Int.self, forKey: .age)
-      relation = try container.decodeIfPresent(String.self, forKey: .relation)
-      let decodedStatus = try container.decode(String.self, forKey: .status)
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      hasProfile = try c.decode(Bool.self, forKey: .hasProfile)
+      name = try c.decode(String.self, forKey: .name)
+      age = try c.decodeIfPresent(Int.self, forKey: .age)
+      relation = try c.decodeIfPresent(String.self, forKey: .relation)
+      let decodedStatus = try c.decode(String.self, forKey: .status)
       status = decodedStatus == "needs_attention" ? "attention" : decodedStatus
-      statusText = try container.decode(String.self, forKey: .statusText)
-      tone = try container.decode(String.self, forKey: .tone)
-      primaryText = try container.decode(String.self, forKey: .primaryText)
-      secondaryText = try container.decodeIfPresent(String.self, forKey: .secondaryText)
-      actionText = try container.decodeIfPresent(String.self, forKey: .actionText)
-      if let decodedItems = try? container.decode([Item].self, forKey: .items) {
+      statusText = try c.decode(String.self, forKey: .statusText)
+      tone = try c.decode(String.self, forKey: .tone)
+      primaryText = try c.decode(String.self, forKey: .primaryText)
+      secondaryText = try c.decodeIfPresent(String.self, forKey: .secondaryText)
+      actionText = try c.decodeIfPresent(String.self, forKey: .actionText)
+      if let decodedItems = try? c.decode([Item].self, forKey: .items) {
         items = decodedItems
       } else {
-        let legacyItems = (try? container.decode([String].self, forKey: .items)) ?? []
-        items = legacyItems.map { Item(kind: "legacy", text: $0, tone: "muted") }
+        let legacy = (try? c.decode([String].self, forKey: .items)) ?? []
+        items = legacy.map { Item(kind: "legacy", text: $0, tone: "muted") }
       }
-      missedCount = try container.decode(Int.self, forKey: .missedCount)
+      missedCount = try c.decode(Int.self, forKey: .missedCount)
     }
 
     static let placeholder = Caregiver(
@@ -251,6 +283,107 @@ private struct SynapseWidgetSnapshot: Codable {
     )
   }
 
+  struct Recovery: Codable {
+    let active: Bool
+    let title: String
+    let statusText: String
+    let tone: String
+    let focusText: String?
+    let nextAction: String
+
+    static let empty = Recovery(
+      active: false,
+      title: "Recovery Today",
+      statusText: "No recovery focus",
+      tone: "blue",
+      focusText: nil,
+      nextAction: "Open recovery when you need it"
+    )
+  }
+
+  struct Pain: Codable {
+    let hasPain: Bool
+    let name: String
+    let severity: Int?
+    let statusText: String
+    let tone: String
+    let nextAction: String
+
+    static let empty = Pain(
+      hasPain: false,
+      name: "Pain",
+      severity: nil,
+      statusText: "Nothing flagged",
+      tone: "green",
+      nextAction: "Log if something hurts"
+    )
+  }
+
+  struct MedicationDay: Codable {
+    struct Dose: Codable {
+      let name: String
+      let detail: String
+      let timeText: String
+      let taken: Bool
+    }
+
+    let taken: Int
+    let expected: Int
+    let summaryText: String
+    let nextAction: String
+    let doses: [Dose]
+
+    static let empty = MedicationDay(
+      taken: 0,
+      expected: 0,
+      summaryText: "No scheduled doses today",
+      nextAction: "Add meds in Synapse",
+      doses: []
+    )
+  }
+
+  struct Labs: Codable {
+    struct Item: Codable {
+      let name: String
+      let detail: String
+      let pending: Bool
+    }
+
+    let hasItems: Bool
+    let title: String
+    let statusText: String
+    let tone: String
+    let nextAction: String
+    let items: [Item]
+
+    static let empty = Labs(
+      hasItems: false,
+      title: "Labs",
+      statusText: "No labs yet",
+      tone: "blue",
+      nextAction: "Add or scan a result",
+      items: []
+    )
+  }
+
+  struct Report14Day: Codable {
+    let statusLabel: String
+    let summaryText: String
+    let tone: String
+    let adherenceText: String
+    let nextAction: String
+    let insights: [String]
+
+    static let empty = Report14Day(
+      statusLabel: "Steady",
+      summaryText: "Pattern over the last 14 days",
+      tone: "blue",
+      adherenceText: "No med schedule today",
+      nextAction: "Open 14-day report",
+      insights: []
+    )
+  }
+
   let medication: Medication?
   let appointment: Appointment?
   let prnMedication: PrnMedication?
@@ -259,19 +392,16 @@ private struct SynapseWidgetSnapshot: Codable {
   let sickMode: SickMode
   let mentalHealth: MentalHealth
   let caregiver: Caregiver
+  let recovery: Recovery
+  let pain: Pain
+  let medicationDay: MedicationDay
+  let labs: Labs
+  let report14Day: Report14Day
   let updatedAt: Date
 
   enum CodingKeys: String, CodingKey {
-    case appearance
-    case medication
-    case appointment
-    case prnMedication
-    case wellness
-    case hydration
-    case sickMode
-    case mentalHealth
-    case caregiver
-    case updatedAt
+    case appearance, medication, appointment, prnMedication, wellness, hydration
+    case sickMode, mentalHealth, caregiver, recovery, pain, medicationDay, labs, report14Day, updatedAt
   }
 
   init(
@@ -284,6 +414,11 @@ private struct SynapseWidgetSnapshot: Codable {
     sickMode: SickMode,
     mentalHealth: MentalHealth,
     caregiver: Caregiver,
+    recovery: Recovery,
+    pain: Pain,
+    medicationDay: MedicationDay,
+    labs: Labs,
+    report14Day: Report14Day,
     updatedAt: Date
   ) {
     self.appearance = appearance
@@ -295,21 +430,31 @@ private struct SynapseWidgetSnapshot: Codable {
     self.sickMode = sickMode
     self.mentalHealth = mentalHealth
     self.caregiver = caregiver
+    self.recovery = recovery
+    self.pain = pain
+    self.medicationDay = medicationDay
+    self.labs = labs
+    self.report14Day = report14Day
     self.updatedAt = updatedAt
   }
 
   init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    appearance = try container.decode(String.self, forKey: .appearance)
-    medication = try container.decodeIfPresent(Medication.self, forKey: .medication)
-    appointment = try container.decodeIfPresent(Appointment.self, forKey: .appointment)
-    prnMedication = try container.decodeIfPresent(PrnMedication.self, forKey: .prnMedication)
-    wellness = try container.decode(Wellness.self, forKey: .wellness)
-    hydration = try container.decode(Hydration.self, forKey: .hydration)
-    sickMode = try container.decode(SickMode.self, forKey: .sickMode)
-    mentalHealth = try container.decode(MentalHealth.self, forKey: .mentalHealth)
-    caregiver = try container.decodeIfPresent(Caregiver.self, forKey: .caregiver) ?? .placeholder
-    updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    appearance = try c.decode(String.self, forKey: .appearance)
+    medication = try c.decodeIfPresent(Medication.self, forKey: .medication)
+    appointment = try c.decodeIfPresent(Appointment.self, forKey: .appointment)
+    prnMedication = try c.decodeIfPresent(PrnMedication.self, forKey: .prnMedication)
+    wellness = try c.decode(Wellness.self, forKey: .wellness)
+    hydration = try c.decode(Hydration.self, forKey: .hydration)
+    sickMode = try c.decode(SickMode.self, forKey: .sickMode)
+    mentalHealth = try c.decode(MentalHealth.self, forKey: .mentalHealth)
+    caregiver = try c.decodeIfPresent(Caregiver.self, forKey: .caregiver) ?? .placeholder
+    recovery = try c.decodeIfPresent(Recovery.self, forKey: .recovery) ?? .empty
+    pain = try c.decodeIfPresent(Pain.self, forKey: .pain) ?? .empty
+    medicationDay = try c.decodeIfPresent(MedicationDay.self, forKey: .medicationDay) ?? .empty
+    labs = try c.decodeIfPresent(Labs.self, forKey: .labs) ?? .empty
+    report14Day = try c.decodeIfPresent(Report14Day.self, forKey: .report14Day) ?? .empty
+    updatedAt = try c.decode(Date.self, forKey: .updatedAt)
   }
 
   static let placeholder = SynapseWidgetSnapshot(
@@ -328,7 +473,10 @@ private struct SynapseWidgetSnapshot: Codable {
       detail: "No appointment scheduled",
       startsAt: nil,
       whenText: "Add one in Synapse",
-      travelText: nil
+      travelText: nil,
+      location: nil,
+      notes: nil,
+      prepHint: "Open Synapse to prep"
     ),
     prnMedication: nil,
     wellness: Wellness(
@@ -369,9 +517,16 @@ private struct SynapseWidgetSnapshot: Codable {
       checkInTimer: nil
     ),
     caregiver: .placeholder,
+    recovery: .empty,
+    pain: .empty,
+    medicationDay: .empty,
+    labs: .empty,
+    report14Day: .empty,
     updatedAt: Date()
   )
 }
+
+// MARK: - Timeline
 
 private struct SynapseWidgetEntry: TimelineEntry {
   let date: Date
@@ -404,58 +559,57 @@ private struct SynapseProvider: TimelineProvider {
     if snapshot.prnMedication?.lastLoggedAt != nil {
       return Date().addingTimeInterval(60)
     }
-    if snapshot.sickMode.active || snapshot.mentalHealth.active {
+    if snapshot.sickMode.active || snapshot.mentalHealth.active || snapshot.recovery.active {
       return Date().addingTimeInterval(60)
     }
     return Date().addingTimeInterval(60 * 30)
   }
 }
 
+// MARK: - Palette
+
 private struct SynapseWidgetPalette {
   let background: Color
+  let surface: Color
   let ink: Color
   let muted: Color
   let red: Color
   let blue: Color
   let green: Color
+  let orange: Color
   let yellow: Color
+  let purple: Color
   let line: Color
   let track: Color
 
-  static let calm = SynapseWidgetPalette(
-    background: Color(red: 0.98, green: 0.94, blue: 0.88),
-    ink: Color(red: 0.12, green: 0.12, blue: 0.14),
-    muted: Color(red: 0.42, green: 0.42, blue: 0.47),
-    red: Color(red: 0.72, green: 0.17, blue: 0.20),
-    blue: Color(red: 0.25, green: 0.46, blue: 0.87),
-    green: Color(red: 0.20, green: 0.62, blue: 0.35),
-    yellow: Color(red: 0.78, green: 0.49, blue: 0.05),
-    line: Color.black.opacity(0.08),
-    track: Color.black.opacity(0.08)
-  )
-
   static let light = SynapseWidgetPalette(
-    background: Color.white,
-    ink: Color(red: 0.10, green: 0.12, blue: 0.16),
-    muted: Color(red: 0.43, green: 0.47, blue: 0.56),
-    red: Color(red: 0.72, green: 0.17, blue: 0.20),
-    blue: Color(red: 0.25, green: 0.46, blue: 0.87),
-    green: Color(red: 0.20, green: 0.62, blue: 0.35),
-    yellow: Color(red: 0.78, green: 0.49, blue: 0.05),
+    background: Color.white.opacity(0.92),
+    surface: Color.white.opacity(0.72),
+    ink: Color(red: 0.10, green: 0.13, blue: 0.18),
+    muted: Color(red: 0.40, green: 0.45, blue: 0.54),
+    red: Color(red: 0.78, green: 0.20, blue: 0.24),
+    blue: Color(red: 0.22, green: 0.48, blue: 0.86),
+    green: Color(red: 0.18, green: 0.62, blue: 0.42),
+    orange: Color(red: 0.90, green: 0.48, blue: 0.12),
+    yellow: Color(red: 0.82, green: 0.58, blue: 0.08),
+    purple: Color(red: 0.48, green: 0.36, blue: 0.78),
     line: Color.black.opacity(0.08),
-    track: Color.black.opacity(0.08)
+    track: Color.black.opacity(0.06)
   )
 
   static let dark = SynapseWidgetPalette(
-    background: Color(red: 0.08, green: 0.08, blue: 0.09),
+    background: Color(red: 0.10, green: 0.11, blue: 0.13).opacity(0.96),
+    surface: Color.white.opacity(0.08),
     ink: Color.white.opacity(0.96),
-    muted: Color.white.opacity(0.70),
-    red: Color(red: 0.92, green: 0.28, blue: 0.35),
-    blue: Color(red: 0.53, green: 0.70, blue: 1.0),
-    green: Color(red: 0.43, green: 0.87, blue: 0.53),
-    yellow: Color(red: 0.96, green: 0.72, blue: 0.24),
+    muted: Color.white.opacity(0.62),
+    red: Color(red: 0.95, green: 0.36, blue: 0.40),
+    blue: Color(red: 0.48, green: 0.68, blue: 1.0),
+    green: Color(red: 0.40, green: 0.84, blue: 0.58),
+    orange: Color(red: 1.0, green: 0.62, blue: 0.28),
+    yellow: Color(red: 0.96, green: 0.76, blue: 0.28),
+    purple: Color(red: 0.72, green: 0.58, blue: 1.0),
     line: Color.white.opacity(0.12),
-    track: Color.white.opacity(0.14)
+    track: Color.white.opacity(0.10)
   )
 }
 
@@ -465,29 +619,31 @@ private func palette(for appearance: String, colorScheme: ColorScheme) -> Synaps
     return .light
   case "dark":
     return .dark
-  case "system":
-    return colorScheme == .dark ? .dark : .light
   default:
-    return .calm
+    return colorScheme == .dark ? .dark : .light
   }
 }
 
-private struct MedicationProgressBar: View {
-  let progress: Double
-  let palette: SynapseWidgetPalette
-
-  var body: some View {
-    ZStack(alignment: .leading) {
-      Capsule()
-        .fill(palette.track)
-        .frame(height: 4)
-      Capsule()
-        .fill(palette.red)
-        .frame(width: max(6, 124 * progress), height: 4)
-    }
-    .frame(width: 124, alignment: .leading)
+private func toneColor(_ tone: String, palette: SynapseWidgetPalette) -> Color {
+  switch tone.lowercased() {
+  case "green":
+    return palette.green
+  case "blue":
+    return palette.blue
+  case "orange":
+    return palette.orange
+  case "red":
+    return palette.red
+  case "purple":
+    return palette.purple
+  case "yellow":
+    return palette.yellow
+  default:
+    return palette.muted
   }
 }
+
+// MARK: - Shared helpers
 
 private func medicationProgress(_ medication: SynapseWidgetSnapshot.Medication?) -> Double {
   guard
@@ -509,20 +665,12 @@ private func compactRelativeMedicationText(_ dueAt: Date?) -> String {
   formatter.dateFormat = "h:mm a"
   let exactTime = formatter.string(from: dueAt)
   let seconds = Int(dueAt.timeIntervalSinceNow.rounded())
-  if seconds <= 60 { return "due now at \(exactTime)" }
+  if seconds <= 60 { return "Due now · \(exactTime)" }
   let minutes = Int(ceil(Double(seconds) / 60.0))
-  if minutes < 60 { return "in \(minutes) min at \(exactTime)" }
+  if minutes < 60 { return "In \(minutes) min · \(exactTime)" }
   let hours = Int(ceil(Double(minutes) / 60.0))
-  if hours < 24 { return "in \(hours) hr\(hours == 1 ? "" : "s") at \(exactTime)" }
-  return "tomorrow at \(exactTime)"
-}
-
-private func wellnessAccent(_ value: Int?, palette: SynapseWidgetPalette) -> Color {
-  guard let value else { return palette.muted }
-  if value >= 8 { return palette.green }
-  if value >= 5 { return palette.blue }
-  if value >= 3 { return palette.red }
-  return palette.red
+  if hours < 24 { return "In \(hours) hr\(hours == 1 ? "" : "s") · \(exactTime)" }
+  return "Tomorrow · \(exactTime)"
 }
 
 private func overallWellnessLabel(_ value: Int?) -> String {
@@ -533,370 +681,119 @@ private func overallWellnessLabel(_ value: Int?) -> String {
   return "Needs support"
 }
 
-private struct WellnessDetailChip: View {
+private func wellnessAccent(_ value: Int?, palette: SynapseWidgetPalette) -> Color {
+  guard let value else { return palette.muted }
+  if value >= 8 { return palette.green }
+  if value >= 5 { return palette.blue }
+  if value >= 3 { return palette.orange }
+  return palette.red
+}
+
+private func caregiverPersonText(_ caregiver: SynapseWidgetSnapshot.Caregiver, includeRelation: Bool) -> String {
+  var details: [String] = []
+  if let age = caregiver.age {
+    details.append("\(age)y")
+  }
+  if includeRelation, let relation = caregiver.relation, !relation.isEmpty {
+    details.append(relation)
+  }
+  return details.isEmpty ? caregiver.name : "\(caregiver.name) · \(details.joined(separator: " · "))"
+}
+
+private struct Eyebrow: View {
   let text: String
   let palette: SynapseWidgetPalette
 
   var body: some View {
     Text(text)
-      .font(.system(size: 12, weight: .semibold))
-      .foregroundStyle(palette.ink)
+      .font(.system(size: 11, weight: .semibold))
+      .foregroundStyle(palette.muted)
       .lineLimit(1)
-      .padding(.vertical, 8)
-      .padding(.horizontal, 10)
-      .background(palette.track)
+  }
+}
+
+private struct HeroTitle: View {
+  let text: String
+  let palette: SynapseWidgetPalette
+  var size: CGFloat = 20
+
+  var body: some View {
+    Text(text)
+      .font(.system(size: size, weight: .bold))
+      .foregroundStyle(palette.ink)
+      .lineLimit(2)
+      .minimumScaleFactor(0.78)
+  }
+}
+
+private struct StatusChip: View {
+  let text: String
+  let color: Color
+  var compact: Bool = false
+
+  var body: some View {
+    Text(text)
+      .font(.system(size: compact ? 10 : 11, weight: .bold))
+      .foregroundStyle(color)
+      .lineLimit(1)
+      .minimumScaleFactor(0.8)
+      .padding(.vertical, compact ? 4 : 5)
+      .padding(.horizontal, compact ? 7 : 9)
+      .background(color.opacity(0.14))
       .clipShape(Capsule())
   }
 }
 
-private struct WellnessMetricPill: View {
-  let label: String
-  let shortLabel: String
-  let value: Int?
+private struct SoftCard<Content: View>: View {
   let palette: SynapseWidgetPalette
-  let compact: Bool
+  let content: Content
+
+  init(palette: SynapseWidgetPalette, @ViewBuilder content: () -> Content) {
+    self.palette = palette
+    self.content = content()
+  }
 
   var body: some View {
-    VStack(alignment: compact ? .center : .leading, spacing: compact ? 3 : 4) {
-      Text(compact ? shortLabel : label)
-        .font(.system(size: compact ? 10 : 11, weight: .semibold))
-        .foregroundStyle(palette.muted)
+    content
+      .padding(.vertical, 10)
+      .padding(.horizontal, 11)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(palette.surface)
+      .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+  }
+}
+
+private struct ActionCapsule: View {
+  let title: String
+  let color: Color
+  var systemImage: String? = nil
+  var compact: Bool = false
+
+  var body: some View {
+    HStack(spacing: compact ? 4 : 6) {
+      if let systemImage {
+        Image(systemName: systemImage)
+          .font(.system(size: compact ? 12 : 13, weight: .semibold))
+      }
+      Text(title)
+        .font(.system(size: compact ? 11 : 12, weight: .semibold))
         .lineLimit(1)
-        .minimumScaleFactor(0.9)
-      Text(value.map { compact ? "\($0)" : "\($0)/10" } ?? "--")
-        .font(.system(size: compact ? 17 : 15, weight: .bold))
-        .foregroundStyle(wellnessAccent(value, palette: palette))
-        .lineLimit(1)
-        .minimumScaleFactor(0.85)
     }
-    .frame(maxWidth: .infinity, alignment: compact ? .center : .leading)
-    .padding(.vertical, compact ? 9 : 10)
-    .padding(.horizontal, compact ? 6 : 10)
-    .background(palette.track)
-    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .foregroundStyle(Color.white)
+    .frame(maxWidth: .infinity)
+    .padding(.vertical, compact ? 7 : 8)
+    .background(color)
+    .clipShape(Capsule())
   }
 }
 
-private struct WellnessWidgetView: View {
-  let entry: SynapseProvider.Entry
-  @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.widgetFamily) private var family
+private struct AccentBar: View {
+  let color: Color
 
   var body: some View {
-    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
-    let compact = family == .systemSmall
-    WidgetCard(palette: palette) {
-      if family == .systemMedium {
-        HStack(spacing: 16) {
-          Link(destination: SynapseWidgetDestination.url(for: "daily-log")) {
-            WellnessBlock(wellness: entry.snapshot.wellness, compact: false, palette: palette)
-              .frame(maxWidth: .infinity, alignment: .topLeading)
-              .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-
-          Rectangle()
-            .fill(palette.line)
-            .frame(width: 1)
-            .padding(.vertical, 2)
-
-          Link(destination: SynapseWidgetDestination.url(for: "appointments")) {
-            AppointmentBlock(appointment: entry.snapshot.appointment, compact: false, showHeader: true, palette: palette)
-              .frame(maxWidth: .infinity, alignment: .topLeading)
-              .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-        }
-      } else {
-        WellnessBlock(wellness: entry.snapshot.wellness, compact: compact, palette: palette)
-      }
-    }
-  }
-}
-
-private struct WellnessBlock: View {
-  let wellness: SynapseWidgetSnapshot.Wellness
-  let compact: Bool
-  let palette: SynapseWidgetPalette
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: compact ? 6 : 10) {
-      if !compact {
-        Text("Daily Check-In")
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(palette.muted)
-          .lineLimit(1)
-      }
-
-      Text(wellness.summaryText)
-        .font(.system(size: compact ? 15 : 18, weight: .bold))
-        .foregroundStyle(palette.ink)
-        .lineLimit(1)
-        .minimumScaleFactor(0.86)
-
-      if wellness.hasTodayLog {
-        VStack(alignment: .leading, spacing: compact ? 6 : 8) {
-          Text("Overall today")
-            .font(.system(size: compact ? 10 : 11, weight: .semibold))
-            .foregroundStyle(palette.muted)
-            .lineLimit(1)
-
-          Text(wellness.overallFeeling.map(String.init) ?? "--")
-            .font(.system(size: compact ? 42 : 34, weight: .bold))
-            .foregroundStyle(palette.red)
-            .lineLimit(1)
-            .minimumScaleFactor(0.82)
-
-          if !compact && !wellness.detailHighlights.isEmpty {
-            HStack(spacing: 6) {
-              ForEach(Array(wellness.detailHighlights.prefix(3).enumerated()), id: \.offset) { _, item in
-                WellnessDetailChip(text: item, palette: palette)
-              }
-            }
-          }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, compact ? 12 : 10)
-        .padding(.horizontal, 12)
-        .background(palette.track)
-        .clipShape(RoundedRectangle(cornerRadius: compact ? 18 : 16, style: .continuous))
-      }
-
-      if !compact || !wellness.hasTodayLog {
-        Text(wellness.secondaryText)
-          .font(.system(size: compact ? 10 : 12, weight: .regular))
-          .foregroundStyle(palette.muted)
-          .lineLimit(2)
-          .minimumScaleFactor(0.82)
-      }
-
-      if !compact && (wellness.symptomCountToday > 0 || wellness.isFastingToday) {
-        HStack(spacing: 8) {
-          if wellness.symptomCountToday > 0 {
-            Label(
-              wellness.symptomCountToday == 1 ? "1 symptom" : "\(wellness.symptomCountToday) symptoms",
-              systemImage: "waveform.path.ecg"
-            )
-            .font(.system(size: 10, weight: .regular))
-            .foregroundStyle(palette.red)
-            .lineLimit(1)
-          }
-
-          if wellness.isFastingToday {
-            Label("Fasting", systemImage: "moon.stars.fill")
-              .font(.system(size: 10, weight: .regular))
-              .foregroundStyle(palette.blue)
-              .lineLimit(1)
-          }
-        }
-      }
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  }
-}
-
-private func smallTitleFont() -> Font {
-  .system(size: 12, weight: .semibold)
-}
-
-private func mainFont(compact: Bool) -> Font {
-  .system(size: compact ? 16 : 18, weight: .bold)
-}
-
-private func secondaryFont(compact: Bool) -> Font {
-  .system(size: compact ? 12 : 13, weight: .regular)
-}
-
-private func metaFont() -> Font {
-  .system(size: 11, weight: .regular)
-}
-
-private struct MedBlock: View {
-  let medication: SynapseWidgetSnapshot.Medication?
-  let compact: Bool
-  let showHeader: Bool
-  let palette: SynapseWidgetPalette
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Spacer(minLength: compact ? 0 : 6)
-      VStack(alignment: .leading, spacing: compact ? 8 : 10) {
-        if showHeader {
-          Text("Next Medication")
-            .font(smallTitleFont())
-            .foregroundStyle(palette.muted)
-        }
-        if let medication {
-          Text(medication.name)
-            .font(mainFont(compact: compact))
-            .foregroundStyle(palette.ink)
-            .lineLimit(2)
-            .minimumScaleFactor(0.8)
-          Text(medication.detail)
-            .font(secondaryFont(compact: compact))
-            .foregroundStyle(palette.muted)
-            .lineLimit(1)
-
-          if medication.isTaken {
-            Text(medication.dueText)
-              .font(secondaryFont(compact: compact).weight(.semibold))
-              .foregroundStyle(palette.green)
-              .lineLimit(1)
-            if let nextText = medication.nextText {
-              Text(nextText)
-                .font(metaFont())
-                .foregroundStyle(palette.muted)
-                .lineLimit(1)
-            }
-          } else {
-            MedicationProgressBar(progress: medicationProgress(medication), palette: palette)
-              .padding(.top, compact ? 2 : 4)
-            Text(compactRelativeMedicationText(medication.dueAt))
-              .font(secondaryFont(compact: compact).weight(.semibold))
-              .foregroundStyle(palette.red)
-              .lineLimit(1)
-              .minimumScaleFactor(0.85)
-          }
-        } else {
-          Text("No medication due")
-            .font(mainFont(compact: compact))
-            .foregroundStyle(palette.ink)
-          Text("Stay on track")
-            .font(secondaryFont(compact: compact))
-            .foregroundStyle(palette.muted)
-        }
-      }
-      Spacer(minLength: compact ? 0 : 2)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-  }
-}
-
-private struct PrnMedicationBlock: View {
-  let prnMedication: SynapseWidgetSnapshot.PrnMedication?
-  let compact: Bool
-  let showHeader: Bool
-  let palette: SynapseWidgetPalette
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: compact ? 7 : 8) {
-      if showHeader && !compact {
-        Text("As Needed")
-          .font(smallTitleFont())
-          .foregroundStyle(palette.muted)
-          .lineLimit(1)
-          .minimumScaleFactor(0.85)
-      }
-
-      if let prnMedication {
-        VStack(alignment: .leading, spacing: compact ? 7 : 8) {
-          Link(destination: SynapseWidgetDestination.url(for: "medications")) {
-            VStack(alignment: .leading, spacing: compact ? 3 : 5) {
-              Text(prnMedication.name)
-                .font(mainFont(compact: compact))
-                .foregroundStyle(palette.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-              Text(prnMedication.detail)
-                .font(secondaryFont(compact: compact))
-                .foregroundStyle(palette.muted)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-              Text(prnMedication.statusText)
-                .font(.system(size: compact ? 11 : 13, weight: .semibold))
-                .foregroundStyle(palette.green)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-              Text(prnMedication.countText)
-                .font(.system(size: compact ? 10 : 11, weight: .regular))
-                .foregroundStyle(palette.muted)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-
-          Link(destination: SynapseWidgetDestination.prnLogURL(for: prnMedication.id)) {
-            HStack(spacing: compact ? 4 : 5) {
-              Image(systemName: "plus.circle.fill")
-                .font(.system(size: compact ? 14 : 15, weight: .semibold))
-              Text("Log")
-            }
-            .font(.system(size: compact ? 11 : 13, weight: .semibold))
-            .foregroundStyle(Color.white)
-            .frame(maxWidth: compact ? .infinity : 152)
-            .padding(.vertical, compact ? 7 : 8)
-            .background(palette.red)
-            .clipShape(Capsule())
-          }
-          .buttonStyle(.plain)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      } else {
-        Text("No As Needed meds")
-          .font(mainFont(compact: compact))
-          .foregroundStyle(palette.ink)
-        Text("Add one in Synapse")
-          .font(secondaryFont(compact: compact))
-          .foregroundStyle(palette.muted)
-      }
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  }
-}
-
-private struct AppointmentBlock: View {
-  let appointment: SynapseWidgetSnapshot.Appointment?
-  let compact: Bool
-  let showHeader: Bool
-  let palette: SynapseWidgetPalette
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Spacer(minLength: compact ? 0 : 6)
-      VStack(alignment: .leading, spacing: compact ? 8 : 10) {
-        if showHeader {
-          Text("Next Visit")
-            .font(smallTitleFont())
-            .foregroundStyle(palette.muted)
-        }
-        if let appointment {
-          Text(appointment.doctorName)
-            .font(mainFont(compact: compact))
-            .foregroundStyle(palette.ink)
-            .lineLimit(2)
-            .minimumScaleFactor(0.8)
-          Text(appointment.detail)
-            .font(secondaryFont(compact: compact))
-            .foregroundStyle(palette.muted)
-            .lineLimit(1)
-          Text(appointment.whenText)
-            .font(secondaryFont(compact: compact).weight(.semibold))
-            .foregroundStyle(palette.blue)
-            .lineLimit(1)
-            .minimumScaleFactor(0.85)
-          if let travelText = appointment.travelText, !travelText.isEmpty {
-            Text(travelText)
-              .font(metaFont().weight(.semibold))
-              .foregroundStyle(palette.muted)
-              .lineLimit(1)
-              .minimumScaleFactor(0.8)
-          }
-        } else {
-          Text("No upcoming visit")
-            .font(mainFont(compact: compact))
-            .foregroundStyle(palette.ink)
-            .lineLimit(2)
-          Text("Add one in Synapse")
-            .font(secondaryFont(compact: compact))
-            .foregroundStyle(palette.muted)
-        }
-      }
-      Spacer(minLength: compact ? 0 : 2)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    RoundedRectangle(cornerRadius: 2, style: .continuous)
+      .fill(color)
+      .frame(width: 3)
   }
 }
 
@@ -934,30 +831,124 @@ private struct WidgetCard<Content: View>: View {
   }
 }
 
-private struct CombinedWidgetView: View {
+// MARK: - Widget views
+
+private struct RecoveryWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.widgetFamily) private var family
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let recovery = entry.snapshot.recovery
+    let accent = toneColor(recovery.tone, palette: palette)
+    let compact = family == .systemSmall
+
+    WidgetCard(palette: palette) {
+      HStack(alignment: .top, spacing: 10) {
+        AccentBar(color: accent)
+        VStack(alignment: .leading, spacing: compact ? 6 : 8) {
+          Eyebrow(text: recovery.title, palette: palette)
+          HeroTitle(text: recovery.statusText, palette: palette, size: compact ? 17 : 22)
+          if let focus = recovery.focusText, !focus.isEmpty, !compact {
+            Text(focus)
+              .font(.system(size: 13, weight: .medium))
+              .foregroundStyle(palette.muted)
+              .lineLimit(2)
+          }
+          StatusChip(text: recovery.active ? "Active" : "Quiet", color: accent, compact: compact)
+          Spacer(minLength: 0)
+          Text(recovery.nextAction)
+            .font(.system(size: compact ? 11 : 12, weight: .semibold))
+            .foregroundStyle(accent)
+            .lineLimit(2)
+            .minimumScaleFactor(0.85)
+        }
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+}
+
+private struct HydrationWidgetView: View {
   let entry: SynapseProvider.Entry
   @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let hydration = entry.snapshot.hydration
+
     WidgetCard(palette: palette) {
-      HStack(spacing: 16) {
-        Link(destination: SynapseWidgetDestination.url(for: "medications")) {
-          MedBlock(medication: entry.snapshot.medication, compact: false, showHeader: false, palette: palette)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .contentShape(Rectangle())
+      VStack(alignment: .leading, spacing: 8) {
+        Eyebrow(text: "Hydration", palette: palette)
+        HeroTitle(text: hydration.presetLabel, palette: palette, size: 18)
+        Text(hydration.sipAmountText)
+          .font(.system(size: 13, weight: .semibold))
+          .foregroundStyle(palette.blue)
+        Text(hydration.totalTodayText)
+          .font(.system(size: 11, weight: .regular))
+          .foregroundStyle(palette.muted)
+          .lineLimit(2)
+        Spacer(minLength: 0)
+        Link(destination: SynapseWidgetDestination.hydrationQuickSipURL()) {
+          ActionCapsule(title: hydration.launchHint, color: palette.blue, systemImage: "drop.fill", compact: true)
         }
         .buttonStyle(.plain)
-        Rectangle()
-          .fill(palette.line)
-          .frame(width: 1)
-          .padding(.vertical, 2)
-        Link(destination: SynapseWidgetDestination.url(for: "appointments")) {
-          AppointmentBlock(appointment: entry.snapshot.appointment, compact: false, showHeader: false, palette: palette)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+}
+
+private struct PrnMedicationWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+
+    WidgetCard(palette: palette) {
+      if let prn = entry.snapshot.prnMedication {
+        VStack(alignment: .leading, spacing: 7) {
+          Link(destination: SynapseWidgetDestination.url(for: "medications")) {
+            VStack(alignment: .leading, spacing: 4) {
+              Eyebrow(text: "As needed", palette: palette)
+              HeroTitle(text: prn.name, palette: palette, size: 16)
+              Text(prn.detail)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(palette.muted)
+                .lineLimit(1)
+              Text(prn.statusText)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(palette.green)
+                .lineLimit(1)
+              Text(prn.countText)
+                .font(.system(size: 10, weight: .regular))
+                .foregroundStyle(palette.muted)
+                .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+
+          Spacer(minLength: 0)
+
+          Link(destination: SynapseWidgetDestination.prnLogURL(for: prn.id)) {
+            ActionCapsule(title: "Log", color: palette.green, systemImage: "plus.circle.fill", compact: true)
+          }
+          .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      } else {
+        VStack(alignment: .leading, spacing: 6) {
+          Eyebrow(text: "As needed", palette: palette)
+          HeroTitle(text: "No PRN meds", palette: palette, size: 16)
+          Text("Add one in Synapse")
+            .font(.system(size: 12, weight: .regular))
+            .foregroundStyle(palette.muted)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       }
     }
   }
@@ -966,17 +957,335 @@ private struct CombinedWidgetView: View {
 private struct MedicationWidgetView: View {
   let entry: SynapseProvider.Entry
   @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let medication = entry.snapshot.medication
+
+    WidgetCard(palette: palette) {
+      VStack(alignment: .leading, spacing: 8) {
+        Eyebrow(text: "Next med", palette: palette)
+        if let medication {
+          HeroTitle(text: medication.name, palette: palette, size: 17)
+          Text(medication.detail)
+            .font(.system(size: 12, weight: .regular))
+            .foregroundStyle(palette.muted)
+            .lineLimit(1)
+
+          if medication.isTaken {
+            StatusChip(text: medication.dueText, color: palette.green, compact: true)
+            if let nextText = medication.nextText {
+              Text(nextText)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(palette.muted)
+                .lineLimit(1)
+            }
+          } else {
+            ZStack(alignment: .leading) {
+              Capsule().fill(palette.track).frame(height: 4)
+              Capsule()
+                .fill(palette.orange)
+                .frame(width: max(6, 110 * medicationProgress(medication)), height: 4)
+            }
+            .frame(width: 110, alignment: .leading)
+
+            Text(compactRelativeMedicationText(medication.dueAt))
+              .font(.system(size: 12, weight: .semibold))
+              .foregroundStyle(palette.orange)
+              .lineLimit(1)
+              .minimumScaleFactor(0.85)
+          }
+        } else {
+          HeroTitle(text: "No medication due", palette: palette, size: 16)
+          Text("Stay on track")
+            .font(.system(size: 12, weight: .regular))
+            .foregroundStyle(palette.muted)
+        }
+        Spacer(minLength: 0)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+}
+
+private struct PainWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let pain = entry.snapshot.pain
+    let accent = toneColor(pain.tone, palette: palette)
+
+    WidgetCard(palette: palette) {
+      VStack(alignment: .leading, spacing: 8) {
+        Eyebrow(text: "Pain", palette: palette)
+        HeroTitle(text: pain.name, palette: palette, size: 17)
+        if let severity = pain.severity {
+          Text("\(severity)/10")
+            .font(.system(size: 28, weight: .bold))
+            .foregroundStyle(accent)
+            .lineLimit(1)
+        }
+        StatusChip(text: pain.statusText, color: accent, compact: true)
+        Spacer(minLength: 0)
+        Text(pain.nextAction)
+          .font(.system(size: 11, weight: .semibold))
+          .foregroundStyle(palette.muted)
+          .lineLimit(2)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+}
+
+private struct SickModeWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
   @Environment(\.widgetFamily) private var family
 
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let sick = entry.snapshot.sickMode
+    let escalate = sick.needsStressDose || (sick.active && !sick.recoveryMode)
+    let statusColor: Color = {
+      if escalate { return palette.red }
+      if sick.recoveryMode { return palette.green }
+      return palette.blue
+    }()
+    let compact = family == .systemSmall
+
     WidgetCard(palette: palette) {
-      MedBlock(
-        medication: entry.snapshot.medication,
-        compact: family == .systemSmall,
-        showHeader: true,
-        palette: palette
-      )
+      VStack(alignment: .leading, spacing: compact ? 6 : 9) {
+        HStack {
+          Eyebrow(text: "Sick mode", palette: palette)
+          Spacer()
+          StatusChip(
+            text: sick.recoveryMode ? "Recovery" : (sick.active ? "Active" : "Off"),
+            color: statusColor,
+            compact: true
+          )
+        }
+
+        HeroTitle(text: sick.latestTemperatureText, palette: palette, size: compact ? 20 : 26)
+        Text(sick.statusText)
+          .font(.system(size: compact ? 11 : 13, weight: .semibold))
+          .foregroundStyle(statusColor)
+          .lineLimit(2)
+
+        if !compact {
+          HStack(spacing: 10) {
+            SoftCard(palette: palette) {
+              VStack(alignment: .leading, spacing: 3) {
+                Text("Stress dose")
+                  .font(.system(size: 10, weight: .semibold))
+                  .foregroundStyle(palette.muted)
+                Text(sick.stressDoseText)
+                  .font(.system(size: 12, weight: .semibold))
+                  .foregroundStyle(sick.needsStressDose ? palette.red : palette.green)
+                  .lineLimit(2)
+              }
+            }
+            SoftCard(palette: palette) {
+              VStack(alignment: .leading, spacing: 3) {
+                Text("Check-in")
+                  .font(.system(size: 10, weight: .semibold))
+                  .foregroundStyle(palette.muted)
+                Text(sick.checkInTimer ?? "No timer")
+                  .font(.system(size: 12, weight: .semibold))
+                  .foregroundStyle(palette.ink)
+                  .lineLimit(1)
+              }
+            }
+          }
+        } else {
+          Text(sick.stressDoseText)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(sick.needsStressDose ? palette.red : palette.muted)
+            .lineLimit(2)
+        }
+        Spacer(minLength: 0)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+}
+
+private struct DailyLogWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.widgetFamily) private var family
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let wellness = entry.snapshot.wellness
+    let overall = wellness.overallFeeling
+    let accent = wellnessAccent(overall, palette: palette)
+
+    WidgetCard(palette: palette) {
+      if family == .systemLarge {
+        VStack(alignment: .leading, spacing: 12) {
+          Eyebrow(text: "Daily Log", palette: palette)
+          HeroTitle(text: wellness.summaryText, palette: palette, size: 24)
+
+          SoftCard(palette: palette) {
+            HStack(alignment: .firstTextBaseline) {
+              VStack(alignment: .leading, spacing: 4) {
+                Text("Overall")
+                  .font(.system(size: 11, weight: .semibold))
+                  .foregroundStyle(palette.muted)
+                Text(overall.map(String.init) ?? "--")
+                  .font(.system(size: 40, weight: .bold))
+                  .foregroundStyle(accent)
+              }
+              Spacer()
+              VStack(alignment: .trailing, spacing: 6) {
+                StatusChip(text: overallWellnessLabel(overall), color: accent)
+                Text(wellness.secondaryText)
+                  .font(.system(size: 12, weight: .regular))
+                  .foregroundStyle(palette.muted)
+                  .multilineTextAlignment(.trailing)
+                  .lineLimit(2)
+              }
+            }
+          }
+
+          HStack(spacing: 8) {
+            metricCell("Energy", wellness.energy, palette)
+            metricCell("Mood", wellness.mood, palette)
+            metricCell("Sleep", wellness.sleep, palette)
+          }
+
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Next")
+              .font(.system(size: 11, weight: .semibold))
+              .foregroundStyle(palette.muted)
+            Text(wellness.hasTodayLog ? "Review symptoms or update later" : "Log energy, mood, and sleep")
+              .font(.system(size: 14, weight: .semibold))
+              .foregroundStyle(palette.ink)
+              .lineLimit(2)
+            if wellness.symptomCountToday > 0 {
+              Text(wellness.symptomCountToday == 1 ? "1 symptom noted" : "\(wellness.symptomCountToday) symptoms noted")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(palette.orange)
+            }
+          }
+          Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      } else {
+        HStack(spacing: 14) {
+          VStack(alignment: .leading, spacing: 8) {
+            Eyebrow(text: "Daily Log", palette: palette)
+            HeroTitle(text: wellness.summaryText, palette: palette, size: 18)
+            if wellness.hasTodayLog {
+              Text(overall.map(String.init) ?? "--")
+                .font(.system(size: 34, weight: .bold))
+                .foregroundStyle(accent)
+              StatusChip(text: overallWellnessLabel(overall), color: accent, compact: true)
+            } else {
+              Text(wellness.secondaryText)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(palette.muted)
+                .lineLimit(3)
+            }
+            Spacer(minLength: 0)
+          }
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+
+          VStack(alignment: .leading, spacing: 8) {
+            metricCell("Energy", wellness.energy, palette)
+            metricCell("Mood", wellness.mood, palette)
+            metricCell("Sleep", wellness.sleep, palette)
+          }
+          .frame(width: 88)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      }
+    }
+  }
+
+  private func metricCell(_ label: String, _ value: Int?, _ palette: SynapseWidgetPalette) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(label)
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(palette.muted)
+      Text(value.map { "\($0)" } ?? "--")
+        .font(.system(size: 16, weight: .bold))
+        .foregroundStyle(wellnessAccent(value, palette: palette))
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.vertical, 8)
+    .padding(.horizontal, 8)
+    .background(palette.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+  }
+}
+
+private struct MedicationDayWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let day = entry.snapshot.medicationDay
+    let rows = Array(day.doses.prefix(6))
+
+    WidgetCard(palette: palette) {
+      VStack(alignment: .leading, spacing: 10) {
+        HStack(alignment: .firstTextBaseline) {
+          VStack(alignment: .leading, spacing: 4) {
+            Eyebrow(text: "Medication day", palette: palette)
+            HeroTitle(text: day.summaryText, palette: palette, size: 22)
+          }
+          Spacer()
+          StatusChip(
+            text: day.expected == 0 ? "None" : "\(day.taken)/\(day.expected)",
+            color: day.taken >= day.expected && day.expected > 0 ? palette.green : palette.blue
+          )
+        }
+
+        if rows.isEmpty {
+          SoftCard(palette: palette) {
+            Text(day.nextAction)
+              .font(.system(size: 14, weight: .semibold))
+              .foregroundStyle(palette.muted)
+          }
+        } else {
+          VStack(spacing: 6) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, dose in
+              HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                  .fill(dose.taken ? palette.green : palette.orange)
+                  .frame(width: 3, height: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(dose.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(palette.ink)
+                    .lineLimit(1)
+                  Text(dose.detail)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(palette.muted)
+                    .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Text(dose.taken ? "Taken" : dose.timeText)
+                  .font(.system(size: 12, weight: .semibold))
+                  .foregroundStyle(dose.taken ? palette.green : palette.orange)
+                  .lineLimit(1)
+              }
+              .padding(.vertical, 4)
+            }
+          }
+        }
+
+        Spacer(minLength: 0)
+        Text(day.nextAction)
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(palette.blue)
+          .lineLimit(1)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
   }
 }
@@ -988,300 +1297,59 @@ private struct AppointmentWidgetView: View {
 
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let appointment = entry.snapshot.appointment
+    let compact = family == .systemSmall
+
     WidgetCard(palette: palette) {
-      if family == .systemMedium {
-        HStack(spacing: 16) {
-          Link(destination: SynapseWidgetDestination.url(for: "appointments")) {
-            AppointmentBlock(
-              appointment: entry.snapshot.appointment,
-              compact: false,
-              showHeader: true,
-              palette: palette
-            )
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-
-          Rectangle()
-            .fill(palette.line)
-            .frame(width: 1)
-            .padding(.vertical, 2)
-
-          Link(destination: SynapseWidgetDestination.url(for: "hydration")) {
-            HydrationBlock(hydration: entry.snapshot.hydration, palette: palette)
-              .frame(maxWidth: .infinity, alignment: .topLeading)
-              .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-        }
-      } else {
-        AppointmentBlock(
-          appointment: entry.snapshot.appointment,
-          compact: true,
-          showHeader: true,
-          palette: palette
-        )
-      }
-    }
-  }
-}
-
-private struct PrnMedicationWidgetView: View {
-  let entry: SynapseProvider.Entry
-  @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.widgetFamily) private var family
-
-  var body: some View {
-    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
-    WidgetCard(palette: palette) {
-      PrnMedicationBlock(
-        prnMedication: entry.snapshot.prnMedication,
-        compact: family == .systemSmall,
-        showHeader: true,
-        palette: palette
-      )
-    }
-  }
-}
-
-private struct HydrationWidgetView: View {
-  let entry: SynapseProvider.Entry
-  @Environment(\.colorScheme) private var colorScheme
-
-  var body: some View {
-    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
-    WidgetCard(palette: palette) {
-      if #available(iOSApplicationExtension 17.0, *) {
-        ZStack(alignment: .topLeading) {
-          Link(destination: SynapseWidgetDestination.url(for: "hydration")) {
-            Color.clear
-              .frame(maxWidth: .infinity, maxHeight: .infinity)
-              .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-
-          HydrationBlock(hydration: entry.snapshot.hydration, palette: palette)
-        }
-      } else {
-        HydrationBlock(hydration: entry.snapshot.hydration, palette: palette)
-      }
-    }
-  }
-}
-
-private struct HydrationBlock: View {
-  let hydration: SynapseWidgetSnapshot.Hydration
-  let palette: SynapseWidgetPalette
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Text("Hydration")
-        .font(smallTitleFont())
-        .foregroundStyle(palette.muted)
-      Text(hydration.presetLabel)
-        .font(.system(size: 18, weight: .bold))
-        .foregroundStyle(palette.ink)
-        .lineLimit(1)
-      Text(hydration.sipAmountText)
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(palette.red)
-        .lineLimit(1)
-      Text(hydration.totalTodayText)
-        .font(.system(size: 12, weight: .regular))
-        .foregroundStyle(palette.muted)
-        .lineLimit(2)
-      Spacer(minLength: 0)
-      Link(destination: SynapseWidgetDestination.hydrationQuickSipURL()) {
-        HStack(spacing: 6) {
-          Image(systemName: "drop.fill")
-            .font(.system(size: 13, weight: .semibold))
-          Text(hydration.launchHint)
-        }
-        .font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(Color.white)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(palette.red)
-        .clipShape(Capsule())
-      }
-      .buttonStyle(.plain)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  }
-}
-
-private struct SickModeWidgetView: View {
-  let entry: SynapseProvider.Entry
-  @Environment(\.colorScheme) private var colorScheme
-
-  var body: some View {
-    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
-    let sickMode = entry.snapshot.sickMode
-    WidgetCard(palette: palette) {
-      VStack(alignment: .leading, spacing: 10) {
-        HStack {
-          Text("I am Sick")
-            .font(smallTitleFont())
+      VStack(alignment: .leading, spacing: compact ? 6 : 8) {
+        Eyebrow(text: "Appointment prep", palette: palette)
+        if let appointment {
+          HeroTitle(text: appointment.doctorName, palette: palette, size: compact ? 16 : 20)
+          Text(appointment.detail)
+            .font(.system(size: compact ? 11 : 13, weight: .regular))
             .foregroundStyle(palette.muted)
-          Spacer()
-          Text(sickMode.recoveryMode ? "Recovery" : "Active")
-            .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(sickMode.recoveryMode ? palette.green : palette.red)
-        }
+            .lineLimit(1)
+          Text(appointment.whenText)
+            .font(.system(size: compact ? 12 : 14, weight: .semibold))
+            .foregroundStyle(palette.blue)
+            .lineLimit(1)
 
-        Text(sickMode.latestTemperatureText)
-          .font(.system(size: 24, weight: .bold))
-          .foregroundStyle(palette.ink)
-          .lineLimit(1)
-
-        Text(sickMode.statusText)
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(sickMode.recoveryMode ? palette.green : palette.red)
-          .lineLimit(1)
-
-        HStack(spacing: 10) {
-          VStack(alignment: .leading, spacing: 3) {
-            Text("Stress dose")
-              .font(.system(size: 10, weight: .semibold))
-              .foregroundStyle(palette.muted)
-            Text(sickMode.stressDoseText)
-              .font(.system(size: 12, weight: .semibold))
-              .foregroundStyle(sickMode.needsStressDose ? palette.red : palette.green)
-              .lineLimit(2)
+          if !compact {
+            if let location = appointment.location, !location.isEmpty {
+              Text(location)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(palette.ink)
+                .lineLimit(1)
+            }
+            if let travel = appointment.travelText, !travel.isEmpty {
+              Text(travel)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(palette.orange)
+                .lineLimit(1)
+            }
+            if let notes = appointment.notes, !notes.isEmpty {
+              Text(notes)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(palette.muted)
+                .lineLimit(2)
+            }
           }
-          Spacer()
-          VStack(alignment: .trailing, spacing: 3) {
-            Text("Check-in")
-              .font(.system(size: 10, weight: .semibold))
-              .foregroundStyle(palette.muted)
-            Text(sickMode.checkInTimer ?? "No timer")
-              .font(.system(size: 12, weight: .semibold))
-              .foregroundStyle(palette.ink)
-              .lineLimit(1)
-          }
+
+          Spacer(minLength: 0)
+          Text(appointment.prepHint)
+            .font(.system(size: compact ? 11 : 12, weight: .semibold))
+            .foregroundStyle(palette.blue)
+            .lineLimit(2)
+        } else {
+          HeroTitle(text: "No upcoming visit", palette: palette, size: compact ? 16 : 18)
+          Text("Add one in Synapse")
+            .font(.system(size: 12, weight: .regular))
+            .foregroundStyle(palette.muted)
+          Spacer(minLength: 0)
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
-  }
-}
-
-private struct MentalHealthWidgetView: View {
-  let entry: SynapseProvider.Entry
-  @Environment(\.colorScheme) private var colorScheme
-
-  var body: some View {
-    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
-    let mentalHealth = entry.snapshot.mentalHealth
-    WidgetCard(palette: palette) {
-      VStack(alignment: .leading, spacing: 10) {
-        Text("I'm not okay")
-          .font(smallTitleFont())
-          .foregroundStyle(palette.muted)
-        Text(mentalHealth.active ? "Mental health day" : "Start support")
-          .font(.system(size: 18, weight: .bold))
-          .foregroundStyle(palette.ink)
-          .lineLimit(2)
-        Text(mentalHealth.statusText)
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(palette.red)
-          .lineLimit(2)
-        Spacer(minLength: 0)
-        Text("Next check-in")
-          .font(.system(size: 10, weight: .semibold))
-          .foregroundStyle(palette.muted)
-        Text(mentalHealth.nextCheckInText)
-          .font(.system(size: 16, weight: .bold))
-          .foregroundStyle(palette.ink)
-          .lineLimit(1)
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-  }
-}
-
-private func caregiverToneColor(_ caregiver: SynapseWidgetSnapshot.Caregiver, palette: SynapseWidgetPalette) -> Color {
-  switch caregiver.tone {
-  case "red":
-    return palette.red
-  case "green":
-    return palette.green
-  default:
-    return palette.yellow
-  }
-}
-
-private func caregiverItemTone(_ item: SynapseWidgetSnapshot.Caregiver.Item, palette: SynapseWidgetPalette) -> Color {
-  switch item.tone {
-  case "red":
-    return palette.red
-  case "yellow":
-    return palette.yellow
-  case "green":
-    return palette.green
-  default:
-    return palette.ink
-  }
-}
-
-private func caregiverStatusDot(_ caregiver: SynapseWidgetSnapshot.Caregiver) -> String {
-  switch caregiver.status {
-  case "urgent":
-    return "🔴"
-  case "all_good":
-    return "🟢"
-  default:
-    return "🟡"
-  }
-}
-
-private func caregiverItemIcon(_ item: SynapseWidgetSnapshot.Caregiver.Item) -> String {
-  switch item.kind {
-  case "missed":
-    return "🔴"
-  case "next":
-    return "🕒"
-  case "nolog":
-    return "⚠️"
-  case "good":
-    return "🟢"
-  default:
-    return "•"
-  }
-}
-
-private func caregiverPersonText(_ caregiver: SynapseWidgetSnapshot.Caregiver, includeRelation: Bool) -> String {
-  var details: [String] = []
-  if let age = caregiver.age {
-    details.append("\(age)y")
-  }
-  if includeRelation, let relation = caregiver.relation, !relation.isEmpty {
-    details.append(relation)
-  }
-  return details.isEmpty ? caregiver.name : "\(caregiver.name) (\(details.joined(separator: " · ")))"
-}
-
-private struct CaregiverStatusPill: View {
-  let caregiver: SynapseWidgetSnapshot.Caregiver
-  let palette: SynapseWidgetPalette
-  let compact: Bool
-
-  var body: some View {
-    let tone = caregiverToneColor(caregiver, palette: palette)
-    HStack(spacing: compact ? 5 : 7) {
-      Text(caregiverStatusDot(caregiver))
-        .font(.system(size: compact ? 9 : 10, weight: .bold))
-      Text(caregiver.statusText)
-        .font(.system(size: compact ? 11 : 12, weight: .bold))
-        .lineLimit(1)
-        .minimumScaleFactor(0.76)
-    }
-    .foregroundStyle(tone)
-    .padding(.vertical, compact ? 6 : 7)
-    .padding(.horizontal, compact ? 8 : 10)
-    .background(tone.opacity(0.14))
-    .clipShape(Capsule())
   }
 }
 
@@ -1292,156 +1360,349 @@ private struct CaregiverWidgetView: View {
 
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let caregiver = entry.snapshot.caregiver
+    let accent = toneColor(caregiver.tone, palette: palette)
+
     WidgetCard(palette: palette) {
       if family == .systemMedium {
-        CaregiverMediumView(caregiver: entry.snapshot.caregiver, palette: palette)
-      } else {
-        CaregiverSmallView(caregiver: entry.snapshot.caregiver, palette: palette)
-      }
-    }
-  }
-}
+        VStack(alignment: .leading, spacing: 10) {
+          HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 4) {
+              Eyebrow(text: "Caregiver", palette: palette)
+              HeroTitle(text: caregiverPersonText(caregiver, includeRelation: true), palette: palette, size: 18)
+            }
+            Spacer()
+            StatusChip(text: caregiver.statusText, color: accent)
+          }
 
-private struct CaregiverSmallView: View {
-  let caregiver: SynapseWidgetSnapshot.Caregiver
-  let palette: SynapseWidgetPalette
+          VStack(alignment: .leading, spacing: 7) {
+            ForEach(Array(caregiver.items.prefix(3).enumerated()), id: \.offset) { _, item in
+              HStack(spacing: 8) {
+                AccentBar(color: toneColor(item.tone, palette: palette))
+                Text(item.text)
+                  .font(.system(size: 13, weight: item.tone == "red" ? .semibold : .regular))
+                  .foregroundStyle(toneColor(item.tone == "muted" ? "blue" : item.tone, palette: palette))
+                  .lineLimit(1)
+                  .minimumScaleFactor(0.8)
+              }
+            }
+            if caregiver.items.isEmpty {
+              Text(caregiver.secondaryText ?? "All caught up")
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(palette.muted)
+            }
+          }
 
-  var body: some View {
-    let tone = caregiverToneColor(caregiver, palette: palette)
-    VStack(alignment: .leading, spacing: 0) {
-      HStack(spacing: 5) {
-        Image(systemName: "person.fill")
-          .font(.system(size: 11, weight: .semibold))
-        Text(caregiverPersonText(caregiver, includeRelation: false))
-          .font(.system(size: 13, weight: .medium))
-          .lineLimit(1)
-          .minimumScaleFactor(0.78)
-      }
-      .foregroundStyle(palette.muted)
+          Spacer(minLength: 0)
 
-      Spacer().frame(height: 8)
-
-      Text("\(caregiverStatusDot(caregiver)) \(caregiver.primaryText)")
-        .font(.system(size: 17, weight: .bold))
-        .foregroundStyle(tone)
-        .lineLimit(1)
-        .minimumScaleFactor(0.70)
-
-      Spacer().frame(height: 10)
-
-      VStack(alignment: .leading, spacing: 5) {
-        ForEach(Array(caregiver.items.prefix(2).enumerated()), id: \.offset) { _, item in
-          Text("\(caregiverItemIcon(item)) \(item.text)")
-            .font(.system(size: 12, weight: item.tone == "red" ? .semibold : .regular))
-            .foregroundStyle(caregiverItemTone(item, palette: palette))
-            .lineLimit(1)
-            .minimumScaleFactor(0.72)
-        }
-        if caregiver.items.isEmpty, let secondary = caregiver.secondaryText {
-          Text(secondary)
-            .font(.system(size: 12, weight: .regular))
-            .foregroundStyle(palette.muted)
-            .lineLimit(1)
-            .minimumScaleFactor(0.72)
-        }
-      }
-
-      Spacer(minLength: 0)
-
-      if let actionText = caregiver.actionText {
-        Text(actionText)
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(palette.muted)
-          .lineLimit(1)
-          .minimumScaleFactor(0.78)
-      }
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  }
-}
-
-private struct CaregiverMediumView: View {
-  let caregiver: SynapseWidgetSnapshot.Caregiver
-  let palette: SynapseWidgetPalette
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack(alignment: .firstTextBaseline, spacing: 10) {
-        HStack(spacing: 6) {
-          Image(systemName: "person.fill")
-            .font(.system(size: 12, weight: .semibold))
-          Text(caregiverPersonText(caregiver, includeRelation: true))
-            .font(.system(size: 15, weight: .medium))
-            .lineLimit(1)
-            .minimumScaleFactor(0.76)
-        }
-        .foregroundStyle(palette.ink)
-        Spacer(minLength: 4)
-        CaregiverStatusPill(caregiver: caregiver, palette: palette, compact: false)
-      }
-
-      VStack(alignment: .leading, spacing: 7) {
-        ForEach(Array(caregiver.items.prefix(3).enumerated()), id: \.offset) { _, item in
-          HStack(spacing: 7) {
-            Text(caregiverItemIcon(item))
-              .font(.system(size: 12, weight: .semibold))
-              .frame(width: 18, alignment: .leading)
-            Text(item.text)
-              .font(.system(size: 13, weight: item.tone == "red" ? .semibold : .regular))
-              .foregroundStyle(caregiverItemTone(item, palette: palette))
-              .lineLimit(1)
-              .minimumScaleFactor(0.76)
+          HStack(spacing: 8) {
+            Link(destination: SynapseWidgetDestination.caregiverActionURL(mode: "log-med")) {
+              ActionCapsule(title: "Log Med", color: palette.blue, compact: true)
+            }
+            .buttonStyle(.plain)
+            Link(destination: SynapseWidgetDestination.caregiverActionURL(mode: "add-note")) {
+              ActionCapsule(title: "Add Note", color: palette.green.opacity(0.85), compact: true)
+            }
+            .buttonStyle(.plain)
           }
         }
-        if caregiver.items.isEmpty {
-          Text(caregiver.secondaryText ?? "All caught up")
-            .font(.system(size: 13, weight: .regular))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      } else {
+        VStack(alignment: .leading, spacing: 7) {
+          Eyebrow(text: caregiverPersonText(caregiver, includeRelation: false), palette: palette)
+          HeroTitle(text: caregiver.primaryText, palette: palette, size: 16)
+          StatusChip(text: caregiver.statusText, color: accent, compact: true)
+          ForEach(Array(caregiver.items.prefix(2).enumerated()), id: \.offset) { _, item in
+            HStack(spacing: 6) {
+              AccentBar(color: toneColor(item.tone, palette: palette))
+              Text(item.text)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(toneColor(item.tone == "muted" ? "blue" : item.tone, palette: palette))
+                .lineLimit(1)
+            }
+          }
+          Spacer(minLength: 0)
+          if let action = caregiver.actionText {
+            Text(action)
+              .font(.system(size: 11, weight: .semibold))
+              .foregroundStyle(palette.muted)
+              .lineLimit(1)
+          }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      }
+    }
+  }
+}
+
+private struct MentalHealthWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let mental = entry.snapshot.mentalHealth
+
+    WidgetCard(palette: palette) {
+      HStack(alignment: .top, spacing: 8) {
+        AccentBar(color: palette.purple)
+        VStack(alignment: .leading, spacing: 7) {
+          Eyebrow(text: "Mental health", palette: palette)
+          HeroTitle(text: mental.active ? "Support day" : "Start support", palette: palette, size: 16)
+          StatusChip(
+            text: mental.active ? "Active" : "Available",
+            color: palette.purple,
+            compact: true
+          )
+          Text(mental.statusText)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(palette.purple)
+            .lineLimit(2)
+          Spacer(minLength: 0)
+          Text("Next check-in")
+            .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(palette.muted)
+          Text(mental.nextCheckInText)
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(palette.ink)
             .lineLimit(1)
+            .minimumScaleFactor(0.85)
         }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+}
 
-      Spacer(minLength: 0)
+private struct LabsWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
 
-      HStack(spacing: 10) {
-        Link(destination: SynapseWidgetDestination.caregiverActionURL(mode: "log-med")) {
-          Text("Log Med")
-            .font(.system(size: 13, weight: .semibold))
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let labs = entry.snapshot.labs
+    let accent = toneColor(labs.tone, palette: palette)
+
+    WidgetCard(palette: palette) {
+      HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
+          Eyebrow(text: labs.title, palette: palette)
+          HeroTitle(text: labs.statusText, palette: palette, size: 20)
+          StatusChip(text: labs.hasItems ? "On file" : "Empty", color: accent, compact: true)
+          Spacer(minLength: 0)
+          Text(labs.nextAction)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(accent)
+            .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+
+        VStack(alignment: .leading, spacing: 6) {
+          ForEach(Array(labs.items.prefix(3).enumerated()), id: \.offset) { _, item in
+            SoftCard(palette: palette) {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(item.name)
+                  .font(.system(size: 12, weight: .semibold))
+                  .foregroundStyle(palette.ink)
+                  .lineLimit(1)
+                Text(item.detail)
+                  .font(.system(size: 10, weight: .regular))
+                  .foregroundStyle(item.pending ? palette.orange : palette.muted)
+                  .lineLimit(1)
+              }
+            }
+          }
+          if labs.items.isEmpty {
+            SoftCard(palette: palette) {
+              Text("No results yet")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(palette.muted)
+            }
+          }
+        }
+        .frame(maxWidth: .infinity)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+}
+
+private struct ReportWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let report = entry.snapshot.report14Day
+    let accent = toneColor(report.tone, palette: palette)
+
+    WidgetCard(palette: palette) {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .firstTextBaseline) {
+          VStack(alignment: .leading, spacing: 4) {
+            Eyebrow(text: "14-day report", palette: palette)
+            HeroTitle(text: report.statusLabel, palette: palette, size: 26)
+          }
+          Spacer()
+          StatusChip(text: report.adherenceText, color: accent)
+        }
+
+        SoftCard(palette: palette) {
+          Text(report.summaryText)
+            .font(.system(size: 15, weight: .medium))
             .foregroundStyle(palette.ink)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(palette.red.opacity(0.12))
-            .clipShape(Capsule())
+            .lineLimit(3)
+        }
+
+        VStack(alignment: .leading, spacing: 8) {
+          ForEach(Array(report.insights.prefix(2).enumerated()), id: \.offset) { _, insight in
+            HStack(alignment: .top, spacing: 8) {
+              AccentBar(color: accent)
+              Text(insight)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(palette.ink)
+                .lineLimit(2)
+            }
+          }
+          if report.insights.isEmpty {
+            Text("Open Synapse for the full pattern view.")
+              .font(.system(size: 13, weight: .regular))
+              .foregroundStyle(palette.muted)
+          }
+        }
+
+        Spacer(minLength: 0)
+        Text(report.nextAction)
+          .font(.system(size: 13, weight: .semibold))
+          .foregroundStyle(accent)
+          .lineLimit(1)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+}
+
+private struct OverviewWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let medication = entry.snapshot.medication
+    let appointment = entry.snapshot.appointment
+
+    WidgetCard(palette: palette) {
+      HStack(spacing: 14) {
+        Link(destination: SynapseWidgetDestination.url(for: "medications")) {
+          VStack(alignment: .leading, spacing: 7) {
+            Eyebrow(text: "Meds", palette: palette)
+            if let medication {
+              HeroTitle(text: medication.name, palette: palette, size: 17)
+              Text(medication.detail)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(palette.muted)
+                .lineLimit(1)
+              if medication.isTaken {
+                StatusChip(text: medication.dueText, color: palette.green, compact: true)
+              } else {
+                Text(compactRelativeMedicationText(medication.dueAt))
+                  .font(.system(size: 12, weight: .semibold))
+                  .foregroundStyle(palette.orange)
+                  .lineLimit(1)
+              }
+            } else {
+              HeroTitle(text: "No dose due", palette: palette, size: 16)
+              Text("Stay on track")
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(palette.muted)
+            }
+            Spacer(minLength: 0)
+          }
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+          .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
 
-        Link(destination: SynapseWidgetDestination.caregiverActionURL(mode: "add-note")) {
-          Text("Add Note")
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(palette.ink)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(palette.track.opacity(0.85))
-            .clipShape(Capsule())
+        Rectangle()
+          .fill(palette.line)
+          .frame(width: 1)
+          .padding(.vertical, 2)
+
+        Link(destination: SynapseWidgetDestination.url(for: "appointments")) {
+          VStack(alignment: .leading, spacing: 7) {
+            Eyebrow(text: "Visit", palette: palette)
+            if let appointment {
+              HeroTitle(text: appointment.doctorName, palette: palette, size: 17)
+              Text(appointment.detail)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(palette.muted)
+                .lineLimit(1)
+              Text(appointment.whenText)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(palette.blue)
+                .lineLimit(1)
+              Text(appointment.prepHint)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(palette.muted)
+                .lineLimit(2)
+            } else {
+              HeroTitle(text: "No visit soon", palette: palette, size: 16)
+              Text("Add one in Synapse")
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(palette.muted)
+            }
+            Spacer(minLength: 0)
+          }
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+          .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
       }
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
-struct SynapseOverviewWidget: Widget {
-  let kind = "SynapseOverviewWidget"
+// MARK: - Widget definitions
+
+struct SynapseRecoveryWidget: Widget {
+  let kind = "SynapseRecoveryWidget"
 
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
-      CombinedWidgetView(entry: entry)
+      RecoveryWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "sickmode"))
     }
-    .configurationDisplayName("Synapse Overview")
-    .description("See your next medication and next appointment at a glance.")
-    .supportedFamilies([.systemMedium])
+    .configurationDisplayName("Recovery Today")
+    .description("See your recovery focus and next gentle step.")
+    .supportedFamilies([.systemSmall, .systemMedium])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapseHydrationWidget: Widget {
+  let kind = "SynapseHydrationWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      HydrationWidgetView(entry: entry)
+    }
+    .configurationDisplayName("Hydration")
+    .description("Take a quick sip and jump into your hydration log.")
+    .supportedFamilies([.systemSmall])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapsePrnMedicationWidget: Widget {
+  let kind = "SynapsePrnMedicationWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      PrnMedicationWidgetView(entry: entry)
+    }
+    .configurationDisplayName("As Needed")
+    .description("Log an as-needed medication from your Home Screen.")
+    .supportedFamilies([.systemSmall])
     .contentMarginsDisabled()
   }
 }
@@ -1461,59 +1722,16 @@ struct SynapseMedicationWidget: Widget {
   }
 }
 
-struct SynapseAppointmentWidget: Widget {
-  let kind = "SynapseAppointmentWidget"
+struct SynapsePainWidget: Widget {
+  let kind = "SynapsePainWidget"
 
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
-      AppointmentWidgetView(entry: entry)
-        .widgetURL(SynapseWidgetDestination.url(for: "appointments"))
+      PainWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "symptoms"))
     }
-    .configurationDisplayName("Next Appointment")
-    .description("See your next appointment at a glance.")
-    .supportedFamilies([.systemSmall, .systemMedium])
-    .contentMarginsDisabled()
-  }
-}
-
-struct SynapseWellnessWidget: Widget {
-  let kind = "SynapseWellnessWidget"
-
-  var body: some WidgetConfiguration {
-    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
-      WellnessWidgetView(entry: entry)
-        .widgetURL(SynapseWidgetDestination.url(for: "daily-log"))
-    }
-    .configurationDisplayName("Daily Check-In")
-    .description("See today’s wellness summary and jump into your daily check-in.")
-    .supportedFamilies([.systemSmall, .systemMedium])
-    .contentMarginsDisabled()
-  }
-}
-
-struct SynapsePrnMedicationWidget: Widget {
-  let kind = "SynapsePrnMedicationWidget"
-
-  var body: some WidgetConfiguration {
-    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
-      PrnMedicationWidgetView(entry: entry)
-    }
-    .configurationDisplayName("As Needed Medication")
-    .description("Log an As Needed medication and see how many times you’ve taken it today.")
-    .supportedFamilies([.systemSmall])
-    .contentMarginsDisabled()
-  }
-}
-
-struct SynapseHydrationWidget: Widget {
-  let kind = "SynapseHydrationWidget"
-
-  var body: some WidgetConfiguration {
-    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
-      HydrationWidgetView(entry: entry)
-    }
-    .configurationDisplayName("Hydration")
-    .description("Take a quick sip and jump into your hydration log.")
+    .configurationDisplayName("Pain")
+    .description("See today’s pain status and open Symptoms.")
     .supportedFamilies([.systemSmall])
     .contentMarginsDisabled()
   }
@@ -1527,24 +1745,54 @@ struct SynapseSickModeWidget: Widget {
       SickModeWidgetView(entry: entry)
         .widgetURL(SynapseWidgetDestination.url(for: "sickmode"))
     }
-    .configurationDisplayName("I am Sick")
-    .description("See stress-dose status, your latest temperature, and the next check-in.")
-    .supportedFamilies([.systemMedium])
+    .configurationDisplayName("Sick Mode")
+    .description("Temperature, stress-dose status, and next check-in.")
+    .supportedFamilies([.systemSmall, .systemMedium])
     .contentMarginsDisabled()
   }
 }
 
-struct SynapseMentalHealthWidget: Widget {
-  let kind = "SynapseMentalHealthWidget"
+struct SynapseWellnessWidget: Widget {
+  let kind = "SynapseWellnessWidget"
 
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
-      MentalHealthWidgetView(entry: entry)
-        .widgetURL(SynapseWidgetDestination.url(for: "mentalhealth"))
+      DailyLogWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "daily-log"))
     }
-    .configurationDisplayName("I'm not okay")
-    .description("Start or check your mental health day and the next hourly check-in.")
-    .supportedFamilies([.systemSmall])
+    .configurationDisplayName("Daily Log")
+    .description("Overall wellness and next actions for today.")
+    .supportedFamilies([.systemMedium, .systemLarge])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapseMedicationDayWidget: Widget {
+  let kind = "SynapseMedicationDayWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      MedicationDayWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "medications"))
+    }
+    .configurationDisplayName("Medication Day")
+    .description("See today’s scheduled doses and what’s left.")
+    .supportedFamilies([.systemLarge])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapseAppointmentWidget: Widget {
+  let kind = "SynapseAppointmentWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      AppointmentWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "appointments"))
+    }
+    .configurationDisplayName("Appointment Prep")
+    .description("Next visit with location, notes, and prep hint.")
+    .supportedFamilies([.systemSmall, .systemMedium])
     .contentMarginsDisabled()
   }
 }
@@ -1557,9 +1805,68 @@ struct SynapseCaregiverWidget: Widget {
       CaregiverWidgetView(entry: entry)
         .widgetURL(SynapseWidgetDestination.url(for: "caregiverdashboard"))
     }
-    .configurationDisplayName("Caregiver Status")
-    .description("See missed meds, next dose, and daily log status for the managed person.")
+    .configurationDisplayName("Caregiver")
+    .description("Status for the person you support—without the clutter.")
     .supportedFamilies([.systemSmall, .systemMedium])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapseMentalHealthWidget: Widget {
+  let kind = "SynapseMentalHealthWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      MentalHealthWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "mentalhealth"))
+    }
+    .configurationDisplayName("Mental Health")
+    .description("Start or check a mental health day and next check-in.")
+    .supportedFamilies([.systemSmall])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapseLabsWidget: Widget {
+  let kind = "SynapseLabsWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      LabsWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "labwork"))
+    }
+    .configurationDisplayName("Labs")
+    .description("Pending reviews and latest lab results.")
+    .supportedFamilies([.systemMedium])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapseReportWidget: Widget {
+  let kind = "SynapseReportWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      ReportWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "reports"))
+    }
+    .configurationDisplayName("14-Day Report")
+    .description("Trend summary, adherence, and top insights.")
+    .supportedFamilies([.systemLarge])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapseOverviewWidget: Widget {
+  let kind = "SynapseOverviewWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      OverviewWidgetView(entry: entry)
+    }
+    .configurationDisplayName("Synapse Overview")
+    .description("Next medication and next appointment side by side.")
+    .supportedFamilies([.systemMedium])
     .contentMarginsDisabled()
   }
 }
