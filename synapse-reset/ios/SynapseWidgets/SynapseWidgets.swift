@@ -85,6 +85,18 @@ private enum SynapseWidgetStore {
 private struct SynapseWidgetSnapshot: Codable {
   let appearance: String
 
+  struct GridCell: Codable {
+    let title: String
+    let detail: String
+  }
+
+  struct ActionRow: Codable {
+    let tone: String
+    let title: String
+    let subtitle: String
+    let trailing: String
+  }
+
   struct Medication: Codable {
     let name: String
     let detail: String
@@ -93,6 +105,51 @@ private struct SynapseWidgetSnapshot: Codable {
     let dueText: String
     let isTaken: Bool
     let nextText: String?
+    let heroTimeText: String
+    let statusLabel: String
+    let secondaryLine: String
+    let tone: String
+
+    enum CodingKeys: String, CodingKey {
+      case name, detail, dueAt, windowStart, dueText, isTaken, nextText
+      case heroTimeText, statusLabel, secondaryLine, tone
+    }
+
+    init(
+      name: String, detail: String, dueAt: Date?, windowStart: Date?, dueText: String,
+      isTaken: Bool, nextText: String?, heroTimeText: String, statusLabel: String,
+      secondaryLine: String, tone: String
+    ) {
+      self.name = name; self.detail = detail; self.dueAt = dueAt; self.windowStart = windowStart
+      self.dueText = dueText; self.isTaken = isTaken; self.nextText = nextText
+      self.heroTimeText = heroTimeText; self.statusLabel = statusLabel
+      self.secondaryLine = secondaryLine; self.tone = tone
+    }
+
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      name = try c.decode(String.self, forKey: .name)
+      detail = try c.decode(String.self, forKey: .detail)
+      dueAt = try c.decodeIfPresent(Date.self, forKey: .dueAt)
+      windowStart = try c.decodeIfPresent(Date.self, forKey: .windowStart)
+      dueText = try c.decode(String.self, forKey: .dueText)
+      isTaken = try c.decode(Bool.self, forKey: .isTaken)
+      nextText = try c.decodeIfPresent(String.self, forKey: .nextText)
+      let taken = isTaken
+      heroTimeText = try c.decodeIfPresent(String.self, forKey: .heroTimeText)
+        ?? (taken ? "Done" : Self.formatTime(dueAt) ?? "Soon")
+      statusLabel = try c.decodeIfPresent(String.self, forKey: .statusLabel) ?? (taken ? "Done" : "Next")
+      secondaryLine = try c.decodeIfPresent(String.self, forKey: .secondaryLine)
+        ?? (taken ? (nextText ?? "All set") : "Dose due soon")
+      tone = try c.decodeIfPresent(String.self, forKey: .tone) ?? "green"
+    }
+
+    private static func formatTime(_ date: Date?) -> String? {
+      guard let date else { return nil }
+      let formatter = DateFormatter()
+      formatter.dateFormat = "h:mm a"
+      return formatter.string(from: date)
+    }
   }
 
   struct Appointment: Codable {
@@ -104,29 +161,26 @@ private struct SynapseWidgetSnapshot: Codable {
     let location: String?
     let notes: String?
     let prepHint: String
+    let statusLabel: String
+    let tone: String
+    let headline: String
+    let supportText: String
+    let rows: [ActionRow]
 
     enum CodingKeys: String, CodingKey {
       case doctorName, detail, startsAt, whenText, travelText, location, notes, prepHint
+      case statusLabel, tone, headline, supportText, rows
     }
 
     init(
-      doctorName: String,
-      detail: String,
-      startsAt: Date?,
-      whenText: String,
-      travelText: String?,
-      location: String?,
-      notes: String?,
-      prepHint: String
+      doctorName: String, detail: String, startsAt: Date?, whenText: String,
+      travelText: String?, location: String?, notes: String?, prepHint: String,
+      statusLabel: String, tone: String, headline: String, supportText: String, rows: [ActionRow]
     ) {
-      self.doctorName = doctorName
-      self.detail = detail
-      self.startsAt = startsAt
-      self.whenText = whenText
-      self.travelText = travelText
-      self.location = location
-      self.notes = notes
-      self.prepHint = prepHint
+      self.doctorName = doctorName; self.detail = detail; self.startsAt = startsAt
+      self.whenText = whenText; self.travelText = travelText; self.location = location
+      self.notes = notes; self.prepHint = prepHint; self.statusLabel = statusLabel
+      self.tone = tone; self.headline = headline; self.supportText = supportText; self.rows = rows
     }
 
     init(from decoder: Decoder) throws {
@@ -139,6 +193,14 @@ private struct SynapseWidgetSnapshot: Codable {
       location = try c.decodeIfPresent(String.self, forKey: .location)
       notes = try c.decodeIfPresent(String.self, forKey: .notes)
       prepHint = try c.decodeIfPresent(String.self, forKey: .prepHint) ?? "Open Synapse to prep"
+      statusLabel = try c.decodeIfPresent(String.self, forKey: .statusLabel) ?? "Ready"
+      tone = try c.decodeIfPresent(String.self, forKey: .tone) ?? "green"
+      headline = try c.decodeIfPresent(String.self, forKey: .headline) ?? "Prep looks ready."
+      supportText = try c.decodeIfPresent(String.self, forKey: .supportText) ?? prepHint
+      rows = try c.decodeIfPresent([ActionRow].self, forKey: .rows) ?? [
+        ActionRow(tone: "green", title: doctorName, subtitle: whenText, trailing: "Visit"),
+        ActionRow(tone: "blue", title: "Report packet", subtitle: prepHint, trailing: "Prep"),
+      ]
     }
   }
 
@@ -149,6 +211,46 @@ private struct SynapseWidgetSnapshot: Codable {
     let lastLoggedAt: Date?
     let statusText: String
     let countText: String
+    let hoursSinceLastText: String
+    let windowText: String
+    let statusLabel: String
+    let tone: String
+
+    enum CodingKeys: String, CodingKey {
+      case id, name, detail, lastLoggedAt, statusText, countText
+      case hoursSinceLastText, windowText, statusLabel, tone
+    }
+
+    init(
+      id: String, name: String, detail: String, lastLoggedAt: Date?, statusText: String,
+      countText: String, hoursSinceLastText: String, windowText: String, statusLabel: String, tone: String
+    ) {
+      self.id = id; self.name = name; self.detail = detail; self.lastLoggedAt = lastLoggedAt
+      self.statusText = statusText; self.countText = countText
+      self.hoursSinceLastText = hoursSinceLastText; self.windowText = windowText
+      self.statusLabel = statusLabel; self.tone = tone
+    }
+
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      id = try c.decode(String.self, forKey: .id)
+      name = try c.decode(String.self, forKey: .name)
+      detail = try c.decode(String.self, forKey: .detail)
+      lastLoggedAt = try c.decodeIfPresent(Date.self, forKey: .lastLoggedAt)
+      statusText = try c.decode(String.self, forKey: .statusText)
+      countText = try c.decode(String.self, forKey: .countText)
+      if let explicit = try c.decodeIfPresent(String.self, forKey: .hoursSinceLastText) {
+        hoursSinceLastText = explicit
+      } else if let last = lastLoggedAt {
+        let hours = Int(Date().timeIntervalSince(last) / 3600)
+        hoursSinceLastText = hours < 1 ? "\(max(1, Int(Date().timeIntervalSince(last) / 60)))m" : "\(hours)h"
+      } else {
+        hoursSinceLastText = "—"
+      }
+      windowText = try c.decodeIfPresent(String.self, forKey: .windowText) ?? "Safe window clear"
+      statusLabel = try c.decodeIfPresent(String.self, forKey: .statusLabel) ?? "Clear"
+      tone = try c.decodeIfPresent(String.self, forKey: .tone) ?? "green"
+    }
   }
 
   struct Wellness: Codable {
@@ -163,6 +265,59 @@ private struct SynapseWidgetSnapshot: Codable {
     let symptomCountToday: Int
     let topSymptomName: String?
     let isFastingToday: Bool
+    let statusLabel: String
+    let tone: String
+    let headline: String
+    let gridCells: [GridCell]
+    let actionRows: [ActionRow]
+
+    enum CodingKeys: String, CodingKey {
+      case hasTodayLog, energy, mood, sleep, overallFeeling, detailHighlights
+      case summaryText, secondaryText, symptomCountToday, topSymptomName, isFastingToday
+      case statusLabel, tone, headline, gridCells, actionRows
+    }
+
+    init(
+      hasTodayLog: Bool, energy: Int?, mood: Int?, sleep: Int?, overallFeeling: Int?,
+      detailHighlights: [String], summaryText: String, secondaryText: String,
+      symptomCountToday: Int, topSymptomName: String?, isFastingToday: Bool,
+      statusLabel: String, tone: String, headline: String,
+      gridCells: [GridCell], actionRows: [ActionRow]
+    ) {
+      self.hasTodayLog = hasTodayLog; self.energy = energy; self.mood = mood; self.sleep = sleep
+      self.overallFeeling = overallFeeling; self.detailHighlights = detailHighlights
+      self.summaryText = summaryText; self.secondaryText = secondaryText
+      self.symptomCountToday = symptomCountToday; self.topSymptomName = topSymptomName
+      self.isFastingToday = isFastingToday; self.statusLabel = statusLabel; self.tone = tone
+      self.headline = headline; self.gridCells = gridCells; self.actionRows = actionRows
+    }
+
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      hasTodayLog = try c.decode(Bool.self, forKey: .hasTodayLog)
+      energy = try c.decodeIfPresent(Int.self, forKey: .energy)
+      mood = try c.decodeIfPresent(Int.self, forKey: .mood)
+      sleep = try c.decodeIfPresent(Int.self, forKey: .sleep)
+      overallFeeling = try c.decodeIfPresent(Int.self, forKey: .overallFeeling)
+      detailHighlights = try c.decodeIfPresent([String].self, forKey: .detailHighlights) ?? []
+      summaryText = try c.decode(String.self, forKey: .summaryText)
+      secondaryText = try c.decode(String.self, forKey: .secondaryText)
+      symptomCountToday = try c.decodeIfPresent(Int.self, forKey: .symptomCountToday) ?? 0
+      topSymptomName = try c.decodeIfPresent(String.self, forKey: .topSymptomName)
+      isFastingToday = try c.decodeIfPresent(Bool.self, forKey: .isFastingToday) ?? false
+      statusLabel = try c.decodeIfPresent(String.self, forKey: .statusLabel) ?? (hasTodayLog ? "Logged" : "Open")
+      tone = try c.decodeIfPresent(String.self, forKey: .tone) ?? (hasTodayLog ? "green" : "blue")
+      headline = try c.decodeIfPresent(String.self, forKey: .headline) ?? summaryText
+      gridCells = try c.decodeIfPresent([GridCell].self, forKey: .gridCells) ?? [
+        GridCell(title: "Energy", detail: energy.map { "\($0)/10" } ?? "—"),
+        GridCell(title: "Mood", detail: mood.map { "\($0)/10" } ?? "—"),
+        GridCell(title: "Sleep", detail: sleep.map { "\($0)/10" } ?? "—"),
+        GridCell(title: "Overall", detail: overallFeeling.map { "\($0)/10" } ?? "—"),
+      ]
+      actionRows = try c.decodeIfPresent([ActionRow].self, forKey: .actionRows) ?? [
+        ActionRow(tone: "blue", title: hasTodayLog ? "Update later" : "Log check-in", subtitle: secondaryText, trailing: "Open"),
+      ]
+    }
   }
 
   struct Hydration: Codable {
@@ -172,6 +327,91 @@ private struct SynapseWidgetSnapshot: Codable {
     let totalTodayText: String
     let hasEntriesToday: Bool
     let launchHint: String
+    let percentToday: Int
+    let loggedCount: Int
+    let targetSipsEstimate: Int
+    let progress: Double
+    let statusLabel: String
+    let tone: String
+    let secondaryLine: String
+
+    enum CodingKeys: String, CodingKey {
+      case presetLabel, sipAmountText, totalTodayMl, totalTodayText, hasEntriesToday, launchHint
+      case percentToday, loggedCount, targetSipsEstimate, progress, statusLabel, tone, secondaryLine
+    }
+
+    init(
+      presetLabel: String, sipAmountText: String, totalTodayMl: Int, totalTodayText: String,
+      hasEntriesToday: Bool, launchHint: String, percentToday: Int, loggedCount: Int,
+      targetSipsEstimate: Int, progress: Double, statusLabel: String, tone: String, secondaryLine: String
+    ) {
+      self.presetLabel = presetLabel; self.sipAmountText = sipAmountText
+      self.totalTodayMl = totalTodayMl; self.totalTodayText = totalTodayText
+      self.hasEntriesToday = hasEntriesToday; self.launchHint = launchHint
+      self.percentToday = percentToday; self.loggedCount = loggedCount
+      self.targetSipsEstimate = targetSipsEstimate; self.progress = progress
+      self.statusLabel = statusLabel; self.tone = tone; self.secondaryLine = secondaryLine
+    }
+
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      presetLabel = try c.decode(String.self, forKey: .presetLabel)
+      sipAmountText = try c.decode(String.self, forKey: .sipAmountText)
+      totalTodayMl = try c.decode(Int.self, forKey: .totalTodayMl)
+      totalTodayText = try c.decode(String.self, forKey: .totalTodayText)
+      hasEntriesToday = try c.decode(Bool.self, forKey: .hasEntriesToday)
+      launchHint = try c.decode(String.self, forKey: .launchHint)
+      // Soft UI target 2000ml — not a medical goal.
+      let softGoal = 2000.0
+      let computedPercent = Int(min(100, max(0, round(Double(totalTodayMl) / softGoal * 100))))
+      percentToday = try c.decodeIfPresent(Int.self, forKey: .percentToday) ?? computedPercent
+      loggedCount = try c.decodeIfPresent(Int.self, forKey: .loggedCount) ?? (hasEntriesToday ? 1 : 0)
+      targetSipsEstimate = try c.decodeIfPresent(Int.self, forKey: .targetSipsEstimate) ?? 8
+      progress = try c.decodeIfPresent(Double.self, forKey: .progress) ?? min(1, Double(totalTodayMl) / softGoal)
+      if let label = try c.decodeIfPresent(String.self, forKey: .statusLabel) {
+        statusLabel = label
+      } else if percentToday >= 80 {
+        statusLabel = "Good"
+      } else if percentToday >= 40 {
+        statusLabel = "On track"
+      } else {
+        statusLabel = "Low"
+      }
+      tone = try c.decodeIfPresent(String.self, forKey: .tone)
+        ?? (percentToday >= 80 ? "green" : percentToday >= 40 ? "blue" : "orange")
+      secondaryLine = try c.decodeIfPresent(String.self, forKey: .secondaryLine)
+        ?? (percentToday < 40 ? "Nudge in 20m" : "Keep sipping")
+    }
+  }
+
+  struct Sleep: Codable {
+    let hasData: Bool
+    let score: Int?
+    let heroText: String
+    let statusLabel: String
+    let tone: String
+    let primaryLine: String
+    let secondaryLine: String
+
+    static let empty = Sleep(
+      hasData: false, score: nil, heroText: "—", statusLabel: "OK", tone: "green",
+      primaryLine: "No sleep note yet", secondaryLine: "Log tonight when you can"
+    )
+  }
+
+  struct FlareForecast: Codable {
+    let statusLabel: String
+    let tone: String
+    let headline: String
+    let supportText: String
+    let trendTones: [String]
+
+    static let empty = FlareForecast(
+      statusLabel: "Calm", tone: "green",
+      headline: "Pattern looks quieter today.",
+      supportText: "No strong flare cues from today’s notes",
+      trendTones: ["green", "blue", "green"]
+    )
   }
 
   struct SickMode: Codable {
@@ -180,16 +420,96 @@ private struct SynapseWidgetSnapshot: Codable {
     let latestTemperature: Double?
     let latestTemperatureText: String
     let statusText: String
+    let statusLabel: String
+    let heroAction: String
+    let tone: String
     let needsStressDose: Bool
     let stressDoseText: String
     let checkInTimer: String?
+
+    enum CodingKeys: String, CodingKey {
+      case active, recoveryMode, latestTemperature, latestTemperatureText, statusText
+      case statusLabel, heroAction, tone, needsStressDose, stressDoseText, checkInTimer
+    }
+
+    init(
+      active: Bool, recoveryMode: Bool, latestTemperature: Double?, latestTemperatureText: String,
+      statusText: String, statusLabel: String, heroAction: String, tone: String,
+      needsStressDose: Bool, stressDoseText: String, checkInTimer: String?
+    ) {
+      self.active = active; self.recoveryMode = recoveryMode
+      self.latestTemperature = latestTemperature; self.latestTemperatureText = latestTemperatureText
+      self.statusText = statusText; self.statusLabel = statusLabel; self.heroAction = heroAction
+      self.tone = tone; self.needsStressDose = needsStressDose
+      self.stressDoseText = stressDoseText; self.checkInTimer = checkInTimer
+    }
+
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      active = try c.decode(Bool.self, forKey: .active)
+      recoveryMode = try c.decode(Bool.self, forKey: .recoveryMode)
+      latestTemperature = try c.decodeIfPresent(Double.self, forKey: .latestTemperature)
+      latestTemperatureText = try c.decode(String.self, forKey: .latestTemperatureText)
+      statusText = try c.decode(String.self, forKey: .statusText)
+      needsStressDose = try c.decode(Bool.self, forKey: .needsStressDose)
+      stressDoseText = try c.decode(String.self, forKey: .stressDoseText)
+      checkInTimer = try c.decodeIfPresent(String.self, forKey: .checkInTimer)
+      if recoveryMode {
+        statusLabel = try c.decodeIfPresent(String.self, forKey: .statusLabel) ?? "Easing"
+        heroAction = try c.decodeIfPresent(String.self, forKey: .heroAction) ?? "Ease back"
+        tone = try c.decodeIfPresent(String.self, forKey: .tone) ?? "green"
+      } else if active {
+        statusLabel = try c.decodeIfPresent(String.self, forKey: .statusLabel) ?? "Active"
+        heroAction = try c.decodeIfPresent(String.self, forKey: .heroAction)
+          ?? (needsStressDose ? "Check stress dose" : "Check symptoms")
+        tone = try c.decodeIfPresent(String.self, forKey: .tone) ?? "red"
+      } else {
+        statusLabel = try c.decodeIfPresent(String.self, forKey: .statusLabel) ?? "Off"
+        heroAction = try c.decodeIfPresent(String.self, forKey: .heroAction) ?? "Stay ready"
+        tone = try c.decodeIfPresent(String.self, forKey: .tone) ?? "blue"
+      }
+    }
   }
 
   struct MentalHealth: Codable {
     let active: Bool
     let statusText: String
+    let statusLabel: String
+    let tone: String
+    let headline: String
+    let supportText: String
     let nextCheckInText: String
     let checkInTimer: String?
+    let trendTones: [String]
+
+    enum CodingKeys: String, CodingKey {
+      case active, statusText, statusLabel, tone, headline, supportText
+      case nextCheckInText, checkInTimer, trendTones
+    }
+
+    init(
+      active: Bool, statusText: String, statusLabel: String, tone: String,
+      headline: String, supportText: String, nextCheckInText: String,
+      checkInTimer: String?, trendTones: [String]
+    ) {
+      self.active = active; self.statusText = statusText; self.statusLabel = statusLabel
+      self.tone = tone; self.headline = headline; self.supportText = supportText
+      self.nextCheckInText = nextCheckInText; self.checkInTimer = checkInTimer
+      self.trendTones = trendTones
+    }
+
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      active = try c.decode(Bool.self, forKey: .active)
+      statusText = try c.decode(String.self, forKey: .statusText)
+      nextCheckInText = try c.decode(String.self, forKey: .nextCheckInText)
+      checkInTimer = try c.decodeIfPresent(String.self, forKey: .checkInTimer)
+      statusLabel = try c.decodeIfPresent(String.self, forKey: .statusLabel) ?? (active ? "Active" : "Open")
+      tone = try c.decodeIfPresent(String.self, forKey: .tone) ?? "purple"
+      headline = try c.decodeIfPresent(String.self, forKey: .headline) ?? statusText
+      supportText = try c.decodeIfPresent(String.self, forKey: .supportText) ?? nextCheckInText
+      trendTones = try c.decodeIfPresent([String].self, forKey: .trendTones) ?? ["purple", "blue", "purple"]
+    }
   }
 
   struct Caregiver: Codable {
@@ -205,43 +525,29 @@ private struct SynapseWidgetSnapshot: Codable {
     let relation: String?
     let status: String
     let statusText: String
+    let statusLabel: String
     let tone: String
     let primaryText: String
     let secondaryText: String?
     let actionText: String?
+    let headline: String
     let items: [Item]
     let missedCount: Int
 
     enum CodingKeys: String, CodingKey {
-      case hasProfile, name, age, relation, status, statusText, tone
-      case primaryText, secondaryText, actionText, items, missedCount
+      case hasProfile, name, age, relation, status, statusText, statusLabel, tone
+      case primaryText, secondaryText, actionText, headline, items, missedCount
     }
 
     init(
-      hasProfile: Bool,
-      name: String,
-      age: Int?,
-      relation: String?,
-      status: String,
-      statusText: String,
-      tone: String,
-      primaryText: String,
-      secondaryText: String?,
-      actionText: String?,
-      items: [Item],
-      missedCount: Int
+      hasProfile: Bool, name: String, age: Int?, relation: String?, status: String,
+      statusText: String, statusLabel: String, tone: String, primaryText: String,
+      secondaryText: String?, actionText: String?, headline: String, items: [Item], missedCount: Int
     ) {
-      self.hasProfile = hasProfile
-      self.name = name
-      self.age = age
-      self.relation = relation
-      self.status = status
-      self.statusText = statusText
-      self.tone = tone
-      self.primaryText = primaryText
-      self.secondaryText = secondaryText
-      self.actionText = actionText
-      self.items = items
+      self.hasProfile = hasProfile; self.name = name; self.age = age; self.relation = relation
+      self.status = status; self.statusText = statusText; self.statusLabel = statusLabel
+      self.tone = tone; self.primaryText = primaryText; self.secondaryText = secondaryText
+      self.actionText = actionText; self.headline = headline; self.items = items
       self.missedCount = missedCount
     }
 
@@ -265,19 +571,26 @@ private struct SynapseWidgetSnapshot: Codable {
         items = legacy.map { Item(kind: "legacy", text: $0, tone: "muted") }
       }
       missedCount = try c.decode(Int.self, forKey: .missedCount)
+      if let label = try c.decodeIfPresent(String.self, forKey: .statusLabel) {
+        statusLabel = label
+      } else if status == "urgent" || tone == "red" {
+        statusLabel = "Share"
+      } else if status == "all_good" {
+        statusLabel = "OK"
+      } else if !hasProfile {
+        statusLabel = "Setup"
+      } else {
+        statusLabel = "Check"
+      }
+      headline = try c.decodeIfPresent(String.self, forKey: .headline)
+        ?? (statusLabel == "Share" ? "Send today summary?" : primaryText)
     }
 
     static let placeholder = Caregiver(
-      hasProfile: false,
-      name: "Managed person",
-      age: nil,
-      relation: nil,
-      status: "attention",
-      statusText: "Set up profile",
-      tone: "yellow",
-      primaryText: "Profile needed",
-      secondaryText: "Open Synapse",
-      actionText: "Open Synapse",
+      hasProfile: false, name: "Managed person", age: nil, relation: nil,
+      status: "attention", statusText: "Set up profile", statusLabel: "Setup", tone: "yellow",
+      primaryText: "Profile needed", secondaryText: "Open Synapse", actionText: "Open Synapse",
+      headline: "Add a managed person",
       items: [Item(kind: "setup", text: "Managed person missing", tone: "yellow")],
       missedCount: 0
     )
@@ -287,17 +600,50 @@ private struct SynapseWidgetSnapshot: Codable {
     let active: Bool
     let title: String
     let statusText: String
+    let statusLabel: String
     let tone: String
     let focusText: String?
     let nextAction: String
+    let headline: String
+    let supportText: String
+    let progress: Double
+
+    enum CodingKeys: String, CodingKey {
+      case active, title, statusText, statusLabel, tone, focusText, nextAction
+      case headline, supportText, progress
+    }
+
+    init(
+      active: Bool, title: String, statusText: String, statusLabel: String, tone: String,
+      focusText: String?, nextAction: String, headline: String, supportText: String, progress: Double
+    ) {
+      self.active = active; self.title = title; self.statusText = statusText
+      self.statusLabel = statusLabel; self.tone = tone; self.focusText = focusText
+      self.nextAction = nextAction; self.headline = headline; self.supportText = supportText
+      self.progress = progress
+    }
+
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      active = try c.decode(Bool.self, forKey: .active)
+      title = try c.decode(String.self, forKey: .title)
+      statusText = try c.decode(String.self, forKey: .statusText)
+      tone = try c.decode(String.self, forKey: .tone)
+      focusText = try c.decodeIfPresent(String.self, forKey: .focusText)
+      nextAction = try c.decode(String.self, forKey: .nextAction)
+      statusLabel = try c.decodeIfPresent(String.self, forKey: .statusLabel) ?? "Stable"
+      headline = try c.decodeIfPresent(String.self, forKey: .headline) ?? "You are trending calmer."
+      supportText = try c.decodeIfPresent(String.self, forKey: .supportText) ?? (focusText ?? nextAction)
+      progress = try c.decodeIfPresent(Double.self, forKey: .progress) ?? 0.62
+    }
 
     static let empty = Recovery(
-      active: false,
-      title: "Recovery Today",
-      statusText: "No recovery focus",
-      tone: "blue",
-      focusText: nil,
-      nextAction: "Open recovery when you need it"
+      active: false, title: "Recovery Today", statusText: "No recovery focus",
+      statusLabel: "Stable", tone: "green", focusText: nil,
+      nextAction: "Open recovery when you need it",
+      headline: "You are trending calmer.",
+      supportText: "Hydration on track · No PRN logged",
+      progress: 0.62
     )
   }
 
@@ -306,16 +652,56 @@ private struct SynapseWidgetSnapshot: Codable {
     let name: String
     let severity: Int?
     let statusText: String
+    let statusLabel: String
     let tone: String
     let nextAction: String
+    let lastLoggedText: String
+    let progress: Double
+
+    enum CodingKeys: String, CodingKey {
+      case hasPain, name, severity, statusText, statusLabel, tone, nextAction, lastLoggedText, progress
+    }
+
+    init(
+      hasPain: Bool, name: String, severity: Int?, statusText: String, statusLabel: String,
+      tone: String, nextAction: String, lastLoggedText: String, progress: Double
+    ) {
+      self.hasPain = hasPain; self.name = name; self.severity = severity
+      self.statusText = statusText; self.statusLabel = statusLabel; self.tone = tone
+      self.nextAction = nextAction; self.lastLoggedText = lastLoggedText; self.progress = progress
+    }
+
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      hasPain = try c.decode(Bool.self, forKey: .hasPain)
+      name = try c.decode(String.self, forKey: .name)
+      severity = try c.decodeIfPresent(Int.self, forKey: .severity)
+      statusText = try c.decode(String.self, forKey: .statusText)
+      tone = try c.decode(String.self, forKey: .tone)
+      nextAction = try c.decode(String.self, forKey: .nextAction)
+      if let label = try c.decodeIfPresent(String.self, forKey: .statusLabel) {
+        statusLabel = label
+      } else if let severity, severity >= 7 {
+        statusLabel = "Up"
+      } else if let severity, severity >= 4 {
+        statusLabel = "Watch"
+      } else {
+        statusLabel = "Calm"
+      }
+      lastLoggedText = try c.decodeIfPresent(String.self, forKey: .lastLoggedText) ?? "No recent pain log"
+      if let explicit = try c.decodeIfPresent(Double.self, forKey: .progress) {
+        progress = explicit
+      } else if let severity {
+        progress = min(1, max(0, Double(severity) / 10.0))
+      } else {
+        progress = 0
+      }
+    }
 
     static let empty = Pain(
-      hasPain: false,
-      name: "Pain",
-      severity: nil,
-      statusText: "Nothing flagged",
-      tone: "green",
-      nextAction: "Log if something hurts"
+      hasPain: false, name: "Pain", severity: nil, statusText: "Nothing flagged",
+      statusLabel: "Calm", tone: "green", nextAction: "Log if something hurts",
+      lastLoggedText: "No recent pain log", progress: 0
     )
   }
 
@@ -332,13 +718,62 @@ private struct SynapseWidgetSnapshot: Codable {
     let summaryText: String
     let nextAction: String
     let doses: [Dose]
+    let statusLabel: String
+    let tone: String
+    let headline: String
+    let gridCells: [GridCell]
+    let actionRows: [ActionRow]
+
+    enum CodingKeys: String, CodingKey {
+      case taken, expected, summaryText, nextAction, doses
+      case statusLabel, tone, headline, gridCells, actionRows
+    }
+
+    init(
+      taken: Int, expected: Int, summaryText: String, nextAction: String, doses: [Dose],
+      statusLabel: String, tone: String, headline: String, gridCells: [GridCell], actionRows: [ActionRow]
+    ) {
+      self.taken = taken; self.expected = expected; self.summaryText = summaryText
+      self.nextAction = nextAction; self.doses = doses; self.statusLabel = statusLabel
+      self.tone = tone; self.headline = headline; self.gridCells = gridCells; self.actionRows = actionRows
+    }
+
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      taken = try c.decode(Int.self, forKey: .taken)
+      expected = try c.decode(Int.self, forKey: .expected)
+      summaryText = try c.decode(String.self, forKey: .summaryText)
+      nextAction = try c.decode(String.self, forKey: .nextAction)
+      doses = try c.decodeIfPresent([Dose].self, forKey: .doses) ?? []
+      statusLabel = try c.decodeIfPresent(String.self, forKey: .statusLabel)
+        ?? (expected == 0 ? "None" : taken >= expected ? "Done" : "Active")
+      tone = try c.decodeIfPresent(String.self, forKey: .tone)
+        ?? (taken >= expected && expected > 0 ? "green" : "orange")
+      headline = try c.decodeIfPresent(String.self, forKey: .headline) ?? summaryText
+      gridCells = try c.decodeIfPresent([GridCell].self, forKey: .gridCells) ?? [
+        GridCell(title: "Taken", detail: "\(taken)"),
+        GridCell(title: "Left", detail: "\(max(0, expected - taken))"),
+        GridCell(title: "Expected", detail: "\(expected)"),
+        GridCell(title: "Next", detail: doses.first(where: { !$0.taken })?.timeText ?? "—"),
+      ]
+      if let rows = try c.decodeIfPresent([ActionRow].self, forKey: .actionRows) {
+        actionRows = rows
+      } else {
+        actionRows = doses.prefix(2).map {
+          ActionRow(tone: $0.taken ? "green" : "orange", title: $0.name, subtitle: $0.detail, trailing: $0.taken ? "Taken" : $0.timeText)
+        }
+      }
+    }
 
     static let empty = MedicationDay(
-      taken: 0,
-      expected: 0,
-      summaryText: "No scheduled doses today",
-      nextAction: "Add meds in Synapse",
-      doses: []
+      taken: 0, expected: 0, summaryText: "No scheduled doses today",
+      nextAction: "Add meds in Synapse", doses: [], statusLabel: "None", tone: "blue",
+      headline: "Nothing scheduled.",
+      gridCells: [
+        GridCell(title: "Taken", detail: "0"), GridCell(title: "Left", detail: "0"),
+        GridCell(title: "Expected", detail: "0"), GridCell(title: "Next", detail: "—"),
+      ],
+      actionRows: [ActionRow(tone: "blue", title: "No schedule", subtitle: "Add meds in Synapse", trailing: "Open")]
     )
   }
 
@@ -352,17 +787,50 @@ private struct SynapseWidgetSnapshot: Codable {
     let hasItems: Bool
     let title: String
     let statusText: String
+    let statusLabel: String
     let tone: String
     let nextAction: String
+    let headline: String
+    let supportText: String
+    let progress: Double
     let items: [Item]
 
+    enum CodingKeys: String, CodingKey {
+      case hasItems, title, statusText, statusLabel, tone, nextAction
+      case headline, supportText, progress, items
+    }
+
+    init(
+      hasItems: Bool, title: String, statusText: String, statusLabel: String, tone: String,
+      nextAction: String, headline: String, supportText: String, progress: Double, items: [Item]
+    ) {
+      self.hasItems = hasItems; self.title = title; self.statusText = statusText
+      self.statusLabel = statusLabel; self.tone = tone; self.nextAction = nextAction
+      self.headline = headline; self.supportText = supportText; self.progress = progress
+      self.items = items
+    }
+
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      hasItems = try c.decode(Bool.self, forKey: .hasItems)
+      title = try c.decode(String.self, forKey: .title)
+      statusText = try c.decode(String.self, forKey: .statusText)
+      tone = try c.decode(String.self, forKey: .tone)
+      nextAction = try c.decode(String.self, forKey: .nextAction)
+      items = try c.decodeIfPresent([Item].self, forKey: .items) ?? []
+      statusLabel = try c.decodeIfPresent(String.self, forKey: .statusLabel)
+        ?? (tone == "orange" ? "Review" : hasItems ? "Steady" : "Empty")
+      headline = try c.decodeIfPresent(String.self, forKey: .headline) ?? statusText
+      supportText = try c.decodeIfPresent(String.self, forKey: .supportText)
+        ?? (tone == "orange" ? "Not an emergency — review when you can." : nextAction)
+      progress = try c.decodeIfPresent(Double.self, forKey: .progress) ?? (tone == "orange" ? 0.55 : 0.35)
+    }
+
     static let empty = Labs(
-      hasItems: false,
-      title: "Labs",
-      statusText: "No labs yet",
-      tone: "blue",
-      nextAction: "Add or scan a result",
-      items: []
+      hasItems: false, title: "Labs", statusText: "No labs yet", statusLabel: "Empty",
+      tone: "blue", nextAction: "Add or scan a result",
+      headline: "Nothing on file yet.", supportText: "Add or scan a result when ready.",
+      progress: 0.15, items: []
     )
   }
 
@@ -373,14 +841,54 @@ private struct SynapseWidgetSnapshot: Codable {
     let adherenceText: String
     let nextAction: String
     let insights: [String]
+    let headline: String
+    let gridCells: [GridCell]
+    let actionRows: [ActionRow]
+
+    enum CodingKeys: String, CodingKey {
+      case statusLabel, summaryText, tone, adherenceText, nextAction, insights
+      case headline, gridCells, actionRows
+    }
+
+    init(
+      statusLabel: String, summaryText: String, tone: String, adherenceText: String,
+      nextAction: String, insights: [String], headline: String,
+      gridCells: [GridCell], actionRows: [ActionRow]
+    ) {
+      self.statusLabel = statusLabel; self.summaryText = summaryText; self.tone = tone
+      self.adherenceText = adherenceText; self.nextAction = nextAction; self.insights = insights
+      self.headline = headline; self.gridCells = gridCells; self.actionRows = actionRows
+    }
+
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      statusLabel = try c.decode(String.self, forKey: .statusLabel)
+      summaryText = try c.decode(String.self, forKey: .summaryText)
+      tone = try c.decode(String.self, forKey: .tone)
+      adherenceText = try c.decode(String.self, forKey: .adherenceText)
+      nextAction = try c.decode(String.self, forKey: .nextAction)
+      insights = try c.decodeIfPresent([String].self, forKey: .insights) ?? []
+      headline = try c.decodeIfPresent(String.self, forKey: .headline) ?? summaryText
+      gridCells = try c.decodeIfPresent([GridCell].self, forKey: .gridCells) ?? [
+        GridCell(title: "Status", detail: statusLabel),
+        GridCell(title: "Meds", detail: adherenceText),
+        GridCell(title: "Days", detail: "14"),
+        GridCell(title: "Notes", detail: "\(insights.count)"),
+      ]
+      actionRows = try c.decodeIfPresent([ActionRow].self, forKey: .actionRows) ?? [
+        ActionRow(tone: tone, title: nextAction, subtitle: summaryText, trailing: "Report"),
+      ]
+    }
 
     static let empty = Report14Day(
-      statusLabel: "Steady",
-      summaryText: "Pattern over the last 14 days",
-      tone: "blue",
-      adherenceText: "No med schedule today",
-      nextAction: "Open 14-day report",
-      insights: []
+      statusLabel: "Steady", summaryText: "Pattern over the last 14 days", tone: "blue",
+      adherenceText: "No med schedule today", nextAction: "Open 14-day report", insights: [],
+      headline: "Two-week pattern looks steady.",
+      gridCells: [
+        GridCell(title: "Status", detail: "Steady"), GridCell(title: "Feeling", detail: "—"),
+        GridCell(title: "Meds", detail: "—"), GridCell(title: "Days", detail: "14"),
+      ],
+      actionRows: [ActionRow(tone: "blue", title: "Open 14-day report", subtitle: "Pattern view", trailing: "Report")]
     )
   }
 
@@ -389,6 +897,8 @@ private struct SynapseWidgetSnapshot: Codable {
   let prnMedication: PrnMedication?
   let wellness: Wellness
   let hydration: Hydration
+  let sleep: Sleep
+  let flareForecast: FlareForecast
   let sickMode: SickMode
   let mentalHealth: MentalHealth
   let caregiver: Caregiver
@@ -400,42 +910,23 @@ private struct SynapseWidgetSnapshot: Codable {
   let updatedAt: Date
 
   enum CodingKeys: String, CodingKey {
-    case appearance, medication, appointment, prnMedication, wellness, hydration
+    case appearance, medication, appointment, prnMedication, wellness, hydration, sleep, flareForecast
     case sickMode, mentalHealth, caregiver, recovery, pain, medicationDay, labs, report14Day, updatedAt
   }
 
   init(
-    appearance: String,
-    medication: Medication?,
-    appointment: Appointment?,
-    prnMedication: PrnMedication?,
-    wellness: Wellness,
-    hydration: Hydration,
-    sickMode: SickMode,
-    mentalHealth: MentalHealth,
-    caregiver: Caregiver,
-    recovery: Recovery,
-    pain: Pain,
-    medicationDay: MedicationDay,
-    labs: Labs,
-    report14Day: Report14Day,
-    updatedAt: Date
+    appearance: String, medication: Medication?, appointment: Appointment?,
+    prnMedication: PrnMedication?, wellness: Wellness, hydration: Hydration,
+    sleep: Sleep, flareForecast: FlareForecast, sickMode: SickMode, mentalHealth: MentalHealth,
+    caregiver: Caregiver, recovery: Recovery, pain: Pain, medicationDay: MedicationDay,
+    labs: Labs, report14Day: Report14Day, updatedAt: Date
   ) {
-    self.appearance = appearance
-    self.medication = medication
-    self.appointment = appointment
-    self.prnMedication = prnMedication
-    self.wellness = wellness
-    self.hydration = hydration
-    self.sickMode = sickMode
-    self.mentalHealth = mentalHealth
-    self.caregiver = caregiver
-    self.recovery = recovery
-    self.pain = pain
-    self.medicationDay = medicationDay
-    self.labs = labs
-    self.report14Day = report14Day
-    self.updatedAt = updatedAt
+    self.appearance = appearance; self.medication = medication; self.appointment = appointment
+    self.prnMedication = prnMedication; self.wellness = wellness; self.hydration = hydration
+    self.sleep = sleep; self.flareForecast = flareForecast; self.sickMode = sickMode
+    self.mentalHealth = mentalHealth; self.caregiver = caregiver; self.recovery = recovery
+    self.pain = pain; self.medicationDay = medicationDay; self.labs = labs
+    self.report14Day = report14Day; self.updatedAt = updatedAt
   }
 
   init(from decoder: Decoder) throws {
@@ -446,6 +937,20 @@ private struct SynapseWidgetSnapshot: Codable {
     prnMedication = try c.decodeIfPresent(PrnMedication.self, forKey: .prnMedication)
     wellness = try c.decode(Wellness.self, forKey: .wellness)
     hydration = try c.decode(Hydration.self, forKey: .hydration)
+    if let decodedSleep = try c.decodeIfPresent(Sleep.self, forKey: .sleep) {
+      sleep = decodedSleep
+    } else if let score = wellness.sleep {
+      let short = score < 6
+      sleep = Sleep(
+        hasData: true, score: score, heroText: "\(score)/10",
+        statusLabel: short ? "Short" : "OK", tone: short ? "orange" : "green",
+        primaryLine: short ? "Flare risk factor" : "Rest looks steadier",
+        secondaryLine: short ? "Pace the day" : "Keep a gentle rhythm"
+      )
+    } else {
+      sleep = .empty
+    }
+    flareForecast = try c.decodeIfPresent(FlareForecast.self, forKey: .flareForecast) ?? .empty
     sickMode = try c.decode(SickMode.self, forKey: .sickMode)
     mentalHealth = try c.decode(MentalHealth.self, forKey: .mentalHealth)
     caregiver = try c.decodeIfPresent(Caregiver.self, forKey: .caregiver) ?? .placeholder
@@ -460,61 +965,65 @@ private struct SynapseWidgetSnapshot: Codable {
   static let placeholder = SynapseWidgetSnapshot(
     appearance: "system",
     medication: Medication(
-      name: "Next medication",
-      detail: "No medication due yet",
-      dueAt: nil,
-      windowStart: nil,
-      dueText: "Stay on track",
-      isTaken: false,
-      nextText: nil
+      name: "Next medication", detail: "No medication due yet", dueAt: nil, windowStart: nil,
+      dueText: "Stay on track", isTaken: false, nextText: nil, heroTimeText: "2:00 PM",
+      statusLabel: "Next", secondaryLine: "Quiet reminder set", tone: "green"
     ),
     appointment: Appointment(
-      doctorName: "Next appointment",
-      detail: "No appointment scheduled",
-      startsAt: nil,
-      whenText: "Add one in Synapse",
-      travelText: nil,
-      location: nil,
-      notes: nil,
-      prepHint: "Open Synapse to prep"
+      doctorName: "Next appointment", detail: "No appointment scheduled", startsAt: nil,
+      whenText: "Add one in Synapse", travelText: nil, location: nil, notes: nil,
+      prepHint: "Open Synapse to prep", statusLabel: "Ready", tone: "green",
+      headline: "Prep looks ready.", supportText: "Add a visit in Synapse",
+      rows: [
+        ActionRow(tone: "green", title: "Visit", subtitle: "Add one in Synapse", trailing: "Visit"),
+        ActionRow(tone: "blue", title: "Report packet", subtitle: "Build in Synapse", trailing: "Prep"),
+      ]
     ),
-    prnMedication: nil,
+    prnMedication: PrnMedication(
+      id: "placeholder", name: "Rescue med", detail: "As needed", lastLoggedAt: nil,
+      statusText: "Not logged yet", countText: "Tap Log when you take it",
+      hoursSinceLastText: "6h", windowText: "Safe window clear", statusLabel: "Watch", tone: "orange"
+    ),
     wellness: Wellness(
-      hasTodayLog: false,
-      energy: nil,
-      mood: nil,
-      sleep: nil,
-      overallFeeling: nil,
-      detailHighlights: [],
-      summaryText: "Check in today",
-      secondaryText: "Log energy, mood, and sleep",
-      symptomCountToday: 0,
-      topSymptomName: nil,
-      isFastingToday: false
+      hasTodayLog: false, energy: nil, mood: nil, sleep: nil, overallFeeling: nil,
+      detailHighlights: [], summaryText: "Check in today",
+      secondaryText: "Log energy, mood, and sleep", symptomCountToday: 0,
+      topSymptomName: nil, isFastingToday: false, statusLabel: "Open", tone: "blue",
+      headline: "Ready when you are.",
+      gridCells: [
+        GridCell(title: "Energy", detail: "—"), GridCell(title: "Mood", detail: "—"),
+        GridCell(title: "Sleep", detail: "—"), GridCell(title: "Symptoms", detail: "None"),
+      ],
+      actionRows: [ActionRow(tone: "blue", title: "Log check-in", subtitle: "Energy, mood, sleep", trailing: "Open")]
     ),
     hydration: Hydration(
-      presetLabel: "Water",
-      sipAmountText: "8 oz",
-      totalTodayMl: 0,
-      totalTodayText: "Nothing logged yet",
-      hasEntriesToday: false,
-      launchHint: "Take a Sip"
+      presetLabel: "Water", sipAmountText: "8 oz", totalTodayMl: 840,
+      totalTodayText: "840 mL today", hasEntriesToday: true, launchHint: "Take a Sip",
+      percentToday: 42, loggedCount: 2, targetSipsEstimate: 5, progress: 0.42,
+      statusLabel: "Low", tone: "orange", secondaryLine: "Nudge in 20m"
+    ),
+    sleep: Sleep(
+      hasData: true, score: 5, heroText: "5/10", statusLabel: "Short", tone: "orange",
+      primaryLine: "Flare risk factor", secondaryLine: "Pace the day"
+    ),
+    flareForecast: FlareForecast(
+      statusLabel: "Watch", tone: "orange",
+      headline: "Pattern looks a little noisy.",
+      supportText: "Pain watch · Hydration low · Sleep short",
+      trendTones: ["green", "blue", "orange", "purple", "orange", "blue", "green"]
     ),
     sickMode: SickMode(
-      active: false,
-      recoveryMode: false,
-      latestTemperature: nil,
-      latestTemperatureText: "No temp logged",
-      statusText: "Tap to start sick mode",
-      needsStressDose: false,
-      stressDoseText: "No stress-dose meds",
-      checkInTimer: nil
+      active: false, recoveryMode: false, latestTemperature: nil,
+      latestTemperatureText: "No temp logged", statusText: "Tap to start",
+      statusLabel: "Off", heroAction: "Stay ready", tone: "blue",
+      needsStressDose: false, stressDoseText: "No stress-dose meds", checkInTimer: nil
     ),
     mentalHealth: MentalHealth(
-      active: false,
-      statusText: "Tap to start mental health day",
-      nextCheckInText: "No check-in scheduled",
-      checkInTimer: nil
+      active: false, statusText: "Tap when you need support", statusLabel: "Open",
+      tone: "purple", headline: "Space for a gentle check-in",
+      supportText: "Purple accents mark recent energy notes",
+      nextCheckInText: "No check-in yet", checkInTimer: nil,
+      trendTones: ["purple", "blue", "purple", "green", "purple", "blue", "purple"]
     ),
     caregiver: .placeholder,
     recovery: .empty,
@@ -583,10 +1092,10 @@ private struct SynapseWidgetPalette {
   let track: Color
 
   static let light = SynapseWidgetPalette(
-    background: Color.white.opacity(0.92),
-    surface: Color.white.opacity(0.72),
+    background: Color.white.opacity(0.96),
+    surface: Color.black.opacity(0.04),
     ink: Color(red: 0.10, green: 0.13, blue: 0.18),
-    muted: Color(red: 0.40, green: 0.45, blue: 0.54),
+    muted: Color(red: 0.45, green: 0.49, blue: 0.56),
     red: Color(red: 0.78, green: 0.20, blue: 0.24),
     blue: Color(red: 0.22, green: 0.48, blue: 0.86),
     green: Color(red: 0.18, green: 0.62, blue: 0.42),
@@ -594,7 +1103,22 @@ private struct SynapseWidgetPalette {
     yellow: Color(red: 0.82, green: 0.58, blue: 0.08),
     purple: Color(red: 0.48, green: 0.36, blue: 0.78),
     line: Color.black.opacity(0.08),
-    track: Color.black.opacity(0.06)
+    track: Color.black.opacity(0.07)
+  )
+
+  static let calm = SynapseWidgetPalette(
+    background: Color(red: 0.961, green: 0.925, blue: 0.886),
+    surface: Color.white.opacity(0.44),
+    ink: Color(red: 0.10, green: 0.10, blue: 0.10),
+    muted: Color(red: 0.404, green: 0.322, blue: 0.282),
+    red: Color(red: 0.80, green: 0.0, blue: 0.0),
+    blue: Color(red: 0.294, green: 0.561, blue: 0.490),
+    green: Color(red: 0.176, green: 0.490, blue: 0.275),
+    orange: Color(red: 0.80, green: 0.40, blue: 0.0),
+    yellow: Color(red: 0.722, green: 0.525, blue: 0.043),
+    purple: Color(red: 0.420, green: 0.247, blue: 0.627),
+    line: Color.white.opacity(0.55),
+    track: Color.black.opacity(0.08)
   )
 
   static let dark = SynapseWidgetPalette(
@@ -617,6 +1141,8 @@ private func palette(for appearance: String, colorScheme: ColorScheme) -> Synaps
   switch appearance {
   case "light":
     return .light
+  case "calm":
+    return .calm
   case "dark":
     return .dark
   default:
@@ -626,121 +1152,193 @@ private func palette(for appearance: String, colorScheme: ColorScheme) -> Synaps
 
 private func toneColor(_ tone: String, palette: SynapseWidgetPalette) -> Color {
   switch tone.lowercased() {
-  case "green":
-    return palette.green
-  case "blue":
-    return palette.blue
-  case "orange":
-    return palette.orange
-  case "red":
-    return palette.red
-  case "purple":
-    return palette.purple
-  case "yellow":
-    return palette.yellow
-  default:
-    return palette.muted
+  case "green": return palette.green
+  case "blue": return palette.blue
+  case "orange": return palette.orange
+  case "red": return palette.red
+  case "purple": return palette.purple
+  case "yellow": return palette.yellow
+  default: return palette.muted
   }
 }
 
-// MARK: - Shared helpers
+// MARK: - Shared chrome (export sheet)
 
-private func medicationProgress(_ medication: SynapseWidgetSnapshot.Medication?) -> Double {
-  guard
-    let medication,
-    let dueAt = medication.dueAt,
-    let windowStart = medication.windowStart
-  else {
-    return 0.05
+private struct DotStatusChip: View {
+  let text: String
+  let color: Color
+
+  var body: some View {
+    HStack(spacing: 5) {
+      Circle()
+        .fill(color)
+        .frame(width: 6, height: 6)
+      Text(text)
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundStyle(color)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+    }
+    .padding(.vertical, 4)
+    .padding(.horizontal, 8)
+    .background(color.opacity(0.12))
+    .clipShape(Capsule())
   }
-  let total = dueAt.timeIntervalSince(windowStart)
-  guard total > 0 else { return 1 }
-  let elapsed = Date().timeIntervalSince(windowStart)
-  return min(max(elapsed / total, 0.02), 1)
 }
 
-private func compactRelativeMedicationText(_ dueAt: Date?) -> String {
-  guard let dueAt else { return "Stay on track" }
-  let formatter = DateFormatter()
-  formatter.dateFormat = "h:mm a"
-  let exactTime = formatter.string(from: dueAt)
-  let seconds = Int(dueAt.timeIntervalSinceNow.rounded())
-  if seconds <= 60 { return "Due now · \(exactTime)" }
-  let minutes = Int(ceil(Double(seconds) / 60.0))
-  if minutes < 60 { return "In \(minutes) min · \(exactTime)" }
-  let hours = Int(ceil(Double(minutes) / 60.0))
-  if hours < 24 { return "In \(hours) hr\(hours == 1 ? "" : "s") · \(exactTime)" }
-  return "Tomorrow · \(exactTime)"
-}
+private struct WidgetHeader: View {
+  let label: String
+  let status: String
+  let tone: String
+  let palette: SynapseWidgetPalette
 
-private func overallWellnessLabel(_ value: Int?) -> String {
-  guard let value else { return "Ready for today" }
-  if value >= 8 { return "Strong day" }
-  if value >= 6 { return "Doing okay" }
-  if value >= 4 { return "Take it easy" }
-  return "Needs support"
-}
-
-private func wellnessAccent(_ value: Int?, palette: SynapseWidgetPalette) -> Color {
-  guard let value else { return palette.muted }
-  if value >= 8 { return palette.green }
-  if value >= 5 { return palette.blue }
-  if value >= 3 { return palette.orange }
-  return palette.red
-}
-
-private func caregiverPersonText(_ caregiver: SynapseWidgetSnapshot.Caregiver, includeRelation: Bool) -> String {
-  var details: [String] = []
-  if let age = caregiver.age {
-    details.append("\(age)y")
+  var body: some View {
+    HStack(alignment: .center, spacing: 8) {
+      Text(label.uppercased())
+        .font(.system(size: 11, weight: .semibold))
+        .tracking(0.6)
+        .foregroundStyle(palette.muted)
+        .lineLimit(1)
+      Spacer(minLength: 4)
+      DotStatusChip(text: status, color: toneColor(tone, palette: palette))
+    }
   }
-  if includeRelation, let relation = caregiver.relation, !relation.isEmpty {
-    details.append(relation)
-  }
-  return details.isEmpty ? caregiver.name : "\(caregiver.name) · \(details.joined(separator: " · "))"
 }
 
-private struct Eyebrow: View {
+private struct MetricHero: View {
+  let text: String
+  let palette: SynapseWidgetPalette
+  var accent: Color? = nil
+  var size: CGFloat = 42
+
+  var body: some View {
+    Text(text)
+      .font(.system(size: size, weight: .bold))
+      .foregroundStyle(accent ?? palette.ink)
+      .lineLimit(1)
+      .minimumScaleFactor(0.55)
+  }
+}
+
+private struct SupportLine: View {
   let text: String
   let palette: SynapseWidgetPalette
 
   var body: some View {
     Text(text)
-      .font(.system(size: 11, weight: .semibold))
+      .font(.system(size: 12, weight: .regular))
       .foregroundStyle(palette.muted)
-      .lineLimit(1)
+      .lineLimit(2)
+      .minimumScaleFactor(0.85)
   }
 }
 
-private struct HeroTitle: View {
+private struct StoryHeadline: View {
   let text: String
   let palette: SynapseWidgetPalette
-  var size: CGFloat = 20
+  var size: CGFloat = 18
 
   var body: some View {
     Text(text)
       .font(.system(size: size, weight: .bold))
       .foregroundStyle(palette.ink)
       .lineLimit(2)
-      .minimumScaleFactor(0.78)
+      .minimumScaleFactor(0.8)
   }
 }
 
-private struct StatusChip: View {
-  let text: String
+private struct ProgressBar: View {
+  let progress: Double
   let color: Color
-  var compact: Bool = false
+  let palette: SynapseWidgetPalette
 
   var body: some View {
-    Text(text)
-      .font(.system(size: compact ? 10 : 11, weight: .bold))
-      .foregroundStyle(color)
-      .lineLimit(1)
-      .minimumScaleFactor(0.8)
-      .padding(.vertical, compact ? 4 : 5)
-      .padding(.horizontal, compact ? 7 : 9)
-      .background(color.opacity(0.14))
-      .clipShape(Capsule())
+    GeometryReader { geo in
+      ZStack(alignment: .leading) {
+        Capsule().fill(palette.track)
+        Capsule()
+          .fill(color)
+          .frame(width: max(6, geo.size.width * CGFloat(min(max(progress, 0), 1))))
+      }
+    }
+    .frame(height: 4)
+  }
+}
+
+private struct TrendDots: View {
+  let tones: [String]
+  let palette: SynapseWidgetPalette
+
+  var body: some View {
+    HStack(spacing: 6) {
+      ForEach(Array(tones.prefix(7).enumerated()), id: \.offset) { _, tone in
+        Circle()
+          .fill(toneColor(tone, palette: palette))
+          .frame(width: 8, height: 8)
+      }
+      Spacer(minLength: 0)
+    }
+  }
+}
+
+private struct AccentRow: View {
+  let tone: String
+  let title: String
+  let subtitle: String
+  let trailing: String
+  let palette: SynapseWidgetPalette
+
+  var body: some View {
+    HStack(spacing: 10) {
+      RoundedRectangle(cornerRadius: 2, style: .continuous)
+        .fill(toneColor(tone, palette: palette))
+        .frame(width: 3, height: 30)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.system(size: 13, weight: .semibold))
+          .foregroundStyle(palette.ink)
+          .lineLimit(1)
+        if !subtitle.isEmpty {
+          Text(subtitle)
+            .font(.system(size: 11, weight: .regular))
+            .foregroundStyle(palette.muted)
+            .lineLimit(1)
+        }
+      }
+      Spacer(minLength: 4)
+      if !trailing.isEmpty {
+        Text(trailing)
+          .font(.system(size: 11, weight: .semibold))
+          .foregroundStyle(toneColor(tone, palette: palette))
+          .lineLimit(1)
+      }
+    }
+  }
+}
+
+private struct MetricGridCell: View {
+  let title: String
+  let detail: String
+  let palette: SynapseWidgetPalette
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(title.uppercased())
+        .font(.system(size: 10, weight: .semibold))
+        .tracking(0.4)
+        .foregroundStyle(palette.muted)
+        .lineLimit(1)
+      Text(detail)
+        .font(.system(size: 16, weight: .bold))
+        .foregroundStyle(palette.ink)
+        .lineLimit(1)
+        .minimumScaleFactor(0.75)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.vertical, 10)
+    .padding(.horizontal, 10)
+    .background(palette.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
   }
 }
 
@@ -760,40 +1358,6 @@ private struct SoftCard<Content: View>: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(palette.surface)
       .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-  }
-}
-
-private struct ActionCapsule: View {
-  let title: String
-  let color: Color
-  var systemImage: String? = nil
-  var compact: Bool = false
-
-  var body: some View {
-    HStack(spacing: compact ? 4 : 6) {
-      if let systemImage {
-        Image(systemName: systemImage)
-          .font(.system(size: compact ? 12 : 13, weight: .semibold))
-      }
-      Text(title)
-        .font(.system(size: compact ? 11 : 12, weight: .semibold))
-        .lineLimit(1)
-    }
-    .foregroundStyle(Color.white)
-    .frame(maxWidth: .infinity)
-    .padding(.vertical, compact ? 7 : 8)
-    .background(color)
-    .clipShape(Capsule())
-  }
-}
-
-private struct AccentBar: View {
-  let color: Color
-
-  var body: some View {
-    RoundedRectangle(cornerRadius: 2, style: .continuous)
-      .fill(color)
-      .frame(width: 3)
   }
 }
 
@@ -831,39 +1395,42 @@ private struct WidgetCard<Content: View>: View {
   }
 }
 
+private func metricGrid(_ cells: [SynapseWidgetSnapshot.GridCell], palette: SynapseWidgetPalette) -> some View {
+  let items = Array(cells.prefix(4))
+  return VStack(spacing: 8) {
+    HStack(spacing: 8) {
+      ForEach(Array(items.prefix(2).enumerated()), id: \.offset) { _, cell in
+        MetricGridCell(title: cell.title, detail: cell.detail, palette: palette)
+      }
+    }
+    if items.count > 2 {
+      HStack(spacing: 8) {
+        ForEach(Array(items.dropFirst(2).enumerated()), id: \.offset) { _, cell in
+          MetricGridCell(title: cell.title, detail: cell.detail, palette: palette)
+        }
+      }
+    }
+  }
+}
+
 // MARK: - Widget views
 
 private struct RecoveryWidgetView: View {
   let entry: SynapseProvider.Entry
   @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.widgetFamily) private var family
 
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
     let recovery = entry.snapshot.recovery
     let accent = toneColor(recovery.tone, palette: palette)
-    let compact = family == .systemSmall
 
     WidgetCard(palette: palette) {
-      HStack(alignment: .top, spacing: 10) {
-        AccentBar(color: accent)
-        VStack(alignment: .leading, spacing: compact ? 6 : 8) {
-          Eyebrow(text: recovery.title, palette: palette)
-          HeroTitle(text: recovery.statusText, palette: palette, size: compact ? 17 : 22)
-          if let focus = recovery.focusText, !focus.isEmpty, !compact {
-            Text(focus)
-              .font(.system(size: 13, weight: .medium))
-              .foregroundStyle(palette.muted)
-              .lineLimit(2)
-          }
-          StatusChip(text: recovery.active ? "Active" : "Quiet", color: accent, compact: compact)
-          Spacer(minLength: 0)
-          Text(recovery.nextAction)
-            .font(.system(size: compact ? 11 : 12, weight: .semibold))
-            .foregroundStyle(accent)
-            .lineLimit(2)
-            .minimumScaleFactor(0.85)
-        }
+      VStack(alignment: .leading, spacing: 8) {
+        WidgetHeader(label: recovery.title, status: recovery.statusLabel, tone: recovery.tone, palette: palette)
+        StoryHeadline(text: recovery.headline, palette: palette, size: 17)
+        SupportLine(text: recovery.supportText, palette: palette)
+        Spacer(minLength: 0)
+        ProgressBar(progress: recovery.progress, color: accent, palette: palette)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -877,25 +1444,19 @@ private struct HydrationWidgetView: View {
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
     let hydration = entry.snapshot.hydration
+    let accent = toneColor(hydration.tone, palette: palette)
 
     WidgetCard(palette: palette) {
-      VStack(alignment: .leading, spacing: 8) {
-        Eyebrow(text: "Hydration", palette: palette)
-        HeroTitle(text: hydration.presetLabel, palette: palette, size: 18)
-        Text(hydration.sipAmountText)
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(palette.blue)
-        Text(hydration.totalTodayText)
-          .font(.system(size: 11, weight: .regular))
-          .foregroundStyle(palette.muted)
-          .lineLimit(2)
+      VStack(alignment: .leading, spacing: 6) {
+        WidgetHeader(label: "Hydration", status: hydration.statusLabel, tone: hydration.tone, palette: palette)
+        MetricHero(text: "\(hydration.percentToday)%", palette: palette, accent: accent)
+        SupportLine(text: "\(hydration.loggedCount) of \(hydration.targetSipsEstimate) logged", palette: palette)
+        SupportLine(text: hydration.secondaryLine, palette: palette)
         Spacer(minLength: 0)
-        Link(destination: SynapseWidgetDestination.hydrationQuickSipURL()) {
-          ActionCapsule(title: hydration.launchHint, color: palette.blue, systemImage: "drop.fill", compact: true)
-        }
-        .buttonStyle(.plain)
+        ProgressBar(progress: hydration.progress, color: palette.blue, palette: palette)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      .widgetURL(SynapseWidgetDestination.hydrationQuickSipURL())
     }
   }
 }
@@ -909,44 +1470,22 @@ private struct PrnMedicationWidgetView: View {
 
     WidgetCard(palette: palette) {
       if let prn = entry.snapshot.prnMedication {
-        VStack(alignment: .leading, spacing: 7) {
-          Link(destination: SynapseWidgetDestination.url(for: "medications")) {
-            VStack(alignment: .leading, spacing: 4) {
-              Eyebrow(text: "As needed", palette: palette)
-              HeroTitle(text: prn.name, palette: palette, size: 16)
-              Text(prn.detail)
-                .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(palette.muted)
-                .lineLimit(1)
-              Text(prn.statusText)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(palette.green)
-                .lineLimit(1)
-              Text(prn.countText)
-                .font(.system(size: 10, weight: .regular))
-                .foregroundStyle(palette.muted)
-                .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-
+        VStack(alignment: .leading, spacing: 6) {
+          WidgetHeader(label: "PRN", status: prn.statusLabel, tone: prn.tone, palette: palette)
+          MetricHero(text: prn.hoursSinceLastText, palette: palette, accent: toneColor(prn.tone, palette: palette))
+          SupportLine(text: "Since last rescue med", palette: palette)
+          SupportLine(text: prn.windowText, palette: palette)
           Spacer(minLength: 0)
-
-          Link(destination: SynapseWidgetDestination.prnLogURL(for: prn.id)) {
-            ActionCapsule(title: "Log", color: palette.green, systemImage: "plus.circle.fill", compact: true)
-          }
-          .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .widgetURL(SynapseWidgetDestination.prnLogURL(for: prn.id))
       } else {
         VStack(alignment: .leading, spacing: 6) {
-          Eyebrow(text: "As needed", palette: palette)
-          HeroTitle(text: "No PRN meds", palette: palette, size: 16)
-          Text("Add one in Synapse")
-            .font(.system(size: 12, weight: .regular))
-            .foregroundStyle(palette.muted)
+          WidgetHeader(label: "PRN", status: "Clear", tone: "green", palette: palette)
+          MetricHero(text: "—", palette: palette)
+          SupportLine(text: "No PRN meds", palette: palette)
+          SupportLine(text: "Add one in Synapse", palette: palette)
+          Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       }
@@ -963,44 +1502,21 @@ private struct MedicationWidgetView: View {
     let medication = entry.snapshot.medication
 
     WidgetCard(palette: palette) {
-      VStack(alignment: .leading, spacing: 8) {
-        Eyebrow(text: "Next med", palette: palette)
-        if let medication {
-          HeroTitle(text: medication.name, palette: palette, size: 17)
-          Text(medication.detail)
-            .font(.system(size: 12, weight: .regular))
-            .foregroundStyle(palette.muted)
-            .lineLimit(1)
-
-          if medication.isTaken {
-            StatusChip(text: medication.dueText, color: palette.green, compact: true)
-            if let nextText = medication.nextText {
-              Text(nextText)
-                .font(.system(size: 11, weight: .regular))
-                .foregroundStyle(palette.muted)
-                .lineLimit(1)
-            }
-          } else {
-            ZStack(alignment: .leading) {
-              Capsule().fill(palette.track).frame(height: 4)
-              Capsule()
-                .fill(palette.orange)
-                .frame(width: max(6, 110 * medicationProgress(medication)), height: 4)
-            }
-            .frame(width: 110, alignment: .leading)
-
-            Text(compactRelativeMedicationText(medication.dueAt))
-              .font(.system(size: 12, weight: .semibold))
-              .foregroundStyle(palette.orange)
-              .lineLimit(1)
-              .minimumScaleFactor(0.85)
-          }
-        } else {
-          HeroTitle(text: "No medication due", palette: palette, size: 16)
-          Text("Stay on track")
-            .font(.system(size: 12, weight: .regular))
-            .foregroundStyle(palette.muted)
-        }
+      VStack(alignment: .leading, spacing: 6) {
+        WidgetHeader(
+          label: "Meds",
+          status: medication?.statusLabel ?? "Done",
+          tone: medication?.tone ?? "green",
+          palette: palette
+        )
+        MetricHero(
+          text: medication?.heroTimeText ?? "Done",
+          palette: palette,
+          accent: toneColor(medication?.tone ?? "green", palette: palette),
+          size: 36
+        )
+        SupportLine(text: medication.map { $0.isTaken ? $0.dueText : "Dose due soon" } ?? "No dose due", palette: palette)
+        SupportLine(text: medication?.secondaryLine ?? "Stay on track", palette: palette)
         Spacer(minLength: 0)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1018,21 +1534,39 @@ private struct PainWidgetView: View {
     let accent = toneColor(pain.tone, palette: palette)
 
     WidgetCard(palette: palette) {
-      VStack(alignment: .leading, spacing: 8) {
-        Eyebrow(text: "Pain", palette: palette)
-        HeroTitle(text: pain.name, palette: palette, size: 17)
-        if let severity = pain.severity {
-          Text("\(severity)/10")
-            .font(.system(size: 28, weight: .bold))
-            .foregroundStyle(accent)
-            .lineLimit(1)
-        }
-        StatusChip(text: pain.statusText, color: accent, compact: true)
+      VStack(alignment: .leading, spacing: 6) {
+        WidgetHeader(label: "Pain", status: pain.statusLabel, tone: pain.tone, palette: palette)
+        MetricHero(
+          text: pain.severity.map { "\($0)" } ?? "—",
+          palette: palette,
+          accent: accent
+        )
+        SupportLine(text: pain.name, palette: palette)
+        SupportLine(text: pain.lastLoggedText, palette: palette)
         Spacer(minLength: 0)
-        Text(pain.nextAction)
-          .font(.system(size: 11, weight: .semibold))
-          .foregroundStyle(palette.muted)
-          .lineLimit(2)
+        ProgressBar(progress: pain.progress, color: accent, palette: palette)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+}
+
+private struct SleepWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let sleep = entry.snapshot.sleep
+    let accent = toneColor(sleep.tone, palette: palette)
+
+    WidgetCard(palette: palette) {
+      VStack(alignment: .leading, spacing: 6) {
+        WidgetHeader(label: "Sleep", status: sleep.statusLabel, tone: sleep.tone, palette: palette)
+        MetricHero(text: sleep.heroText, palette: palette, accent: accent)
+        SupportLine(text: sleep.primaryLine, palette: palette)
+        SupportLine(text: sleep.secondaryLine, palette: palette)
+        Spacer(minLength: 0)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -1042,69 +1576,40 @@ private struct PainWidgetView: View {
 private struct SickModeWidgetView: View {
   let entry: SynapseProvider.Entry
   @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.widgetFamily) private var family
 
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
     let sick = entry.snapshot.sickMode
-    let escalate = sick.needsStressDose || (sick.active && !sick.recoveryMode)
-    let statusColor: Color = {
-      if escalate { return palette.red }
-      if sick.recoveryMode { return palette.green }
-      return palette.blue
-    }()
-    let compact = family == .systemSmall
+    let accent = toneColor(sick.tone, palette: palette)
 
     WidgetCard(palette: palette) {
-      VStack(alignment: .leading, spacing: compact ? 6 : 9) {
-        HStack {
-          Eyebrow(text: "Sick mode", palette: palette)
-          Spacer()
-          StatusChip(
-            text: sick.recoveryMode ? "Recovery" : (sick.active ? "Active" : "Off"),
-            color: statusColor,
-            compact: true
-          )
-        }
-
-        HeroTitle(text: sick.latestTemperatureText, palette: palette, size: compact ? 20 : 26)
-        Text(sick.statusText)
-          .font(.system(size: compact ? 11 : 13, weight: .semibold))
-          .foregroundStyle(statusColor)
-          .lineLimit(2)
-
-        if !compact {
-          HStack(spacing: 10) {
-            SoftCard(palette: palette) {
-              VStack(alignment: .leading, spacing: 3) {
-                Text("Stress dose")
-                  .font(.system(size: 10, weight: .semibold))
-                  .foregroundStyle(palette.muted)
-                Text(sick.stressDoseText)
-                  .font(.system(size: 12, weight: .semibold))
-                  .foregroundStyle(sick.needsStressDose ? palette.red : palette.green)
-                  .lineLimit(2)
-              }
-            }
-            SoftCard(palette: palette) {
-              VStack(alignment: .leading, spacing: 3) {
-                Text("Check-in")
-                  .font(.system(size: 10, weight: .semibold))
-                  .foregroundStyle(palette.muted)
-                Text(sick.checkInTimer ?? "No timer")
-                  .font(.system(size: 12, weight: .semibold))
-                  .foregroundStyle(palette.ink)
-                  .lineLimit(1)
-              }
-            }
-          }
-        } else {
-          Text(sick.stressDoseText)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(sick.needsStressDose ? palette.red : palette.muted)
-            .lineLimit(2)
-        }
+      VStack(alignment: .leading, spacing: 6) {
+        WidgetHeader(label: "Sick Mode", status: sick.statusLabel, tone: sick.tone, palette: palette)
+        MetricHero(text: sick.heroAction, palette: palette, accent: accent, size: 24)
+        SupportLine(text: sick.statusText, palette: palette)
+        SupportLine(text: sick.stressDoseText, palette: palette)
         Spacer(minLength: 0)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+  }
+}
+
+private struct FlareForecastWidgetView: View {
+  let entry: SynapseProvider.Entry
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
+    let flare = entry.snapshot.flareForecast
+
+    WidgetCard(palette: palette) {
+      VStack(alignment: .leading, spacing: 8) {
+        WidgetHeader(label: "Flare Forecast", status: flare.statusLabel, tone: flare.tone, palette: palette)
+        StoryHeadline(text: flare.headline, palette: palette)
+        SupportLine(text: flare.supportText, palette: palette)
+        Spacer(minLength: 0)
+        TrendDots(tones: flare.trendTones, palette: palette)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -1119,106 +1624,29 @@ private struct DailyLogWidgetView: View {
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
     let wellness = entry.snapshot.wellness
-    let overall = wellness.overallFeeling
-    let accent = wellnessAccent(overall, palette: palette)
 
     WidgetCard(palette: palette) {
-      if family == .systemLarge {
-        VStack(alignment: .leading, spacing: 12) {
-          Eyebrow(text: "Daily Log", palette: palette)
-          HeroTitle(text: wellness.summaryText, palette: palette, size: 24)
-
-          SoftCard(palette: palette) {
-            HStack(alignment: .firstTextBaseline) {
-              VStack(alignment: .leading, spacing: 4) {
-                Text("Overall")
-                  .font(.system(size: 11, weight: .semibold))
-                  .foregroundStyle(palette.muted)
-                Text(overall.map(String.init) ?? "--")
-                  .font(.system(size: 40, weight: .bold))
-                  .foregroundStyle(accent)
-              }
-              Spacer()
-              VStack(alignment: .trailing, spacing: 6) {
-                StatusChip(text: overallWellnessLabel(overall), color: accent)
-                Text(wellness.secondaryText)
-                  .font(.system(size: 12, weight: .regular))
-                  .foregroundStyle(palette.muted)
-                  .multilineTextAlignment(.trailing)
-                  .lineLimit(2)
-              }
-            }
+      VStack(alignment: .leading, spacing: 10) {
+        WidgetHeader(label: "Daily Log", status: wellness.statusLabel, tone: wellness.tone, palette: palette)
+        StoryHeadline(text: wellness.headline, palette: palette, size: family == .systemLarge ? 22 : 17)
+        if family == .systemLarge {
+          metricGrid(wellness.gridCells, palette: palette)
+          ForEach(Array(wellness.actionRows.prefix(2).enumerated()), id: \.offset) { _, row in
+            AccentRow(tone: row.tone, title: row.title, subtitle: row.subtitle, trailing: row.trailing, palette: palette)
           }
-
-          HStack(spacing: 8) {
-            metricCell("Energy", wellness.energy, palette)
-            metricCell("Mood", wellness.mood, palette)
-            metricCell("Sleep", wellness.sleep, palette)
-          }
-
-          VStack(alignment: .leading, spacing: 6) {
-            Text("Next")
-              .font(.system(size: 11, weight: .semibold))
-              .foregroundStyle(palette.muted)
-            Text(wellness.hasTodayLog ? "Review symptoms or update later" : "Log energy, mood, and sleep")
-              .font(.system(size: 14, weight: .semibold))
-              .foregroundStyle(palette.ink)
-              .lineLimit(2)
-            if wellness.symptomCountToday > 0 {
-              Text(wellness.symptomCountToday == 1 ? "1 symptom noted" : "\(wellness.symptomCountToday) symptoms noted")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(palette.orange)
-            }
-          }
+        } else {
+          SupportLine(text: wellness.secondaryText, palette: palette)
           Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      } else {
-        HStack(spacing: 14) {
-          VStack(alignment: .leading, spacing: 8) {
-            Eyebrow(text: "Daily Log", palette: palette)
-            HeroTitle(text: wellness.summaryText, palette: palette, size: 18)
-            if wellness.hasTodayLog {
-              Text(overall.map(String.init) ?? "--")
-                .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(accent)
-              StatusChip(text: overallWellnessLabel(overall), color: accent, compact: true)
-            } else {
-              Text(wellness.secondaryText)
-                .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(palette.muted)
-                .lineLimit(3)
+          HStack(spacing: 8) {
+            ForEach(Array(wellness.gridCells.prefix(3).enumerated()), id: \.offset) { _, cell in
+              MetricGridCell(title: cell.title, detail: cell.detail, palette: palette)
             }
-            Spacer(minLength: 0)
           }
-          .frame(maxWidth: .infinity, alignment: .topLeading)
-
-          VStack(alignment: .leading, spacing: 8) {
-            metricCell("Energy", wellness.energy, palette)
-            metricCell("Mood", wellness.mood, palette)
-            metricCell("Sleep", wellness.sleep, palette)
-          }
-          .frame(width: 88)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        Spacer(minLength: 0)
       }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
-  }
-
-  private func metricCell(_ label: String, _ value: Int?, _ palette: SynapseWidgetPalette) -> some View {
-    VStack(alignment: .leading, spacing: 2) {
-      Text(label)
-        .font(.system(size: 10, weight: .semibold))
-        .foregroundStyle(palette.muted)
-      Text(value.map { "\($0)" } ?? "--")
-        .font(.system(size: 16, weight: .bold))
-        .foregroundStyle(wellnessAccent(value, palette: palette))
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.vertical, 8)
-    .padding(.horizontal, 8)
-    .background(palette.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
   }
 }
 
@@ -1229,61 +1657,16 @@ private struct MedicationDayWidgetView: View {
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
     let day = entry.snapshot.medicationDay
-    let rows = Array(day.doses.prefix(6))
 
     WidgetCard(palette: palette) {
       VStack(alignment: .leading, spacing: 10) {
-        HStack(alignment: .firstTextBaseline) {
-          VStack(alignment: .leading, spacing: 4) {
-            Eyebrow(text: "Medication day", palette: palette)
-            HeroTitle(text: day.summaryText, palette: palette, size: 22)
-          }
-          Spacer()
-          StatusChip(
-            text: day.expected == 0 ? "None" : "\(day.taken)/\(day.expected)",
-            color: day.taken >= day.expected && day.expected > 0 ? palette.green : palette.blue
-          )
+        WidgetHeader(label: "Medication Day", status: day.statusLabel, tone: day.tone, palette: palette)
+        StoryHeadline(text: day.headline, palette: palette, size: 20)
+        metricGrid(day.gridCells, palette: palette)
+        ForEach(Array(day.actionRows.prefix(2).enumerated()), id: \.offset) { _, row in
+          AccentRow(tone: row.tone, title: row.title, subtitle: row.subtitle, trailing: row.trailing, palette: palette)
         }
-
-        if rows.isEmpty {
-          SoftCard(palette: palette) {
-            Text(day.nextAction)
-              .font(.system(size: 14, weight: .semibold))
-              .foregroundStyle(palette.muted)
-          }
-        } else {
-          VStack(spacing: 6) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, dose in
-              HStack(spacing: 10) {
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                  .fill(dose.taken ? palette.green : palette.orange)
-                  .frame(width: 3, height: 28)
-                VStack(alignment: .leading, spacing: 2) {
-                  Text(dose.name)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(palette.ink)
-                    .lineLimit(1)
-                  Text(dose.detail)
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(palette.muted)
-                    .lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                Text(dose.taken ? "Taken" : dose.timeText)
-                  .font(.system(size: 12, weight: .semibold))
-                  .foregroundStyle(dose.taken ? palette.green : palette.orange)
-                  .lineLimit(1)
-              }
-              .padding(.vertical, 4)
-            }
-          }
-        }
-
         Spacer(minLength: 0)
-        Text(day.nextAction)
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(palette.blue)
-          .lineLimit(1)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -1298,55 +1681,29 @@ private struct AppointmentWidgetView: View {
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
     let appointment = entry.snapshot.appointment
-    let compact = family == .systemSmall
 
     WidgetCard(palette: palette) {
-      VStack(alignment: .leading, spacing: compact ? 6 : 8) {
-        Eyebrow(text: "Appointment prep", palette: palette)
+      VStack(alignment: .leading, spacing: 8) {
+        WidgetHeader(
+          label: "Appointment Prep",
+          status: appointment?.statusLabel ?? "None",
+          tone: appointment?.tone ?? "blue",
+          palette: palette
+        )
         if let appointment {
-          HeroTitle(text: appointment.doctorName, palette: palette, size: compact ? 16 : 20)
-          Text(appointment.detail)
-            .font(.system(size: compact ? 11 : 13, weight: .regular))
-            .foregroundStyle(palette.muted)
-            .lineLimit(1)
-          Text(appointment.whenText)
-            .font(.system(size: compact ? 12 : 14, weight: .semibold))
-            .foregroundStyle(palette.blue)
-            .lineLimit(1)
-
-          if !compact {
-            if let location = appointment.location, !location.isEmpty {
-              Text(location)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(palette.ink)
-                .lineLimit(1)
-            }
-            if let travel = appointment.travelText, !travel.isEmpty {
-              Text(travel)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(palette.orange)
-                .lineLimit(1)
-            }
-            if let notes = appointment.notes, !notes.isEmpty {
-              Text(notes)
-                .font(.system(size: 11, weight: .regular))
-                .foregroundStyle(palette.muted)
-                .lineLimit(2)
+          StoryHeadline(text: appointment.headline, palette: palette, size: family == .systemSmall ? 15 : 17)
+          SupportLine(text: appointment.supportText, palette: palette)
+          if family != .systemSmall {
+            Spacer(minLength: 4)
+            ForEach(Array(appointment.rows.prefix(2).enumerated()), id: \.offset) { _, row in
+              AccentRow(tone: row.tone, title: row.title, subtitle: row.subtitle, trailing: row.trailing, palette: palette)
             }
           }
-
-          Spacer(minLength: 0)
-          Text(appointment.prepHint)
-            .font(.system(size: compact ? 11 : 12, weight: .semibold))
-            .foregroundStyle(palette.blue)
-            .lineLimit(2)
         } else {
-          HeroTitle(text: "No upcoming visit", palette: palette, size: compact ? 16 : 18)
-          Text("Add one in Synapse")
-            .font(.system(size: 12, weight: .regular))
-            .foregroundStyle(palette.muted)
-          Spacer(minLength: 0)
+          StoryHeadline(text: "No upcoming visit.", palette: palette, size: 16)
+          SupportLine(text: "Add one in Synapse", palette: palette)
         }
+        Spacer(minLength: 0)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -1356,118 +1713,56 @@ private struct AppointmentWidgetView: View {
 private struct CaregiverWidgetView: View {
   let entry: SynapseProvider.Entry
   @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.widgetFamily) private var family
 
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
     let caregiver = entry.snapshot.caregiver
-    let accent = toneColor(caregiver.tone, palette: palette)
 
     WidgetCard(palette: palette) {
-      if family == .systemMedium {
-        VStack(alignment: .leading, spacing: 10) {
-          HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 4) {
-              Eyebrow(text: "Caregiver", palette: palette)
-              HeroTitle(text: caregiverPersonText(caregiver, includeRelation: true), palette: palette, size: 18)
-            }
-            Spacer()
-            StatusChip(text: caregiver.statusText, color: accent)
-          }
-
-          VStack(alignment: .leading, spacing: 7) {
-            ForEach(Array(caregiver.items.prefix(3).enumerated()), id: \.offset) { _, item in
-              HStack(spacing: 8) {
-                AccentBar(color: toneColor(item.tone, palette: palette))
-                Text(item.text)
-                  .font(.system(size: 13, weight: item.tone == "red" ? .semibold : .regular))
-                  .foregroundStyle(toneColor(item.tone == "muted" ? "blue" : item.tone, palette: palette))
-                  .lineLimit(1)
-                  .minimumScaleFactor(0.8)
-              }
-            }
-            if caregiver.items.isEmpty {
-              Text(caregiver.secondaryText ?? "All caught up")
-                .font(.system(size: 13, weight: .regular))
-                .foregroundStyle(palette.muted)
-            }
-          }
-
-          Spacer(minLength: 0)
-
-          HStack(spacing: 8) {
-            Link(destination: SynapseWidgetDestination.caregiverActionURL(mode: "log-med")) {
-              ActionCapsule(title: "Log Med", color: palette.blue, compact: true)
-            }
-            .buttonStyle(.plain)
-            Link(destination: SynapseWidgetDestination.caregiverActionURL(mode: "add-note")) {
-              ActionCapsule(title: "Add Note", color: palette.green.opacity(0.85), compact: true)
-            }
-            .buttonStyle(.plain)
-          }
+      VStack(alignment: .leading, spacing: 8) {
+        WidgetHeader(label: "Caregiver", status: caregiver.statusLabel, tone: caregiver.tone, palette: palette)
+        StoryHeadline(text: caregiver.headline, palette: palette, size: 17)
+        SupportLine(text: caregiver.secondaryText ?? caregiver.primaryText, palette: palette)
+        Spacer(minLength: 4)
+        if let item = caregiver.items.first {
+          AccentRow(
+            tone: item.tone,
+            title: item.text,
+            subtitle: caregiverPersonText(caregiver),
+            trailing: caregiver.statusLabel,
+            palette: palette
+          )
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      } else {
-        VStack(alignment: .leading, spacing: 7) {
-          Eyebrow(text: caregiverPersonText(caregiver, includeRelation: false), palette: palette)
-          HeroTitle(text: caregiver.primaryText, palette: palette, size: 16)
-          StatusChip(text: caregiver.statusText, color: accent, compact: true)
-          ForEach(Array(caregiver.items.prefix(2).enumerated()), id: \.offset) { _, item in
-            HStack(spacing: 6) {
-              AccentBar(color: toneColor(item.tone, palette: palette))
-              Text(item.text)
-                .font(.system(size: 11, weight: .regular))
-                .foregroundStyle(toneColor(item.tone == "muted" ? "blue" : item.tone, palette: palette))
-                .lineLimit(1)
-            }
-          }
-          Spacer(minLength: 0)
-          if let action = caregiver.actionText {
-            Text(action)
-              .font(.system(size: 11, weight: .semibold))
-              .foregroundStyle(palette.muted)
-              .lineLimit(1)
-          }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        Spacer(minLength: 0)
       }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
+  }
+
+  private func caregiverPersonText(_ caregiver: SynapseWidgetSnapshot.Caregiver) -> String {
+    var details: [String] = [caregiver.name]
+    if let age = caregiver.age { details.append("\(age)y") }
+    if let relation = caregiver.relation, !relation.isEmpty { details.append(relation) }
+    return details.joined(separator: " · ")
   }
 }
 
 private struct MentalHealthWidgetView: View {
   let entry: SynapseProvider.Entry
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.widgetFamily) private var family
 
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
     let mental = entry.snapshot.mentalHealth
 
     WidgetCard(palette: palette) {
-      HStack(alignment: .top, spacing: 8) {
-        AccentBar(color: palette.purple)
-        VStack(alignment: .leading, spacing: 7) {
-          Eyebrow(text: "Mental health", palette: palette)
-          HeroTitle(text: mental.active ? "Support day" : "Start support", palette: palette, size: 16)
-          StatusChip(
-            text: mental.active ? "Active" : "Available",
-            color: palette.purple,
-            compact: true
-          )
-          Text(mental.statusText)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(palette.purple)
-            .lineLimit(2)
-          Spacer(minLength: 0)
-          Text("Next check-in")
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(palette.muted)
-          Text(mental.nextCheckInText)
-            .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(palette.ink)
-            .lineLimit(1)
-            .minimumScaleFactor(0.85)
-        }
+      VStack(alignment: .leading, spacing: 8) {
+        WidgetHeader(label: "Mental Health", status: mental.statusLabel, tone: mental.tone, palette: palette)
+        StoryHeadline(text: mental.headline, palette: palette, size: family == .systemSmall ? 15 : 17)
+        SupportLine(text: mental.supportText, palette: palette)
+        Spacer(minLength: 0)
+        TrendDots(tones: mental.trendTones, palette: palette)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -1484,43 +1779,12 @@ private struct LabsWidgetView: View {
     let accent = toneColor(labs.tone, palette: palette)
 
     WidgetCard(palette: palette) {
-      HStack(alignment: .top, spacing: 12) {
-        VStack(alignment: .leading, spacing: 8) {
-          Eyebrow(text: labs.title, palette: palette)
-          HeroTitle(text: labs.statusText, palette: palette, size: 20)
-          StatusChip(text: labs.hasItems ? "On file" : "Empty", color: accent, compact: true)
-          Spacer(minLength: 0)
-          Text(labs.nextAction)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(accent)
-            .lineLimit(2)
-        }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-
-        VStack(alignment: .leading, spacing: 6) {
-          ForEach(Array(labs.items.prefix(3).enumerated()), id: \.offset) { _, item in
-            SoftCard(palette: palette) {
-              VStack(alignment: .leading, spacing: 2) {
-                Text(item.name)
-                  .font(.system(size: 12, weight: .semibold))
-                  .foregroundStyle(palette.ink)
-                  .lineLimit(1)
-                Text(item.detail)
-                  .font(.system(size: 10, weight: .regular))
-                  .foregroundStyle(item.pending ? palette.orange : palette.muted)
-                  .lineLimit(1)
-              }
-            }
-          }
-          if labs.items.isEmpty {
-            SoftCard(palette: palette) {
-              Text("No results yet")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(palette.muted)
-            }
-          }
-        }
-        .frame(maxWidth: .infinity)
+      VStack(alignment: .leading, spacing: 8) {
+        WidgetHeader(label: labs.title, status: labs.statusLabel, tone: labs.tone, palette: palette)
+        StoryHeadline(text: labs.headline, palette: palette)
+        SupportLine(text: labs.supportText, palette: palette)
+        Spacer(minLength: 0)
+        ProgressBar(progress: labs.progress, color: accent, palette: palette)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -1534,48 +1798,16 @@ private struct ReportWidgetView: View {
   var body: some View {
     let palette = palette(for: entry.snapshot.appearance, colorScheme: colorScheme)
     let report = entry.snapshot.report14Day
-    let accent = toneColor(report.tone, palette: palette)
 
     WidgetCard(palette: palette) {
-      VStack(alignment: .leading, spacing: 12) {
-        HStack(alignment: .firstTextBaseline) {
-          VStack(alignment: .leading, spacing: 4) {
-            Eyebrow(text: "14-day report", palette: palette)
-            HeroTitle(text: report.statusLabel, palette: palette, size: 26)
-          }
-          Spacer()
-          StatusChip(text: report.adherenceText, color: accent)
+      VStack(alignment: .leading, spacing: 10) {
+        WidgetHeader(label: "14-Day Report", status: report.statusLabel, tone: report.tone, palette: palette)
+        StoryHeadline(text: report.headline, palette: palette, size: 20)
+        metricGrid(report.gridCells, palette: palette)
+        ForEach(Array(report.actionRows.prefix(2).enumerated()), id: \.offset) { _, row in
+          AccentRow(tone: row.tone, title: row.title, subtitle: row.subtitle, trailing: row.trailing, palette: palette)
         }
-
-        SoftCard(palette: palette) {
-          Text(report.summaryText)
-            .font(.system(size: 15, weight: .medium))
-            .foregroundStyle(palette.ink)
-            .lineLimit(3)
-        }
-
-        VStack(alignment: .leading, spacing: 8) {
-          ForEach(Array(report.insights.prefix(2).enumerated()), id: \.offset) { _, insight in
-            HStack(alignment: .top, spacing: 8) {
-              AccentBar(color: accent)
-              Text(insight)
-                .font(.system(size: 13, weight: .regular))
-                .foregroundStyle(palette.ink)
-                .lineLimit(2)
-            }
-          }
-          if report.insights.isEmpty {
-            Text("Open Synapse for the full pattern view.")
-              .font(.system(size: 13, weight: .regular))
-              .foregroundStyle(palette.muted)
-          }
-        }
-
         Spacer(minLength: 0)
-        Text(report.nextAction)
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(accent)
-          .lineLimit(1)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -1592,71 +1824,36 @@ private struct OverviewWidgetView: View {
     let appointment = entry.snapshot.appointment
 
     WidgetCard(palette: palette) {
-      HStack(spacing: 14) {
-        Link(destination: SynapseWidgetDestination.url(for: "medications")) {
-          VStack(alignment: .leading, spacing: 7) {
-            Eyebrow(text: "Meds", palette: palette)
-            if let medication {
-              HeroTitle(text: medication.name, palette: palette, size: 17)
-              Text(medication.detail)
-                .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(palette.muted)
-                .lineLimit(1)
-              if medication.isTaken {
-                StatusChip(text: medication.dueText, color: palette.green, compact: true)
-              } else {
-                Text(compactRelativeMedicationText(medication.dueAt))
-                  .font(.system(size: 12, weight: .semibold))
-                  .foregroundStyle(palette.orange)
-                  .lineLimit(1)
-              }
-            } else {
-              HeroTitle(text: "No dose due", palette: palette, size: 16)
-              Text("Stay on track")
-                .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(palette.muted)
-            }
-            Spacer(minLength: 0)
-          }
-          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-          .contentShape(Rectangle())
+      HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 6) {
+          WidgetHeader(
+            label: "Meds",
+            status: medication?.statusLabel ?? "Done",
+            tone: medication?.tone ?? "green",
+            palette: palette
+          )
+          MetricHero(text: medication?.heroTimeText ?? "Done", palette: palette, size: 28)
+          SupportLine(text: medication?.secondaryLine ?? "Stay on track", palette: palette)
+          Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .widgetURL(SynapseWidgetDestination.url(for: "medications"))
 
-        Rectangle()
-          .fill(palette.line)
-          .frame(width: 1)
-          .padding(.vertical, 2)
+        Rectangle().fill(palette.line).frame(width: 1).padding(.vertical, 2)
 
-        Link(destination: SynapseWidgetDestination.url(for: "appointments")) {
-          VStack(alignment: .leading, spacing: 7) {
-            Eyebrow(text: "Visit", palette: palette)
-            if let appointment {
-              HeroTitle(text: appointment.doctorName, palette: palette, size: 17)
-              Text(appointment.detail)
-                .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(palette.muted)
-                .lineLimit(1)
-              Text(appointment.whenText)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(palette.blue)
-                .lineLimit(1)
-              Text(appointment.prepHint)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(palette.muted)
-                .lineLimit(2)
-            } else {
-              HeroTitle(text: "No visit soon", palette: palette, size: 16)
-              Text("Add one in Synapse")
-                .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(palette.muted)
-            }
-            Spacer(minLength: 0)
-          }
-          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-          .contentShape(Rectangle())
+        VStack(alignment: .leading, spacing: 6) {
+          WidgetHeader(
+            label: "Visit",
+            status: appointment?.statusLabel ?? "None",
+            tone: appointment?.tone ?? "blue",
+            palette: palette
+          )
+          StoryHeadline(text: appointment?.doctorName ?? "No visit", palette: palette, size: 15)
+          SupportLine(text: appointment?.whenText ?? "Add one in Synapse", palette: palette)
+          Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .widgetURL(SynapseWidgetDestination.url(for: "appointments"))
       }
     }
   }
@@ -1673,7 +1870,7 @@ struct SynapseRecoveryWidget: Widget {
         .widgetURL(SynapseWidgetDestination.url(for: "sickmode"))
     }
     .configurationDisplayName("Recovery Today")
-    .description("See your recovery focus and next gentle step.")
+    .description("See your recovery story and soft progress.")
     .supportedFamilies([.systemSmall, .systemMedium])
     .contentMarginsDisabled()
   }
@@ -1687,7 +1884,7 @@ struct SynapseHydrationWidget: Widget {
       HydrationWidgetView(entry: entry)
     }
     .configurationDisplayName("Hydration")
-    .description("Take a quick sip and jump into your hydration log.")
+    .description("Soft daily hydration progress and sip nudge.")
     .supportedFamilies([.systemSmall])
     .contentMarginsDisabled()
   }
@@ -1701,7 +1898,7 @@ struct SynapsePrnMedicationWidget: Widget {
       PrnMedicationWidgetView(entry: entry)
     }
     .configurationDisplayName("As Needed")
-    .description("Log an as-needed medication from your Home Screen.")
+    .description("Hours since last rescue med and safe window.")
     .supportedFamilies([.systemSmall])
     .contentMarginsDisabled()
   }
@@ -1716,7 +1913,7 @@ struct SynapseMedicationWidget: Widget {
         .widgetURL(SynapseWidgetDestination.url(for: "medications"))
     }
     .configurationDisplayName("Next Medication")
-    .description("Track your next dose with a live countdown.")
+    .description("Next dose time with a quiet reminder.")
     .supportedFamilies([.systemSmall])
     .contentMarginsDisabled()
   }
@@ -1731,7 +1928,22 @@ struct SynapsePainWidget: Widget {
         .widgetURL(SynapseWidgetDestination.url(for: "symptoms"))
     }
     .configurationDisplayName("Pain")
-    .description("See today’s pain status and open Symptoms.")
+    .description("Severity hero with watch/up status.")
+    .supportedFamilies([.systemSmall])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapseSleepWidget: Widget {
+  let kind = "SynapseSleepWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      SleepWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "daily-log"))
+    }
+    .configurationDisplayName("Sleep")
+    .description("Sleep score with a gentle pacing note.")
     .supportedFamilies([.systemSmall])
     .contentMarginsDisabled()
   }
@@ -1746,8 +1958,23 @@ struct SynapseSickModeWidget: Widget {
         .widgetURL(SynapseWidgetDestination.url(for: "sickmode"))
     }
     .configurationDisplayName("Sick Mode")
-    .description("Temperature, stress-dose status, and next check-in.")
+    .description("Active sick-mode action and stress-dose cue.")
     .supportedFamilies([.systemSmall, .systemMedium])
+    .contentMarginsDisabled()
+  }
+}
+
+struct SynapseFlareForecastWidget: Widget {
+  let kind = "SynapseFlareForecastWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: SynapseProvider()) { entry in
+      FlareForecastWidgetView(entry: entry)
+        .widgetURL(SynapseWidgetDestination.url(for: "reports"))
+    }
+    .configurationDisplayName("Flare Forecast")
+    .description("Cautious pattern story from today’s factors.")
+    .supportedFamilies([.systemMedium])
     .contentMarginsDisabled()
   }
 }
@@ -1761,7 +1988,7 @@ struct SynapseWellnessWidget: Widget {
         .widgetURL(SynapseWidgetDestination.url(for: "daily-log"))
     }
     .configurationDisplayName("Daily Log")
-    .description("Overall wellness and next actions for today.")
+    .description("Today’s check-in with metric grid and next action.")
     .supportedFamilies([.systemMedium, .systemLarge])
     .contentMarginsDisabled()
   }
@@ -1776,7 +2003,7 @@ struct SynapseMedicationDayWidget: Widget {
         .widgetURL(SynapseWidgetDestination.url(for: "medications"))
     }
     .configurationDisplayName("Medication Day")
-    .description("See today’s scheduled doses and what’s left.")
+    .description("Taken/left grid with upcoming dose rows.")
     .supportedFamilies([.systemLarge])
     .contentMarginsDisabled()
   }
@@ -1791,7 +2018,7 @@ struct SynapseAppointmentWidget: Widget {
         .widgetURL(SynapseWidgetDestination.url(for: "appointments"))
     }
     .configurationDisplayName("Appointment Prep")
-    .description("Next visit with location, notes, and prep hint.")
+    .description("Visit + report packet rows for prep.")
     .supportedFamilies([.systemSmall, .systemMedium])
     .contentMarginsDisabled()
   }
@@ -1806,7 +2033,7 @@ struct SynapseCaregiverWidget: Widget {
         .widgetURL(SynapseWidgetDestination.url(for: "caregiverdashboard"))
     }
     .configurationDisplayName("Caregiver")
-    .description("Status for the person you support—without the clutter.")
+    .description("Share today summary when something needs attention.")
     .supportedFamilies([.systemSmall, .systemMedium])
     .contentMarginsDisabled()
   }
@@ -1821,8 +2048,8 @@ struct SynapseMentalHealthWidget: Widget {
         .widgetURL(SynapseWidgetDestination.url(for: "mentalhealth"))
     }
     .configurationDisplayName("Mental Health")
-    .description("Start or check a mental health day and next check-in.")
-    .supportedFamilies([.systemSmall])
+    .description("Energy/stress headline with gentle trend dots.")
+    .supportedFamilies([.systemSmall, .systemMedium])
     .contentMarginsDisabled()
   }
 }
@@ -1836,7 +2063,7 @@ struct SynapseLabsWidget: Widget {
         .widgetURL(SynapseWidgetDestination.url(for: "labwork"))
     }
     .configurationDisplayName("Labs")
-    .description("Pending reviews and latest lab results.")
+    .description("Cautious lab headline with review status.")
     .supportedFamilies([.systemMedium])
     .contentMarginsDisabled()
   }
@@ -1851,7 +2078,7 @@ struct SynapseReportWidget: Widget {
         .widgetURL(SynapseWidgetDestination.url(for: "reports"))
     }
     .configurationDisplayName("14-Day Report")
-    .description("Trend summary, adherence, and top insights.")
+    .description("Two-week pattern grid and report actions.")
     .supportedFamilies([.systemLarge])
     .contentMarginsDisabled()
   }

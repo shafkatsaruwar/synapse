@@ -32,6 +32,23 @@ import { getAppointmentTravelEstimate } from "@/lib/appointment-travel";
 import { buildRecoveryInsights } from "@/lib/recovery-insights";
 import { isMedicationScheduledOnDate } from "@/lib/medication-schedule";
 
+type WidgetTone = "green" | "blue" | "orange" | "red" | "purple" | "yellow" | "muted";
+
+type WidgetGridCell = {
+  title: string;
+  detail: string;
+};
+
+type WidgetActionRow = {
+  tone: WidgetTone;
+  title: string;
+  subtitle: string;
+  trailing: string;
+};
+
+/** Soft UI hydration goal for widgets only — not a medical recommendation. */
+const SOFT_HYDRATION_GOAL_ML = 2000;
+
 type WidgetSnapshot = {
   appearance: WidgetAppearancePreference;
   medication: null | {
@@ -42,6 +59,10 @@ type WidgetSnapshot = {
     dueText: string;
     isTaken: boolean;
     nextText: string | null;
+    heroTimeText: string;
+    statusLabel: "Next" | "Done";
+    secondaryLine: string;
+    tone: WidgetTone;
   };
   appointment: null | {
     doctorName: string;
@@ -52,22 +73,34 @@ type WidgetSnapshot = {
     location: string | null;
     notes: string | null;
     prepHint: string;
+    statusLabel: "Ready" | "Soon" | "None";
+    tone: WidgetTone;
+    headline: string;
+    supportText: string;
+    rows: WidgetActionRow[];
   };
   recovery: {
     active: boolean;
     title: string;
     statusText: string;
-    tone: "green" | "blue" | "orange";
+    statusLabel: string;
+    tone: WidgetTone;
     focusText: string | null;
     nextAction: string;
+    headline: string;
+    supportText: string;
+    progress: number;
   };
   pain: {
     hasPain: boolean;
     name: string;
     severity: number | null;
     statusText: string;
-    tone: "green" | "orange" | "red";
+    statusLabel: "Up" | "Watch" | "Calm";
+    tone: WidgetTone;
     nextAction: string;
+    lastLoggedText: string;
+    progress: number;
   };
   medicationDay: {
     taken: number;
@@ -75,22 +108,34 @@ type WidgetSnapshot = {
     summaryText: string;
     nextAction: string;
     doses: { name: string; detail: string; timeText: string; taken: boolean }[];
+    statusLabel: string;
+    tone: WidgetTone;
+    headline: string;
+    gridCells: WidgetGridCell[];
+    actionRows: WidgetActionRow[];
   };
   labs: {
     hasItems: boolean;
     title: string;
     statusText: string;
-    tone: "blue" | "orange" | "green";
+    statusLabel: "Review" | "Steady" | "Empty";
+    tone: WidgetTone;
     nextAction: string;
+    headline: string;
+    supportText: string;
+    progress: number;
     items: { name: string; detail: string; pending: boolean }[];
   };
   report14Day: {
     statusLabel: string;
     summaryText: string;
-    tone: "green" | "blue" | "orange";
+    tone: WidgetTone;
     adherenceText: string;
     nextAction: string;
     insights: string[];
+    headline: string;
+    gridCells: WidgetGridCell[];
+    actionRows: WidgetActionRow[];
   };
   prnMedication: null | {
     id: string;
@@ -99,6 +144,10 @@ type WidgetSnapshot = {
     lastLoggedAt: string | null;
     statusText: string;
     countText: string;
+    hoursSinceLastText: string;
+    windowText: string;
+    statusLabel: "Watch" | "Clear";
+    tone: WidgetTone;
   };
   wellness: {
     hasTodayLog: boolean;
@@ -112,6 +161,11 @@ type WidgetSnapshot = {
     symptomCountToday: number;
     topSymptomName: string | null;
     isFastingToday: boolean;
+    statusLabel: string;
+    tone: WidgetTone;
+    headline: string;
+    gridCells: WidgetGridCell[];
+    actionRows: WidgetActionRow[];
   };
   hydration: {
     presetLabel: string;
@@ -120,6 +174,30 @@ type WidgetSnapshot = {
     totalTodayText: string;
     hasEntriesToday: boolean;
     launchHint: string;
+    /** Soft UI target (2000 ml default) — not a medical goal. */
+    percentToday: number;
+    loggedCount: number;
+    targetSipsEstimate: number;
+    progress: number;
+    statusLabel: "Low" | "On track" | "Good";
+    tone: WidgetTone;
+    secondaryLine: string;
+  };
+  sleep: {
+    hasData: boolean;
+    score: number | null;
+    heroText: string;
+    statusLabel: "Short" | "OK";
+    tone: WidgetTone;
+    primaryLine: string;
+    secondaryLine: string;
+  };
+  flareForecast: {
+    statusLabel: "Watch" | "Calm";
+    tone: WidgetTone;
+    headline: string;
+    supportText: string;
+    trendTones: WidgetTone[];
   };
   sickMode: {
     active: boolean;
@@ -127,6 +205,9 @@ type WidgetSnapshot = {
     latestTemperature: number | null;
     latestTemperatureText: string;
     statusText: string;
+    statusLabel: "Active" | "Easing" | "Off";
+    heroAction: string;
+    tone: WidgetTone;
     needsStressDose: boolean;
     stressDoseText: string;
     checkInTimer: string | null;
@@ -134,8 +215,13 @@ type WidgetSnapshot = {
   mentalHealth: {
     active: boolean;
     statusText: string;
+    statusLabel: "Logged" | "Open" | "Active";
+    tone: WidgetTone;
+    headline: string;
+    supportText: string;
     nextCheckInText: string;
     checkInTimer: string | null;
+    trendTones: WidgetTone[];
   };
   caregiver: {
     hasProfile: boolean;
@@ -144,11 +230,13 @@ type WidgetSnapshot = {
     relation: string | null;
     status: "all_good" | "attention" | "urgent";
     statusText: string;
-    tone: "green" | "yellow" | "red";
+    statusLabel: "Share" | "Check" | "OK" | "Setup";
+    tone: WidgetTone;
     primaryText: string;
     secondaryText: string | null;
     actionText: string | null;
-    items: { kind: "missed" | "next" | "nolog" | "setup" | "good"; text: string; tone: "red" | "yellow" | "green" | "muted" }[];
+    headline: string;
+    items: { kind: "missed" | "next" | "nolog" | "setup" | "good"; text: string; tone: WidgetTone }[];
     missedCount: number;
   };
   updatedAt: string;
@@ -313,6 +401,10 @@ function getNextMedicationSnapshot(
     null;
 
   if (pendingWinner) {
+    const heroTimeText = new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(pendingWinner.dueAt);
     return {
       name: pendingWinner.med.name,
       detail: doseDetail(pendingWinner.dose),
@@ -321,6 +413,10 @@ function getNextMedicationSnapshot(
       dueText: "Due soon",
       isTaken: false,
       nextText: null,
+      heroTimeText,
+      statusLabel: "Next" as const,
+      secondaryLine: "Quiet reminder set",
+      tone: "green" as const,
     };
   }
 
@@ -333,6 +429,10 @@ function getNextMedicationSnapshot(
       dueText: "Taken ✓",
       isTaken: true,
       nextText: "Next: tomorrow",
+      heroTimeText: "Done",
+      statusLabel: "Done" as const,
+      secondaryLine: "Next: tomorrow",
+      tone: "green" as const,
     };
   }
 
@@ -346,6 +446,10 @@ function getNextMedicationSnapshot(
       dueText: formatTakenTime(latestPrnWinner.recordedAt),
       isTaken: true,
       nextText: null,
+      heroTimeText: "Done",
+      statusLabel: "Done" as const,
+      secondaryLine: formatTakenTime(latestPrnWinner.recordedAt),
+      tone: "green" as const,
     };
   }
 
@@ -381,6 +485,24 @@ function getPrnMedicationSnapshot(
   const latestLog = todayLogs[0];
   const logCountToday = todayLogs.length;
 
+  let hoursSinceLastText = "—";
+  let hoursSince = Infinity;
+  if (latestLog?.recordedAt) {
+    const diffMs = Date.now() - new Date(latestLog.recordedAt).getTime();
+    if (!Number.isNaN(diffMs) && diffMs >= 0) {
+      hoursSince = diffMs / 3600000;
+      const wholeHours = Math.floor(hoursSince);
+      if (wholeHours < 1) {
+        const mins = Math.max(1, Math.floor(diffMs / 60000));
+        hoursSinceLastText = `${mins}m`;
+      } else {
+        hoursSinceLastText = `${wholeHours}h`;
+      }
+    }
+  }
+
+  const recentlyLogged = hoursSince < 4;
+  const watching = Number.isFinite(hoursSince) && hoursSince < 24;
   return {
     id: primaryPrnMed.id,
     name: primaryPrnMed.name,
@@ -390,6 +512,14 @@ function getPrnMedicationSnapshot(
     countText: logCountToday > 0
       ? `Logged ${logCountToday} time${logCountToday === 1 ? "" : "s"} today`
       : "Tap Log when you take it",
+    hoursSinceLastText,
+    windowText: !latestLog?.recordedAt
+      ? "Safe window clear"
+      : recentlyLogged
+        ? "Logged recently"
+        : "Safe window clear",
+    statusLabel: watching ? ("Watch" as const) : ("Clear" as const),
+    tone: watching ? ("orange" as const) : ("green" as const),
   };
 }
 
@@ -526,14 +656,34 @@ function buildWellnessSnapshot(todayLog: HealthLog | undefined, symptoms: Sympto
       symptomCountToday,
       topSymptomName: topSymptom?.name ?? null,
       isFastingToday,
+      statusLabel: "Open",
+      tone: "blue" as const,
+      headline: "Ready when you are.",
+      gridCells: [
+        { title: "Energy", detail: "—" },
+        { title: "Mood", detail: "—" },
+        { title: "Sleep", detail: "—" },
+        { title: "Symptoms", detail: symptomCountToday > 0 ? String(symptomCountToday) : "None" },
+      ],
+      actionRows: [
+        {
+          tone: "blue" as const,
+          title: "Log check-in",
+          subtitle: "Energy, mood, sleep",
+          trailing: "Open",
+        },
+      ],
     };
   }
 
+  const energy = normalizeLegacyFivePoint(todayLog.energy);
+  const mood = normalizeLegacyFivePoint(todayLog.mood);
+  const sleep = normalizeLegacyFivePoint(todayLog.sleep);
   return {
     hasTodayLog: true,
-    energy: normalizeLegacyFivePoint(todayLog.energy),
-    mood: normalizeLegacyFivePoint(todayLog.mood),
-    sleep: normalizeLegacyFivePoint(todayLog.sleep),
+    energy,
+    mood,
+    sleep,
     overallFeeling,
     detailHighlights,
     summaryText: "Logged today",
@@ -545,6 +695,23 @@ function buildWellnessSnapshot(todayLog: HealthLog | undefined, symptoms: Sympto
     symptomCountToday,
     topSymptomName: topSymptom?.name ?? null,
     isFastingToday,
+    statusLabel: "Logged",
+    tone: "green" as const,
+    headline: overallFeeling != null && overallFeeling >= 6 ? "Day looks steadier." : "Keep notes gentle today.",
+    gridCells: [
+      { title: "Energy", detail: `${energy}/10` },
+      { title: "Mood", detail: `${mood}/10` },
+      { title: "Sleep", detail: `${sleep}/10` },
+      { title: "Overall", detail: overallFeeling != null ? `${overallFeeling}/10` : "—" },
+    ],
+    actionRows: [
+      {
+        tone: symptomCountToday > 0 ? ("orange" as const) : ("green" as const),
+        title: symptomCountToday > 0 ? "Review symptoms" : "Update later",
+        subtitle: topSymptom?.name ?? "Daily log",
+        trailing: symptomCountToday > 0 ? `${symptomCountToday}` : "OK",
+      },
+    ],
   };
 }
 
@@ -564,13 +731,39 @@ function formatTimerText(isoString?: string | null) {
 function buildHydrationSnapshot(todayHydration: HydrationEntry[]) {
   return hydrationStorage.getPreset().then((preset) => {
     const totalTodayMl = Math.round(todayHydration.reduce((sum, entry) => sum + convertHydrationToMl(entry.amount, entry.unit), 0));
+    const sipMl = Math.max(1, Math.round(convertHydrationToMl(preset.amount, preset.unit)));
+    // Soft UI target only — not a clinical hydration recommendation.
+    const goalMl = SOFT_HYDRATION_GOAL_ML;
+    const percentToday = Math.max(0, Math.min(100, Math.round((totalTodayMl / goalMl) * 100)));
+    const progress = Math.max(0, Math.min(1, totalTodayMl / goalMl));
+    const loggedCount = todayHydration.length;
+    const targetSipsEstimate = Math.max(1, Math.ceil(goalMl / sipMl));
+    let statusLabel: "Low" | "On track" | "Good" = "Low";
+    let tone: WidgetTone = "orange";
+    let secondaryLine = "Nudge in 20m";
+    if (percentToday >= 80) {
+      statusLabel = "Good";
+      tone = "green";
+      secondaryLine = "Nice pacing today";
+    } else if (percentToday >= 40) {
+      statusLabel = "On track";
+      tone = "blue";
+      secondaryLine = "Keep sipping steadily";
+    }
     return {
       presetLabel: preset.what,
       sipAmountText: formatHydrationAmount(preset.amount, preset.unit),
       totalTodayMl,
       totalTodayText: totalTodayMl > 0 ? `${totalTodayMl} mL today` : "Nothing logged yet",
-      hasEntriesToday: todayHydration.length > 0,
+      hasEntriesToday: loggedCount > 0,
       launchHint: "Take a Sip",
+      percentToday,
+      loggedCount,
+      targetSipsEstimate,
+      progress,
+      statusLabel,
+      tone,
+      secondaryLine,
     };
   });
 }
@@ -590,12 +783,28 @@ function buildSickModeSnapshot(
   const latestTemperature = sickMode.temperatures.length > 0
     ? sickMode.temperatures[sickMode.temperatures.length - 1]?.value ?? null
     : null;
+  const escalate = needsStressDose || (sickMode.active && !sickMode.recoveryMode);
+  let statusLabel: "Active" | "Easing" | "Off" = "Off";
+  let tone: WidgetTone = "blue";
+  let heroAction = "Stay ready";
+  if (sickMode.recoveryMode) {
+    statusLabel = "Easing";
+    tone = "green";
+    heroAction = "Ease back";
+  } else if (sickMode.active) {
+    statusLabel = "Active";
+    tone = escalate ? "red" : "orange";
+    heroAction = needsStressDose ? "Check stress dose" : "Check symptoms";
+  }
   return {
     active: sickMode.active,
     recoveryMode: sickMode.recoveryMode === true,
     latestTemperature,
     latestTemperatureText: latestTemperature != null ? `${latestTemperature}°F` : "No temp logged",
-    statusText: !sickMode.active ? "Tap to start sick mode" : sickMode.recoveryMode ? "Recovery mode" : "Sick mode active",
+    statusText: !sickMode.active ? "Tap to start" : sickMode.recoveryMode ? "Easing back" : "Sick mode on",
+    statusLabel,
+    heroAction,
+    tone,
     needsStressDose,
     stressDoseText: activeStressMeds.length === 0
       ? "No stress-dose meds"
@@ -606,12 +815,45 @@ function buildSickModeSnapshot(
   };
 }
 
-function buildMentalHealthSnapshot(mentalHealthMode: MentalHealthModeData) {
+function feelingTone(value: number | null | undefined): WidgetTone {
+  if (value == null || Number.isNaN(value)) return "muted";
+  if (value >= 7) return "green";
+  if (value >= 5) return "blue";
+  if (value >= 3) return "orange";
+  return "purple";
+}
+
+function buildMentalHealthSnapshot(
+  mentalHealthMode: MentalHealthModeData,
+  todayLog: HealthLog | undefined,
+  dailyPoints: { overallFeeling: number | null }[],
+) {
+  const energy = todayLog ? normalizeLegacyFivePoint(todayLog.energy) : null;
+  const mood = todayLog ? normalizeLegacyFivePoint(todayLog.mood) : null;
+  const trendTones: WidgetTone[] = dailyPoints
+    .slice(-7)
+    .map((point) => feelingTone(point.overallFeeling));
+  while (trendTones.length < 3) {
+    trendTones.push(feelingTone(mood ?? energy));
+  }
+  const headline =
+    energy != null && mood != null
+      ? `Energy ${energy} · stress watch ${Math.max(0, 10 - mood)}`
+      : mentalHealthMode.active
+        ? "Support day in progress"
+        : "Space for a gentle check-in";
   return {
     active: mentalHealthMode.active,
-    statusText: mentalHealthMode.active ? "Mental health day active" : "Tap to start mental health day",
-    nextCheckInText: mentalHealthMode.active ? formatTimerText(mentalHealthMode.hourlyCheckInTimer) : "No check-in scheduled",
+    statusText: mentalHealthMode.active ? "Support day on" : "Tap when you need support",
+    statusLabel: todayLog ? ("Logged" as const) : mentalHealthMode.active ? ("Active" as const) : ("Open" as const),
+    tone: "purple" as const,
+    headline,
+    supportText: mentalHealthMode.active
+      ? `Next check-in ${formatTimerText(mentalHealthMode.hourlyCheckInTimer)}`
+      : "Purple accents mark recent energy notes",
+    nextCheckInText: mentalHealthMode.active ? formatTimerText(mentalHealthMode.hourlyCheckInTimer) : "No check-in yet",
     checkInTimer: mentalHealthMode.active ? mentalHealthMode.hourlyCheckInTimer ?? null : null,
+    trendTones: trendTones.slice(-7),
   };
 }
 
@@ -649,7 +891,7 @@ function buildCaregiverWidgetSnapshot(
 
   const doseTime = (item: NonNullable<typeof nextDose>) => formatWidgetTime(item.dose.reminderTime);
 
-  const items: { kind: "missed" | "next" | "nolog" | "setup" | "good"; text: string; tone: "red" | "yellow" | "green" | "muted" }[] = [];
+  const items: { kind: "missed" | "next" | "nolog" | "setup" | "good"; text: string; tone: WidgetTone }[] = [];
   if (missedDoses.length > 0) {
     items.push({
       kind: "missed",
@@ -676,10 +918,12 @@ function buildCaregiverWidgetSnapshot(
       relation,
       status: "attention" as const,
       statusText: "Set up profile",
+      statusLabel: "Setup" as const,
       tone: "yellow" as const,
       primaryText: "Profile needed",
       secondaryText: "Open Synapse",
       actionText: "Open Synapse",
+      headline: "Add a managed person",
       items: [{ kind: "setup" as const, text: "Managed person missing", tone: "yellow" as const }],
       missedCount: 0,
     };
@@ -693,10 +937,12 @@ function buildCaregiverWidgetSnapshot(
       relation,
       status: "urgent" as const,
       statusText: "Urgent",
+      statusLabel: "Share" as const,
       tone: "red" as const,
       primaryText: `${missedDoses.length} missed dose${missedDoses.length === 1 ? "" : "s"}`,
       secondaryText: "Tap to log",
       actionText: "Tap to log",
+      headline: "Send today summary?",
       items: items.slice(0, 3),
       missedCount: missedDoses.length,
     };
@@ -710,10 +956,12 @@ function buildCaregiverWidgetSnapshot(
       relation,
       status: "attention" as const,
       statusText: "Needs attention",
+      statusLabel: "Check" as const,
       tone: "yellow" as const,
       primaryText: "Needs attention",
       secondaryText: !hasTodayLog ? "No logs today" : `Next: ${doseTime(nextDose) ?? "soon"}`,
       actionText: "Check in",
+      headline: "A gentle check-in helps",
       items: items.slice(0, 3),
       missedCount: 0,
     };
@@ -726,10 +974,12 @@ function buildCaregiverWidgetSnapshot(
     relation,
     status: "all_good" as const,
     statusText: "All good",
+    statusLabel: "OK" as const,
     tone: "green" as const,
     primaryText: "All good",
     secondaryText: nextDose ? `Next: ${doseTime(nextDose) ?? "soon"}` : "All caught up",
     actionText: null,
+    headline: "Today looks covered",
     items: [
       { kind: "good" as const, text: nextDose ? `Next: ${doseTime(nextDose) ?? "soon"}` : "All caught up", tone: "green" as const },
     ],
@@ -758,6 +1008,20 @@ async function getNextAppointmentSnapshot(appointments: Appointment[]) {
     : notes
       ? "Review notes before you go"
       : "Open Synapse to prep";
+  const rows: WidgetActionRow[] = [
+    {
+      tone: "green",
+      title: appointment.doctorName || "Visit",
+      subtitle: formatAppointmentWhen(startsAt),
+      trailing: "Visit",
+    },
+    {
+      tone: "blue",
+      title: "Report packet",
+      subtitle: notes ? "Notes ready to review" : "Build packet in Synapse",
+      trailing: "Prep",
+    },
+  ];
   return {
     doctorName: appointment.doctorName || "Appointment",
     detail: simplifyAppointmentDetail(appointment.specialty || appointment.location || "Upcoming visit"),
@@ -767,34 +1031,71 @@ async function getNextAppointmentSnapshot(appointments: Appointment[]) {
     location: appointment.location?.trim() || null,
     notes,
     prepHint,
+    statusLabel: "Ready" as const,
+    tone: "green" as const,
+    headline: "Prep looks ready.",
+    supportText: travelText || prepHint,
+    rows,
   };
 }
 
 function buildRecoverySnapshot(
   sickMode: SickModeData,
   profile: { recoveryTrackingEnabled?: boolean; recoveryFocus?: string },
+  reportStatus: string,
+  hydration: WidgetSnapshot["hydration"],
+  prn: WidgetSnapshot["prnMedication"],
 ) {
   const sessionRecovery = sickMode.active && sickMode.recoveryMode === true;
   const tracking = profile.recoveryTrackingEnabled === true;
   const active = sessionRecovery || tracking;
   const focus = profile.recoveryFocus?.trim() || null;
+  const calmer = reportStatus === "Improving" || reportStatus === "Stable" || !active;
+  const statusLabel = reportStatus === "Worsening" ? "Watch" : reportStatus === "Improving" ? "Rising" : "Stable";
+  const tone: WidgetTone = reportStatus === "Worsening" ? "orange" : "green";
+  const headline = calmer
+    ? "You are trending calmer."
+    : "Take the day a little slower.";
+  const hydrationBit =
+    hydration.statusLabel === "Low"
+      ? "Hydration is low"
+      : hydration.statusLabel === "Good"
+        ? "Hydration looks good"
+        : "Hydration on track";
+  const prnBit = prn
+    ? prn.statusLabel === "Watch"
+      ? "PRN logged recently"
+      : "PRN window clear"
+    : "No PRN logged";
+  const supportText = `${hydrationBit} · ${prnBit}`;
+  const progress =
+    reportStatus === "Improving" ? 0.78 : reportStatus === "Worsening" ? 0.35 : 0.62;
+
   if (!active) {
     return {
       active: false,
       title: "Recovery Today",
       statusText: "No recovery focus",
-      tone: "blue" as const,
+      statusLabel,
+      tone,
       focusText: null,
       nextAction: "Open recovery when you need it",
+      headline,
+      supportText,
+      progress,
     };
   }
   return {
     active: true,
     title: "Recovery Today",
     statusText: sessionRecovery ? "Easing back" : "Tracking recovery",
-    tone: "green" as const,
+    statusLabel,
+    tone,
     focusText: focus,
     nextAction: sessionRecovery ? "Keep resting · check temp" : "Review how today feels",
+    headline,
+    supportText: focus ? `${supportText} · Focus: ${focus}` : supportText,
+    progress,
   };
 }
 
@@ -806,6 +1107,11 @@ function buildPainSnapshot(symptoms: Symptom[], todayLog: HealthLog | undefined)
     : null;
   const severity = fromSymptom?.severity ?? (chestPain > 0 ? chestPain : null);
   const name = fromSymptom?.name ?? (chestPain > 0 ? "Chest discomfort" : "Pain");
+  const lastLoggedText = fromSymptom?.recordedAt
+    ? `Last log ${formatRelativeLogTime(fromSymptom.recordedAt)}`
+    : severity != null && severity > 0
+      ? "Noted in today’s log"
+      : "No recent pain log";
 
   if (severity == null || severity <= 0) {
     return {
@@ -813,19 +1119,26 @@ function buildPainSnapshot(symptoms: Symptom[], todayLog: HealthLog | undefined)
       name: "Pain",
       severity: null,
       statusText: "Nothing flagged",
+      statusLabel: "Calm" as const,
       tone: "green" as const,
       nextAction: "Log if something hurts",
+      lastLoggedText,
+      progress: 0,
     };
   }
 
-  const tone = severity >= 7 ? ("red" as const) : severity >= 4 ? ("orange" as const) : ("green" as const);
+  const statusLabel = severity >= 7 ? ("Up" as const) : severity >= 4 ? ("Watch" as const) : ("Calm" as const);
+  const tone: WidgetTone = severity >= 7 ? "red" : severity >= 4 ? "orange" : "green";
   return {
     hasPain: true,
     name,
     severity,
     statusText: severity >= 7 ? "Needs attention" : severity >= 4 ? "Watch today" : "Mild · noted",
+    statusLabel,
     tone,
     nextAction: severity >= 7 ? "Open Symptoms to review" : "Tap to update",
+    lastLoggedText,
+    progress: Math.max(0, Math.min(1, severity / 10)),
   };
 }
 
@@ -852,12 +1165,55 @@ function buildMedicationDaySnapshot(
   doses.sort((a, b) => a.timeText.localeCompare(b.timeText));
   const expected = doses.length;
   const taken = doses.filter((d) => d.taken).length;
+  const remaining = Math.max(0, expected - taken);
+  const nextOpen = doses.find((d) => !d.taken);
+  const statusLabel = expected === 0 ? "None" : taken >= expected ? "Done" : "Active";
+  const tone: WidgetTone = taken >= expected && expected > 0 ? "green" : remaining > 0 ? "orange" : "blue";
+  const gridCells: WidgetGridCell[] = [
+    { title: "Taken", detail: String(taken) },
+    { title: "Left", detail: String(remaining) },
+    { title: "Expected", detail: String(expected) },
+    { title: "Next", detail: nextOpen?.timeText || "—" },
+  ];
+  const actionRows: WidgetActionRow[] = nextOpen
+    ? [
+        {
+          tone: nextOpen.taken ? "green" : "orange",
+          title: nextOpen.name,
+          subtitle: nextOpen.detail,
+          trailing: nextOpen.taken ? "Taken" : nextOpen.timeText,
+        },
+      ]
+    : [
+        {
+          tone: "green",
+          title: expected === 0 ? "No schedule" : "All doses logged",
+          subtitle: "Medication day",
+          trailing: "OK",
+        },
+      ];
+  if (doses.length > 1) {
+    const second = doses.find((d) => d !== nextOpen && !d.taken) || doses[doses.length - 1];
+    if (second && second !== nextOpen) {
+      actionRows.push({
+        tone: second.taken ? "green" : "blue",
+        title: second.name,
+        subtitle: second.detail,
+        trailing: second.taken ? "Taken" : second.timeText,
+      });
+    }
+  }
   return {
     taken,
     expected,
     summaryText: expected === 0 ? "No scheduled doses today" : `${taken} of ${expected} taken`,
     nextAction: expected === 0 ? "Add meds in Synapse" : taken >= expected ? "All caught up" : "Log the next dose",
     doses: doses.slice(0, 8),
+    statusLabel,
+    tone,
+    headline: expected === 0 ? "Nothing scheduled." : taken >= expected ? "Medication day complete." : "Keep today’s doses moving.",
+    gridCells,
+    actionRows: actionRows.slice(0, 2),
   };
 }
 
@@ -869,13 +1225,21 @@ function buildLabsSnapshot(labs: LabWork[]) {
     .filter((lab) => (lab.status ?? "completed") !== "pending")
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
+  const flagged = recent.find((lab) =>
+    /crp|c-reactive|elevated|high/i.test(`${lab.testName || ""} ${lab.notes || ""}`),
+  );
+
   if (!labs.length) {
     return {
       hasItems: false,
       title: "Labs",
       statusText: "No labs yet",
+      statusLabel: "Empty" as const,
       tone: "blue" as const,
       nextAction: "Add or scan a result",
+      headline: "Nothing on file yet.",
+      supportText: "Add or scan a result when ready.",
+      progress: 0.15,
       items: [] as { name: string; detail: string; pending: boolean }[],
     };
   }
@@ -885,8 +1249,12 @@ function buildLabsSnapshot(labs: LabWork[]) {
       hasItems: true,
       title: "Labs",
       statusText: `${pending.length} pending review`,
+      statusLabel: "Review" as const,
       tone: "orange" as const,
       nextAction: "Review pending labs",
+      headline: "Results need a look.",
+      supportText: "Not an emergency — open when you can.",
+      progress: 0.55,
       items: pending.slice(0, 3).map((lab) => ({
         name: lab.testName || "Lab",
         detail: lab.date || "Date TBD",
@@ -895,13 +1263,22 @@ function buildLabsSnapshot(labs: LabWork[]) {
     };
   }
 
-  const top = recent[0];
+  const top = flagged || recent[0];
+  const movedUp = !!flagged;
   return {
     hasItems: true,
     title: "Labs",
-    statusText: "Latest on file",
-    tone: "green" as const,
+    statusText: movedUp ? "Change noted" : "Latest on file",
+    statusLabel: movedUp ? ("Review" as const) : ("Steady" as const),
+    tone: movedUp ? ("orange" as const) : ("green" as const),
     nextAction: "Open reports",
+    headline: movedUp
+      ? `${top?.testName || "Marker"} moved up.`
+      : "Latest labs look filed.",
+    supportText: movedUp
+      ? "Not an emergency — review with your clinician."
+      : "Open Synapse for the full packet.",
+    progress: movedUp ? 0.6 : 0.4,
     items: top
       ? [{ name: top.testName || "Lab", detail: top.date || "Recent", pending: false }]
       : [],
@@ -923,23 +1300,133 @@ function buildReport14DaySnapshot(input: {
     medicationLogs: input.medicationLogs,
     rangeDays: 14,
   });
-  const tone =
+  const tone: WidgetTone =
     summary.statusLabel === "Worsening"
-      ? ("orange" as const)
+      ? "orange"
       : summary.statusLabel === "Improving"
-        ? ("green" as const)
-        : ("blue" as const);
+        ? "green"
+        : "blue";
   const adherence =
     summary.todayMedicationExpected > 0
       ? `Meds today ${summary.todayMedicationTaken}/${summary.todayMedicationExpected}`
       : "No med schedule today";
+  const insights = (summary.insights || []).slice(0, 2);
+  const gridCells: WidgetGridCell[] = [
+    { title: "Status", detail: summary.statusLabel },
+    {
+      title: "Feeling",
+      detail:
+        summary.latestCheckIn?.overallFeeling != null
+          ? `${summary.latestCheckIn.overallFeeling}/10`
+          : "—",
+    },
+    {
+      title: "Meds",
+      detail:
+        summary.todayMedicationExpected > 0
+          ? `${summary.todayMedicationTaken}/${summary.todayMedicationExpected}`
+          : "—",
+    },
+    {
+      title: "Days",
+      detail: `${Math.min(14, summary.dailyPoints.length)}`,
+    },
+  ];
+  const actionRows: WidgetActionRow[] = [
+    {
+      tone,
+      title: "Open 14-day report",
+      subtitle: summary.summaryText || "Pattern view",
+      trailing: "Report",
+    },
+  ];
+  if (insights[0]) {
+    actionRows.push({
+      tone: "blue",
+      title: insights[0],
+      subtitle: insights[1] || "Pattern note",
+      trailing: "Insight",
+    });
+  }
   return {
     statusLabel: summary.statusLabel,
     summaryText: summary.summaryText || "Pattern over the last 14 days",
     tone,
     adherenceText: adherence,
     nextAction: "Open 14-day report",
-    insights: (summary.insights || []).slice(0, 2),
+    insights,
+    headline:
+      summary.statusLabel === "Improving"
+        ? "Two-week pattern looks calmer."
+        : summary.statusLabel === "Worsening"
+          ? "Two-week pattern looks noisier."
+          : "Two-week pattern looks steady.",
+    gridCells,
+    actionRows: actionRows.slice(0, 2),
+    dailyPoints: summary.dailyPoints,
+  };
+}
+
+function buildSleepSnapshot(todayLog: HealthLog | undefined): WidgetSnapshot["sleep"] {
+  if (!todayLog || typeof todayLog.sleep !== "number" || Number.isNaN(todayLog.sleep)) {
+    return {
+      hasData: false,
+      score: null,
+      heroText: "—",
+      statusLabel: "OK",
+      tone: "green",
+      primaryLine: "No sleep note yet",
+      secondaryLine: "Log tonight when you can",
+    };
+  }
+  const score = normalizeLegacyFivePoint(todayLog.sleep);
+  const short = score < 6;
+  return {
+    hasData: true,
+    score,
+    heroText: `${score}/10`,
+    statusLabel: short ? "Short" : "OK",
+    tone: short ? "orange" : "green",
+    primaryLine: short ? "Flare risk factor" : "Rest looks steadier",
+    secondaryLine: short ? "Pace the day" : "Keep a gentle rhythm",
+  };
+}
+
+function buildFlareForecastSnapshot(input: {
+  pain: WidgetSnapshot["pain"];
+  hydration: WidgetSnapshot["hydration"];
+  sleep: WidgetSnapshot["sleep"];
+  dailyPoints: { overallFeeling: number | null; symptomSeverity: number | null }[];
+}): WidgetSnapshot["flareForecast"] {
+  const factors: string[] = [];
+  if (input.pain.hasPain && input.pain.statusLabel !== "Calm") {
+    factors.push(input.pain.statusLabel === "Up" ? "pain up" : "pain watch");
+  }
+  if (input.hydration.statusLabel === "Low") factors.push("hydration low");
+  if (input.sleep.statusLabel === "Short") factors.push("sleep short");
+
+  const watch = factors.length > 0;
+  let trendTones: WidgetTone[] = input.dailyPoints.slice(-7).map((point) => {
+    if (point.symptomSeverity != null && point.symptomSeverity >= 6) return "orange";
+    if (point.overallFeeling != null) return feelingTone(point.overallFeeling);
+    return "muted";
+  });
+  if (trendTones.length === 0) {
+    trendTones = [
+      input.pain.tone,
+      input.hydration.tone,
+      input.sleep.tone,
+    ];
+  }
+
+  return {
+    statusLabel: watch ? "Watch" : "Calm",
+    tone: watch ? "orange" : "green",
+    headline: watch ? "Pattern looks a little noisy." : "Pattern looks quieter today.",
+    supportText: watch
+      ? factors.map((f) => f.charAt(0).toUpperCase() + f.slice(1)).join(" · ")
+      : "No strong flare cues from today’s notes",
+    trendTones: trendTones.slice(-7),
   };
 }
 
@@ -982,28 +1469,48 @@ export async function syncWidgetSnapshot() {
   ]);
   const logs = await medicationLogStorage.getByDate(today);
   const hydration = await buildHydrationSnapshot(todayHydration);
+  const reportBuilt = buildReport14DaySnapshot({
+    logs: allLogs,
+    vitals: allVitals,
+    symptoms: allSymptoms,
+    medications,
+    medicationLogs: allMedLogs,
+  });
+  const { dailyPoints, ...report14Day } = reportBuilt;
+  const pain = buildPainSnapshot(todaySymptoms, todayLog);
+  const sleep = buildSleepSnapshot(todayLog);
+  const prnMedication = getPrnMedicationSnapshot(medications, logs);
+  const recovery = buildRecoverySnapshot(
+    sickMode,
+    profile,
+    report14Day.statusLabel,
+    hydration,
+    prnMedication,
+  );
+  const flareForecast = buildFlareForecastSnapshot({
+    pain,
+    hydration,
+    sleep,
+    dailyPoints,
+  });
 
   const snapshot: WidgetSnapshot = {
     appearance: profile.widgetAppearance ?? "system",
     medication: getNextMedicationSnapshot(medications, logs),
     appointment: await getNextAppointmentSnapshot(appointments),
-    prnMedication: getPrnMedicationSnapshot(medications, logs),
+    prnMedication,
     wellness: buildWellnessSnapshot(todayLog, todaySymptoms),
     hydration,
+    sleep,
+    flareForecast,
     sickMode: buildSickModeSnapshot(sickMode, medications, logs),
-    mentalHealth: buildMentalHealthSnapshot(mentalHealthMode),
+    mentalHealth: buildMentalHealthSnapshot(mentalHealthMode, todayLog, dailyPoints),
     caregiver: buildCaregiverWidgetSnapshot(caregiverProfile, medications, logs, caregiverTodayLog),
-    recovery: buildRecoverySnapshot(sickMode, profile),
-    pain: buildPainSnapshot(todaySymptoms, todayLog),
+    recovery,
+    pain,
     medicationDay: buildMedicationDaySnapshot(medications, logs, today),
     labs: buildLabsSnapshot(allLabs),
-    report14Day: buildReport14DaySnapshot({
-      logs: allLogs,
-      vitals: allVitals,
-      symptoms: allSymptoms,
-      medications,
-      medicationLogs: allMedLogs,
-    }),
+    report14Day,
     updatedAt: new Date().toISOString(),
   };
 
