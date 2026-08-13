@@ -19,7 +19,7 @@ module.exports = {
   expo: {
     name: "Synapse",
     slug: "synapse",
-    version: "1.13",
+    version: "1.14",
     orientation: "default",
     icon: "./assets/icon.png",
     scheme: ["synapse", "myapp"],
@@ -32,7 +32,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
-      buildNumber: "0.1",
+      buildNumber: "2",
       entitlements: {
         "com.apple.developer.icloud-container-identifiers": ["iCloud.com.mohammedsaruwar.synapse"],
         "com.apple.developer.icloud-services": ["CloudKit"],
