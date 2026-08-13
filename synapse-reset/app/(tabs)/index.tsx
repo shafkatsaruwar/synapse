@@ -463,8 +463,8 @@ export default function MainScreen() {
         : route === "sick-mode" ? "sickmode"
         : route === "labs" ? "labwork"
         : route === "monthly-review" ? "monthlycheckin"
-        : route === "recovery" ? "sickmode"
         : route === "notes" ? "logtoday"
+        : route === "report" || route === "14-day-report" ? "reports"
         : route;
 
       if (isAppointmentImportRoute) {
@@ -527,8 +527,24 @@ export default function MainScreen() {
         return true;
       }
 
-      if (normalizedRoute === "logtoday" || normalizedRoute === "symptoms" || normalizedRoute === "labwork" || normalizedRoute === "imaging" || normalizedRoute === "monthlycheckin") {
+      if (
+        normalizedRoute === "logtoday"
+        || normalizedRoute === "symptoms"
+        || normalizedRoute === "labwork"
+        || normalizedRoute === "imaging"
+        || normalizedRoute === "monthlycheckin"
+        || normalizedRoute === "reports"
+      ) {
         setActiveScreen(normalizedRoute);
+        setRefreshKey((k) => k + 1);
+        trackFeedbackWidgetLaunch().catch(() => {});
+        return true;
+      }
+
+      // Recovery Today is a read-only view of the same screen: open it without
+      // flipping sick mode on, which is what the "sickmode" route does below.
+      if (normalizedRoute === "recovery") {
+        setActiveScreen("sickmode");
         setRefreshKey((k) => k + 1);
         trackFeedbackWidgetLaunch().catch(() => {});
         return true;
@@ -864,50 +880,24 @@ export default function MainScreen() {
     return () => subscription.remove();
   }, [navigateToWidgetTarget]);
 
+  // Cold launch from a widget arrives as router params rather than a URL event.
+  // Rebuild the URL and hand it to the same resolver the warm path uses, so every
+  // widget target behaves identically however the app was opened.
   useEffect(() => {
     const target = Array.isArray(widgetTarget) ? widgetTarget[0] : widgetTarget;
+    if (!target) return;
+
     const resolvedMedId = Array.isArray(medId) ? medId[0] : medId;
     const targetMode = Array.isArray(mode) ? mode[0] : mode;
-    const normalizedTarget = target === "prn-log" ? "prnlog" : target === "daily-log" ? "logtoday" : target;
 
-    if (normalizedTarget === "prnlog" && resolvedMedId) {
-      void handlePrnWidgetLog(resolvedMedId);
-      return;
-    }
+    const query = [
+      `widgetTarget=${encodeURIComponent(target)}`,
+      ...(resolvedMedId ? [`medId=${encodeURIComponent(resolvedMedId)}`] : []),
+      ...(targetMode ? [`mode=${encodeURIComponent(targetMode)}`] : []),
+    ].join("&");
 
-    if (normalizedTarget === "caregiverdashboard") {
-      if (targetMode === "log-med" || targetMode === "add-note") {
-        setCaregiverLaunchAction(targetMode);
-      }
-      setActiveScreen("caregiverdashboard");
-      setRefreshKey((k) => k + 1);
-      trackFeedbackWidgetLaunch().catch(() => {});
-      return;
-    }
-
-    if (normalizedTarget === "medications" || normalizedTarget === "appointments" || normalizedTarget === "logtoday") {
-      setActiveScreen(normalizedTarget);
-      setRefreshKey((k) => k + 1);
-      trackFeedbackWidgetLaunch().catch(() => {});
-      return;
-    }
-
-    if (normalizedTarget === "hydration") {
-      setActiveScreen("eating");
-      setPendingHydrationLaunch(true);
-      setHydrationLaunchToken((value) => value + 1);
-      if (targetMode === "quick-sip") {
-        void handleQuickSip();
-      }
-      setRefreshKey((k) => k + 1);
-      trackFeedbackWidgetLaunch().catch(() => {});
-      return;
-    }
-
-    if (normalizedTarget === "sickmode" || normalizedTarget === "mentalhealth") {
-      void navigateToWidgetTarget(`myapp://widget/${normalizedTarget}`);
-    }
-  }, [handlePrnWidgetLog, handleQuickSip, medId, mode, navigateToWidgetTarget, widgetTarget]);
+    navigateToWidgetTarget(`myapp:///?${query}`);
+  }, [medId, mode, navigateToWidgetTarget, widgetTarget]);
 
   const handleMedicationPromptTaken = useCallback(async () => {
     if (!medicationPrompt) return;
