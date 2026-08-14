@@ -68,6 +68,10 @@
     <string>Synapse can add appointment events to Calendar when you choose to export them.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>Unlock Synapse with Face ID to keep your health data private.</string>
+    <key>NSHealthShareUsageDescription</key>
+    <string>Synapse reads heart rate, blood pressure, weight, temperature, oxygen, blood glucose, sleep, and steps from Apple Health when you choose Connect Apple Health. Data stays on your device unless you use optional cloud features.</string>
+    <key>NSHealthUpdateUsageDescription</key>
+    <string>Synapse does not write to Apple Health in this version.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to access your microphone</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

@@ -44,7 +44,7 @@ module.exports = {
         ITSAppUsesNonExemptEncryption: false,
         NSFaceIDUsageDescription: "Unlock Synapse with Face ID to keep your health data private.",
         NSHealthShareUsageDescription:
-          "Synapse reads heart rate, blood pressure, weight, temperature, oxygen, and blood glucose from Apple Health when you choose Connect Apple Health. Data stays on your device unless you use optional cloud features.",
+          "Synapse reads heart rate, blood pressure, weight, temperature, oxygen, blood glucose, sleep, and steps from Apple Health when you choose Connect Apple Health. Data stays on your device unless you use optional cloud features.",
         NSHealthUpdateUsageDescription:
           "Synapse does not write to Apple Health in this version.",
         NSCalendarsUsageDescription: "Synapse uses read-only calendar access so you can import selected events as appointments.",
@@ -92,7 +92,7 @@ module.exports = {
         "@kingstinct/react-native-healthkit",
         {
           NSHealthShareUsageDescription:
-            "Synapse reads heart rate, blood pressure, weight, temperature, oxygen, and blood glucose from Apple Health when you choose Connect Apple Health. Data stays on your device unless you use optional cloud features.",
+            "Synapse reads heart rate, blood pressure, weight, temperature, oxygen, blood glucose, sleep, and steps from Apple Health when you choose Connect Apple Health. Data stays on your device unless you use optional cloud features.",
           NSHealthUpdateUsageDescription:
             "Synapse does not write to Apple Health in this version.",
           background: false,
