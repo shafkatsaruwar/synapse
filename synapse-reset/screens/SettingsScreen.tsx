@@ -58,16 +58,6 @@ import {
   type AppleHealthStatus,
 } from "@/lib/apple-health";
 import {
-  buildLifeOSDayPlan,
-  dayPlanSummary,
-  dayPlanToIcs,
-  dayPlanToJson,
-  openLifeOSImport,
-  prepareLifeOSDayPlanShare,
-} from "@/lib/lifeos-bridge";
-import * as Clipboard from "expo-clipboard";
-import * as Sharing from "expo-sharing";
-import {
   generatePatientLinkCode,
   getCaregiverLinkState,
   linkCaregiverWithCode,
@@ -211,8 +201,6 @@ export default function SettingsScreen({
   const [cloudBusy, setCloudBusy] = useState(false);
   const [appleHealthStatus, setAppleHealthStatus] = useState<AppleHealthStatus | null>(null);
   const [appleHealthBusy, setAppleHealthBusy] = useState(false);
-  const [lifeosBusy, setLifeosBusy] = useState(false);
-  const [lifeosLastShare, setLifeosLastShare] = useState<string | null>(null);
   const [caregiverLinkState, setCaregiverLinkState] = useState<CaregiverLinkState | null>(null);
   const [caregiverLinkBusy, setCaregiverLinkBusy] = useState(false);
   const [caregiverCodeCopied, setCaregiverCodeCopied] = useState(false);
@@ -491,88 +479,6 @@ export default function SettingsScreen({
         },
       ]
     );
-  };
-
-  const handleShareDayPlanWithLifeOS = async () => {
-    setLifeosBusy(true);
-    try {
-      const prepared = await prepareLifeOSDayPlanShare({ days: 7 });
-      if (!prepared.ok) {
-        Alert.alert("LifeOS", prepared.error);
-        return;
-      }
-      const { summary } = prepared;
-      const label = `${summary.medications} med dose${summary.medications === 1 ? "" : "s"}, ${summary.appointments} appointment${summary.appointments === 1 ? "" : "s"} over ${summary.windowDays} days`;
-
-      if (prepared.mode === "clipboard_handoff") {
-        await Clipboard.setStringAsync(prepared.json);
-      }
-
-      const opened = await openLifeOSImport(prepared.url);
-      const stamp = new Date().toISOString();
-      setLifeosLastShare(stamp);
-
-      if (!opened.ok) {
-        if (prepared.mode === "clipboard_handoff") {
-          await Share.share({
-            message: prepared.json,
-            title: "Synapse day plan for LifeOS",
-          }).catch(() => undefined);
-        }
-        Alert.alert(
-          "LifeOS not opened",
-          `${opened.error}\n\nDay plan ready (${label}). ${
-            prepared.mode === "clipboard_handoff"
-              ? "JSON is on your clipboard — open LifeOS → Settings → Synapse and paste it."
-              : "Install LifeOS, then try again."
-          }`,
-        );
-        return;
-      }
-
-      Alert.alert(
-        "Sent to LifeOS",
-        prepared.mode === "deep_link"
-          ? `Shared ${label}. LifeOS will replace any previous Synapse events with this plan.`
-          : `Shared ${label}. Day plan JSON is on your clipboard — if LifeOS asks, paste it in Settings → Synapse.`,
-      );
-    } finally {
-      setLifeosBusy(false);
-    }
-  };
-
-  const handleShareDayPlanIcs = async () => {
-    setLifeosBusy(true);
-    try {
-      const plan = await buildLifeOSDayPlan({ days: 7 });
-      const summary = dayPlanSummary(plan);
-      if (summary.total === 0) {
-        Alert.alert("LifeOS", "Nothing upcoming in the next week to export.");
-        return;
-      }
-      const ics = dayPlanToIcs(plan);
-      const dir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
-      if (!dir) {
-        await Share.share({ message: ics, title: "Synapse day plan.ics" });
-        return;
-      }
-      const uri = `${dir}synapse-lifeos-day-plan.ics`;
-      await FileSystem.writeAsStringAsync(uri, ics, { encoding: FileSystem.EncodingType.UTF8 });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, {
-          mimeType: "text/calendar",
-          dialogTitle: "Share Synapse day plan",
-          UTI: "com.apple.ical.ics",
-        });
-      } else {
-        await Share.share({ message: dayPlanToJson(plan), title: "Synapse day plan" });
-      }
-      setLifeosLastShare(new Date().toISOString());
-    } catch (error) {
-      Alert.alert("Export failed", error instanceof Error ? error.message : "Could not export day plan.");
-    } finally {
-      setLifeosBusy(false);
-    }
   };
 
   const handleConnectAppleHealth = async () => {
@@ -1640,40 +1546,9 @@ export default function SettingsScreen({
         </GlassView>
 
         <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
-          <Text style={styles.sectionTitle}>LifeOS</Text>
-          <Text style={styles.desc}>
-            Share the next 7 days of medication doses and appointments into LifeOS so you can plan your day in one place. Synapse stays the source of truth — re-share anytime to refresh. Not medical advice.
-          </Text>
-          <View style={styles.syncedBadge}>
-            <Ionicons name="calendar-outline" size={15} color={lifeosLastShare ? C.green : C.textTertiary} />
-            <Text style={[styles.syncedText, !lifeosLastShare && { color: C.textTertiary }]}>
-              {lifeosLastShare
-                ? `Last shared ${new Date(lifeosLastShare).toLocaleString()}`
-                : "Not shared yet this session"}
-            </Text>
-          </View>
-          <View style={styles.backupActions}>
-            <Pressable
-              style={[styles.secondaryBtn, lifeosBusy && { opacity: 0.55 }]}
-              onPress={handleShareDayPlanWithLifeOS}
-              disabled={lifeosBusy}
-            >
-              <Text style={styles.secondaryBtnText}>{lifeosBusy ? "Working..." : "Share day plan with LifeOS"}</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.outlineBtn, lifeosBusy && { opacity: 0.55 }]}
-              onPress={handleShareDayPlanIcs}
-              disabled={lifeosBusy}
-            >
-              <Text style={styles.outlineBtnText}>Export .ics</Text>
-            </Pressable>
-          </View>
-        </GlassView>
-
-        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
           <Text style={styles.sectionTitle}>Apple Health</Text>
           <Text style={styles.desc}>
-            Connect Apple Health to import heart rate, blood pressure, weight, temperature, oxygen, and blood glucose into Vitals. Read-only — Synapse does not write back to Apple Health. Not medical advice and not HIPAA.
+            Connect Apple Health to import heart rate, blood pressure, weight, temperature, oxygen, blood glucose, sleep, and steps into Vitals. Read-only — Synapse does not write back to Apple Health. Not medical advice and not HIPAA.
           </Text>
           <View style={styles.syncedBadge}>
             <Ionicons

@@ -18,7 +18,7 @@ import {
   type AppleHealthStatus,
 } from "@/lib/apple-health";
 
-type Category = "weight" | "blood_pressure" | "blood_sugar" | "heart_rate" | "body_temperature" | "oxygen_saturation" | "sleep" | "hydration" | "labs";
+type Category = "weight" | "blood_pressure" | "blood_sugar" | "heart_rate" | "body_temperature" | "oxygen_saturation" | "sleep" | "steps" | "hydration" | "labs";
 type VitalSource = "manual" | "apple_watch" | "apple_health" | "blood_pressure_monitor" | "other";
 
 function getCategories(C: Theme): { key: Category; label: string; icon: string; color: string; unit: string; units: string[] }[] {
@@ -30,6 +30,7 @@ function getCategories(C: Theme): { key: Category; label: string; icon: string; 
     { key: "body_temperature", label: "Body Temperature", icon: "thermometer-outline", color: C.red, unit: "°F", units: ["°F", "°C"] },
     { key: "oxygen_saturation", label: "Oxygen Saturation", icon: "fitness-outline", color: C.green, unit: "%", units: ["%"] },
     { key: "sleep", label: "Sleep", icon: "moon-outline", color: C.purple, unit: "hours", units: ["hours"] },
+    { key: "steps", label: "Steps", icon: "walk-outline", color: C.yellow, unit: "steps", units: ["steps"] },
     { key: "hydration", label: "Hydration", icon: "cafe-outline", color: C.tint, unit: "glasses", units: ["glasses", "L", "ml"] },
     { key: "labs", label: "Labs", icon: "flask-outline", color: C.green, unit: "", units: [] },
   ];

@@ -53,7 +53,6 @@ module.exports = {
         NSPhotoLibraryUsageDescription: "Synapse allows users to select photos from their library to personalize their profile and attach images to health records. Photos are only accessed when the user explicitly chooses to add one.",
         NSPhotoLibraryAddUsageDescription: "Synapse saves images only when the user chooses to export or save content.",
         LSSupportsOpeningDocumentsInPlace: false,
-        LSApplicationQueriesSchemes: ["lifeos"],
         CFBundleDocumentTypes: [
           {
             CFBundleTypeName: "iCalendar",

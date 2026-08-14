@@ -12,7 +12,12 @@ const READ_TYPES = [
   "HKQuantityTypeIdentifierOxygenSaturation",
   "HKQuantityTypeIdentifierBloodGlucose",
   "HKCorrelationTypeIdentifierBloodPressure",
+  "HKQuantityTypeIdentifierStepCount",
+  "HKCategoryTypeIdentifierSleepAnalysis",
 ] as const;
+
+/** HKCategoryValueSleepAnalysis values that represent actual sleep (excludes inBed=0, awake=2). */
+const ASLEEP_CATEGORY_VALUES = new Set([1, 3, 4, 5]);
 
 export type AppleHealthStatus = {
   available: boolean;
@@ -362,6 +367,73 @@ export async function syncAppleHealthVitals(days = 30): Promise<{
         bloodPressureSystolic: sys,
         bloodPressureDiastolic: dia,
         externalId: `apple_health:bp:${uuid}`,
+        notes: "Imported from Apple Health",
+      });
+      imported += 1;
+    }
+
+    // Steps: use HealthKit's own day-bucketed cumulative sum rather than summing raw
+    // samples, since raw samples double-count when iPhone and Apple Watch both log steps.
+    const anchorDate = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
+    const stepBuckets = await hk.queryStatisticsCollectionForQuantity(
+      "HKQuantityTypeIdentifierStepCount" as never,
+      ["cumulativeSum"],
+      anchorDate,
+      { day: 1 },
+      { filter: { date: { startDate: from, endDate: new Date() } } } as never,
+    );
+    for (const bucket of stepBuckets as unknown as { sumQuantity?: { quantity: number }; startDate?: Date }[]) {
+      const steps = bucket.sumQuantity?.quantity;
+      if (typeof steps !== "number" || steps <= 0 || !bucket.startDate) continue;
+      const dateKey = toDateKey(bucket.startDate);
+      await upsertVital({
+        date: dateKey,
+        recordedAt: toIso(bucket.startDate),
+        type: "steps",
+        value: String(Math.round(steps)),
+        unit: "steps",
+        source: "apple_health",
+        externalId: `apple_health:steps:${dateKey}`,
+        notes: "Imported from Apple Health",
+      });
+      imported += 1;
+    }
+
+    // Sleep: HealthKit reports raw in-bed/asleep/awake segments per night, so sum the
+    // asleep segments ourselves and attribute the total to the day the person woke up.
+    const sleepSamples = await hk.queryCategorySamples("HKCategoryTypeIdentifierSleepAnalysis" as never, {
+      limit: 500,
+      ascending: true,
+      filter: { date: { startDate: from, endDate: new Date() } },
+    } as never);
+    const sleepByDate = new Map<string, { minutes: number; latestEnd: Date }>();
+    for (const sample of sleepSamples as { value?: number; startDate?: Date; endDate?: Date }[]) {
+      if (typeof sample.value !== "number" || !ASLEEP_CATEGORY_VALUES.has(sample.value)) continue;
+      if (!sample.startDate || !sample.endDate) continue;
+      const start = new Date(sample.startDate).getTime();
+      const end = new Date(sample.endDate).getTime();
+      if (!(end > start)) continue;
+      const dateKey = toDateKey(sample.endDate);
+      const minutes = (end - start) / 60000;
+      const existing = sleepByDate.get(dateKey);
+      if (existing) {
+        existing.minutes += minutes;
+        if (end > existing.latestEnd.getTime()) existing.latestEnd = new Date(end);
+      } else {
+        sleepByDate.set(dateKey, { minutes, latestEnd: new Date(end) });
+      }
+    }
+    for (const [dateKey, info] of sleepByDate) {
+      const hours = Number((info.minutes / 60).toFixed(1));
+      if (hours <= 0) continue;
+      await upsertVital({
+        date: dateKey,
+        recordedAt: toIso(info.latestEnd),
+        type: "sleep",
+        value: String(hours),
+        unit: "hours",
+        source: "apple_health",
+        externalId: `apple_health:sleep:${dateKey}`,
         notes: "Imported from Apple Health",
       });
       imported += 1;
