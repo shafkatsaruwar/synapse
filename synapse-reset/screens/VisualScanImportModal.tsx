@@ -17,6 +17,7 @@ import {
 } from "@/lib/storage";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import {
+  formatLabValueDisplay,
   parseAppointmentScan,
   parseImagingScan,
   parseLabScan,
@@ -135,8 +136,8 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
     }
     if (type === "lab") {
       const parsed = parseLabScan(text);
-      setLabDoctor(parsed.doctorName);
-      setLabTestName(parsed.results.length ? "Imported lab report" : "Lab Work");
+      setLabDoctor(parsed.doctorName || parsed.labFacility);
+      setLabTestName(parsed.testName);
       setLabDate(parsed.date);
       setLabNotes(parsed.notes);
       setLabResults(parsed.results);
@@ -250,6 +251,8 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
           value: Number(result.value),
           unit: result.unit.trim(),
           referenceRange: result.referenceRange?.trim() || undefined,
+          flag: result.flag?.trim() || undefined,
+          valuePrefix: result.valuePrefix,
         }))
         .filter((result) => result.name && Number.isFinite(result.value) && result.unit);
 
@@ -372,11 +375,21 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
                           <View style={{ flex: 1 }}>
                             <Field
                               label="Value"
-                              value={String(result.value)}
-                              onChangeText={(value) => updateLabResult(index, { value: Number(value) })}
+                              value={result.valuePrefix ? `${result.valuePrefix}${result.value}` : String(result.value)}
+                              onChangeText={(value) => {
+                                const parsed = value.trim().match(/^([<>])?(\d+(?:\.\d+)?)$/);
+                                if (parsed) {
+                                  updateLabResult(index, {
+                                    value: Number(parsed[2]),
+                                    valuePrefix: parsed[1] === "<" || parsed[1] === ">" ? parsed[1] : undefined,
+                                  });
+                                  return;
+                                }
+                                updateLabResult(index, { value: Number(value) });
+                              }}
                               styles={styles}
                               colors={C}
-                              placeholder="95"
+                              placeholder="<3 or 95"
                             />
                           </View>
                           <View style={{ flex: 1 }}>
@@ -391,6 +404,9 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
                           colors={C}
                           placeholder="70-99 mg/dL"
                         />
+                        {result.flag ? (
+                          <Text style={styles.flagText}>Flag: {result.flag} · Parsed as {formatLabValueDisplay(result)}</Text>
+                        ) : null}
                       </View>
                     ))}
                   </View>
@@ -497,6 +513,7 @@ function makeStyles(C: Theme) {
     resultIndex: { fontSize: 12, fontWeight: "900", color: C.textSecondary, textTransform: "uppercase" },
     deleteResultBtn: { width: 32, height: 32, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.red + "12" },
     resultGrid: { flexDirection: "row", gap: 10 },
+    flagText: { fontSize: 12, fontWeight: "700", color: C.textSecondary, marginBottom: 10, marginTop: -4 },
     rawBox: { borderRadius: 14, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, padding: 12, marginBottom: 14 },
     rawLabel: { fontWeight: "800", fontSize: 11, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
     rawText: { fontWeight: "400", fontSize: 12, color: C.textSecondary, lineHeight: 18 },
