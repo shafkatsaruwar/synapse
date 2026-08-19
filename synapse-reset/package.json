@@ -61,6 +61,7 @@
     "@babel/core": "^7.25.2",
     "@types/react": "~19.1.10",
     "dotenv": "^16.4.5",
+    "eas-cli": "^22.0.0",
     "eslint": "^9.31.0",
     "eslint-config-expo": "~10.0.0",
     "tsx": "^4.20.5",
