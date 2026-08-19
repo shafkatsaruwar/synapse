@@ -151,7 +151,7 @@ export default function LabWorkScreen() {
                       <View style={styles.resultPreview}>
                         {record.results.slice(0, 3).map((result, index) => (
                           <Text key={`${result.name}-${index}`} style={styles.resultPreviewText}>
-                            {result.name}: {result.value} {result.unit}
+                            {result.name}: {result.valuePrefix ?? ""}{result.value} {result.unit}
                           </Text>
                         ))}
                         {record.results.length > 3 ? (

@@ -298,6 +298,10 @@ export interface LabResult {
   value: number;
   unit: string;
   referenceRange?: string;
+  /** H/L/Critical from the report flag column */
+  flag?: string;
+  /** Reporting-limit prefix when the source shows values like "<3" or ">1000" */
+  valuePrefix?: "<" | ">";
 }
 
 export interface LabWork {

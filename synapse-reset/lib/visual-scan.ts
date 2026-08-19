@@ -1,5 +1,10 @@
 import { NativeModules, Platform } from "react-native";
 import type { LabResult } from "@/lib/storage";
+import {
+  formatLabValueDisplay,
+  parseLabResults as parseLabResultsCore,
+  parseLabScan as parseLabScanCore,
+} from "@/lib/lab-scan-parser";
 
 type NativeVisionBridge = {
   recognizeText?: (imageUri: string) => Promise<string>;
@@ -26,6 +31,8 @@ export type ScannedAppointment = {
 export type ScannedLabNote = {
   doctorName: string;
   date: string;
+  testName: string;
+  labFacility: string;
   notes: string;
   results: LabResult[];
   rawText: string;
@@ -93,77 +100,15 @@ export function parseAppointmentScan(rawText: string): ScannedAppointment {
 }
 
 export function parseLabScan(rawText: string): ScannedLabNote {
-  const lines = cleanLines(rawText);
-  const doctorLine = lines.find((line) => /\b(dr\.?|md|provider|ordered by|physician)\b/i.test(line)) ?? "";
-  return {
-    doctorName: cleanDoctorName(doctorLine),
-    date: parseDate(rawText),
-    notes: rawText.slice(0, 1200),
-    results: parseLabResults(rawText),
-    rawText,
-  };
+  const parsed = parseLabScanCore(rawText);
+  return { ...parsed, rawText };
 }
-
-const LAB_TEST_ALIASES: Record<string, string[]> = {
-  Glucose: ["glucose", "blood glucose", "fasting glucose"],
-  Hemoglobin: ["hemoglobin", "hgb", "hb"],
-  WBC: ["wbc", "white blood cell", "white blood cells", "white blood count"],
-  Platelets: ["platelets", "platelet count", "plt"],
-  Creatinine: ["creatinine", "creat"],
-  ALT: ["alt", "alanine aminotransferase", "sgpt"],
-  AST: ["ast", "aspartate aminotransferase", "sgot"],
-};
 
 export function parseLabResults(rawText: string): LabResult[] {
-  const seen = new Set<string>();
-  const results: LabResult[] = [];
-  const lines = cleanLines(rawText);
-  const resultPattern = /([A-Za-z][A-Za-z\s./()-]{1,45}):?\s+([-+]?\d+(?:\.\d+)?)\s*([A-Za-z/%^\d]+(?:\/[A-Za-z^\d]+)?)/g;
-
-  for (const line of lines) {
-    if (/\b(date|dob|patient|provider|physician|address|phone|fax|page|collected|reported|ordered)\b/i.test(line)) {
-      continue;
-    }
-
-    resultPattern.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = resultPattern.exec(line)) != null) {
-      const rawName = match[1].replace(/[.:|-]+$/g, "").replace(/\s+/g, " ").trim();
-      const value = Number(match[2]);
-      const unit = match[3].trim();
-      if (!rawName || !Number.isFinite(value) || !unit || rawName.length > 48) continue;
-
-      const name = mapLabTestName(rawName);
-      const key = `${name.toLowerCase()}|${value}|${unit.toLowerCase()}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      const referenceRange = findReferenceRange(line, match.index + match[0].length);
-      results.push({
-        name,
-        value,
-        unit,
-        ...(referenceRange ? { referenceRange } : {}),
-      });
-    }
-  }
-
-  return results.slice(0, 40);
+  return parseLabResultsCore(rawText);
 }
 
-function mapLabTestName(rawName: string) {
-  const normalized = rawName.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  for (const [canonical, aliases] of Object.entries(LAB_TEST_ALIASES)) {
-    if (aliases.some((alias) => normalized === alias || normalized.includes(alias))) return canonical;
-  }
-  return titleCase(rawName.replace(/\b(result|value|test)\b/gi, "").trim());
-}
-
-function findReferenceRange(line: string, startIndex: number) {
-  const rest = line.slice(startIndex);
-  const range = rest.match(/(?:ref(?:erence)?\s*range|normal)?\s*:?\s*([-+]?\d+(?:\.\d+)?\s*[-–]\s*[-+]?\d+(?:\.\d+)?\s*[A-Za-z/%^\d]*)/i);
-  return range?.[1]?.replace(/\s+/g, " ").trim();
-}
+export { formatLabValueDisplay };
 
 export function parseImagingScan(rawText: string): ScannedImaging {
   const lines = cleanLines(rawText);
