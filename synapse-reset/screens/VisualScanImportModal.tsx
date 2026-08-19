@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import * as ImagePicker from "expo-image-picker";
@@ -6,10 +6,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import {
   appointmentStorage,
+  doctorsStorage,
   imagingStorage,
   labWorkStorage,
   medicationStorage,
   type Appointment,
+  type Doctor,
   type Imaging,
   type LabResult,
   type LabWork,
@@ -45,6 +47,7 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
   const [scanType, setScanType] = useState<VisualScanType>(initialType);
   const [isScanning, setIsScanning] = useState(false);
   const [rawText, setRawText] = useState("");
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [medName, setMedName] = useState("");
   const [medDosage, setMedDosage] = useState("");
   const [aptDoctor, setAptDoctor] = useState("");
@@ -53,6 +56,7 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
   const [aptLocation, setAptLocation] = useState("");
   const [aptNotes, setAptNotes] = useState("");
   const [labDoctor, setLabDoctor] = useState("");
+  const [labDoctorId, setLabDoctorId] = useState<string | undefined>(undefined);
   const [labTestName, setLabTestName] = useState("");
   const [labDate, setLabDate] = useState(new Date().toISOString().slice(0, 10));
   const [labNotes, setLabNotes] = useState("");
@@ -61,8 +65,36 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
   const [imagingType, setImagingType] = useState("");
   const [imagingBodyArea, setImagingBodyArea] = useState("");
   const [imagingDoctor, setImagingDoctor] = useState("");
+  const [imagingDoctorId, setImagingDoctorId] = useState<string | undefined>(undefined);
   const [imagingDate, setImagingDate] = useState(new Date().toISOString().slice(0, 10));
   const [imagingNotes, setImagingNotes] = useState("");
+
+  useEffect(() => {
+    if (!visible) return;
+    let active = true;
+    doctorsStorage
+      .getAll()
+      .then((records) => {
+        if (active) setDoctors(records.slice().sort((a, b) => a.name.localeCompare(b.name)));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [visible]);
+
+  // Preselect a saved doctor when a scan surfaces a name that matches one already on file.
+  useEffect(() => {
+    if (labDoctorId || !labDoctor.trim() || doctors.length === 0) return;
+    const match = doctors.find((doctor) => doctor.name.trim().toLowerCase() === labDoctor.trim().toLowerCase());
+    if (match) setLabDoctorId(match.id);
+  }, [labDoctor, doctors, labDoctorId]);
+
+  useEffect(() => {
+    if (imagingDoctorId || !imagingDoctor.trim() || doctors.length === 0) return;
+    const match = doctors.find((doctor) => doctor.name.trim().toLowerCase() === imagingDoctor.trim().toLowerCase());
+    if (match) setImagingDoctorId(match.id);
+  }, [imagingDoctor, doctors, imagingDoctorId]);
 
   const reset = () => {
     setRawText("");
@@ -74,6 +106,7 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
     setAptLocation("");
     setAptNotes("");
     setLabDoctor("");
+    setLabDoctorId(undefined);
     setLabTestName("");
     setLabDate(new Date().toISOString().slice(0, 10));
     setLabNotes("");
@@ -82,6 +115,7 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
     setImagingType("");
     setImagingBodyArea("");
     setImagingDoctor("");
+    setImagingDoctorId(undefined);
     setImagingDate(new Date().toISOString().slice(0, 10));
     setImagingNotes("");
   };
@@ -191,7 +225,7 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
   };
 
   const addLabResult = () => {
-    setLabResults((current) => [...current, { name: "", value: 0, unit: "" }]);
+    setLabResults((current) => [...current, { name: "", value: "", unit: "" }]);
   };
 
   const changeType = (type: VisualScanType) => {
@@ -244,14 +278,18 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
 
     if (scanType === "lab") {
       if (!labTestName.trim()) return Alert.alert("Lab test name needed", "Add a test name before saving.");
-      const cleanedResults = labResults
-        .map((result) => ({
-          name: result.name.trim(),
-          value: Number(result.value),
-          unit: result.unit.trim(),
-          referenceRange: result.referenceRange?.trim() || undefined,
-        }))
-        .filter((result) => result.name && Number.isFinite(result.value) && result.unit);
+      const cleanedResults: LabResult[] = labResults
+        .map((result) => {
+          const value = typeof result.value === "string" ? result.value.trim() : result.value;
+          return {
+            name: result.name.trim(),
+            value,
+            unit: result.unit.trim(),
+            referenceRange: result.referenceRange?.trim() || undefined,
+            flag: result.flag?.trim() || undefined,
+          };
+        })
+        .filter((result) => result.name && (typeof result.value === "number" ? Number.isFinite(result.value) : result.value.length > 0));
 
       if (rawText && cleanedResults.length === 0) {
         return Alert.alert("Review needed", "Keep at least one parsed lab result or add one manually before saving.");
@@ -260,6 +298,7 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
       const saved = await labWorkStorage.save({
         testName: labTestName.trim(),
         date: labDate.trim(),
+        doctorId: labDoctorId,
         notes: labNotes.trim(),
         results: cleanedResults,
         documentUri: labDocumentUri,
@@ -276,6 +315,7 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
       type: imagingType.trim(),
       bodyArea: imagingBodyArea.trim() || undefined,
       date: imagingDate.trim(),
+      doctorId: imagingDoctorId,
       notes: imagingNotes.trim(),
       source: "scan",
     } as Omit<Imaging, "id">);
@@ -341,7 +381,14 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
               </>
             ) : scanType === "lab" ? (
               <>
-                <Field label="Doctor" value={labDoctor} onChangeText={setLabDoctor} styles={styles} colors={C} />
+                <DoctorChooser
+                  doctors={doctors}
+                  selectedId={labDoctorId}
+                  onSelect={setLabDoctorId}
+                  scannedName={labDoctor}
+                  styles={styles}
+                  colors={C}
+                />
                 <Field label="Test name" value={labTestName} onChangeText={setLabTestName} styles={styles} colors={C} placeholder="CBC, metabolic panel, iron panel..." />
                 <Field label="Date" value={labDate} onChangeText={setLabDate} styles={styles} colors={C} placeholder="YYYY-MM-DD" />
                 <View style={styles.reviewHeader}>
@@ -372,11 +419,11 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
                           <View style={{ flex: 1 }}>
                             <Field
                               label="Value"
-                              value={String(result.value)}
-                              onChangeText={(value) => updateLabResult(index, { value: Number(value) })}
+                              value={String(result.value ?? "")}
+                              onChangeText={(value) => updateLabResult(index, { value })}
                               styles={styles}
                               colors={C}
-                              placeholder="95"
+                              placeholder="95 or <3"
                             />
                           </View>
                           <View style={{ flex: 1 }}>
@@ -401,7 +448,14 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
               <>
                 <Field label="Type" value={imagingType} onChangeText={setImagingType} styles={styles} colors={C} placeholder="X-ray, MRI, CT, Ultrasound..." />
                 <Field label="Body area" value={imagingBodyArea} onChangeText={setImagingBodyArea} styles={styles} colors={C} />
-                <Field label="Doctor" value={imagingDoctor} onChangeText={setImagingDoctor} styles={styles} colors={C} />
+                <DoctorChooser
+                  doctors={doctors}
+                  selectedId={imagingDoctorId}
+                  onSelect={setImagingDoctorId}
+                  scannedName={imagingDoctor}
+                  styles={styles}
+                  colors={C}
+                />
                 <Field label="Date" value={imagingDate} onChangeText={setImagingDate} styles={styles} colors={C} placeholder="YYYY-MM-DD" />
                 <Field label="Notes" value={imagingNotes} onChangeText={setImagingNotes} styles={styles} colors={C} multiline />
               </>
@@ -462,6 +516,67 @@ function Field({
   );
 }
 
+function DoctorChooser({
+  doctors,
+  selectedId,
+  onSelect,
+  scannedName,
+  styles,
+  colors: C,
+}: {
+  doctors: Doctor[];
+  selectedId?: string;
+  onSelect: (id: string | undefined) => void;
+  scannedName?: string;
+  styles: ReturnType<typeof makeStyles>;
+  colors: Theme;
+}) {
+  const scanned = scannedName?.trim();
+  const matched = scanned && doctors.some((doctor) => doctor.name.trim().toLowerCase() === scanned.toLowerCase());
+  return (
+    <>
+      <Text style={styles.label}>Doctor</Text>
+      {doctors.length === 0 ? (
+        <Text style={styles.doctorHint}>No saved doctors yet. Add doctors first to link one here.</Text>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          <PickerChip label="None" selected={!selectedId} onPress={() => onSelect(undefined)} styles={styles} />
+          {doctors.map((doctor) => (
+            <PickerChip
+              key={doctor.id}
+              label={doctor.name}
+              selected={selectedId === doctor.id}
+              onPress={() => onSelect(doctor.id)}
+              styles={styles}
+            />
+          ))}
+        </ScrollView>
+      )}
+      {scanned && !matched ? (
+        <Text style={styles.doctorHint}>{`Scanned "${scanned}" isn't a saved doctor. Add them from Doctors to link it.`}</Text>
+      ) : null}
+    </>
+  );
+}
+
+function PickerChip({
+  label,
+  selected,
+  onPress,
+  styles,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  return (
+    <Pressable style={[styles.chip, selected && styles.chipActive]} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected }}>
+      <Text style={[styles.chipText, selected && styles.chipTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function makeStyles(C: Theme) {
   const surface = modalSurface(C);
   const surfaceElevated = modalSurfaceElevated(C);
@@ -483,6 +598,12 @@ function makeStyles(C: Theme) {
     secondaryBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: surfaceElevated, borderWidth: 1, borderColor: C.border, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
     secondaryBtnText: { fontWeight: "800", fontSize: 14, color: C.text },
     label: { fontWeight: "700", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
+    chipRow: { flexDirection: "row", gap: 8, paddingRight: 4, marginBottom: 14 },
+    chip: { borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: surfaceElevated, paddingHorizontal: 12, paddingVertical: 8 },
+    chipActive: { backgroundColor: C.tint, borderColor: C.tint },
+    chipText: { color: C.textSecondary, fontSize: 13, fontWeight: "700" },
+    chipTextActive: { color: "#fff" },
+    doctorHint: { color: C.textSecondary, fontSize: 12, fontWeight: "600", lineHeight: 17, marginBottom: 14 },
     input: { fontWeight: "500", fontSize: 14, color: C.text, backgroundColor: surfaceElevated, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.border, marginBottom: 14 },
     textArea: { minHeight: 110, lineHeight: 20 },
     reviewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 2, marginBottom: 10 },
