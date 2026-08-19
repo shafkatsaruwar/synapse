@@ -35,6 +35,8 @@ import {
   type DoctorNotesSummary,
 } from "@/lib/foundation-models";
 import { raised } from "@/constants/raised";
+import { LEGAL } from "@/constants/legal-disclaimers";
+import LegalDisclaimer from "@/components/LegalDisclaimer";
 import { updateAppIconBadgeCount } from "@/lib/notification-manager";
 import { maybePromptForCycleTracking } from "@/lib/cycle-detection";
 import { modalOverlay, modalSurface } from "@/lib/modal-colors";
@@ -320,7 +322,7 @@ function AppointmentDetailModal({
 
     return {
       explanation: `This is an appointment for ${appointmentName} on ${when}${locationText}.${notesText}`,
-      likelyPurpose: "Use this as a quick prep summary. Synapse is not guessing a diagnosis or medical reason beyond the details you saved.",
+      likelyPurpose: LEGAL.appointmentAi,
       bringOrExpect: [
         "Bring a photo ID and insurance card if you use one.",
         "Bring your current medication list.",
@@ -417,6 +419,7 @@ function AppointmentDetailModal({
               <Ionicons name="sparkles-outline" size={18} color={C.purple} />
               <Text style={styles.aiButtonText}>{explanationLoading ? "Explaining..." : "✨ Explain this appointment"}</Text>
             </Pressable>
+            <LegalDisclaimer variant="appointment" />
 
             {!!explanationError && <Text style={styles.aiErrorText}>{explanationError}</Text>}
             {explanation ? (
@@ -434,6 +437,7 @@ function AppointmentDetailModal({
                     ))}
                   </View>
                 ) : null}
+                <Text style={[styles.aiResultText, { marginTop: 10, fontWeight: "600" }]}>{LEGAL.banner}</Text>
               </View>
             ) : null}
 
@@ -1828,6 +1832,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
           </View>
         ) : (
           <>
+            <LegalDisclaimer variant="ai" />
             {notes.length === 0 && (
               <View style={styles.empty}>
                 <Ionicons name="document-text-outline" size={40} color={C.textTertiary} />
@@ -1859,6 +1864,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
                   {!!noteSummaryErrors[note.id] && <Text style={styles.aiErrorText}>{noteSummaryErrors[note.id]}</Text>}
                   {noteSummaries[note.id] ? (
                     <View style={styles.noteSummaryCard}>
+                      <Text style={[styles.noteSummaryEmpty, { marginBottom: 8 }]}>{LEGAL.banner}</Text>
                       {[
                         ["Key Findings", noteSummaries[note.id].keyFindings],
                         ["Next Steps", noteSummaries[note.id].nextSteps],
