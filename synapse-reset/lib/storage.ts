@@ -295,9 +295,16 @@ export type LabWorkStatus = "completed" | "pending";
 
 export interface LabResult {
   name: string;
-  value: number;
+  /**
+   * Stored as a string so qualified/non-numeric results survive round-trips
+   * (e.g. "<3", ">1000", "Positive", "-0.4"). Legacy records may hold a number;
+   * always coerce with String(value) before display.
+   */
+  value: number | string;
   unit: string;
   referenceRange?: string;
+  /** Optional flag pulled from the report, e.g. "Low", "High", "Normal". */
+  flag?: string;
 }
 
 export interface LabWork {
