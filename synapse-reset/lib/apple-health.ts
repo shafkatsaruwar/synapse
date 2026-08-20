@@ -1,20 +1,25 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import type { ObjectTypeIdentifier, QuantitySample, QuantityTypeIdentifier } from "@kingstinct/react-native-healthkit";
 import { vitalStorage, type Vital } from "@/lib/storage";
 
 const CONNECTED_KEY = "synapse_apple_health_connected_v1";
 const LAST_SYNC_KEY = "synapse_apple_health_last_sync_v1";
 
-const READ_TYPES = [
+// Types we request read access to. Blood pressure is read through its component
+// quantity types (systolic/diastolic) — requesting the correlation type alone does
+// not grant access to the underlying readings.
+const READ_TYPES: ObjectTypeIdentifier[] = [
   "HKQuantityTypeIdentifierHeartRate",
   "HKQuantityTypeIdentifierBodyMass",
   "HKQuantityTypeIdentifierBodyTemperature",
   "HKQuantityTypeIdentifierOxygenSaturation",
   "HKQuantityTypeIdentifierBloodGlucose",
-  "HKCorrelationTypeIdentifierBloodPressure",
+  "HKQuantityTypeIdentifierBloodPressureSystolic",
+  "HKQuantityTypeIdentifierBloodPressureDiastolic",
   "HKQuantityTypeIdentifierStepCount",
   "HKCategoryTypeIdentifierSleepAnalysis",
-] as const;
+];
 
 /** HKCategoryValueSleepAnalysis values that represent actual sleep (excludes inBed=0, awake=2). */
 const ASLEEP_CATEGORY_VALUES = new Set([1, 3, 4, 5]);
@@ -119,10 +124,7 @@ export async function connectAppleHealth(): Promise<{ ok: boolean; error?: strin
   }
 
   try {
-    await hk.requestAuthorization({
-      toRead: [...READ_TYPES],
-      toShare: [],
-    });
+    await hk.requestAuthorization({ toRead: READ_TYPES, toShare: [] });
     await AsyncStorage.setItem(CONNECTED_KEY, "1");
     return { ok: true };
   } catch (error) {
@@ -170,11 +172,11 @@ async function upsertVital(input: Omit<Vital, "id"> & { externalId: string }) {
 
 async function syncQuantity(
   hk: typeof import("@kingstinct/react-native-healthkit"),
-  identifier: string,
+  identifier: QuantityTypeIdentifier,
   mapSample: (sample: QuantityLike) => (Omit<Vital, "id"> & { externalId: string }) | null,
   from: Date,
 ): Promise<number> {
-  const samples = await hk.queryQuantitySamples(identifier as never, {
+  const samples = await hk.queryQuantitySamples(identifier, {
     limit: 200,
     ascending: false,
     filter: {
@@ -183,16 +185,29 @@ async function syncQuantity(
         endDate: new Date(),
       },
     },
-  } as never);
+  });
 
   let count = 0;
-  for (const sample of samples as QuantityLike[]) {
+  for (const sample of samples) {
     const mapped = mapSample(sample);
     if (!mapped) continue;
     await upsertVital(mapped);
     count += 1;
   }
   return count;
+}
+
+/**
+ * Run one sync section in isolation so a single failing HealthKit query can never
+ * abort the rest of the sync (or bubble up and look like a crash on connect).
+ */
+async function runSection(label: string, fn: () => Promise<number>): Promise<number> {
+  try {
+    return await fn();
+  } catch (error) {
+    console.warn(`Apple Health sync section "${label}" failed`, error);
+    return 0;
+  }
 }
 
 export async function syncAppleHealthVitals(days = 30): Promise<{
@@ -224,220 +239,245 @@ export async function syncAppleHealthVitals(days = 30): Promise<{
   const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   let imported = 0;
 
+  const endDate = new Date();
+
   try {
-    imported += await syncQuantity(
-      hk,
-      "HKQuantityTypeIdentifierHeartRate",
-      (sample) => {
-        if (typeof sample.quantity !== "number" || !sample.uuid) return null;
-        const bpm = Math.round(sample.quantity);
-        return {
-          date: toDateKey(sample.startDate),
-          recordedAt: toIso(sample.startDate),
-          type: "heart_rate",
-          value: String(bpm),
-          unit: "bpm",
-          source: "apple_health",
-          heartRate: bpm,
-          externalId: `apple_health:hr:${sample.uuid}`,
-          notes: "Imported from Apple Health",
-        };
-      },
-      from,
-    );
-
-    imported += await syncQuantity(
-      hk,
-      "HKQuantityTypeIdentifierBodyMass",
-      (sample) => {
-        if (typeof sample.quantity !== "number" || !sample.uuid) return null;
-        const unit = sample.unit?.includes("lb") ? "lbs" : "kg";
-        const value = Number(sample.quantity.toFixed(1));
-        return {
-          date: toDateKey(sample.startDate),
-          recordedAt: toIso(sample.startDate),
-          type: "weight",
-          value: String(value),
-          unit,
-          source: "apple_health",
-          externalId: `apple_health:weight:${sample.uuid}`,
-          notes: "Imported from Apple Health",
-        };
-      },
-      from,
-    );
-
-    imported += await syncQuantity(
-      hk,
-      "HKQuantityTypeIdentifierBodyTemperature",
-      (sample) => {
-        if (typeof sample.quantity !== "number" || !sample.uuid) return null;
-        // HealthKit often stores °C; convert to °F for Synapse default.
-        let tempF = sample.quantity;
-        const unit = (sample.unit || "").toLowerCase();
-        if (unit.includes("c") || tempF < 45) {
-          tempF = (tempF * 9) / 5 + 32;
-        }
-        const rounded = Number(tempF.toFixed(1));
-        return {
-          date: toDateKey(sample.startDate),
-          recordedAt: toIso(sample.startDate),
-          type: "body_temperature",
-          value: String(rounded),
-          unit: "°F",
-          source: "apple_health",
-          bodyTemperature: rounded,
-          externalId: `apple_health:temp:${sample.uuid}`,
-          notes: "Imported from Apple Health",
-        };
-      },
-      from,
-    );
-
-    imported += await syncQuantity(
-      hk,
-      "HKQuantityTypeIdentifierOxygenSaturation",
-      (sample) => {
-        if (typeof sample.quantity !== "number" || !sample.uuid) return null;
-        // HealthKit SpO2 is often 0–1 fraction.
-        const pct = sample.quantity <= 1 ? Math.round(sample.quantity * 100) : Math.round(sample.quantity);
-        return {
-          date: toDateKey(sample.startDate),
-          recordedAt: toIso(sample.startDate),
-          type: "oxygen_saturation",
-          value: String(pct),
-          unit: "%",
-          source: "apple_health",
-          oxygenSaturation: pct,
-          externalId: `apple_health:spo2:${sample.uuid}`,
-          notes: "Imported from Apple Health",
-        };
-      },
-      from,
-    );
-
-    imported += await syncQuantity(
-      hk,
-      "HKQuantityTypeIdentifierBloodGlucose",
-      (sample) => {
-        if (typeof sample.quantity !== "number" || !sample.uuid) return null;
-        const value = Number(sample.quantity.toFixed(1));
-        const unit = (sample.unit || "").toLowerCase().includes("mmol") ? "mmol/L" : "mg/dL";
-        return {
-          date: toDateKey(sample.startDate),
-          recordedAt: toIso(sample.startDate),
-          type: "blood_sugar",
-          value: String(value),
-          unit,
-          source: "apple_health",
-          externalId: `apple_health:bg:${sample.uuid}`,
-          notes: "Imported from Apple Health",
-        };
-      },
-      from,
-    );
-
-    const correlations = await hk.queryCorrelationSamples("HKCorrelationTypeIdentifierBloodPressure", {
-      limit: 100,
-      ascending: false,
-      filter: {
-        date: {
-          startDate: from,
-          endDate: new Date(),
+    imported += await runSection("heartRate", () =>
+      syncQuantity(
+        hk,
+        "HKQuantityTypeIdentifierHeartRate",
+        (sample) => {
+          if (typeof sample.quantity !== "number" || !sample.uuid) return null;
+          const bpm = Math.round(sample.quantity);
+          return {
+            date: toDateKey(sample.startDate),
+            recordedAt: toIso(sample.startDate),
+            type: "heart_rate",
+            value: String(bpm),
+            unit: "bpm",
+            source: "apple_health",
+            heartRate: bpm,
+            externalId: `apple_health:hr:${sample.uuid}`,
+            notes: "Imported from Apple Health",
+          };
         },
-      },
+        from,
+      ),
+    );
+
+    imported += await runSection("bodyMass", () =>
+      syncQuantity(
+        hk,
+        "HKQuantityTypeIdentifierBodyMass",
+        (sample) => {
+          if (typeof sample.quantity !== "number" || !sample.uuid) return null;
+          const unit = sample.unit?.includes("lb") ? "lbs" : "kg";
+          const value = Number(sample.quantity.toFixed(1));
+          return {
+            date: toDateKey(sample.startDate),
+            recordedAt: toIso(sample.startDate),
+            type: "weight",
+            value: String(value),
+            unit,
+            source: "apple_health",
+            externalId: `apple_health:weight:${sample.uuid}`,
+            notes: "Imported from Apple Health",
+          };
+        },
+        from,
+      ),
+    );
+
+    imported += await runSection("bodyTemperature", () =>
+      syncQuantity(
+        hk,
+        "HKQuantityTypeIdentifierBodyTemperature",
+        (sample) => {
+          if (typeof sample.quantity !== "number" || !sample.uuid) return null;
+          // HealthKit often stores °C; convert to °F for Synapse default.
+          let tempF = sample.quantity;
+          const unit = (sample.unit || "").toLowerCase();
+          if (unit.includes("c") || tempF < 45) {
+            tempF = (tempF * 9) / 5 + 32;
+          }
+          const rounded = Number(tempF.toFixed(1));
+          return {
+            date: toDateKey(sample.startDate),
+            recordedAt: toIso(sample.startDate),
+            type: "body_temperature",
+            value: String(rounded),
+            unit: "°F",
+            source: "apple_health",
+            bodyTemperature: rounded,
+            externalId: `apple_health:temp:${sample.uuid}`,
+            notes: "Imported from Apple Health",
+          };
+        },
+        from,
+      ),
+    );
+
+    imported += await runSection("oxygenSaturation", () =>
+      syncQuantity(
+        hk,
+        "HKQuantityTypeIdentifierOxygenSaturation",
+        (sample) => {
+          if (typeof sample.quantity !== "number" || !sample.uuid) return null;
+          // HealthKit SpO2 is often 0–1 fraction.
+          const pct = sample.quantity <= 1 ? Math.round(sample.quantity * 100) : Math.round(sample.quantity);
+          return {
+            date: toDateKey(sample.startDate),
+            recordedAt: toIso(sample.startDate),
+            type: "oxygen_saturation",
+            value: String(pct),
+            unit: "%",
+            source: "apple_health",
+            oxygenSaturation: pct,
+            externalId: `apple_health:spo2:${sample.uuid}`,
+            notes: "Imported from Apple Health",
+          };
+        },
+        from,
+      ),
+    );
+
+    imported += await runSection("bloodGlucose", () =>
+      syncQuantity(
+        hk,
+        "HKQuantityTypeIdentifierBloodGlucose",
+        (sample) => {
+          if (typeof sample.quantity !== "number" || !sample.uuid) return null;
+          const value = Number(sample.quantity.toFixed(1));
+          const unit = (sample.unit || "").toLowerCase().includes("mmol") ? "mmol/L" : "mg/dL";
+          return {
+            date: toDateKey(sample.startDate),
+            recordedAt: toIso(sample.startDate),
+            type: "blood_sugar",
+            value: String(value),
+            unit,
+            source: "apple_health",
+            externalId: `apple_health:bg:${sample.uuid}`,
+            notes: "Imported from Apple Health",
+          };
+        },
+        from,
+      ),
+    );
+
+    imported += await runSection("bloodPressure", async () => {
+      const correlations = await hk.queryCorrelationSamples("HKCorrelationTypeIdentifierBloodPressure", {
+        limit: 100,
+        ascending: false,
+        filter: { date: { startDate: from, endDate } },
+      });
+
+      const findComponent = (objects: readonly unknown[], identifier: string): QuantitySample | undefined =>
+        objects.find(
+          (obj): obj is QuantitySample =>
+            !!obj && typeof obj === "object" && "quantityType" in obj && (obj as QuantitySample).quantityType === identifier,
+        );
+
+      let count = 0;
+      for (const correlation of correlations) {
+        const objects = correlation.objects ?? [];
+        const systolic = findComponent(objects, "HKQuantityTypeIdentifierBloodPressureSystolic");
+        const diastolic = findComponent(objects, "HKQuantityTypeIdentifierBloodPressureDiastolic");
+        if (typeof systolic?.quantity !== "number" || typeof diastolic?.quantity !== "number") continue;
+        if (!correlation.uuid) continue;
+        const sys = Math.round(systolic.quantity);
+        const dia = Math.round(diastolic.quantity);
+        await upsertVital({
+          date: toDateKey(correlation.startDate),
+          recordedAt: toIso(correlation.startDate),
+          type: "blood_pressure",
+          value: `${sys}/${dia}`,
+          unit: "mmHg",
+          source: "apple_health",
+          bloodPressureSystolic: sys,
+          bloodPressureDiastolic: dia,
+          externalId: `apple_health:bp:${correlation.uuid}`,
+          notes: "Imported from Apple Health",
+        });
+        count += 1;
+      }
+      return count;
     });
 
-    for (const correlation of correlations) {
-      const objects = (correlation as { uuid?: string; objects?: QuantityLike[]; startDate?: Date | string }).objects ?? [];
-      const systolic = objects.find((obj) => (obj as { quantityType?: string }).quantityType === "HKQuantityTypeIdentifierBloodPressureSystolic");
-      const diastolic = objects.find((obj) => (obj as { quantityType?: string }).quantityType === "HKQuantityTypeIdentifierBloodPressureDiastolic");
-      if (typeof systolic?.quantity !== "number" || typeof diastolic?.quantity !== "number") continue;
-      const uuid = (correlation as { uuid?: string }).uuid;
-      if (!uuid) continue;
-      const sys = Math.round(systolic.quantity);
-      const dia = Math.round(diastolic.quantity);
-      await upsertVital({
-        date: toDateKey((correlation as { startDate?: Date | string }).startDate),
-        recordedAt: toIso((correlation as { startDate?: Date | string }).startDate),
-        type: "blood_pressure",
-        value: `${sys}/${dia}`,
-        unit: "mmHg",
-        source: "apple_health",
-        bloodPressureSystolic: sys,
-        bloodPressureDiastolic: dia,
-        externalId: `apple_health:bp:${uuid}`,
-        notes: "Imported from Apple Health",
-      });
-      imported += 1;
-    }
-
-    // Steps: use HealthKit's own day-bucketed cumulative sum rather than summing raw
-    // samples, since raw samples double-count when iPhone and Apple Watch both log steps.
-    const anchorDate = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
-    const stepBuckets = await hk.queryStatisticsCollectionForQuantity(
-      "HKQuantityTypeIdentifierStepCount" as never,
-      ["cumulativeSum"],
-      anchorDate,
-      { day: 1 },
-      { filter: { date: { startDate: from, endDate: new Date() } } } as never,
-    );
-    for (const bucket of stepBuckets as unknown as { sumQuantity?: { quantity: number }; startDate?: Date }[]) {
-      const steps = bucket.sumQuantity?.quantity;
-      if (typeof steps !== "number" || steps <= 0 || !bucket.startDate) continue;
-      const dateKey = toDateKey(bucket.startDate);
-      await upsertVital({
-        date: dateKey,
-        recordedAt: toIso(bucket.startDate),
-        type: "steps",
-        value: String(Math.round(steps)),
-        unit: "steps",
-        source: "apple_health",
-        externalId: `apple_health:steps:${dateKey}`,
-        notes: "Imported from Apple Health",
-      });
-      imported += 1;
-    }
-
-    // Sleep: HealthKit reports raw in-bed/asleep/awake segments per night, so sum the
-    // asleep segments ourselves and attribute the total to the day the person woke up.
-    const sleepSamples = await hk.queryCategorySamples("HKCategoryTypeIdentifierSleepAnalysis" as never, {
-      limit: 500,
-      ascending: true,
-      filter: { date: { startDate: from, endDate: new Date() } },
-    } as never);
-    const sleepByDate = new Map<string, { minutes: number; latestEnd: Date }>();
-    for (const sample of sleepSamples as { value?: number; startDate?: Date; endDate?: Date }[]) {
-      if (typeof sample.value !== "number" || !ASLEEP_CATEGORY_VALUES.has(sample.value)) continue;
-      if (!sample.startDate || !sample.endDate) continue;
-      const start = new Date(sample.startDate).getTime();
-      const end = new Date(sample.endDate).getTime();
-      if (!(end > start)) continue;
-      const dateKey = toDateKey(sample.endDate);
-      const minutes = (end - start) / 60000;
-      const existing = sleepByDate.get(dateKey);
-      if (existing) {
-        existing.minutes += minutes;
-        if (end > existing.latestEnd.getTime()) existing.latestEnd = new Date(end);
-      } else {
-        sleepByDate.set(dateKey, { minutes, latestEnd: new Date(end) });
+    imported += await runSection("steps", async () => {
+      // Steps: use HealthKit's own day-bucketed cumulative sum rather than summing raw
+      // samples, since raw samples double-count when iPhone and Apple Watch both log steps.
+      const anchorDate = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
+      const stepBuckets = await hk.queryStatisticsCollectionForQuantity(
+        "HKQuantityTypeIdentifierStepCount",
+        ["cumulativeSum"],
+        anchorDate,
+        { day: 1 },
+        { filter: { date: { startDate: from, endDate } } },
+      );
+      let count = 0;
+      for (const bucket of stepBuckets) {
+        const steps = bucket.sumQuantity?.quantity;
+        if (typeof steps !== "number" || steps <= 0 || !bucket.startDate) continue;
+        const dateKey = toDateKey(bucket.startDate);
+        await upsertVital({
+          date: dateKey,
+          recordedAt: toIso(bucket.startDate),
+          type: "steps",
+          value: String(Math.round(steps)),
+          unit: "steps",
+          source: "apple_health",
+          externalId: `apple_health:steps:${dateKey}`,
+          notes: "Imported from Apple Health",
+        });
+        count += 1;
       }
-    }
-    for (const [dateKey, info] of sleepByDate) {
-      const hours = Number((info.minutes / 60).toFixed(1));
-      if (hours <= 0) continue;
-      await upsertVital({
-        date: dateKey,
-        recordedAt: toIso(info.latestEnd),
-        type: "sleep",
-        value: String(hours),
-        unit: "hours",
-        source: "apple_health",
-        externalId: `apple_health:sleep:${dateKey}`,
-        notes: "Imported from Apple Health",
+      return count;
+    });
+
+    imported += await runSection("sleep", async () => {
+      // Sleep: HealthKit reports raw in-bed/asleep/awake segments per night, so sum the
+      // asleep segments ourselves and attribute the total to the day the person woke up.
+      const sleepSamples = await hk.queryCategorySamples("HKCategoryTypeIdentifierSleepAnalysis", {
+        limit: 500,
+        ascending: true,
+        filter: { date: { startDate: from, endDate } },
       });
-      imported += 1;
-    }
+      const sleepByDate = new Map<string, { minutes: number; latestEnd: Date }>();
+      for (const sample of sleepSamples) {
+        const value = Number(sample.value);
+        if (!Number.isFinite(value) || !ASLEEP_CATEGORY_VALUES.has(value)) continue;
+        if (!sample.startDate || !sample.endDate) continue;
+        const start = new Date(sample.startDate).getTime();
+        const end = new Date(sample.endDate).getTime();
+        if (!(end > start)) continue;
+        const dateKey = toDateKey(sample.endDate);
+        const minutes = (end - start) / 60000;
+        const existing = sleepByDate.get(dateKey);
+        if (existing) {
+          existing.minutes += minutes;
+          if (end > existing.latestEnd.getTime()) existing.latestEnd = new Date(end);
+        } else {
+          sleepByDate.set(dateKey, { minutes, latestEnd: new Date(end) });
+        }
+      }
+      let count = 0;
+      for (const [dateKey, info] of sleepByDate) {
+        const hours = Number((info.minutes / 60).toFixed(1));
+        if (hours <= 0) continue;
+        await upsertVital({
+          date: dateKey,
+          recordedAt: toIso(info.latestEnd),
+          type: "sleep",
+          value: String(hours),
+          unit: "hours",
+          source: "apple_health",
+          externalId: `apple_health:sleep:${dateKey}`,
+          notes: "Imported from Apple Health",
+        });
+        count += 1;
+      }
+      return count;
+    });
 
     await AsyncStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
     await AsyncStorage.setItem(CONNECTED_KEY, "1");
