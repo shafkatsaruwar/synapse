@@ -15,6 +15,8 @@ import {
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { getHomeScreenBadgeCount } from "@/lib/nav-badge-counts";
+import { escalationCopy } from "@/constants/med-enforcement-copy";
+import { enforcementNotificationPrefix, type PlannedEnforcementNotification } from "@/lib/med-enforcement-core";
 import {
   reportMissedAppointmentIfNeeded,
   reportMissedMedicationIfNeeded,
@@ -953,6 +955,71 @@ export async function cancelMedicationReminders(medicationId: string): Promise<v
   await Notifications.cancelScheduledNotificationAsync(`${NOTIFICATION_IDS.prefixRefill}-${medicationId}`);
 }
 
+// ---- Medication Enforcement Mode (private) ----------------------------------
+// Escalation notifications reuse the existing MEDICATION_REMINDER category so the
+// "Mark as Taken" / "Snooze" quick actions still work; each carries
+// enforcement:true + doseEventId so the response listener routes them to the
+// enforcement resolver. The initial "due" notification is the normal medication
+// reminder — enforcement never duplicates it.
+
+/** Schedule a bounded set of pre-computed enforcement escalation notifications. */
+export async function scheduleEnforcementNotificationsForPlan(
+  plan: PlannedEnforcementNotification[],
+  meta: { doseEventId: string; medicationId: string; doseIndex: number; medicationName: string; dosage: string },
+): Promise<void> {
+  if (!isNative()) return;
+  for (const item of plan) {
+    const copy = escalationCopy(item.level, meta.medicationName);
+    try {
+      await Notifications.cancelScheduledNotificationAsync(item.id);
+      await Notifications.scheduleNotificationAsync({
+        identifier: item.id,
+        content: {
+          title: copy.title,
+          body: copy.body,
+          data: {
+            enforcement: true,
+            doseEventId: meta.doseEventId,
+            medicationId: meta.medicationId,
+            doseIndex: meta.doseIndex,
+            medicationName: meta.medicationName,
+            dosage: meta.dosage,
+          },
+          categoryIdentifier: MEDICATION_CATEGORY,
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(item.fireAtMs) },
+      });
+    } catch (e) {
+      console.warn("scheduleEnforcementNotificationsForPlan failed", e);
+    }
+  }
+}
+
+/** Cancel every pending enforcement notification for one dose event. */
+export async function cancelEnforcementNotifications(eventId: string): Promise<void> {
+  if (!isNative()) return;
+  try {
+    const prefix = enforcementNotificationPrefix(eventId);
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const toCancel = scheduled
+      .filter((n) => n.identifier === prefix || n.identifier.startsWith(`${prefix}:`))
+      .map((n) => n.identifier);
+    for (const id of toCancel) await Notifications.cancelScheduledNotificationAsync(id);
+  } catch {}
+}
+
+/** Cancel all enforcement notifications (used when the feature is turned off). */
+export async function cancelAllEnforcementNotifications(): Promise<void> {
+  if (!isNative()) return;
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const toCancel = scheduled
+      .filter((n) => n.identifier.startsWith(`${enforcementNotificationPrefix("")}`))
+      .map((n) => n.identifier);
+    for (const id of toCancel) await Notifications.cancelScheduledNotificationAsync(id);
+  } catch {}
+}
+
 /** Cancel appointment reminders for an appointment. */
 export async function cancelAppointmentReminders(appointmentId: string): Promise<void> {
   if (!isNative()) return;
@@ -1037,11 +1104,33 @@ export function addNotificationResponseListener(
   if (!isNative()) return () => {};
   const sub = Notifications.addNotificationResponseReceivedListener((response) => {
     const actionId = response.actionIdentifier;
-    const data = response.notification.request.content.data as { medicationId?: string; doseIndex?: number; medicationName?: string; dosage?: string; appointmentId?: string; widgetTarget?: string };
+    const data = response.notification.request.content.data as { medicationId?: string; doseIndex?: number; medicationName?: string; dosage?: string; appointmentId?: string; widgetTarget?: string; enforcement?: boolean; doseEventId?: string };
+    // Medication Enforcement notifications route through the enforcement resolver.
+    // Opening/dismissing the banner never counts as taken — only the explicit
+    // MARK_TAKEN action (or an in-app resolution) records a taken dose.
+    if (data?.enforcement && data?.doseEventId) {
+      import("@/lib/med-enforcement")
+        .then((mod) =>
+          mod.handleEnforcementNotificationAction(actionId, {
+            doseEventId: data.doseEventId!,
+            medicationId: data.medicationId ?? "",
+            doseIndex: data.doseIndex ?? 0,
+          }),
+        )
+        .then(() => Promise.all([updateAppIconBadgeCount(), syncMissedMedicationCheckIn()]))
+        .catch(() => {});
+      if (actionId === "MARK_TAKEN" && data.medicationId != null) {
+        onMarkTaken(data.medicationId, data.doseIndex ?? 0);
+      } else if (actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+        const target = getNavigationTarget(response.notification.request.identifier, data);
+        if (target && _navigateCallback) _navigateCallback(target);
+      }
+      return;
+    }
     if (actionId === "MARK_TAKEN" && data?.medicationId != null) {
       const doseIndex = data.doseIndex ?? 0;
       const date = getToday();
-      medicationLogStorage.toggle(data.medicationId, date, doseIndex)
+      medicationLogStorage.ensureTaken(data.medicationId, date, doseIndex)
         .then(() => Promise.all([updateAppIconBadgeCount(), syncMissedMedicationCheckIn()]))
         .catch(() => {});
       onMarkTaken(data.medicationId, doseIndex);
@@ -1213,6 +1302,16 @@ export async function syncAllFromSettings(): Promise<void> {
 
     await scheduleAgeBasedScreeningReminder(profile.dateOfBirth);
     await syncRecoveryTrackingCheckIn();
+
+    // Medication Enforcement Mode (private): reconcile the bounded escalation
+    // ladders for the nearest upcoming doses. No-ops unless the feature is active.
+    try {
+      const enforcement = await import("@/lib/med-enforcement");
+      await enforcement.reconcileEnforcement({ medicationNotificationsEnabled: notifMed });
+    } catch (e) {
+      console.warn("reconcileEnforcement failed", e);
+    }
+
     await updateAppIconBadgeCount();
   } catch (e) {
     console.warn("syncAllFromSettings failed", e);
