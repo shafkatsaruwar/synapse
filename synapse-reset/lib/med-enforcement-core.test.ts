@@ -25,6 +25,7 @@ import {
   buildSnoozeEscalationPlan,
   computeEnsureTakenAction,
   createEnforcementEvent,
+  enforcementActiveOccurrenceMs,
   enforcementNotificationPrefix,
   escalationNotificationId,
   finalizeStaleAsMissed,
@@ -213,6 +214,32 @@ section("10 enforcement OFF / metadata-inert parity");
   const withEnforcement = reportsAdherence(meds, logsPlain, CUTOFF, TODAY);
   assert(JSON.stringify(plain) === JSON.stringify(withEnforcement), "enforcement metadata does not change Reports math");
   assert(plain.takenDoses === 1 && plain.missedDoses === 0, "TAKEN log drives adherence exactly as before");
+}
+
+// 11: BUGFIX — active occurrence stays on TODAY across the escalation window
+section("11 active-occurrence does not roll to tomorrow mid-window (esc:1 bug)");
+{
+  const window = 25; // max offset
+  const doseHour = 15;
+  const doseMin = 30;
+  const at = (h: number, m: number) => {
+    const d = new Date(`${TODAY}T00:00:00`);
+    d.setHours(h, m, 0, 0);
+    return d.getTime();
+  };
+  const todayDose = at(doseHour, doseMin);
+  // Before the dose time -> today.
+  assert(enforcementActiveOccurrenceMs(at(15, 0), doseHour, doseMin, window) === todayDose, "before dose time -> today");
+  // Exactly at the dose minute (repro: med created at dose time) -> today, not tomorrow.
+  assert(enforcementActiveOccurrenceMs(todayDose, doseHour, doseMin, window) === todayDose, "at dose minute -> today (was rolling to tomorrow)");
+  // 2 minutes after dose time (reconcile re-ran after firing) -> still today, so esc:1 survives.
+  assert(enforcementActiveOccurrenceMs(at(15, 32), doseHour, doseMin, window) === todayDose, "mid-window reconcile keeps today");
+  // esc:1 at +5 is still schedulable at 15:32 for today's occurrence.
+  const plan = buildEscalationPlan("med-A:0:" + TODAY, todayDose, at(15, 32), [5, 10, 15, 25]);
+  assert(plan.some((p) => p.level === 1 && p.id.endsWith(":esc:1")), "esc:1 present after mid-window reconcile");
+  // Past the whole window -> rolls to tomorrow.
+  const tomorrowDose = todayDose + 24 * 60 * 60 * 1000;
+  assert(enforcementActiveOccurrenceMs(at(16, 0), doseHour, doseMin, window) === tomorrowDose, "after window elapsed -> tomorrow");
 }
 
 console.log(`\n${failed === 0 ? "ALL PASS" : failed + " FAILED"} (${passed} passed, ${failed} failed)`);

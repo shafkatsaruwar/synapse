@@ -150,6 +150,34 @@ export function nextDailyOccurrenceMs(nowMs: number, hour: number, minute: numbe
   return candidate.getTime();
 }
 
+/**
+ * The dose occurrence enforcement should currently target.
+ *
+ * Unlike {@link nextDailyOccurrenceMs}, this keeps TODAY's occurrence as the
+ * target for the entire escalation window (until scheduledTime + windowMinutes),
+ * and only rolls to tomorrow once that window has fully elapsed. This prevents a
+ * reconcile that runs at/after the scheduled minute from abandoning the dose the
+ * user is actively supposed to resolve (which previously cancelled today's
+ * escalation ladder, e.g. esc:1 at +5 min).
+ *
+ * `windowMinutes` should be >= the largest escalation offset.
+ */
+export function enforcementActiveOccurrenceMs(
+  nowMs: number,
+  hour: number,
+  minute: number,
+  windowMinutes: number,
+): number {
+  const todayAt = new Date(nowMs);
+  todayAt.setHours(hour, minute, 0, 0);
+  if (nowMs <= todayAt.getTime() + windowMinutes * 60_000) {
+    return todayAt.getTime();
+  }
+  const tomorrow = new Date(todayAt.getTime());
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return tomorrow.getTime();
+}
+
 /** Local YYYY-MM-DD for a timestamp. */
 export function localDateKey(ms: number): string {
   const d = new Date(ms);

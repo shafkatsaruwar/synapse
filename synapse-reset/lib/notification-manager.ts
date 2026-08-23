@@ -1008,6 +1008,29 @@ export async function cancelEnforcementNotifications(eventId: string): Promise<v
   } catch {}
 }
 
+/**
+ * DEV-only: print the pending enforcement notifications (id + fire time) as they
+ * actually exist in UNUserNotificationCenter. Helps verify the escalation ladder
+ * on device. No-op in production.
+ */
+export async function debugDumpEnforcementNotifications(): Promise<void> {
+  if (!isNative()) return;
+  if (!(globalThis as { __DEV__?: boolean }).__DEV__) return;
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const enforcement = scheduled.filter((n) => n.identifier.startsWith(`${enforcementNotificationPrefix("")}`));
+    console.log(`[med-enforce] pending enforcement notifications: ${enforcement.length}`);
+    for (const n of enforcement) {
+      const trigger = n.trigger as { date?: number | string; value?: number | string } | null;
+      const raw = trigger?.date ?? trigger?.value;
+      const when = raw != null ? new Date(raw as number).toLocaleString() : JSON.stringify(n.trigger);
+      console.log(`[med-enforce]   ${n.identifier} @ ${when}`);
+    }
+  } catch (e) {
+    console.warn("debugDumpEnforcementNotifications failed", e);
+  }
+}
+
 /** Cancel all enforcement notifications (used when the feature is turned off). */
 export async function cancelAllEnforcementNotifications(): Promise<void> {
   if (!isNative()) return;

@@ -30,9 +30,9 @@ import {
   computeEnforcementMetrics,
   createEnforcementEvent,
   doseEventId,
+  enforcementActiveOccurrenceMs,
   finalizeStaleAsMissed,
   localDateKey,
-  nextDailyOccurrenceMs,
   selectOccurrencesWithinBudget,
   snoozeReminderNotificationId,
   type EnforcementMetrics,
@@ -44,8 +44,19 @@ import {
   DEFAULT_REMINDER_TIMES,
   cancelAllEnforcementNotifications,
   cancelEnforcementNotifications,
+  debugDumpEnforcementNotifications,
   scheduleEnforcementNotificationsForPlan,
 } from "@/lib/notification-manager";
+
+/** DEV-only structured logging for enforcement scheduling (stripped in production). */
+function isDevBuild(): boolean {
+  return !!(globalThis as { __DEV__?: boolean }).__DEV__;
+}
+function enforcementDevLog(message: string, lines?: string[]): void {
+  if (!isDevBuild()) return;
+  console.log(`[med-enforce] ${message}`);
+  (lines ?? []).forEach((line) => console.log(`[med-enforce]   ${line}`));
+}
 
 /**
  * The feature is active only when BOTH the compile-time master flag AND the
@@ -117,6 +128,7 @@ export async function reconcileEnforcement(options?: { medicationNotificationsEn
 
   const now = Date.now();
   const today = getToday();
+  const escalationWindowMin = Math.max(...DEFAULT_ESCALATION_OFFSETS_MIN);
 
   // 1) Administrative finalize: past-date unresolved events become MISSED.
   const existing = await loadEvents();
@@ -126,7 +138,10 @@ export async function reconcileEnforcement(options?: { medicationNotificationsEn
   }
   const byId = new Map(afterFinalize.map((event) => [event.id, event]));
 
-  // 2) Build candidate occurrences for the nearest upcoming daily doses.
+  // 2) Build candidate occurrences for the nearest daily doses. We target the
+  //    currently-active occurrence (today) for the full escalation window so a
+  //    reconcile that runs at/after the scheduled minute does not abandon today's
+  //    ladder by rolling to tomorrow.
   const meds = await medicationStorage.getAll();
   const candidates: OccurrenceCandidate[] = [];
   for (const med of meds) {
@@ -135,7 +150,7 @@ export async function reconcileEnforcement(options?: { medicationNotificationsEn
     const doseCount = Math.max(1, normalized.doses?.length ?? 1);
     for (let doseIndex = 0; doseIndex < doseCount; doseIndex++) {
       const { hour, minute } = doseTime(med, doseIndex);
-      const scheduledAtMs = nextDailyOccurrenceMs(now, hour, minute);
+      const scheduledAtMs = enforcementActiveOccurrenceMs(now, hour, minute, escalationWindowMin);
       candidates.push({
         medicationId: med.id,
         doseIndex,
@@ -145,6 +160,11 @@ export async function reconcileEnforcement(options?: { medicationNotificationsEn
       });
     }
   }
+
+  enforcementDevLog(
+    `reconcile: active=${active} medsOn=${medsOn} candidates=${candidates.length}`,
+    candidates.map((c) => `${c.medicationId}:${c.doseIndex} @ ${new Date(c.scheduledAtMs).toLocaleString()}`),
+  );
 
   const selected = selectOccurrencesWithinBudget(candidates);
   const selectedIds = new Set(
@@ -188,9 +208,15 @@ export async function reconcileEnforcement(options?: { medicationNotificationsEn
         dosage: candidate.dosage,
       });
     }
-    // Keep only the freshest selected occurrences tracked as "active" ladders.
-    void selectedIds;
+    enforcementDevLog(
+      `scheduled ladder for ${id} (scheduledAt ${new Date(candidate.scheduledAtMs).toLocaleString()}), planned=${plan.length}`,
+      plan.map((p) => `${p.id} @ ${new Date(p.fireAtMs).toLocaleString()}`),
+    );
   }
+  void selectedIds;
+
+  // DEV-only: read back the ACTUAL pending enforcement notifications from the OS.
+  await debugDumpEnforcementNotifications();
 }
 
 async function ensureEvent(
