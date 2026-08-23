@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
 import { getToday } from "@/lib/date-utils";
 import { markCloudKitBackupDirty } from "@/lib/cloudkit-backup-scheduler";
+import type { MedicationEnforcementEvent } from "@/lib/med-enforcement-core";
 
 export interface HealthLog {
   id: string;
@@ -527,6 +528,13 @@ export interface UserSettings {
   notificationsMonthlySummary?: boolean;
   /** Daily check-in reminder time "HH:mm" (default "20:00" = 8 PM). */
   dailyCheckInReminderTime?: string;
+  /**
+   * Private, persisted local toggle for Medication Enforcement Mode. This is the
+   * per-install "emergency off switch"; the feature only activates when this AND
+   * the compile-time `featureFlags.medicationEnforcementEnabled` are both true.
+   * Intentionally not surfaced in the normal public settings UI.
+   */
+  medicationEnforcementEnabled?: boolean;
 }
 
 const KEYS = {
@@ -561,6 +569,7 @@ const KEYS = {
   FEEDBACK: "fir_feedback",
   USER_ROLE: "fir_user_role",
   CAREGIVER_PROFILE: "fir_caregiver_profile",
+  MED_ENFORCEMENT: "fir_med_enforcement_events",
 };
 
 async function getItem<T>(key: string): Promise<T[]> {
@@ -717,6 +726,52 @@ export const medicationLogStorage = {
     }
     await setItem(KEYS.MEDICATION_LOGS, logs);
   },
+  /**
+   * Idempotently ensure a scheduled dose is recorded as taken.
+   *
+   * - If a log already exists for (medicationId, date, doseIndex): set taken=true
+   *   (never flip an already-taken dose back to false), update metadata, and do
+   *   NOT create a duplicate row.
+   * - Otherwise create a single taken log.
+   *
+   * This is the safe path for both the notification "Mark as Taken" action and
+   * Medication Enforcement TAKEN, so repeated actions can never un-take a dose.
+   */
+  ensureTaken: async (
+    medicationId: string,
+    date: string,
+    doseIndex = 0,
+    metadata?: { scheduledTime?: string; notes?: string; recordedAt?: string },
+  ) => {
+    const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+    const index = logs.findIndex(
+      (l) => l.medicationId === medicationId && l.date === date && (l.doseIndex ?? 0) === doseIndex,
+    );
+    if (index >= 0) {
+      logs[index] = {
+        ...logs[index],
+        taken: true,
+        recordedAt: logs[index].recordedAt ?? metadata?.recordedAt ?? new Date().toISOString(),
+        scheduledTime: metadata?.scheduledTime ?? logs[index].scheduledTime,
+        notes: metadata?.notes ?? logs[index].notes,
+      };
+      await setItem(KEYS.MEDICATION_LOGS, logs);
+      return logs[index];
+    }
+    const created: MedicationLog = {
+      id: Crypto.randomUUID(),
+      medicationId,
+      doseIndex,
+      date,
+      taken: true,
+      recordedAt: metadata?.recordedAt ?? new Date().toISOString(),
+      scheduledTime: metadata?.scheduledTime,
+      notes: metadata?.notes,
+    };
+    logs.push(created);
+    await setItem(KEYS.MEDICATION_LOGS, logs);
+    return created;
+  },
   logPrnDose: async (
     medicationId: string,
     metadata?: { notes?: string; reason?: string; timestamp?: string },
@@ -756,6 +811,34 @@ export const medicationLogStorage = {
   deleteByMedicationId: async (medicationId: string) => {
     const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
     await setItem(KEYS.MEDICATION_LOGS, logs.filter((log) => log.medicationId !== medicationId));
+  },
+};
+
+/**
+ * Private Medication Enforcement accountability metadata. This is NOT medication
+ * adherence — Reports + `medicationLogStorage` remain the canonical adherence
+ * source. These records only track enforcement resolution/escalation history.
+ */
+export const medicationEnforcementStorage = {
+  getAll: () => getItem<MedicationEnforcementEvent>(KEYS.MED_ENFORCEMENT),
+  getById: async (id: string) => {
+    const all = await getItem<MedicationEnforcementEvent>(KEYS.MED_ENFORCEMENT);
+    return all.find((event) => event.id === id) ?? null;
+  },
+  upsert: async (event: MedicationEnforcementEvent) => {
+    const all = await getItem<MedicationEnforcementEvent>(KEYS.MED_ENFORCEMENT);
+    const index = all.findIndex((existing) => existing.id === event.id);
+    if (index >= 0) all[index] = event;
+    else all.push(event);
+    await setItem(KEYS.MED_ENFORCEMENT, all);
+    return event;
+  },
+  setAll: async (events: MedicationEnforcementEvent[]) => {
+    await setItem(KEYS.MED_ENFORCEMENT, events);
+  },
+  delete: async (id: string) => {
+    const all = await getItem<MedicationEnforcementEvent>(KEYS.MED_ENFORCEMENT);
+    await setItem(KEYS.MED_ENFORCEMENT, all.filter((event) => event.id !== id));
   },
 };
 

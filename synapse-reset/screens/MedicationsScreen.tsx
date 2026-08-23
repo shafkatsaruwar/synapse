@@ -23,6 +23,7 @@ import { cancelMedicationReminders, DEFAULT_REMINDER_TIMES, syncAllFromSettings 
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import VisualScanImportModal from "@/screens/VisualScanImportModal";
+import MedicationEnforcementCard from "@/components/MedicationEnforcementCard";
 import { raised } from "@/constants/raised";
 import { modalOverlay, modalSurface, modalSurfaceElevated } from "@/lib/modal-colors";
 
@@ -1588,6 +1589,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
           ]}
           showsVerticalScrollIndicator={false}
         >
+          <MedicationEnforcementCard onResolved={loadData} />
           {scheduledMeds.length === 0 && prnMeds.length === 0 ? (
             <View style={styles.simpleEmptyCard}>
               <Text style={styles.simpleEmptyTitle}>No medications yet</Text>
@@ -1919,6 +1921,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
         }]}
         showsVerticalScrollIndicator={false}
       >
+        <MedicationEnforcementCard onResolved={loadData} />
         {grouped.length === 0 && prnMeds.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="medical-outline" size={40} color={C.textTertiary} />
