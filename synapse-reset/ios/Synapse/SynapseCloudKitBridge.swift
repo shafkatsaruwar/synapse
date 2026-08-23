@@ -31,7 +31,7 @@ final class SynapseCloudKitBridge: NSObject {
   ) {
     container.accountStatus { status, error in
       if let error {
-        reject("icloud_status_failed", "Could not check iCloud status.", error)
+        reject("icloud_status_failed", "Could not check iCloud status: \(self.describe(error))", error)
         return
       }
 
@@ -57,7 +57,7 @@ final class SynapseCloudKitBridge: NSObject {
           }
           resolve(self.metadataDictionary(from: record))
         case .failure(let error):
-          reject("icloud_fetch_failed", "Could not fetch iCloud backup metadata.", error)
+          reject("icloud_fetch_failed", "Could not fetch iCloud backup metadata: \(self.describe(error))", error)
         }
       }
     }
@@ -73,7 +73,7 @@ final class SynapseCloudKitBridge: NSObject {
     checkAccountAvailable(resolve: resolve, reject: reject) {
       self.container.fetchUserRecordID { userRecordID, userError in
         if let userError {
-          reject("icloud_user_failed", "Could not identify the iCloud user.", userError)
+          reject("icloud_user_failed", "Could not identify the iCloud user: \(self.describe(userError))", userError)
           return
         }
 
@@ -82,11 +82,11 @@ final class SynapseCloudKitBridge: NSObject {
         let recordID = CKRecord.ID(recordName: self.legacyRecordName)
         self.database.fetch(withRecordID: recordID) { existing, fetchError in
           if let fetchError = fetchError as? CKError, fetchError.code != .unknownItem {
-            reject("icloud_save_failed", "Could not prepare iCloud backup.", fetchError)
+            reject("icloud_save_failed", "Could not prepare iCloud backup: \(self.describe(fetchError))", fetchError)
             return
           }
           if let fetchError, (fetchError as? CKError) == nil {
-            reject("icloud_save_failed", "Could not prepare iCloud backup.", fetchError)
+            reject("icloud_save_failed", "Could not prepare iCloud backup: \(self.describe(fetchError))", fetchError)
             return
           }
 
@@ -123,14 +123,14 @@ final class SynapseCloudKitBridge: NSObject {
           record["payload"] = payload as CKRecordValue
           self.database.save(record) { fallbackRecord, fallbackError in
             if let fallbackError {
-              reject("icloud_save_failed", "Could not save iCloud backup.", fallbackError)
+              reject("icloud_save_failed", "Could not save iCloud backup: \(self.describe(fallbackError))", fallbackError)
               return
             }
             resolve(self.metadataDictionary(from: fallbackRecord ?? record))
           }
           return
         }
-        reject("icloud_save_failed", "Could not save iCloud backup.", saveError)
+        reject("icloud_save_failed", "Could not save iCloud backup: \(self.describe(saveError))", saveError)
         return
       }
       resolve(self.metadataDictionary(from: savedRecord ?? record))
@@ -167,7 +167,7 @@ final class SynapseCloudKitBridge: NSObject {
           dictionary["payload"] = payload
           resolve(dictionary)
         case .failure(let error):
-          reject("icloud_restore_failed", "Could not restore iCloud backup.", error)
+          reject("icloud_restore_failed", "Could not restore iCloud backup: \(self.describe(error))", error)
         }
       }
     }
@@ -180,7 +180,7 @@ final class SynapseCloudKitBridge: NSObject {
   ) {
     container.accountStatus { status, error in
       if let error {
-        reject("icloud_status_failed", "Could not check iCloud status.", error)
+        reject("icloud_status_failed", "Could not check iCloud status: \(self.describe(error))", error)
         return
       }
 
@@ -304,6 +304,14 @@ final class SynapseCloudKitBridge: NSObject {
       .replacingOccurrences(of: ":", with: "-")
       .replacingOccurrences(of: ".", with: "-")
     return "\(recordNamePrefix)\(safeTimestamp)-\(UUID().uuidString)"
+  }
+
+  /// Human-readable description of a CloudKit error, including the CKError code so
+  /// failures like a missing Production record type ("UserData") are diagnosable
+  /// instead of hidden behind a generic message.
+  private func describe(_ error: Error) -> String {
+    let nsError = error as NSError
+    return "\(nsError.localizedDescription) [\(nsError.domain) \(nsError.code)]"
   }
 
   private func statusString(_ status: CKAccountStatus) -> String {
