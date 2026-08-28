@@ -30,6 +30,16 @@ Requests must send header `X-API-Key: <secret>` (or `Authorization: Bearer <secr
 
 If `API_SHARED_SECRET` is unset, these routes return **503** (fail closed).
 
+## Assistant MCP
+
+`POST /mcp` (Streamable HTTP) is a read-only owner-only connector. See `docs/MCP.md`.
+
+- Require `Authorization: Bearer <SYNAPSE_MCP_TOKEN>` or a verified Supabase user JWT.
+- If `SYNAPSE_MCP_TOKEN` is unset and Supabase is unset, `/mcp` returns **503**.
+- Missing/wrong credentials return **401**. There is no anonymous health read.
+- Do not log MCP arguments or backup payloads.
+- Prefer a user JWT + RLS over `SUPABASE_SERVICE_ROLE_KEY`. If a service role is used, always constrain queries with `SYNAPSE_OWNER_USER_ID`.
+
 > Note: An `EXPO_PUBLIC_*` secret can be extracted from the app binary. It blocks casual open-internet abuse; long-term prefer per-user auth (Supabase JWT verification on the server).
 
 ## App Lock
@@ -47,7 +57,8 @@ If `API_SHARED_SECRET` is unset, these routes return **503** (fail closed).
 
 ## Related files
 
-- `server/api-auth.ts`, `server/routes.ts`, `api/send-email.ts`
+- `server/api-auth.ts`, `server/routes.ts`, `api/send-email.ts`, `mcp/`
+- `docs/MCP.md`
 - `synapse-reset/screens/PrivacyScreen.tsx`
 - `synapse-reset/components/BiometricGate.tsx`
 - `synapse-reset/supabase/caregiver_linking_v2_lockdown.sql`

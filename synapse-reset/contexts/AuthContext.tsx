@@ -3,6 +3,7 @@ import { Session, User } from "@supabase/supabase-js";
 import { initSupabaseFromStorage, getSupabase } from "@/lib/supabase";
 import { auditLogger } from "@/lib/audit-logger";
 import { validateInput, AuthRequestSchema } from "@/lib/validation";
+import { installAssistantCloudSync } from "@/lib/assistant-cloud-sync";
 
 type AuthContextValue = {
   session: Session | null;
@@ -21,6 +22,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    return installAssistantCloudSync(user.id);
+  }, [user?.id]);
 
   useEffect(() => {
     let isMounted = true;

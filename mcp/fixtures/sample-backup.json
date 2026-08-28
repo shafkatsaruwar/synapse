@@ -1,0 +1,47 @@
+{
+  "exportDate": "2026-08-20T12:00:00.000Z",
+  "appVersion": "1.14",
+  "profile": { "name": "Sample User", "conditions": [], "ramadanMode": false, "sickMode": false },
+  "healthProfile": { "age": 34, "recoveryTrackingEnabled": true, "recoveryFocus": "sleep" },
+  "allergy": { "hasAllergies": false, "allergyName": "", "reactionDescription": "", "hasEpiPen": false },
+  "conditions": [{ "id": "c1", "name": "POTS", "source": "custom", "dateAdded": "2026-01-01" }],
+  "healthLogs": [
+    { "id": "h1", "date": "2026-08-18", "energy": 3, "mood": 4, "sleep": 5, "notes": "", "fasting": false },
+    { "id": "h2", "date": "2026-08-19", "energy": 2, "mood": 2, "sleep": 3, "notes": "tired afternoon", "fasting": false }
+  ],
+  "symptoms": [
+    { "id": "s1", "date": "2026-08-19", "name": "dizziness", "severity": 4, "notes": "" }
+  ],
+  "medications": [
+    {
+      "id": "m1",
+      "name": "Fludrocortisone",
+      "active": true,
+      "frequency": "daily",
+      "medicationType": "scheduled",
+      "doses": [{ "id": "d1", "amount": "0.1", "unit": "mg", "timeOfDay": "Morning" }]
+    }
+  ],
+  "medicationLogs": [
+    { "id": "l1", "medicationId": "m1", "date": "2026-08-18", "taken": true },
+    { "id": "l2", "medicationId": "m1", "date": "2026-08-19", "taken": false }
+  ],
+  "doctors": [{ "id": "d1", "name": "Dr. Kim", "specialty": "Cardiology" }],
+  "appointments": [
+    { "id": "a1", "doctorName": "Dr. Kim", "specialty": "Cardiology", "date": "2099-01-20", "time": "11:00", "location": "Clinic", "notes": "" }
+  ],
+  "doctorNotes": [],
+  "labWork": [
+    { "id": "lab1", "date": "2026-08-10", "testName": "CBC", "notes": "", "results": [{ "name": "WBC", "value": "6.1", "unit": "K/uL" }] }
+  ],
+  "imaging": [],
+  "fastingLogs": [],
+  "vitals": [
+    { "id": "v1", "date": "2026-08-19", "type": "heart_rate", "value": "72", "unit": "bpm", "source": "apple_health" }
+  ],
+  "sickMode": { "active": false, "hydrationMl": 0, "foodChecklist": {}, "restChecklist": {}, "symptoms": [], "temperatures": [], "prnDoses": [] },
+  "monthlyCheckIns": [],
+  "eatingLogs": [],
+  "hydrationLogs": [{ "id": "w1", "date": "2026-08-19", "what": "water", "amount": 250, "unit": "ml" }],
+  "insights": []
+}

@@ -42,8 +42,9 @@ function setupCors(app: express.Application) {
       );
       res.header(
         "Access-Control-Allow-Headers",
-        "Content-Type, Authorization, X-API-Key",
+        "Content-Type, Authorization, X-API-Key, X-Synapse-MCP-Token, mcp-session-id, mcp-protocol-version, Last-Event-ID",
       );
+      res.header("Access-Control-Expose-Headers", "mcp-session-id, mcp-protocol-version");
       res.header("Access-Control-Allow-Credentials", "true");
     }
 
@@ -74,9 +75,9 @@ function setupRequestLogging(app: express.Application) {
     const path = req.path;
 
     res.on("finish", () => {
-      if (!path.startsWith("/api")) return;
+      if (!path.startsWith("/api") && !path.startsWith("/mcp")) return;
       const duration = Date.now() - start;
-      // Never log response bodies — AI/health routes return PHI.
+      // Never log response bodies — AI/health/MCP routes return PHI.
       log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
     });
 
@@ -165,7 +166,7 @@ function configureExpoAndLanding(app: express.Application) {
   log("Serving static Expo files with dynamic manifest routing");
 
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith("/api")) {
+    if (req.path.startsWith("/api") || req.path.startsWith("/mcp")) {
       return next();
     }
 

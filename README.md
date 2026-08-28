@@ -46,6 +46,8 @@ Synapse/
 ├── eas.json                    # Root EAS configuration
 ├── api/                        # API routes and related server logic
 ├── server/                     # Backend/server entrypoints
+├── mcp/                        # Read-only MCP connector (Express /mcp + stdio)
+├── docs/MCP.md                 # Cursor custom connector recipe and auth
 ├── shared/                     # Shared app/server types and logic
 ├── supabase/                   # Supabase-related files
 ├── synapse-reset/              # Active Expo app (main product)
@@ -122,7 +124,7 @@ npm run start
 - React Native 0.81
 - React 19
 - Expo Router
-- Supabase
+- Optional Supabase (sign-in + assistant cloud backup)
 - TypeScript
 - EAS Build
 
@@ -139,3 +141,7 @@ npm run start
 - Tighten setup and release docs
 - Document environment variables in one place
 - Add a contributor guide for app structure and ownership
+
+## Assistant MCP
+
+A read-only MCP connector lives in `mcp/` and is mounted on the Express backend at `/mcp`. See **[docs/MCP.md](docs/MCP.md)** for the exact Cursor connection recipe (HTTPS URL + `Authorization` header, or local stdio command).

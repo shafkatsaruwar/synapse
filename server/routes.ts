@@ -4,6 +4,7 @@ import { createServer, type Server } from "node:http";
 import OpenAI from "openai";
 import { Resend } from "resend";
 import { requireApiAuth } from "./api-auth";
+import { registerMcpRoutes } from "../mcp/http";
 
 let openaiClient: OpenAI | null = null;
 
@@ -24,6 +25,8 @@ function getOpenAI(): OpenAI {
 const largeBodyParser = express.json({ limit: "20mb" });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  registerMcpRoutes(app);
+
   app.post("/api/analyze-document", largeBodyParser, requireApiAuth, async (req: Request, res: Response) => {
     try {
       const { imageBase64, mimeType } = req.body;
