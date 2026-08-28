@@ -1,3 +1,4 @@
+import "react-native-url-polyfill/auto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
@@ -73,18 +74,20 @@ const supabaseStorage = {
   removeItem: async (key: string) => AsyncStorage.removeItem(key),
 };
 
-const FETCH_TIMEOUT_MS = 30000;
-
+/**
+ * Native fetch only. Do not inject AbortController — on iOS, RN maps aborted /
+ * custom-signal fetches to the generic TypeError "Network request failed",
+ * which is what Create Account was showing even when the host is reachable.
+ */
 function supabaseFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const isAuthRequest = typeof input === "string" ? input.includes("/auth/") : input instanceof URL ? input.href.includes("/auth/") : false;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  return fetch(input, {
-    ...init,
-    signal: init?.signal ?? controller.signal,
-  })
+  const isAuthRequest =
+    typeof input === "string"
+      ? input.includes("/auth/")
+      : input instanceof URL
+        ? input.href.includes("/auth/")
+        : false;
+  return fetch(input, init)
     .then((res) => {
-      clearTimeout(timeoutId);
       if (!res.ok && isAuthRequest) {
         auditLogger.log("AUTH", "user", "failure", {
           errorMessage: `Auth failed with status ${res.status}`,
@@ -93,7 +96,6 @@ function supabaseFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Re
       return res;
     })
     .catch((err) => {
-      clearTimeout(timeoutId);
       auditLogger.log("ERROR", "user", "failure", {
         errorMessage: err?.message ? err.message.substring(0, 100) : "Unknown error",
       }).catch(() => {});

@@ -35,6 +35,7 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
   const [configSaving, setConfigSaving] = useState(false);
   // In dev or on web: show config form if Supabase isn't set so users can paste URL/key (web often misses env).
   const needsConfig = (__DEV__ || Platform.OS === "web") && getSupabase() === null;
+  const supabaseReady = getSupabase() !== null;
 
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -66,8 +67,8 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
       setMessage({ type: "error", text: "Enter email and password." });
       return;
     }
-    if (password.length < 6) {
-      setMessage({ type: "error", text: "Password must be at least 6 characters." });
+    if (password.length < 8) {
+      setMessage({ type: "error", text: "Password must be at least 8 characters." });
       return;
     }
     setLoading(true);
@@ -185,9 +186,16 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
         </Text>
 
         <View style={styles.card}>
-          {message && !needsConfig && (
+          {message && (
             <View style={[styles.messageBox, message.type === "error" ? styles.messageError : styles.messageSuccess]}>
               <Text style={styles.messageText}>{message.text}</Text>
+            </View>
+          )}
+          {!supabaseReady && !needsConfig && (
+            <View style={[styles.messageBox, styles.messageError]}>
+              <Text style={styles.messageText}>
+                Sign-in is not configured in this install. You need a new TestFlight/App Store build with EXPO_PUBLIC_SUPABASE_URL baked in.
+              </Text>
             </View>
           )}
 
@@ -233,7 +241,7 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
               <Text style={styles.label}>Password</Text>
               <TextInput
                 style={styles.input}
-                placeholder={mode === "signup" ? "At least 6 characters" : "Password"}
+                placeholder={mode === "signup" ? "At least 8 characters" : "Password"}
                 placeholderTextColor={C.textTertiary}
                 value={password}
                 onChangeText={setPassword}

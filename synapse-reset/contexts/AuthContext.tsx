@@ -1,9 +1,19 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
-import { initSupabaseFromStorage, getSupabase } from "@/lib/supabase";
+import { initSupabaseFromStorage, getSupabase, getSupabaseUrl } from "@/lib/supabase";
+import { mapAuthNetworkError } from "@/lib/auth-network-error";
 import { auditLogger } from "@/lib/audit-logger";
 import { validateInput, AuthRequestSchema } from "@/lib/validation";
 import { installAssistantCloudSync } from "@/lib/assistant-cloud-sync";
+
+function hostForAuthError(): string {
+  try {
+    const url = getSupabaseUrl();
+    return url ? new URL(url).host : "";
+  } catch {
+    return "";
+  }
+}
 
 type AuthContextValue = {
   session: Session | null;
@@ -124,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         return { error: null };
       } catch (error) {
-        const err = error instanceof Error ? error : new Error("Sign in failed");
+        const err = mapAuthNetworkError(error, hostForAuthError());
         await auditLogger.log("AUTH", "user", "failure", {
           errorMessage: err.message.substring(0, 100),
         });
@@ -153,6 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           password: validated.password,
           options: {
             data: metadata,
+            emailRedirectTo: `${process.env.EXPO_PUBLIC_APP_URL || "https://synapse-health.vercel.app"}/`,
           },
         });
 
@@ -169,7 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         return { error: null };
       } catch (error) {
-        const err = error instanceof Error ? error : new Error("Sign up failed");
+        const err = mapAuthNetworkError(error, hostForAuthError());
         await auditLogger.log("AUTH", "user", "failure", {
           errorMessage: err.message.substring(0, 100),
         });
@@ -222,7 +233,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         return { error: null };
       } catch (error) {
-        const err = error instanceof Error ? error : new Error("Password reset failed");
+        const err = mapAuthNetworkError(error, hostForAuthError());
         await auditLogger.log("AUTH", "user", "failure", {
           errorMessage: err.message.substring(0, 100),
         });

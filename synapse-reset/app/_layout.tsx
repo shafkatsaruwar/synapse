@@ -1,3 +1,4 @@
+import "react-native-url-polyfill/auto";
 import "@/lib/supabase-web-env";
 import React, { useEffect, useState } from "react";
 import { AppState, View, Linking, Platform } from "react-native";
