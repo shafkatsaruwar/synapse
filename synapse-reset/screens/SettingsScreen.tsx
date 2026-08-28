@@ -50,6 +50,7 @@ import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { raised } from "@/constants/raised";
 import { getCloudKitBackupStatus, restoreFromICloud, saveToICloud } from "@/lib/cloudkit-backup";
+import { getBackupStatus, backupNow, type BackupStatus } from "@/lib/backup";
 import {
   connectAppleHealth,
   disconnectAppleHealth,
@@ -172,7 +173,7 @@ export default function SettingsScreen({
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { appMode, setAppMode } = useAppMode();
   const { role: activeRole, caregiverProfile, setRole, saveCaregiverProfile, clearCaregiverMode } = useRole();
   const { textSize, setTextSize, textScale } = useDisplaySettings();
@@ -201,6 +202,8 @@ export default function SettingsScreen({
   const [cloudBusy, setCloudBusy] = useState(false);
   const [appleHealthStatus, setAppleHealthStatus] = useState<AppleHealthStatus | null>(null);
   const [appleHealthBusy, setAppleHealthBusy] = useState(false);
+  const [assistantBackup, setAssistantBackup] = useState<BackupStatus | null>(null);
+  const [assistantBusy, setAssistantBusy] = useState(false);
   const [caregiverLinkState, setCaregiverLinkState] = useState<CaregiverLinkState | null>(null);
   const [caregiverLinkBusy, setCaregiverLinkBusy] = useState(false);
   const [caregiverCodeCopied, setCaregiverCodeCopied] = useState(false);
@@ -255,6 +258,14 @@ export default function SettingsScreen({
     getAppleHealthStatus().then(setAppleHealthStatus).catch(() => {});
   }, []);
 
+  const refreshAssistantBackup = useCallback(() => {
+    if (!authUserId) {
+      setAssistantBackup(null);
+      return;
+    }
+    getBackupStatus(authUserId).then(setAssistantBackup).catch(() => setAssistantBackup(null));
+  }, [authUserId]);
+
   const refreshCaregiverLinkState = useCallback(() => {
     getCaregiverLinkState(authUserId).then(setCaregiverLinkState).catch(() => setCaregiverLinkState(null));
   }, [authUserId]);
@@ -266,6 +277,10 @@ export default function SettingsScreen({
   useEffect(() => {
     refreshAppleHealthStatus();
   }, [refreshAppleHealthStatus]);
+
+  useEffect(() => {
+    refreshAssistantBackup();
+  }, [refreshAssistantBackup]);
 
   useEffect(() => {
     refreshCaregiverLinkState();
@@ -433,6 +448,37 @@ export default function SettingsScreen({
       Alert.alert("Backup failed", error instanceof Error ? error.message : "Could not save a backup right now.");
     } finally {
       setCloudBusy(false);
+    }
+  };
+
+  const handleAssistantSync = async () => {
+    if (!authUserId) {
+      onNavigate?.("auth");
+      return;
+    }
+    Haptics.selectionAsync();
+    setAssistantBusy(true);
+    try {
+      const { error } = await backupNow(authUserId);
+      refreshAssistantBackup();
+      if (error) {
+        Alert.alert("Assistant sync failed", "Could not update the signed-in cloud copy. Try again after checking sign-in.");
+      } else {
+        Alert.alert("Synced", "Your signed-in cloud copy is updated for the assistant. iCloud backup on this device is unchanged.");
+      }
+    } catch {
+      Alert.alert("Assistant sync failed", "Could not update the signed-in cloud copy.");
+    } finally {
+      setAssistantBusy(false);
+    }
+  };
+
+  const handleAssistantSignOut = async () => {
+    try {
+      await signOut();
+      setAssistantBackup(null);
+    } catch {
+      Alert.alert("Sign out failed", "Could not sign out right now.");
     }
   };
 
@@ -1542,6 +1588,58 @@ export default function SettingsScreen({
             >
               <Text style={styles.outlineBtnText}>Restore</Text>
             </Pressable>
+          </View>
+        </GlassView>
+
+        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
+          <Text style={styles.sectionTitle}>Assistant access</Text>
+          <Text style={styles.desc}>
+            Optional signed-in cloud copy so a personal Cursor assistant can read your own health data over MCP. This is separate from private iCloud backup. Not medical advice.
+          </Text>
+          <View style={styles.syncedBadge}>
+            <Ionicons
+              name={authUserId ? "sparkles-outline" : "lock-closed-outline"}
+              size={15}
+              color={authUserId ? C.green : C.textTertiary}
+            />
+            <Text style={[styles.syncedText, !authUserId && { color: C.textTertiary }]}>
+              {authUserId
+                ? formatBackupTime(assistantBackup?.lastSyncedAt)
+                : "Sign in to enable assistant sync"}
+            </Text>
+          </View>
+          <View style={styles.backupActions}>
+            {authUserId ? (
+              <>
+                <Pressable
+                  style={[styles.secondaryBtn, assistantBusy && { opacity: 0.55 }]}
+                  onPress={handleAssistantSync}
+                  disabled={assistantBusy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sync health data for assistant"
+                >
+                  <Text style={styles.secondaryBtnText}>{assistantBusy ? "Working..." : "Sync now"}</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.outlineBtn, assistantBusy && { opacity: 0.55 }]}
+                  onPress={handleAssistantSignOut}
+                  disabled={assistantBusy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sign out of assistant access"
+                >
+                  <Text style={styles.outlineBtnText}>Sign out</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                style={styles.secondaryBtn}
+                onPress={() => onNavigate?.("auth")}
+                accessibilityRole="button"
+                accessibilityLabel="Sign in for assistant access"
+              >
+                <Text style={styles.secondaryBtnText}>Sign in</Text>
+              </Pressable>
+            )}
           </View>
         </GlassView>
 

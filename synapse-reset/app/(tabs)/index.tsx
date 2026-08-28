@@ -23,6 +23,7 @@ import ComfortScreen from "@/screens/ComfortScreen";
 import GoalsScreen from "@/screens/GoalsScreen";
 import ReportsScreen from "@/screens/ReportsScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
+import AuthScreen from "@/screens/AuthScreen";
 import HealthDataScreen from "@/screens/HealthDataScreen";
 import DocumentsScreen from "@/screens/DocumentsScreen";
 import InsightsScreen from "@/screens/InsightsScreen";
@@ -1350,6 +1351,13 @@ export default function MainScreen() {
             onShowAppTour={() => setShowWalkthrough(true)}
             onShowWhatsNew={() => setShowWhatsNew(true)}
             openAppearanceModalToken={openAppearanceModalToken}
+          />
+        );
+      case "auth":
+        return (
+          <AuthScreen
+            onBack={() => handleNavigate("settings")}
+            onSuccess={() => handleNavigate("settings")}
           />
         );
       default:
