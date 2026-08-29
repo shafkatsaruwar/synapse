@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import LegalDisclaimer from "@/components/LegalDisclaimer";
 
 export default function MeetFounderScreen() {
   const { colors: C } = useTheme();
@@ -100,6 +101,7 @@ export default function MeetFounderScreen() {
           ]}
         />
         <Text style={styles.bodyText}>You choose what leaves this device.</Text>
+        <LegalDisclaimer variant="banner" style={{ marginTop: 12 }} />
       </Section>
 
       {/* Section: What's Next */}
