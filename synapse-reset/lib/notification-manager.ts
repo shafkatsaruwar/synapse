@@ -1020,6 +1020,31 @@ export async function cancelAllEnforcementNotifications(): Promise<void> {
   } catch {}
 }
 
+/**
+ * DEV-only: print the pending enforcement notifications (id + fire time + title +
+ * body) exactly as they exist in UNUserNotificationCenter. Diagnostics only — it
+ * schedules/cancels nothing. No-op in production builds.
+ */
+export async function debugDumpEnforcementNotifications(): Promise<void> {
+  if (!isNative()) return;
+  if (!(globalThis as { __DEV__?: boolean }).__DEV__) return;
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const enforcement = scheduled.filter((n) => n.identifier.startsWith(`${enforcementNotificationPrefix("")}`));
+    console.log(`[med-enforce] pending notifications: ${enforcement.length}`);
+    for (const n of enforcement) {
+      const trigger = n.trigger as { date?: number | string; value?: number | string } | null;
+      const raw = trigger?.date ?? trigger?.value;
+      const when = raw != null ? new Date(raw as number).toLocaleString() : JSON.stringify(n.trigger);
+      const title = n.content?.title ?? "";
+      const body = n.content?.body ?? "";
+      console.log(`[med-enforce]   ${n.identifier} @ ${when} | "${title}" — "${body}"`);
+    }
+  } catch (e) {
+    console.warn("debugDumpEnforcementNotifications failed", e);
+  }
+}
+
 /** Cancel appointment reminders for an appointment. */
 export async function cancelAppointmentReminders(appointmentId: string): Promise<void> {
   if (!isNative()) return;

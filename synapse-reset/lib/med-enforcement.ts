@@ -44,8 +44,61 @@ import {
   DEFAULT_REMINDER_TIMES,
   cancelAllEnforcementNotifications,
   cancelEnforcementNotifications,
+  debugDumpEnforcementNotifications,
   scheduleEnforcementNotificationsForPlan,
 } from "@/lib/notification-manager";
+
+function isDevBuild(): boolean {
+  return !!(globalThis as { __DEV__?: boolean }).__DEV__;
+}
+
+/**
+ * DEV-only diagnostics for the Medication Enforcement activation pipeline. Prints
+ * the gate state, the current daily occurrence + whether an enforcement event was
+ * created, and the actual pending enforcement notifications. Runs regardless of
+ * whether the feature is active (so an inactive/false gate is visible). This is
+ * read-only — it schedules/cancels nothing and does not change activation.
+ */
+export async function logEnforcementDiagnostics(): Promise<void> {
+  if (!isDevBuild()) return;
+  try {
+    const master = !!featureFlags.medicationEnforcementEnabled;
+    const settings = await settingsStorage.get();
+    const local = settings.medicationEnforcementEnabled === true;
+    console.log("[med-enforce] === Medication Enforcement diagnostics ===");
+    console.log(`[med-enforce] master flag (featureFlags): ${master}`);
+    console.log(`[med-enforce] local flag (UserSettings): ${local}`);
+    console.log(`[med-enforce] active: ${master && local}`);
+
+    const now = Date.now();
+    const meds = await medicationStorage.getAll();
+    let shown = 0;
+    for (const med of meds) {
+      if (!med.active || !isDailyCadenceMed(med)) continue;
+      const normalized = normalizeMedication(med);
+      const doseCount = Math.max(1, normalized.doses?.length ?? 1);
+      for (let doseIndex = 0; doseIndex < doseCount && shown < 5; doseIndex++) {
+        const { hour, minute } = doseTime(med, doseIndex);
+        const scheduledAtMs = nextDailyOccurrenceMs(now, hour, minute);
+        const id = doseEventId(med.id, doseIndex, localDateKey(scheduledAtMs));
+        const event = await medicationEnforcementStorage.getById(id);
+        console.log(`[med-enforce] occurrence: ${med.name ?? "Medication"} dose#${doseIndex}`);
+        console.log(`[med-enforce]   doseEventId: ${id}`);
+        console.log(`[med-enforce]   scheduledAt: ${new Date(scheduledAtMs).toLocaleString()}`);
+        console.log(`[med-enforce]   event created: ${event ? `yes (status ${event.status})` : "no"}`);
+        shown += 1;
+      }
+      if (shown >= 5) break;
+    }
+    if (shown === 0) {
+      console.log("[med-enforce] no active daily-cadence medication qualifies for enforcement (V1 covers daily doses only)");
+    }
+    await debugDumpEnforcementNotifications();
+    console.log("[med-enforce] === end diagnostics ===");
+  } catch (e) {
+    console.warn("logEnforcementDiagnostics failed", e);
+  }
+}
 
 /**
  * The feature is active only when BOTH the compile-time master flag AND the
@@ -105,6 +158,9 @@ async function loadEvents(): Promise<MedicationEnforcementEvent[]> {
  * duplicate pending notifications.
  */
 export async function reconcileEnforcement(options?: { medicationNotificationsEnabled?: boolean }): Promise<void> {
+  // DEV-only visibility into where activation stops (runs before the gate).
+  await logEnforcementDiagnostics();
+
   const active = await isMedicationEnforcementActive();
   const medsOn = options?.medicationNotificationsEnabled !== false;
 
