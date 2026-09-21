@@ -20,9 +20,10 @@ module.exports = {
     name: "Synapse",
     slug: "synapse",
     version: "1.14",
-    // OTA (EAS Update): runtime is tied to the app version, so JS updates published
-    // for runtime "1.14" reach builds with the same native version.
-    runtimeVersion: { policy: "appVersion" },
+    // OTA (EAS Update): bare workflow (committed native project) requires a fixed
+    // runtimeVersion string. Must match ios Expo.plist EXUpdatesRuntimeVersion.
+    // Bump this only when native code/config changes in a way JS updates can't cross.
+    runtimeVersion: "1.14",
     updates: {
       url: "https://u.expo.dev/2ae7d5f4-1514-408d-b1ec-250da7c8ccfa",
       fallbackToCacheTimeout: 0,
