@@ -5,7 +5,8 @@
     "preview": { "distribution": "internal", "environment": "preview" },
     "production": {
       "ios": { "resourceClass": "m-medium" },
-      "environment": "production"
+      "environment": "production",
+      "channel": "production"
     }
   },
   "submit": { "production": {} }

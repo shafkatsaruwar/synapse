@@ -20,6 +20,14 @@ module.exports = {
     name: "Synapse",
     slug: "synapse",
     version: "1.14",
+    // OTA (EAS Update): bare workflow (committed native project) requires a fixed
+    // runtimeVersion string. Must match ios Expo.plist EXUpdatesRuntimeVersion.
+    // Bump this only when native code/config changes in a way JS updates can't cross.
+    runtimeVersion: "1.14",
+    updates: {
+      url: "https://u.expo.dev/2ae7d5f4-1514-408d-b1ec-250da7c8ccfa",
+      fallbackToCacheTimeout: 0,
+    },
     orientation: "default",
     icon: "./assets/icon.png",
     scheme: ["synapse", "myapp"],
@@ -32,7 +40,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
-      buildNumber: "6",
+      buildNumber: "8",
       entitlements: {
         "com.apple.developer.icloud-container-identifiers": ["iCloud.com.mohammedsaruwar.synapse"],
         "com.apple.developer.icloud-services": ["CloudKit"],
