@@ -5,9 +5,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { exportAllData, clearAllData } from "@/lib/storage";
+import { exportAllData, clearAllData, importAllData } from "@/lib/storage";
+import { parseSynapseExport } from "@/lib/backup-import";
+import { syncAllFromSettings } from "@/lib/notification-manager";
+import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { getBiometricLockEnabled, setBiometricLockEnabled } from "@/lib/biometric-storage";
 
 export default function PrivacyScreen() {
@@ -17,6 +22,7 @@ export default function PrivacyScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const [exporting, setExporting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [biometricLock, setBiometricLock] = useState(false);
 
   useEffect(() => {
@@ -44,6 +50,63 @@ export default function PrivacyScreen() {
     } catch {
     } finally {
       setExporting(false);
+    }
+  };
+
+  const readPickedFile = async (uri: string): Promise<string> => {
+    if (Platform.OS === "web") {
+      const res = await fetch(uri);
+      return res.text();
+    }
+    return FileSystem.readAsStringAsync(uri);
+  };
+
+  const handleRestore = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/json", "text/plain"],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+
+      const text = await readPickedFile(result.assets[0].uri);
+      const parsed = parseSynapseExport(text);
+      if (!parsed.ok) {
+        Alert.alert("Couldn’t restore", parsed.reason);
+        return;
+      }
+
+      Alert.alert(
+        "Restore from file?",
+        "This REPLACES all data currently on this device with the contents of this file. Your existing data will be overwritten and this can’t be undone — consider exporting first.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Replace & Restore",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                setRestoring(true);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                await importAllData(parsed.payload);
+                await Promise.all([
+                  syncAllFromSettings().catch(() => {}),
+                  syncWidgetSnapshot().catch(() => {}),
+                ]);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert("Restored", "Your data has been restored from the file. Some screens may need a moment to refresh.");
+              } catch (e) {
+                Alert.alert("Restore failed", e instanceof Error ? e.message : "Could not restore from that file.");
+              } finally {
+                setRestoring(false);
+              }
+            },
+          },
+        ]
+      );
+    } catch (e) {
+      Alert.alert("Couldn’t open file", e instanceof Error ? e.message : "Could not read the selected file.");
     }
   };
 
@@ -176,6 +239,17 @@ export default function PrivacyScreen() {
         <View style={{ flex: 1 }}>
           <Text style={styles.actionTitle}>Export All Data</Text>
           <Text style={styles.actionDesc}>Download a JSON file with all your health data</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+      </Pressable>
+
+      <Pressable style={({ pressed }) => [styles.actionBtn, { opacity: pressed ? 0.85 : 1 }]} onPress={handleRestore} disabled={restoring} accessibilityRole="button" accessibilityLabel="Restore data from file" accessibilityHint="Imports a Synapse export JSON file and replaces the data on this device">
+        <View style={[styles.actionIcon, { backgroundColor: C.greenLight }]}>
+          <Ionicons name="cloud-upload-outline" size={20} color={C.green} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.actionTitle}>{restoring ? "Restoring…" : "Restore From File"}</Text>
+          <Text style={styles.actionDesc}>Import a Synapse export JSON — replaces current data on this device</Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
       </Pressable>
