@@ -252,6 +252,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         </View>
         <Text style={styles.welcomeTitle}>Synapse</Text>
         <Text style={styles.welcomeSub}>Built by a real patient, for real patients</Text>
+        <Text style={[styles.welcomeSub, { marginTop: 10, fontSize: 12, opacity: 0.85 }]}>
+          Not medical advice · Not HIPAA compliant · Personal wellness organizer
+        </Text>
         <View style={styles.introPromiseRow}>
           {[
             { icon: "shield-checkmark-outline" as const, label: "Private" },

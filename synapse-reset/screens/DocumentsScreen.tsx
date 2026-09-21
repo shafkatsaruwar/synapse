@@ -12,6 +12,7 @@ import { analyzeDocument, compareMedications } from "@/lib/api";
 import { formatDate, getToday } from "@/lib/date-utils";
 import { featureFlags } from "@/constants/feature-flags";
 import { modalOverlay, modalSurface } from "@/lib/modal-colors";
+import LegalDisclaimer from "@/components/LegalDisclaimer";
 
 const C = Colors.dark;
 
@@ -136,9 +137,10 @@ export default function DocumentsScreen() {
         paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
       }]} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Documents</Text>
-        <Text style={styles.subtitle}>Upload medical documents for AI-powered extraction</Text>
+        <Text style={styles.subtitle}>Upload documents so AI can extract text for your records</Text>
+        <LegalDisclaimer variant="documents" />
 
-        <Pressable style={({ pressed }) => [styles.uploadCard, { opacity: pressed ? 0.9 : 1 }]} onPress={pickAndAnalyze} disabled={loading} accessibilityRole="button" accessibilityLabel="Upload document" accessibilityHint="Pick a photo of a lab report, prescription, or doctor note for AI analysis">
+        <Pressable style={({ pressed }) => [styles.uploadCard, { opacity: pressed ? 0.9 : 1 }]} onPress={pickAndAnalyze} disabled={loading} accessibilityRole="button" accessibilityLabel="Upload document" accessibilityHint="Pick a photo of a lab report, prescription, or doctor note for AI extraction, not medical advice">
           {loading ? (
             <View style={styles.loadingContent}>
               <ActivityIndicator size="large" color={C.tint} />

@@ -40,7 +40,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messages: [
           {
             role: "system",
-            content: `You are a medical document analyzer. Extract structured data from medical documents (lab reports, prescriptions, doctor notes, discharge summaries).
+            content: `You are a medical document organizer for a personal wellness app. Extract structured data from medical documents (lab reports, prescriptions, doctor notes, discharge summaries).
+
+IMPORTANT BOUNDARIES:
+- Extract only what is clearly written in the document.
+- Do NOT diagnose, prescribe, interpret labs clinically, or give medical advice.
+- Do NOT invent missing values.
+- Synapse is not a HIPAA product and not a clinician.
 
 Return a JSON object with these fields:
 {
@@ -49,7 +55,7 @@ Return a JSON object with these fields:
   "labResults": [{"test": "string", "value": "string", "unit": "string", "referenceRange": "string", "flag": "normal|high|low"}],
   "followUpDates": [{"date": "YYYY-MM-DD or description", "doctor": "string", "purpose": "string"}],
   "doctorInstructions": ["list of instructions"],
-  "summary": "brief summary of the document"
+  "summary": "brief factual summary of what the document says (no advice)"
 }
 
 If a field has no data, use an empty array. Be thorough and accurate. Only extract what is clearly stated in the document.`
@@ -89,7 +95,13 @@ If a field has no data, use an empty array. Be thorough and accurate. Only extra
         messages: [
           {
             role: "system",
-            content: `You are a health insights assistant for a person with chronic illness. Analyze their health data and provide actionable, empathetic insights.
+            content: `You are a personal health organization assistant for someone tracking chronic illness logs. Analyze their saved data and provide awareness-oriented insights only.
+
+IMPORTANT BOUNDARIES:
+- Do NOT diagnose, prescribe, change medications, or give medical advice.
+- Do NOT claim clinical certainty.
+- Phrase suggestions as things to discuss with a clinician when relevant.
+- Synapse is not HIPAA compliant and is not a medical device.
 
 Return a JSON object with:
 {
@@ -99,10 +111,10 @@ Return a JSON object with:
   "symptomCorrelations": [{"pattern": "string", "description": "string", "confidence": "high|medium|low"}],
   "medicationNotes": [{"medication": "string", "note": "string", "type": "timing|interaction|reminder"}],
   "ramadanTips": [{"tip": "string", "category": "medication|hydration|energy|sleep"}],
-  "summary": "brief overall health summary in 2-3 sentences"
+  "summary": "brief overall awareness summary in 2-3 sentences (no diagnosis)"
 }
 
-Be specific, use their actual data. Do not make up data. If insufficient data, say so. Focus on patterns and actionable suggestions.`
+Be specific, use their actual data. Do not make up data. If insufficient data, say so. Focus on patterns and organizational suggestions.`
           },
           { role: "user", content: prompt }
         ],
@@ -128,7 +140,9 @@ Be specific, use their actual data. Do not make up data. If insufficient data, s
         messages: [
           {
             role: "system",
-            content: `Compare two medication lists and identify changes. Current medications are what the patient is taking. Extracted medications come from a medical document.
+            content: `Compare two medication lists and identify organizational changes only. Current medications are what the patient saved. Extracted medications come from a medical document.
+
+IMPORTANT: Do not give medical advice, dosing recommendations, or clinical interpretation. Synapse is not HIPAA compliant.
 
 Return a JSON object:
 {
@@ -136,7 +150,7 @@ Return a JSON object:
   "stopped": [{"name": "string", "dosage": "string", "reason": "string"}],
   "doseChanged": [{"name": "string", "oldDosage": "string", "newDosage": "string"}],
   "unchanged": [{"name": "string", "dosage": "string"}],
-  "summary": "brief comparison summary"
+  "summary": "brief factual comparison summary (no advice)"
 }
 
 Match medications by name (accounting for brand/generic equivalents). Be conservative - only flag clear changes.`

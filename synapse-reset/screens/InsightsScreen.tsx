@@ -14,6 +14,7 @@ import {
 } from "@/lib/storage";
 import { getHealthInsights } from "@/lib/api";
 import { getToday, formatDate } from "@/lib/date-utils";
+import LegalDisclaimer from "@/components/LegalDisclaimer";
 
 const C = Colors.dark;
 
@@ -93,9 +94,10 @@ export default function InsightsScreen() {
       paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
     }]} showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>Health Insights</Text>
-      <Text style={styles.subtitle}>AI-powered analysis of your health patterns</Text>
+      <Text style={styles.subtitle}>Pattern highlights from your logs — for awareness, not diagnosis</Text>
+      <LegalDisclaimer variant="insights" />
 
-      <Pressable style={({ pressed }) => [styles.generateBtn, { opacity: pressed ? 0.85 : 1 }, loading && { opacity: 0.6 }]} onPress={generateInsights} disabled={loading || !hasData} accessibilityRole="button" accessibilityLabel={loading ? "Analyzing your data" : "Generate new insights"} accessibilityHint="Runs AI analysis on your health patterns">
+      <Pressable style={({ pressed }) => [styles.generateBtn, { opacity: pressed ? 0.85 : 1 }, loading && { opacity: 0.6 }]} onPress={generateInsights} disabled={loading || !hasData} accessibilityRole="button" accessibilityLabel={loading ? "Analyzing your data" : "Generate new insights"} accessibilityHint="Runs AI analysis on your health patterns for awareness only, not medical advice">
         {loading ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
