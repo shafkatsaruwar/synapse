@@ -50,6 +50,7 @@ import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { raised } from "@/constants/raised";
 import { getCloudKitBackupStatus, restoreFromICloud, saveToICloud } from "@/lib/cloudkit-backup";
+import { friendlyCloudKitBackupError } from "@/lib/cloudkit-error-copy";
 import { getBackupStatus, backupNow, type BackupStatus } from "@/lib/backup";
 import {
   connectAppleHealth,
@@ -440,7 +441,8 @@ export default function SettingsScreen({
       if (result.skipped) {
         Alert.alert("iCloud backup unavailable", cloudKitUnavailableMessage(result.skipReason || cloudStatus?.accountStatus));
       } else if (result.error) {
-        Alert.alert("iCloud backup failed", result.error.message);
+        const friendly = friendlyCloudKitBackupError(result.error.message);
+        Alert.alert(friendly?.title ?? "iCloud backup failed", friendly?.message ?? result.error.message);
       } else {
         Alert.alert("Backed up", "Your latest Synapse backup is saved privately in iCloud.");
       }
@@ -507,7 +509,8 @@ export default function SettingsScreen({
               if (result.restored) {
                 Alert.alert("Restored", "Your latest iCloud backup has been restored.");
               } else if (result.error) {
-                Alert.alert("iCloud restore failed", result.error.message);
+                const friendly = friendlyCloudKitBackupError(result.error.message);
+                Alert.alert(friendly?.title ?? "iCloud restore failed", friendly?.message ?? result.error.message);
               } else if (result.skipped && result.skipReason && result.skipReason !== "no_backup_found") {
                 Alert.alert("iCloud restore unavailable", cloudKitUnavailableMessage(result.skipReason));
               } else {
