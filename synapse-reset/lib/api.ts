@@ -17,6 +17,26 @@ const API_TIMEOUT_MS = 30000;
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
 
+/**
+ * Raised when an optional server feature (e.g. the AI insights backend) is not
+ * deployed or not configured (HTTP 404/503). Screens should catch this and show
+ * a calm "not available" state instead of a hard error, so the app degrades
+ * gracefully when the AI service isn't enabled for a given build.
+ */
+export class ApiUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ApiUnavailableError";
+  }
+}
+
+export function isApiUnavailable(error: unknown): boolean {
+  return (
+    error instanceof ApiUnavailableError ||
+    (error instanceof Error && error.name === "ApiUnavailableError")
+  );
+}
+
 function getBaseUrl(): string {
   const legacyManifest = Constants.manifest as { extra?: Record<string, unknown> } | null | undefined;
   const extra = (Constants.expoConfig?.extra ?? legacyManifest?.extra) as Record<string, unknown> | undefined;
@@ -119,7 +139,17 @@ async function apiCall<T>(
           errorMessage: sanitizeErrorMessage(errorMessage),
         });
 
-        throw new Error(sanitizeErrorMessage(errorMessage));
+        // Feature not deployed/configured: surface a distinct, non-retryable
+        // error so callers can degrade gracefully instead of hammering retries.
+        if (response.status === 404 || response.status === 503) {
+          throw new ApiUnavailableError(sanitizeErrorMessage(errorMessage));
+        }
+
+        const httpError = new Error(sanitizeErrorMessage(errorMessage));
+        if (response.status >= 400 && response.status < 500) {
+          (httpError as Error & { noRetry?: boolean }).noRetry = true;
+        }
+        throw httpError;
       }
 
       const data = await response.json();
@@ -141,6 +171,15 @@ async function apiCall<T>(
         error instanceof Error
           ? error
           : new Error("Unknown API error");
+
+      // Do not retry when the feature is unavailable or the request was a
+      // client error — retrying will not help and just delays the UI.
+      if (
+        isApiUnavailable(error) ||
+        (error as Error & { noRetry?: boolean } | null)?.noRetry
+      ) {
+        throw lastError;
+      }
 
       if (attempt < MAX_RETRIES - 1) {
         await new Promise((resolve) =>
