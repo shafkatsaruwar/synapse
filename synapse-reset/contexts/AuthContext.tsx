@@ -24,6 +24,7 @@ type AuthContextValue = {
   signUp: (email: string, password: string, metadata?: { first_name?: string; last_name?: string }) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
+  deleteAccount: () => Promise<{ error: Error | null }>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -243,6 +244,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const deleteAccount = useCallback(async (): Promise<{ error: Error | null }> => {
+    try {
+      const supabase = getSupabase();
+      if (!supabase) {
+        throw new Error("Supabase not initialized");
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error("You must be signed in to delete your account.");
+      }
+
+      // The Edge Function verifies this user's JWT server-side and deletes only
+      // their data + auth record using the service role. invoke() attaches the
+      // current session's bearer token automatically.
+      const { data, error } = await supabase.functions.invoke("delete-account", {
+        method: "POST",
+      });
+
+      if (error) {
+        await auditLogger.log("AUTH", "user", "failure", {
+          errorMessage: "Account deletion failed",
+        });
+        return { error: new Error("Could not delete your account. Please try again.") };
+      }
+
+      if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
+        return { error: new Error((data as { error: string }).error) };
+      }
+
+      await auditLogger.log("AUTH", "user", "success", {
+        details: "Account deleted",
+      });
+
+      // Sign out locally so the app returns to the signed-out state. Local
+      // on-device data is cleared by the caller (Settings) after this resolves.
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // Non-fatal: the server account is already gone.
+      }
+
+      return { error: null };
+    } catch (error) {
+      const err = mapAuthNetworkError(error, hostForAuthError());
+      await auditLogger.log("AUTH", "user", "failure", {
+        errorMessage: err.message.substring(0, 100),
+      });
+      return { error: err };
+    }
+  }, []);
+
   const refreshSession = useCallback(async (): Promise<void> => {
     try {
       const supabase = getSupabase();
@@ -269,6 +322,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp,
     signOut,
     resetPassword,
+    deleteAccount,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
