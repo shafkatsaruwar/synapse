@@ -174,7 +174,7 @@ export default function SettingsScreen({
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
-  const { user, signOut } = useAuth();
+  const { user, signOut, deleteAccount } = useAuth();
   const { appMode, setAppMode } = useAppMode();
   const { role: activeRole, caregiverProfile, setRole, saveCaregiverProfile, clearCaregiverMode } = useRole();
   const { textSize, setTextSize, textScale } = useDisplaySettings();
@@ -188,6 +188,8 @@ export default function SettingsScreen({
   const [showNameModal, setShowNameModal] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
+  const [deleteAccountBusy, setDeleteAccountBusy] = useState(false);
   const [conditionsCount, setConditionsCount] = useState(0);
   const [roleDetailsEditing, setRoleDetailsEditing] = useState(false);
 
@@ -481,6 +483,34 @@ export default function SettingsScreen({
       setAssistantBackup(null);
     } catch {
       Alert.alert("Sign out failed", "Could not sign out right now.");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteAccountBusy) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    setDeleteAccountBusy(true);
+    try {
+      const { error } = await deleteAccount();
+      if (error) {
+        setDeleteAccountBusy(false);
+        Alert.alert("Couldn't delete account", error.message || "Please try again.");
+        return;
+      }
+      // Server account is gone. Wipe all on-device data for privacy, then return
+      // the app to a clean state.
+      await clearAllData();
+      setAssistantBackup(null);
+      setShowDeleteAccountConfirm(false);
+      setDeleteAccountBusy(false);
+      Alert.alert(
+        "Account deleted",
+        "Your account and its cloud data have been permanently deleted, and this device has been reset.",
+      );
+      if (onResetApp) onResetApp();
+    } catch {
+      setDeleteAccountBusy(false);
+      Alert.alert("Couldn't delete account", "Please try again.");
     }
   };
 
@@ -1644,6 +1674,19 @@ export default function SettingsScreen({
               </Pressable>
             )}
           </View>
+          {authUserId ? (
+            <Pressable
+              style={styles.deleteAccountBtn}
+              onPress={() => setShowDeleteAccountConfirm(true)}
+              testID="delete-account"
+              accessibilityRole="button"
+              accessibilityLabel="Delete my account"
+              accessibilityHint="Permanently deletes your account and all cloud data"
+            >
+              <Ionicons name="trash-outline" size={15} color={C.red} />
+              <Text style={styles.deleteAccountText}>Delete my account</Text>
+            </Pressable>
+          ) : null}
         </GlassView>
 
         <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
@@ -1974,6 +2017,36 @@ export default function SettingsScreen({
               </Pressable>
               <Pressable style={styles.resetConfirmBtn} onPress={handleResetApp}>
                 <Text style={styles.resetConfirmText}>Reset</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={showDeleteAccountConfirm} transparent animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => !deleteAccountBusy && setShowDeleteAccountConfirm(false)}>
+          <Pressable style={styles.resetModal} onPress={() => {}}>
+            <Text style={styles.resetEmoji}>⚠️</Text>
+            <Text style={styles.resetTitle}>Delete your account?</Text>
+            <Text style={styles.resetDesc}>
+              This permanently deletes your Synapse account and all of its cloud data (backups, doctors, appointments).
+              It also erases the data stored on this device. This cannot be undone.
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.cancelBtn, deleteAccountBusy && { opacity: 0.5 }]}
+                onPress={() => setShowDeleteAccountConfirm(false)}
+                disabled={deleteAccountBusy}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.resetConfirmBtn, deleteAccountBusy && { opacity: 0.6 }]}
+                onPress={handleDeleteAccount}
+                disabled={deleteAccountBusy}
+                testID="delete-account-confirm"
+              >
+                <Text style={styles.resetConfirmText}>{deleteAccountBusy ? "Deleting..." : "Delete"}</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -2505,6 +2578,8 @@ function makeStyles(C: Theme, themeId: string) {
     cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
     resetAppBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 28, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: C.red + "30" },
     resetAppText: { fontWeight: "500", fontSize: 14, color: C.red },
+    deleteAccountBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.red + "30" },
+    deleteAccountText: { fontWeight: "600", fontSize: 14, color: C.red },
     resetModal: { backgroundColor: solidModalSurface, borderRadius: 22, padding: 28, width: "100%", maxWidth: 320, borderWidth: 1, borderColor: C.border, alignItems: "center", ...raised("lg") },
     resetEmoji: { fontSize: 56, marginBottom: 16 },
     resetTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 8, textAlign: "center" },

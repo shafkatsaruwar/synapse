@@ -10,7 +10,18 @@ function isAuthorized(req: VercelRequest): boolean {
   return Boolean(provided && provided === secret);
 }
 
+function isEmailSendingEnabled(): boolean {
+  return process.env.EMAIL_SENDING_ENABLED?.trim().toLowerCase() === "true";
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Defense in depth: this route is not called by the shipping client. Keep it
+  // disabled unless explicitly turned on server-side, and hide it (404) otherwise
+  // so a leaked client-embedded API key cannot be used to relay email.
+  if (!isEmailSendingEnabled()) {
+    return res.status(404).json({ error: "Not found" });
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }

@@ -12,7 +12,7 @@ import {
   fastingLogStorage, settingsStorage, documentStorage, insightStorage, conditionStorage,
   type HealthInsight,
 } from "@/lib/storage";
-import { getHealthInsights } from "@/lib/api";
+import { getHealthInsights, isServiceUnreachable } from "@/lib/api";
 import { getToday, formatDate } from "@/lib/date-utils";
 
 const C = Colors.dark;
@@ -25,6 +25,7 @@ export default function InsightsScreen() {
   const [insight, setInsight] = useState<HealthInsight | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasData, setHasData] = useState(true);
+  const [aiUnavailable, setAiUnavailable] = useState(false);
 
   const loadLatest = useCallback(async () => {
     const latest = await insightStorage.getLatest();
@@ -38,6 +39,7 @@ export default function InsightsScreen() {
   const generateInsights = async () => {
     try {
       setLoading(true);
+      setAiUnavailable(false);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const [healthLogs, symptoms, medications, medLogs, vitals, fastingLogs, settings, documents, conds] = await Promise.all([
         healthLogStorage.getAll(),
@@ -69,7 +71,11 @@ export default function InsightsScreen() {
       setInsight(saved);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to generate insights");
+      if (isServiceUnreachable(err)) {
+        setAiUnavailable(true);
+      } else {
+        Alert.alert("Error", err.message || "Failed to generate insights");
+      }
     } finally {
       setLoading(false);
     }
@@ -103,6 +109,18 @@ export default function InsightsScreen() {
         )}
         <Text style={styles.generateText}>{loading ? "Analyzing your data..." : "Generate New Insights"}</Text>
       </Pressable>
+
+      {aiUnavailable && (
+        <View style={styles.noticeCard}>
+          <Ionicons name="cloud-offline-outline" size={20} color={C.orange} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.noticeTitle}>Insights aren't available right now</Text>
+            <Text style={styles.noticeText}>
+              AI-powered insights need the Synapse analysis service, which isn't enabled in this build. Your health data is safe on your device — everything else in Synapse keeps working.
+            </Text>
+          </View>
+        </View>
+      )}
 
       {!hasData && !insight && (
         <View style={styles.emptyState}>
@@ -246,6 +264,9 @@ const styles = StyleSheet.create({
   subtitle: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 20 },
   generateBtn: { backgroundColor: C.accent, borderRadius: 12, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 20, ...raised("md", C.accent) },
   generateText: { fontWeight: "600", fontSize: 15, color: "#fff" },
+  noticeCard: { flexDirection: "row", alignItems: "flex-start", gap: 12, backgroundColor: C.orangeLight, borderRadius: 14, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: C.orange + "40" },
+  noticeTitle: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 4 },
+  noticeText: { fontWeight: "400", fontSize: 12, color: C.textSecondary, lineHeight: 17 },
   emptyState: { alignItems: "center", paddingVertical: 48 },
   emptyTitle: { fontWeight: "600", fontSize: 16, color: C.textSecondary, marginTop: 12 },
   emptySubtext: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 4, textAlign: "center", maxWidth: 260 },
