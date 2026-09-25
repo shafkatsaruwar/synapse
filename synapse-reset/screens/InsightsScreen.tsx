@@ -12,7 +12,7 @@ import {
   fastingLogStorage, settingsStorage, documentStorage, insightStorage, conditionStorage,
   type HealthInsight,
 } from "@/lib/storage";
-import { getHealthInsights, isApiUnavailable } from "@/lib/api";
+import { getHealthInsights, isServiceUnreachable } from "@/lib/api";
 import { getToday, formatDate } from "@/lib/date-utils";
 
 const C = Colors.dark;
@@ -71,7 +71,7 @@ export default function InsightsScreen() {
       setInsight(saved);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
-      if (isApiUnavailable(err)) {
+      if (isServiceUnreachable(err)) {
         setAiUnavailable(true);
       } else {
         Alert.alert("Error", err.message || "Failed to generate insights");

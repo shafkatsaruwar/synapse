@@ -37,6 +37,30 @@ export function isApiUnavailable(error: unknown): boolean {
   );
 }
 
+/**
+ * True when an optional backend feature could not be reached at all: either it
+ * explicitly reported "not available" (404/503 -> ApiUnavailableError), or the
+ * request never got an HTTP response (network failure, CORS block on web,
+ * timeout/abort). Screens for optional features (e.g. AI insights) should use
+ * this to show a calm "not available" state instead of a hard error, since the
+ * user-facing outcome is the same regardless of the exact transport failure.
+ */
+export function isServiceUnreachable(error: unknown): boolean {
+  if (isApiUnavailable(error)) return true;
+  if (!(error instanceof Error)) return false;
+  const name = error.name?.toLowerCase() ?? "";
+  const message = error.message?.toLowerCase() ?? "";
+  return (
+    name === "aborterror" ||
+    name === "typeerror" ||
+    message.includes("network request failed") ||
+    message.includes("failed to fetch") ||
+    message.includes("load failed") ||
+    message.includes("network error") ||
+    message.includes("api url not configured")
+  );
+}
+
 function getBaseUrl(): string {
   const legacyManifest = Constants.manifest as { extra?: Record<string, unknown> } | null | undefined;
   const extra = (Constants.expoConfig?.extra ?? legacyManifest?.extra) as Record<string, unknown> | undefined;
