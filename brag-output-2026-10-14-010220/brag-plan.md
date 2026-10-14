@@ -27,17 +27,17 @@ Full device, held still. No punch-in. Sick Mode stays as captured.
 ### 4–7 — Medications
 Copy: Every dose. Organized.
 Asset: synapse-medications.png
-Establish the list (0/5 doses taken), then crop to the first card and its real “Yes, took it” / “Not yet” controls. Do not change the count.
+Full medications list held still (0/5 doses taken). Do not change the count.
 
 ### 7–11 — Appointments
 Copy: Every visit. In one place.
 Assets: synapse-appointments.png → synapse-appointment-detail.png
-Editorial dissolve from the October calendar to the matching detail. Frame time and “Leave around…” — do not invent a modal animation or an Explain response.
+Editorial dissolve from the October calendar to the matching detail. No zoom. Do not invent a modal animation or an Explain response.
 
 ### 11–14 — Recovery check-in
 Copy: Check in with your recovery.
 Asset: synapse-recovery-checkin.png
-Camera over heading, Overall feeling, and the first sliders. Do not move handles or describe this as a sleep screen.
+Full recovery check-in held still. Do not move handles or describe this as a sleep screen.
 
 ### 14–18 — Privacy and choice
 Copy: Your health information. Your control.
