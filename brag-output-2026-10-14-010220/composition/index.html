@@ -207,7 +207,7 @@
             <div class="phone-col">
               <div class="phone" id="phone-meet">
                 <div class="phone-screen">
-                  <div class="cam" id="cam-home">
+                  <div class="cam" id="cam-home" data-layout-allow-overflow>
                     <img src="assets/screens/synapse-home.png" alt="Synapse home" />
                   </div>
                 </div>
@@ -228,7 +228,7 @@
             <div class="phone-col">
               <div class="phone" id="phone-meds">
                 <div class="phone-screen">
-                  <div class="cam" id="cam-meds">
+                  <div class="cam" id="cam-meds" data-layout-allow-overflow>
                     <img src="assets/screens/synapse-medications.png" alt="Synapse medications" />
                   </div>
                 </div>
@@ -249,10 +249,10 @@
             <div class="phone-col">
               <div class="phone" id="phone-appts">
                 <div class="phone-screen">
-                  <div class="cam" id="cam-appts">
+                  <div class="cam" id="cam-appts" data-layout-allow-overflow>
                     <img src="assets/screens/synapse-appointments.png" alt="Synapse appointments" />
                   </div>
-                  <div class="cam" id="cam-detail">
+                  <div class="cam" id="cam-detail" data-layout-allow-overflow>
                     <img src="assets/screens/synapse-appointment-detail.png" alt="Appointment detail" />
                   </div>
                 </div>
@@ -273,7 +273,7 @@
             <div class="phone-col">
               <div class="phone" id="phone-check">
                 <div class="phone-screen">
-                  <div class="cam" id="cam-check">
+                  <div class="cam" id="cam-check" data-layout-allow-overflow>
                     <img src="assets/screens/synapse-recovery-checkin.png" alt="Recovery check-in" />
                   </div>
                 </div>
@@ -331,7 +331,7 @@
       tl.fromTo("#meet-line", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.75, ease: "power2.out" }, 2.05);
       tl.fromTo("#meet-sub", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.65, ease: "power2.out" }, 2.28);
       tl.fromTo("#phone-meet", { y: 22, opacity: 0, scale: 0.98 }, { y: 0, opacity: 1, scale: 1, duration: 0.95, ease: "power2.out" }, 2.55);
-      tl.fromTo("#cam-home", { scale: 1, y: 0 }, { scale: 1.42, y: 36, duration: 1.35, ease: "power2.inOut" }, 2.85);
+      tl.fromTo("#cam-home", { scale: 1, y: 0 }, { scale: 1.26, y: 10, duration: 1.35, ease: "power2.inOut" }, 2.85);
 
       tl.fromTo("#meds-eye", { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 4.08);
       tl.fromTo("#meds-line", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power2.out" }, 4.2);
@@ -345,13 +345,13 @@
       tl.fromTo("#phone-appts", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.85, ease: "power2.out" }, 7.15);
       tl.fromTo("#cam-appts", { scale: 1, y: 0 }, { scale: 1.08, y: 10, duration: 1.7, ease: "sine.out" }, 7.2);
       tl.fromTo("#cam-detail", { opacity: 0 }, { opacity: 1, duration: 0.7, ease: "power2.inOut" }, 8.85);
-      tl.fromTo("#cam-detail", { scale: 1, y: 0 }, { scale: 1.28, y: 28, duration: 1.85, ease: "power2.inOut" }, 9.2);
+      tl.fromTo("#cam-detail", { scale: 1, y: 0 }, { scale: 1.28, y: 28, duration: 1.85, ease: "power2.inOut", immediateRender: false }, 9.2);
 
       tl.fromTo("#check-eye", { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 11.08);
       tl.fromTo("#check-line", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power2.out" }, 11.18);
       tl.fromTo("#check-sub", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: "power2.out" }, 11.42);
       tl.fromTo("#phone-check", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.85, ease: "power2.out" }, 11.2);
-      tl.fromTo("#cam-check", { scale: 1.18, y: 8 }, { scale: 1.38, y: 22, duration: 2.5, ease: "sine.inOut" }, 11.25);
+      tl.fromTo("#cam-check", { scale: 1.12, y: 0 }, { scale: 1.24, y: 10, duration: 2.5, ease: "sine.inOut" }, 11.25);
 
       tl.fromTo("#priv-eye", { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 14.1);
       tl.fromTo("#priv-line", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: "power2.out" }, 14.22);
