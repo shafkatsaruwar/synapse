@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>Synapse — cinematic trailer</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background: #F7F1E8;
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #1A1A1A;
+      }
+      .bg {
+        position: absolute;
+        inset: 0;
+        background: #F7F1E8;
+      }
+      .glow {
+        position: absolute;
+        width: 900px;
+        height: 900px;
+        left: 120px;
+        top: -200px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(163, 13, 36, 0.16) 0%, rgba(163, 13, 36, 0) 70%);
+        pointer-events: none;
+      }
+      .glow-left {
+        position: absolute;
+        width: 820px;
+        height: 820px;
+        left: -240px;
+        bottom: -280px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(163, 13, 36, 0.10) 0%, rgba(163, 13, 36, 0) 72%);
+        pointer-events: none;
+      }
+      .grain {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.1;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+      .scene-inner {
+        position: absolute;
+        inset: 0;
+        padding: 160px 72px 120px;
+      }
+      .center-copy {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        height: 100%;
+        max-width: 920px;
+        text-align: center;
+        margin: 0 auto;
+      }
+      .split {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        height: 100%;
+        gap: 48px;
+        text-align: center;
+      }
+      .copy {
+        flex: 0 0 auto;
+        min-width: 0;
+        width: 100%;
+      }
+      .phone-col {
+        flex: 0 0 auto;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .eyebrow {
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #A30D24;
+        margin-bottom: 20px;
+      }
+      .headline {
+        font-size: 54px;
+        font-weight: 600;
+        letter-spacing: -0.035em;
+        line-height: 1.08;
+        color: #1A1A1A;
+        max-width: 920px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .subhead {
+        margin-top: 22px;
+        font-size: 26px;
+        font-weight: 400;
+        color: #3F3B37;
+        max-width: 860px;
+        margin-left: auto;
+        margin-right: auto;
+        line-height: 1.35;
+      }
+      .phone {
+        width: 320px;
+        height: 674px;
+        border-radius: 46px;
+        background: #241618;
+        padding: 11px;
+        box-shadow: 0 30px 80px rgba(36, 22, 24, 0.18);
+      }
+      .phone-screen {
+        width: 100%;
+        height: 100%;
+        border-radius: 36px;
+        background: #F5ECE2;
+        overflow: hidden;
+        padding: 20px 16px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .notch {
+        width: 112px;
+        height: 20px;
+        border-radius: 12px;
+        background: #241618;
+        margin: 0 auto 8px;
+      }
+      .phone-kicker {
+        font-size: 18px;
+        color: #3F3B37;
+        font-weight: 500;
+      }
+      .phone-title {
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        color: #1A1A1A;
+      }
+      .phone-date {
+        font-size: 18px;
+        color: #3F3B37;
+      }
+      .card {
+        background: rgba(255, 255, 255, 0.82);
+        border: 2px solid rgba(163, 13, 36, 0.10);
+        border-radius: 16px;
+        padding: 13px 15px;
+      }
+      .card strong {
+        display: block;
+        font-size: 20px;
+        font-weight: 700;
+        color: #1A1A1A;
+      }
+      .card em {
+        display: block;
+        font-style: normal;
+        font-size: 17px;
+        color: #3F3B37;
+        margin-top: 3px;
+      }
+      .card .accent {
+        color: #A30D24;
+        font-weight: 600;
+        font-size: 17px;
+        margin-top: 5px;
+      }
+      .quote { font-size: 17px; color: #3F3B37; line-height: 1.35; }
+      .progress {
+        height: 7px;
+        border-radius: 99px;
+        background: rgba(45, 125, 70, 0.16);
+        overflow: hidden;
+      }
+      .progress span {
+        display: block;
+        height: 100%;
+        width: 100%;
+        background: #2D7D46;
+      }
+      .med-row, .checkin {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .done {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: #2D7D46;
+        color: #F7F1E8;
+        display: grid;
+        place-items: center;
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .cal {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 5px;
+        margin-top: 8px;
+      }
+      .cal i {
+        font-style: normal;
+        font-size: 15px;
+        text-align: center;
+        color: #3F3B37;
+        padding: 5px 0;
+        border-radius: 7px;
+      }
+      .cal i.on {
+        background: #A30D24;
+        color: #F7F1E8;
+        font-weight: 700;
+      }
+      .mood-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .mood-row span {
+        flex: 1;
+        text-align: center;
+        font-size: 16px;
+        color: #3F3B37;
+        background: rgba(163, 13, 36, 0.06);
+        border-radius: 10px;
+        padding: 8px 4px;
+      }
+      .priv-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        background: rgba(163, 13, 36, 0.10);
+        flex: 0 0 28px;
+      }
+      .priv-row {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .outro {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        text-align: center;
+      }
+      .icon {
+        width: 168px;
+        height: 168px;
+        object-fit: contain;
+        object-position: center;
+      }
+      .wordmark {
+        margin-top: 26px;
+        font-size: 64px;
+        font-weight: 600;
+        letter-spacing: -0.04em;
+        color: #1A1A1A;
+      }
+      .tag {
+        margin-top: 14px;
+        font-size: 32px;
+        font-weight: 400;
+        color: #3F3B37;
+      }
+      #white-veil {
+        position: absolute;
+        inset: 0;
+        background: #FDFBF7;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 8;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="23"
+      data-width="1080"
+      data-height="1920"
+      data-fps="30"
+    >
+      <div class="bg" id="bg">
+        <div class="glow" id="glow" data-layout-ignore="true"></div>
+        <div class="glow-left" id="glow-left" data-layout-ignore="true"></div>
+        <div class="grain" data-layout-ignore="true"></div>
+      </div>
+
+      <section id="scene-story" class="clip" data-start="0" data-duration="2.0" data-track-index="1">
+        <div id="story-inner" class="scene-inner">
+          <div class="center-copy">
+            <h1 class="headline" id="story-line">Your health. Your story.</h1>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-meet" class="clip" data-start="2.0" data-duration="2.0" data-track-index="1">
+        <div id="meet-inner" class="scene-inner">
+          <div class="split">
+            <div class="copy">
+              <h2 class="headline" id="meet-line">Meet Synapse.</h2>
+              <p class="subhead" id="meet-sub">Medications, visits, and check-ins — in one place.</p>
+            </div>
+            <div class="phone-col">
+              <div class="phone" id="phone-meet">
+                <div class="phone-screen">
+                  <div class="notch"></div>
+                  <div class="phone-kicker">Home</div>
+                  <div class="phone-title">Good evening, Jordan.</div>
+                  <div class="phone-date">Tuesday, March 10</div>
+                  <div class="card">
+                    <strong>Lisinopril</strong>
+                    <em>10 mg · Morning</em>
+                    <div class="accent">Due now</div>
+                  </div>
+                  <div class="card">
+                    <strong>Next appointment</strong>
+                    <em>Dr. Rivera · Thu 10:00 AM</em>
+                    <div class="accent">Riverside Clinic</div>
+                  </div>
+                  <div class="card checkin">
+                    <div>
+                      <strong>How are you feeling today?</strong>
+                      <em>Tap to log energy, mood, and sleep.</em>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-meds" class="clip" data-start="4.0" data-duration="3.0" data-track-index="1">
+        <div id="meds-inner" class="scene-inner">
+          <div class="split">
+            <div class="copy">
+              <div class="eyebrow" id="meds-eye">Medications</div>
+              <h2 class="headline" id="meds-line">Every dose. Organized.</h2>
+              <p class="subhead" id="meds-sub">Scheduled meds, PRNs, and today’s count — in one list.</p>
+            </div>
+            <div class="phone-col">
+              <div class="phone" id="phone-meds">
+                <div class="phone-screen" id="meds-scroll">
+                  <div class="notch"></div>
+                  <div class="phone-title">Medications</div>
+                  <div class="phone-date">4/4 doses taken today</div>
+                  <div class="progress"><span></span></div>
+                  <div class="card med-row">
+                    <div>
+                      <strong>Lisinopril</strong>
+                      <em>10 mg · Morning</em>
+                    </div>
+                    <div class="done" id="med-check">✓</div>
+                  </div>
+                  <div class="card">
+                    <strong>Vitamin D</strong>
+                    <em>2000 IU · Afternoon</em>
+                    <div class="accent">Taken</div>
+                  </div>
+                  <div class="card">
+                    <strong>Ibuprofen</strong>
+                    <em>PRN · as needed</em>
+                    <div class="accent">Available</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-appts" class="clip" data-start="7.0" data-duration="3.0" data-track-index="1">
+        <div id="appts-inner" class="scene-inner">
+          <div class="split">
+            <div class="copy">
+              <div class="eyebrow" id="appts-eye">Appointments</div>
+              <h2 class="headline" id="appts-line">Every visit. In one place.</h2>
+              <p class="subhead" id="appts-sub">Visits, notes, and visit prep — plus calendar import.</p>
+            </div>
+            <div class="phone-col">
+              <div class="phone" id="phone-appts">
+                <div class="phone-screen">
+                  <div class="notch"></div>
+                  <div class="phone-title">Appointments</div>
+                  <div class="card">
+                    <strong>March</strong>
+                    <div class="cal">
+                      <i>S</i><i>M</i><i>T</i><i>W</i><i>T</i><i>F</i><i>S</i>
+                      <i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i>
+                      <i>8</i><i>9</i><i class="on">10</i><i>11</i><i>12</i><i>13</i><i>14</i>
+                    </div>
+                  </div>
+                  <div class="card">
+                    <strong>Dr. Rivera</strong>
+                    <em>Thu 10:00 AM · Riverside Clinic</em>
+                    <div class="accent">Visit prep ready</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-check" class="clip" data-start="10.0" data-duration="3.0" data-track-index="1">
+        <div id="check-inner" class="scene-inner">
+          <div class="split">
+            <div class="copy">
+              <div class="eyebrow" id="check-eye">Daily check-ins</div>
+              <h2 class="headline" id="check-line">Understand your everyday health.</h2>
+              <p class="subhead" id="check-sub">Log energy, mood, sleep, and symptoms when the day asks for it.</p>
+            </div>
+            <div class="phone-col">
+              <div class="phone" id="phone-check">
+                <div class="phone-screen">
+                  <div class="notch"></div>
+                  <div class="phone-title">How are you feeling today?</div>
+                  <div class="phone-date">Tap to log energy, mood, and sleep.</div>
+                  <div class="card">
+                    <strong>Daily log</strong>
+                    <div class="mood-row">
+                      <span>Energy</span>
+                      <span>Mood</span>
+                      <span>Sleep</span>
+                    </div>
+                  </div>
+                  <div class="card">
+                    <strong>Symptoms</strong>
+                    <em>Add a note so patterns are easier to spot later.</em>
+                  </div>
+                  <div class="card quote">Today is a good day to check in with yourself.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-privacy" class="clip" data-start="13.0" data-duration="4.0" data-track-index="1">
+        <div id="privacy-inner" class="scene-inner">
+          <div class="split">
+            <div class="copy">
+              <div class="eyebrow" id="priv-eye">Privacy and data</div>
+              <h2 class="headline" id="priv-line">Your health information. Your control.</h2>
+              <p class="subhead" id="priv-sub">On this device by default. Optional iCloud or Apple Health — only when you turn them on.</p>
+            </div>
+            <div class="phone-col">
+              <div class="phone" id="phone-privacy">
+                <div class="phone-screen" id="priv-scroll">
+                  <div class="notch"></div>
+                  <div class="phone-title">Privacy and Data</div>
+                  <div class="phone-date">You control what leaves this device</div>
+                  <div class="card priv-row">
+                    <div class="priv-icon"></div>
+                    <div>
+                      <strong>App Lock</strong>
+                      <em>Face ID or device passcode on this device.</em>
+                    </div>
+                  </div>
+                  <div class="card priv-row">
+                    <div class="priv-icon"></div>
+                    <div>
+                      <strong>Local-First Storage</strong>
+                      <em>Health logs stay here unless you use an optional feature.</em>
+                    </div>
+                  </div>
+                  <div class="card priv-row">
+                    <div class="priv-icon"></div>
+                    <div>
+                      <strong>Apple Health (Optional)</strong>
+                      <em>Read-only import of selected vitals when you connect.</em>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-outro" class="clip" data-start="17.0" data-duration="6.0" data-track-index="1">
+        <div id="outro-inner" class="scene-inner">
+          <div class="outro">
+            <img class="icon" id="logo" src="assets/icon.png" alt="Synapse" />
+            <div class="wordmark" id="wordmark">Synapse.</div>
+            <div class="tag" id="tagline">Your health, connected.</div>
+          </div>
+        </div>
+      </section>
+
+      <div id="white-veil" data-layout-ignore="true"></div>
+
+      <audio
+        id="music"
+        src="assets/music/happy-beats-business-moves-vol-12-by-ende-dot-app.mp3"
+        data-start="0"
+        data-duration="23"
+        data-track-index="0"
+        data-volume="1"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0},{"t":1.4,"v":0.16},{"t":20.4,"v":0.16},{"t":23,"v":0.04}]}]}'
+      ></audio>
+      <audio id="sfx-meet" src="assets/sfx/impact/impactSoft_medium_001.ogg" data-start="2.73" data-duration="0.2" data-volume="0.22" data-track-index="2"></audio>
+      <audio id="sfx-logo" src="assets/sfx/impact/impactSoft_medium_004.ogg" data-start="17.47" data-duration="0.18" data-volume="0.2" data-track-index="3"></audio>
+    </div>
+
+    <script src="assets/audio-data.js"></script>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      var driftRepeat = Math.max(0, Math.floor(23 / 8) - 1);
+
+      tl.fromTo("#glow", { x: 0, y: 0 }, { x: 36, y: 18, duration: 8, ease: "sine.inOut", repeat: driftRepeat, yoyo: true }, 0);
+      tl.fromTo("#glow-left", { x: 0, y: 0 }, { x: -20, y: -16, duration: 9, ease: "sine.inOut", repeat: driftRepeat, yoyo: true }, 0);
+
+      // 0–2.1 Your health. Your story.
+      tl.fromTo("#story-line", { y: 18, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: "power2.out" }, 0.25);
+
+      // 2.0 Meet Synapse. Phone at 2.73 — beat-locked: 2.73s
+      tl.fromTo("#meet-line", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: "power2.out" }, 2.05);
+      tl.fromTo("#meet-sub", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power2.out" }, 2.35);
+      tl.fromTo("#phone-meet", { y: 24, opacity: 0, scale: 0.97 }, { y: 0, opacity: 1, scale: 1, duration: 1.0, ease: "power2.out" }, 2.73);
+
+      // 4.0 Medications — beat-locked: 4.39s
+      tl.fromTo("#meds-eye", { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: "power2.out" }, 4.08);
+      tl.fromTo("#meds-line", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.75, ease: "power2.out" }, 4.22);
+      tl.fromTo("#meds-sub", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: "power2.out" }, 4.5);
+      tl.fromTo("#phone-meds", { y: 22, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: "power2.out" }, 4.39);
+      tl.fromTo("#med-check", { opacity: 0, scale: 0.86 }, { opacity: 1, scale: 1, duration: 0.4, ease: "power2.out" }, 5.6);
+      tl.fromTo("#meds-scroll", { y: 0 }, { y: -10, duration: 2.4, ease: "sine.inOut" }, 4.6);
+
+      // 7.0 Appointments — beat-locked: 7.09s
+      tl.fromTo("#appts-eye", { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: "power2.out" }, 7.08);
+      tl.fromTo("#appts-line", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.75, ease: "power2.out" }, 7.2);
+      tl.fromTo("#appts-sub", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: "power2.out" }, 7.48);
+      tl.fromTo("#phone-appts", { y: 22, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: "power2.out" }, 7.09);
+
+      // 10.0 Check-ins — beat-locked: 10.37s
+      tl.fromTo("#check-eye", { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: "power2.out" }, 10.08);
+      tl.fromTo("#check-line", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.75, ease: "power2.out" }, 10.2);
+      tl.fromTo("#check-sub", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: "power2.out" }, 10.48);
+      tl.fromTo("#phone-check", { y: 22, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: "power2.out" }, 10.37);
+
+      // 13.0 Privacy — beat-locked: 13.11s
+      tl.fromTo("#priv-eye", { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: "power2.out" }, 13.08);
+      tl.fromTo("#priv-line", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: "power2.out" }, 13.2);
+      tl.fromTo("#priv-sub", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.65, ease: "power2.out" }, 13.5);
+      tl.fromTo("#phone-privacy", { y: 22, opacity: 0 }, { y: 0, opacity: 1, duration: 0.95, ease: "power2.out" }, 13.11);
+      tl.fromTo("#priv-scroll", { y: 0 }, { y: -12, duration: 3.2, ease: "sine.inOut" }, 13.6);
+
+      // 17.0 Outro — beat-locked: 17.47s
+      tl.fromTo("#logo", { y: 12, opacity: 0, scale: 0.96 }, { y: 0, opacity: 1, scale: 1, duration: 0.9, ease: "power2.out" }, 17.47);
+      tl.fromTo("#wordmark", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.75, ease: "power2.out" }, 17.85);
+      tl.fromTo("#tagline", { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power2.out" }, 18.2);
+      tl.fromTo("#white-veil", { opacity: 0 }, { opacity: 1, duration: 1.6, ease: "power1.inOut" }, 21.2);
+
+      var data = window.AUDIO_DATA;
+      if (data && data.frames) {
+        var max = Math.min(data.totalFrames, 690);
+        for (var f = 0; f < max; f++) {
+          tl.call(
+            (function (frame) {
+              return function () {
+                var rms = frame.rms || 0;
+                var bass = (frame.bands && frame.bands[0]) || 0;
+                gsap.set("#glow", { scale: 1 + bass * 0.06, opacity: 0.9 + rms * 0.08 });
+              };
+            })(data.frames[f]),
+            [],
+            f / (data.fps || 30)
+          );
+        }
+      }
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>
