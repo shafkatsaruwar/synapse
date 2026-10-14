@@ -1,45 +1,66 @@
-# Brag Plan: Synapse (cinematic revision)
+# Brag Plan: Synapse (real-screenshot revision)
 
 ## What is this app?
-A personal wellness and organization companion for medications, appointments, check-ins, symptoms, vitals, and recovery — local-first on iPhone, with optional iCloud and Apple Health.
+A personal wellness and organization companion for medications, appointments, check-ins, and recovery — local-first on iPhone, with optional connected features.
 
 ## The angle
-Apple-style product film. Quiet confidence. Real Synapse UI. Copy from the requested trailer brief, still inside product claims. “Connected” means your health day gathered in one place — not hospital systems, not Epic, not HIPAA.
+Apple-style product film. Real Synapse screenshots only. Camera moves over static captures. No fabricated UI, no simulated taps, no invented privacy lock-in.
 
 ## Duration: 23 seconds
-## Format: landscape 1920×1080, plus portrait 1080×1920
+## Format: landscape 1920×1080 and portrait 1080×1920
+
+## Hook (first 2 seconds)
+Warm parchment. “Your health. Your story.” No device, no dashboard.
 
 ## Storyboard
 
-### 0.0–2.1 — Your health. Your story.
-Warm parchment. Soft drifting maroon light. Headline fades up.
+### 0–2 — Opening
+Copy: Your health. Your story.
+Asset: none
+No phone. Frame 0 is this title, not a dashboard poster.
 
-### 2.1–4.2 — Meet Synapse.
-Line settles. Dashboard phone eases in (fictional Jordan). No aggressive zoom.
+### 2–4 — Meet Synapse
+Copy: Meet Synapse.
+Asset: synapse-home.png
+Full device, then gentle punch toward “Let’s log this day” and the two summary cards. Sick Mode stays as captured.
 
-### 4.0–7.2 — Every dose. Organized.
-Medications list, 4/4, scheduled + PRN. Gentle list settle.
+### 4–7 — Medications
+Copy: Every dose. Organized.
+Asset: synapse-medications.png
+Establish the list (0/5 doses taken), then crop to the first card and its real “Yes, took it” / “Not yet” controls. Do not change the count.
 
-### 7.0–10.2 — Every visit. In one place.
-Appointments calendar + Dr. Rivera (stand-in).
+### 7–11 — Appointments
+Copy: Every visit. In one place.
+Assets: synapse-appointments.png → synapse-appointment-detail.png
+Editorial dissolve from the October calendar to the matching detail. Frame time and “Leave around…” — do not invent a modal animation or an Explain response.
 
-### 10.0–13.2 — Understand your everyday health.
-Daily check-in: energy, mood, sleep.
+### 11–14 — Recovery check-in
+Copy: Check in with your recovery.
+Asset: synapse-recovery-checkin.png
+Camera over heading, Overall feeling, and the first sliders. Do not move handles or describe this as a sleep screen.
 
-### 13.0–17.2 — Your health information. Your control.
-Privacy & Data UI: local-first default, optional Apple Health / iCloud. Do not claim exclusive on-device lock-in.
+### 14–18 — Privacy and choice
+Copy: Your health information. Your control.
+Support: Local storage by default. Optional connected features.
+Asset: none supplied — the sixth attachment was a duplicate of the recovery check-in, not Privacy & Data. Typography-only; do not fabricate that page.
 
-### 17.0–23.0 — Synapse. Your health, connected.
-Interface recedes. Square app icon. Hold branding ≥2s. Soft fade toward white.
+### 18–23 — Brand close
+Official Synapse icon. Synapse. / Your health, connected. Hold ≥2s.
 
 ## Claims lock
-May show: meds, appointments, check-ins, Privacy & Data, optional iCloud, optional Apple Health, App Store / iPhone.
-Must not show: HIPAA, medical advice, AES-256, Android-available, Epic / MyChart, “never leaves the device.”
-
-## Fictional stand-ins
-Jordan · Lisinopril 10 mg · Dr. Rivera · Riverside Clinic · Tuesday, March 10
+May show: the supplied home, medications, appointments, appointment detail, and recovery check-in screens.
+Must not show: HIPAA, Epic / MyChart, Android-available, AES-256, “never leaves the device,” simulated tap success, invented Explain answers.
 
 ## Audio
-Track: vol-12 (~110 BPM), quieter bed, long fade-in, warm resolve under the logo.
-SFX: two soft hits only (Meet Synapse, logo).
-Audio-reactive: very subtle glow breath.
+Track: vol-12, quiet bed. Two soft hits (Meet Synapse, logo).
+
+## Scene-to-asset
+| Time | Line | File |
+|---|---|---|
+| 0–2 | Your health. Your story. | — |
+| 2–4 | Meet Synapse. | synapse-home.png |
+| 4–7 | Every dose. Organized. | synapse-medications.png |
+| 7–11 | Every visit. In one place. | synapse-appointments.png → synapse-appointment-detail.png |
+| 11–14 | Check in with your recovery. | synapse-recovery-checkin.png |
+| 14–18 | Your health information. Your control. | (no capture) |
+| 18–23 | Synapse. Your health, connected. | assets/icon.png |
