@@ -22,7 +22,7 @@ No phone. Frame 0 is this title, not a dashboard poster.
 ### 2–4 — Meet Synapse
 Copy: Meet Synapse.
 Asset: synapse-home.png
-Full device, then gentle punch toward “Let’s log this day” and the two summary cards. Sick Mode stays as captured.
+Full device, held still. No punch-in. Sick Mode stays as captured.
 
 ### 4–7 — Medications
 Copy: Every dose. Organized.
