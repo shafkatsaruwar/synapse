@@ -1,0 +1,13 @@
+Synapse trailer — scene-to-asset list
+
+0–2s   Opening                 no screenshot
+2–4s   Meet Synapse            synapse-home.png                 (was 2ded0fa0… home / Health Snapshot)
+4–7s   Medications             synapse-medications.png          (was ac8b5cff… Yes, took it / Not yet)
+7–9s   Appointments calendar   synapse-appointments.png         (was 81a99ce9… October 2026)
+9–11s  Appointment detail      synapse-appointment-detail.png   (was 3091ad0f… Dr. Amm modal)
+11–14s Recovery check-in       synapse-recovery-checkin.png     (was bc05319e… sliders)
+14–18s Privacy copy            no screenshot                    (4965af7a… is a duplicate of recovery check-in, not Privacy & Data)
+18–23s Brand close             assets/icon.png
+
+Unused attachment: 4965af7a-e20d-4856-8897-d43bc5ae30b7.png (identical recovery check-in)
+Unused: 9bc5553c… (old trailer poster, not an app screen)
