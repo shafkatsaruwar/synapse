@@ -8,5 +8,5 @@
       "environment": "production"
     }
   },
-  "submit": { "production": {} }
+  "submit": { "production": { "ios": { "ascAppId": "6759972036" } } }
 }
