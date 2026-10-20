@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { featureFlags } from "@/constants/feature-flags";
 import { isDarkAppearance, isEvergreenTheme, useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useModeAwareScreen } from "@/contexts/AppModeContext";
 import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
@@ -666,9 +665,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     return `${diffHours} hr ${remMinutes.toString().padStart(2, "0")} min until iftar`;
   };
 
-  const ramadanQuote =
-    ramadanDay ? RAMADAN_QUOTES[(ramadanDay.hijriDay - 1) % RAMADAN_QUOTES.length] : RAMADAN_QUOTES[0];
-
   const goodDayMessage =
     ramadanDay && settings.ramadanMode
       ? RAMADAN_WELLNESS_MESSAGES[dateObj.getDate() % RAMADAN_WELLNESS_MESSAGES.length]
@@ -1270,7 +1266,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const simpleModeBottomBleed = Platform.OS === "web" ? 108 : insets.bottom + 96;
   /** Legacy Light theme still uses the beige glass gradient wrapper. Soft Evergreen is flat. */
   const isLightTheme = themeId === "light";
-  const glassTint = isDarkAppearance(themeId) ? "dark" : "light";
 
   if (!loaded) {
     return (
