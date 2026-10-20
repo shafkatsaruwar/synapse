@@ -401,7 +401,7 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
             </View>
 
             <Pressable
-              style={[styles.saveBtn, !hasCardBasics(data) && !saved ? null : null]}
+              style={styles.saveBtn}
               onPress={handleSave}
               accessibilityRole="button"
               accessibilityLabel="Save emergency card"
