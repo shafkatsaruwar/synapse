@@ -39,9 +39,14 @@ type Props = {
   initialType?: VisualScanType;
   onClose: () => void;
   onSaved?: (kind: VisualScanType, id?: string) => void;
+  /**
+   * When provided for medication scans, populate a review draft instead of
+   * silently creating a medication. Caller must require user confirmation before save.
+   */
+  onMedicationDraft?: (fields: { name: string; dosage?: string; unit?: string }) => void;
 };
 
-export default function VisualScanImportModal({ visible, initialType = "medication", onClose, onSaved }: Props) {
+export default function VisualScanImportModal({ visible, initialType = "medication", onClose, onSaved, onMedicationDraft }: Props) {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
   const [scanType, setScanType] = useState<VisualScanType>(initialType);
@@ -236,6 +241,16 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
   const save = async () => {
     if (scanType === "medication") {
       if (!medName.trim()) return Alert.alert("Medication name needed", "Add a name before saving.");
+      // Prefer draft review when the host provides a draft handler (guided Add Medication).
+      if (onMedicationDraft) {
+        onMedicationDraft({
+          name: medName.trim(),
+          dosage: medDosage.trim() || undefined,
+          unit: undefined,
+        });
+        close();
+        return;
+      }
       const saved = await medicationStorage.save({
         name: medName.trim(),
         dosage: medDosage.trim(),

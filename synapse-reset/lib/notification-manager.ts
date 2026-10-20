@@ -1191,42 +1191,23 @@ export async function syncAllFromSettings(): Promise<void> {
           await cancelMedicationReminders(med.id);
           continue;
         }
-        const normalized = normalizeMedication(med);
-        const reminderSchedule = inferMedicationReminderCadence(med);
-        const doses = Array.isArray(normalized.doses) && normalized.doses.length > 0 ? normalized.doses : [];
-        if (doses.length === 0) {
-          const { hour, minute } = DEFAULT_REMINDER_TIMES["Morning"];
-          await scheduleMedicationReminder({
-            medicationId: med.id,
-            doseIndex: 0,
-            medicationName: med.name ?? "Medication",
-            dosage: (med as { dosage?: string }).dosage ?? "",
-            hour,
-            minute,
-            cadence: reminderSchedule.cadence,
-            weekday: reminderSchedule.weekday,
-            intervalValue: reminderSchedule.intervalValue,
-            intervalUnit: reminderSchedule.intervalUnit,
-          });
+
+        // Only explicit opt-out skips dose notifications. Legacy meds (undefined) keep prior behavior.
+        const skipDoseReminders = med.remindersEnabled === false;
+        if (skipDoseReminders) {
+          await cancelMedicationReminders(med.id);
         } else {
-          for (let i = 0; i < doses.length; i++) {
-            const dose = doses[i];
-            let hour: number;
-            let minute: number;
-            if (dose.reminderTime) {
-              const [h, m] = dose.reminderTime.split(":").map((n) => parseInt(n, 10) || 0);
-              hour = h;
-              minute = m;
-            } else {
-              const def = DEFAULT_REMINDER_TIMES[dose.timeOfDay] ?? DEFAULT_REMINDER_TIMES["Morning"];
-              hour = def.hour;
-              minute = def.minute;
-            }
+          const normalized = normalizeMedication(med);
+          const reminderSchedule = inferMedicationReminderCadence(med);
+          const doses = Array.isArray(normalized.doses) && normalized.doses.length > 0 ? normalized.doses : [];
+          if (doses.length === 0) {
+            // Legacy med with no doses array: keep prior Morning fallback.
+            const { hour, minute } = DEFAULT_REMINDER_TIMES["Morning"];
             await scheduleMedicationReminder({
               medicationId: med.id,
-              doseIndex: i,
+              doseIndex: 0,
               medicationName: med.name ?? "Medication",
-              dosage: `${dose.amount} ${dose.unit}`.trim(),
+              dosage: (med as { dosage?: string }).dosage ?? "",
               hour,
               minute,
               cadence: reminderSchedule.cadence,
@@ -1234,20 +1215,58 @@ export async function syncAllFromSettings(): Promise<void> {
               intervalValue: reminderSchedule.intervalValue,
               intervalUnit: reminderSchedule.intervalUnit,
             });
+          } else {
+            for (let i = 0; i < doses.length; i++) {
+              const dose = doses[i];
+              let hour: number;
+              let minute: number;
+              if (dose.reminderTime) {
+                const [h, m] = dose.reminderTime.split(":").map((n) => parseInt(n, 10) || 0);
+                hour = h;
+                minute = m;
+              } else if (med.remindersEnabled === true) {
+                // Explicitly enabled but missing a time — do not invent a prescribed administration time.
+                continue;
+              } else {
+                // Legacy undefined remindersEnabled: preserve prior inference from time-of-day.
+                const def = DEFAULT_REMINDER_TIMES[dose.timeOfDay] ?? DEFAULT_REMINDER_TIMES["Morning"];
+                hour = def.hour;
+                minute = def.minute;
+              }
+              await scheduleMedicationReminder({
+                medicationId: med.id,
+                doseIndex: i,
+                medicationName: med.name ?? "Medication",
+                dosage: `${dose.amount} ${dose.unit}`.trim(),
+                hour,
+                minute,
+                cadence: reminderSchedule.cadence,
+                weekday: reminderSchedule.weekday,
+                intervalValue: reminderSchedule.intervalValue,
+                intervalUnit: reminderSchedule.intervalUnit,
+              });
+            }
           }
         }
-        const remaining = (med as { currentSupplyAmount?: number; pillsRemaining?: number }).currentSupplyAmount ?? (med as { pillsRemaining?: number }).pillsRemaining;
+
+        if (med.medicationType === "prn") continue;
+
+        const remaining =
+          (med as { currentSupplyAmount?: number; pillsRemaining?: number }).currentSupplyAmount ??
+          (med as { pillsRemaining?: number }).pillsRemaining;
         const threshold = (med as { lowSupplyThreshold?: number }).lowSupplyThreshold ?? REFILL_THRESHOLD;
         if (remaining != null && remaining <= threshold) {
           const refillsRemaining = (med as { refillsRemaining?: number }).refillsRemaining;
-          const inventoryUnit = (med as { inventoryUnit?: string; refillUnit?: string }).inventoryUnit ?? (med as { refillUnit?: string }).refillUnit;
+          const inventoryUnit =
+            (med as { inventoryUnit?: string; refillUnit?: string }).inventoryUnit ??
+            (med as { refillUnit?: string }).refillUnit;
           const lowSupplyText = `${med.name ?? "Medication"} is running low. Only ${formatSupplyAmount(remaining)} ${displayInventoryUnit(inventoryUnit, remaining)} remaining.`;
           const refillText =
             refillsRemaining === 1
               ? " Only 1 refill remaining. Please contact your pharmacy for refills."
               : refillsRemaining === 0
-              ? " No refills remaining. Please contact your pharmacy."
-              : "";
+                ? " No refills remaining. Please contact your pharmacy."
+                : "";
           await scheduleMedicationRefillReminder(med.id, med.name ?? "Medication", `${lowSupplyText}${refillText}`);
         }
       }

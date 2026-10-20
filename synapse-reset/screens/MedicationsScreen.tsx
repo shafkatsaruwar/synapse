@@ -24,6 +24,14 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import VisualScanImportModal from "@/screens/VisualScanImportModal";
 import MedicationEnforcementCard from "@/components/MedicationEnforcementCard";
+import AddMedicationGuidedFlow from "@/components/medications/AddMedicationGuidedFlow";
+import EditMedicationHub from "@/components/medications/EditMedicationHub";
+import { featureFlags } from "@/constants/feature-flags";
+import {
+  draftFromScan,
+  type AddMedicationDraft,
+  type GuidedStepId,
+} from "@/lib/medication-draft";
 import { raised } from "@/constants/raised";
 import { modalOverlay, modalSurface, modalSurfaceElevated } from "@/lib/modal-colors";
 
@@ -302,6 +310,13 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
   const [showModal, setShowModal] = useState(false);
   const [showSimpleAddModal, setShowSimpleAddModal] = useState(false);
   const [showVisualScanModal, setShowVisualScanModal] = useState(false);
+  const [showGuidedFlow, setShowGuidedFlow] = useState(false);
+  const [guidedMode, setGuidedMode] = useState<"add" | "edit">("add");
+  const [guidedInitialStep, setGuidedInitialStep] = useState<GuidedStepId>("identity");
+  const [guidedInitialDraft, setGuidedInitialDraft] = useState<AddMedicationDraft | null>(null);
+  const [guidedInitialOwner, setGuidedInitialOwner] = useState<RecordOwner | undefined>(undefined);
+  const [showEditHub, setShowEditHub] = useState(false);
+  const [hubMedication, setHubMedication] = useState<Medication | null>(null);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
   const [nudgeMedId, setNudgeMedId] = useState<string | null>(null);
 
@@ -447,63 +462,27 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
   };
 
   const openAddModal = (ownerOverride?: RecordOwner) => {
-    let requestedOwner: RecordOwner = "self";
-    let shouldSkipOwnerStep = false;
+    let requestedOwner: RecordOwner | undefined;
     if (ownerOverride === "self") {
-      shouldSkipOwnerStep = true;
+      requestedOwner = "self";
     } else if (ownerOverride === "care_recipient" && isCaregiver) {
       requestedOwner = "care_recipient";
-      shouldSkipOwnerStep = true;
     }
     setEditingMed(null);
-    setFormName("");
-    setFormMedicationImageUri("");
-    setFormMedicationType("scheduled");
-    setSimpleAddStep(shouldSkipOwnerStep ? 1 : ownerOptions.length > 1 ? 0 : 1);
-    setSimpleAddTypeSelection(null);
-    setSimpleSelectedDoseTimes(["Morning"]);
-    setPrnFlowStep(1);
-    setShowPrnOptionalDetails(false);
-    setFormDosesArray([{ id: Crypto.randomUUID(), amount: "", unit: "mg", timeOfDay: "Morning", reminderTime: "08:00", optionalNotes: "" }]);
-    setFormRoute("");
-    setFormDoctorId(null);
-    setShowMedicationDoctorPicker(false);
-    setShowMedicationDoctorForm(false);
-    setNewMedicationDoctorName("");
-    setNewMedicationDoctorSpecialty("");
-    setFormPharmacyId(null);
-    setFormLegacyPharmacyName("");
-    setShowMedicationPharmacyPicker(false);
-    setFormReminderCadence("daily");
-    setFormReminderWeekday(jsDayToExpoWeekday(new Date().getDay()));
-    setFormReminderIntervalValue("3");
-    setFormReminderIntervalUnit("days");
-    setFormEmoji("");
-    setFormHasStressDose(false);
-    setFormStressDoseAmount("");
-    setFormStressDoseFrequency("");
-    setFormStressDoseDurationDays("");
-    setFormStressDoseInstructions("");
-    setFormCurrentSupplyAmount("");
-    setFormRefillsRemaining("");
-    setFormAmountPerRefill("");
-    setFormSupplyPerDose("");
-    setFormLowSupplyThreshold("5");
-    setFormConcentrationMgPerMl("");
-    setFormRefillUnit("Pills");
-    setFormEntryOwner(requestedOwner);
-    setShowCurrentMedNamePicker(false);
-    setShowDoseTimePickerIndex(null);
-    setShowReminderTimePickerIndex(null);
-    setShowRefillUnitPicker(false);
-    if (modeUI.isSimpleMode) {
-      setShowSimpleAddModal(true);
-    } else {
-      setShowModal(true);
-    }
+    setHubMedication(null);
+    setShowEditHub(false);
+    setShowSimpleAddModal(false);
+    setShowModal(false);
+    setGuidedMode("add");
+    setGuidedInitialStep("identity");
+    setGuidedInitialDraft(null);
+    setGuidedInitialOwner(requestedOwner);
+    setFormEntryOwner(requestedOwner ?? "self");
+    setShowGuidedFlow(true);
   };
 
-  const openEditModal = (med: Medication) => {
+  /** Prefills the legacy advanced form used for inventory / doctor / sick-day protocol. */
+  const populateAdvancedForm = (med: Medication) => {
     const normalizedMed = normalizeMedication(med);
     const selectedTimes = Array.from(new Set(
       (Array.isArray(med.doses) && med.doses.length > 0
@@ -560,11 +539,36 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
     setShowDoseTimePickerIndex(null);
     setShowReminderTimePickerIndex(null);
     setShowRefillUnitPicker(false);
-    if (modeUI.isSimpleMode) {
-      setShowSimpleAddModal(true);
-    } else {
-      setShowModal(true);
-    }
+  };
+
+  const openEditModal = (med: Medication) => {
+    setHubMedication(med);
+    setEditingMed(med);
+    setShowGuidedFlow(false);
+    setShowSimpleAddModal(false);
+    setShowModal(false);
+    setShowEditHub(true);
+  };
+
+  const openGuidedEdit = (med: Medication, step: GuidedStepId = "identity") => {
+    setHubMedication(med);
+    setEditingMed(med);
+    setShowEditHub(false);
+    setShowSimpleAddModal(false);
+    setShowModal(false);
+    setGuidedMode("edit");
+    setGuidedInitialStep(step);
+    setGuidedInitialDraft(null);
+    setGuidedInitialOwner(med.entryOwner ?? "self");
+    setShowGuidedFlow(true);
+  };
+
+  const openAdvancedEdit = (med: Medication) => {
+    populateAdvancedForm(med);
+    setShowEditHub(false);
+    setShowGuidedFlow(false);
+    setShowSimpleAddModal(false);
+    setShowModal(true);
   };
 
   const dosesWithAmount = Array.isArray(formDosesArray)
@@ -918,7 +922,8 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
       ? simpleModeDoses.filter((d) => d.amount.length > 0)
       : formDosesArray.filter((d) => d.amount.trim().length > 0);
     if (dosesWithAmount.length === 0) return;
-    const missingReminder = !isPrn && dosesWithAmount.some((d) => !d.reminderTime?.trim());
+    const remindersOn = !isPrn && editingMed?.remindersEnabled !== false;
+    const missingReminder = remindersOn && dosesWithAmount.some((d) => !d.reminderTime?.trim());
     if (missingReminder) {
       Alert.alert("Reminder time required", "Every dose must have a reminder time. Please set a time for each dose.");
       return;
@@ -931,7 +936,16 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
     const doses: MedicationDose[] = modeUI.isSimpleMode && formMedicationType === "scheduled"
       ? simpleModeDoses
       : formDosesArray
-          .map((d) => ({ id: d.id || Crypto.randomUUID(), amount: d.amount.trim(), unit: d.unit.trim() || "mg", timeOfDay: d.timeOfDay, reminderTime: (d.reminderTime?.trim() || defaultReminderTimeFor(d.timeOfDay)), optionalNotes: d.optionalNotes?.trim() || undefined }))
+          .map((d) => ({
+            id: d.id || Crypto.randomUUID(),
+            amount: d.amount.trim(),
+            unit: d.unit.trim() || "mg",
+            timeOfDay: d.timeOfDay,
+            reminderTime: remindersOn
+              ? (d.reminderTime?.trim() || defaultReminderTimeFor(d.timeOfDay))
+              : (d.reminderTime?.trim() || undefined),
+            optionalNotes: d.optionalNotes?.trim() || undefined,
+          }))
           .filter((d) => d.amount.length > 0);
     const parsedDuration = parseInt(formStressDoseDurationDays, 10);
     const currentSupplyAmount = formCurrentSupplyAmount.trim() ? parseFloat(formCurrentSupplyAmount) : undefined;
@@ -976,6 +990,8 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
       lowSupplyThreshold: isPrn ? undefined : lowSupplyThreshold != null && !isNaN(lowSupplyThreshold) ? lowSupplyThreshold : 5,
       concentrationMgPerMl: isPrn ? undefined : concentrationMgPerMl != null && !isNaN(concentrationMgPerMl) ? concentrationMgPerMl : undefined,
       entryOwner: formEntryOwner,
+      // Preserve reminder preference from existing med when editing via advanced form.
+      remindersEnabled: isPrn ? false : (editingMed?.remindersEnabled),
       hasStressDose: isPrn ? false : formHasStressDose,
       stressDoseAmount: !isPrn && formHasStressDose ? formStressDoseAmount.trim() : undefined,
       stressDoseFrequency: !isPrn && formHasStressDose ? formStressDoseFrequency.trim() : undefined,
@@ -1550,6 +1566,106 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
     ? `${takenDoses} of ${totalDoses} doses taken today`
     : "No scheduled medications yet";
 
+  const medicationNameSuggestions = useMemo(() => {
+    const names = new Set<string>();
+    for (const item of medListItems) {
+      if (item.name?.trim()) names.add(item.name.trim());
+    }
+    for (const med of medications) {
+      if (med.name?.trim()) names.add(med.name.trim());
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [medListItems, medications]);
+
+  const renderMedicationOverlays = () => (
+    <>
+      <AddMedicationGuidedFlow
+        visible={showGuidedFlow}
+        mode={guidedMode}
+        editingMedication={guidedMode === "edit" ? editingMed : null}
+        initialOwner={guidedInitialOwner}
+        initialDraft={guidedInitialDraft}
+        initialStep={guidedInitialStep}
+        ramadanMode={!!settings.ramadanMode}
+        isCaregiver={isCaregiver}
+        caredForName={profile.caredForName?.trim()}
+        nameSuggestions={medicationNameSuggestions}
+        scanEnabled={featureFlags.documentScannerEnabled}
+        onRequestScan={() => {
+          setShowGuidedFlow(false);
+          setShowVisualScanModal(true);
+        }}
+        onClose={() => {
+          setShowGuidedFlow(false);
+          setGuidedInitialDraft(null);
+          if (guidedMode === "add") setEditingMed(null);
+        }}
+        onSaved={(med, options) => {
+          void loadData();
+          if (options.addAnother) {
+            setGuidedMode("add");
+            setGuidedInitialStep("identity");
+            setGuidedInitialDraft(null);
+            setGuidedInitialOwner(guidedInitialOwner);
+            setEditingMed(null);
+            setShowGuidedFlow(true);
+            return;
+          }
+          setShowGuidedFlow(false);
+          setGuidedInitialDraft(null);
+          if (options.openAdvanced) {
+            openAdvancedEdit(med);
+            return;
+          }
+          if (modeUI.isSimpleMode) onSimpleSaveComplete?.();
+        }}
+        onOpenAdvancedDetails={(med) => {
+          setShowGuidedFlow(false);
+          openAdvancedEdit(med);
+        }}
+      />
+      <EditMedicationHub
+        visible={showEditHub}
+        medication={hubMedication}
+        onClose={() => {
+          setShowEditHub(false);
+          setHubMedication(null);
+        }}
+        onOpenGuided={(step) => {
+          if (!hubMedication) return;
+          openGuidedEdit(hubMedication, step);
+        }}
+        onOpenAdvanced={() => {
+          if (!hubMedication) return;
+          openAdvancedEdit(hubMedication);
+        }}
+      />
+      <VisualScanImportModal
+        visible={showVisualScanModal}
+        initialType="medication"
+        onClose={() => setShowVisualScanModal(false)}
+        onMedicationDraft={(fields) => {
+          setShowVisualScanModal(false);
+          setGuidedMode("add");
+          setGuidedInitialStep("identity");
+          setGuidedInitialDraft(
+            draftFromScan({
+              name: fields.name,
+              dosage: fields.dosage,
+              unit: fields.unit,
+              entryOwner: guidedInitialOwner ?? formEntryOwner ?? "self",
+            }),
+          );
+          setShowGuidedFlow(true);
+        }}
+        onSaved={() => {
+          setShowVisualScanModal(false);
+          void loadData();
+        }}
+      />
+    </>
+  );
+
   if (modeUI.isSimpleMode) {
     const simpleContent = (
       <View
@@ -1582,14 +1698,16 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
                 <Text style={styles.headerAddPillText}>Add Med</Text>
                 <Ionicons name="add" size={17} color="#fff" />
               </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.headerIconButton, pressed && styles.headerActionPressed]}
-                onPress={() => setShowVisualScanModal(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Scan medication"
-              >
-                <Ionicons name="scan-outline" size={20} color={C.text} />
-              </Pressable>
+              {featureFlags.documentScannerEnabled ? (
+                <Pressable
+                  style={({ pressed }) => [styles.headerIconButton, pressed && styles.headerActionPressed]}
+                  onPress={() => setShowVisualScanModal(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Scan medication"
+                >
+                  <Ionicons name="scan-outline" size={20} color={C.text} />
+                </Pressable>
+              ) : null}
             </View>
           </View>
         </View>
@@ -1841,41 +1959,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
             </View>
           </View>
         ) : null}
-        <Modal visible={showSimpleAddModal} transparent animationType="fade">
-          <View style={styles.overlay}>
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={() => {
-                setShowSimpleAddModal(false);
-                setShowCurrentMedNamePicker(false);
-                setEditingMed(null);
-              }}
-              accessibilityLabel="Close add medication"
-            />
-            <View style={styles.modal}>
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
-                <Text style={styles.modalTitle}>{editingMed ? "Edit Medication" : "Add Medication"}</Text>
-                <View style={styles.medicationPhotoSection}>
-                  {formMedicationImageUri ? (
-                    <Image source={{ uri: formMedicationImageUri }} style={styles.medicationPhotoPreview} resizeMode="cover" />
-                  ) : null}
-                  <View style={styles.medicationPhotoActions}>
-                    <Pressable style={styles.medicationPhotoButton} onPress={() => { void handlePickMedicationPhoto(); }}>
-                      <Ionicons name="image-outline" size={18} color={C.tint} />
-                      <Text style={styles.medicationPhotoButtonText}>{formMedicationImageUri ? "Change med photo" : "Add med photo"}</Text>
-                    </Pressable>
-                    {formMedicationImageUri ? (
-                      <Pressable style={styles.medicationPhotoRemove} onPress={() => setFormMedicationImageUri("")}>
-                        <Text style={styles.medicationPhotoRemoveText}>Remove</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-                {renderSimpleAddMedicationFlow()}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
+        {renderMedicationOverlays()}
       </View>
     );
 
@@ -1911,14 +1995,16 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
               <Text style={styles.headerAddPillText}>Add Med</Text>
               <Ionicons name="add" size={17} color="#fff" />
             </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.headerIconButton, pressed && styles.headerActionPressed]}
-              onPress={() => setShowVisualScanModal(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Scan medication"
-            >
-              <Ionicons name="scan-outline" size={20} color={C.text} />
-            </Pressable>
+            {featureFlags.documentScannerEnabled ? (
+              <Pressable
+                style={({ pressed }) => [styles.headerIconButton, pressed && styles.headerActionPressed]}
+                onPress={() => setShowVisualScanModal(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Scan medication"
+              >
+                <Ionicons name="scan-outline" size={20} color={C.text} />
+              </Pressable>
+            ) : null}
           </View>
         </View>
         {totalDoses > 0 && (
@@ -2607,15 +2693,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
         </Pressable>
       </Modal>
 
-      <VisualScanImportModal
-        visible={showVisualScanModal}
-        initialType="medication"
-        onClose={() => setShowVisualScanModal(false)}
-        onSaved={() => {
-          setShowVisualScanModal(false);
-          void loadData();
-        }}
-      />
+      {renderMedicationOverlays()}
 
       <Modal visible={showModal} transparent animationType="fade">
         <View style={styles.overlay}>

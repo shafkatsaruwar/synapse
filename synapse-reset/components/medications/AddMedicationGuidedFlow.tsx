@@ -799,7 +799,7 @@ export default function AddMedicationGuidedFlow(props: AddMedicationGuidedFlowPr
                   <Pressable
                     key={`${dose.id}-${tag}`}
                     style={[styles.chip, selected && { backgroundColor: colors.bg, borderColor: colors.text }]}
-                    onPress={() => updateDose(dose.id, { timeOfDay: tag })}
+                    onPress={() => updateDose(dose.id, { timeOfDay: tag, reminderTime: defaultReminderTimeFor(tag) })}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                   >
