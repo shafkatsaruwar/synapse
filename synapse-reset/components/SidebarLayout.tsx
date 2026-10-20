@@ -1135,8 +1135,8 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: C.red,
-      borderWidth: 2,
-      borderColor: themeId === "dark" ? "#1C1C1E" : "#FFFFFF",
+      // Solid red — no contrasting white ring around the badge.
+      borderWidth: 0,
     },
     iconBadgeText: {
       fontSize: 9,
