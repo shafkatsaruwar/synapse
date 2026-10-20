@@ -2434,8 +2434,8 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
       backgroundColor: C.red,
       alignItems: "center",
       justifyContent: "center",
-      borderWidth: 1.5,
-      borderColor: C.surface,
+      // Solid red — no white/surface ring around the medical badge.
+      borderWidth: 0,
     },
     statusGlanceRow: {
       flexDirection: "row",
