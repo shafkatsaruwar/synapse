@@ -8,6 +8,7 @@ export type NavStackState = {
 
 const TOP_LEVEL = new Set([
   "dashboard",
+  "health",
   "medications",
   "appointments",
   "feelinghub",

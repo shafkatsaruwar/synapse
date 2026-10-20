@@ -99,6 +99,18 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
     hamburger: true,
     description: "Profile, preferences, privacy, and backup.",
   },
+  /**
+   * Bottom-tab Health mega-hub (not in hamburger).
+   * Aggregates clinical destinations; children are listed in FeatureHubScreen.
+   */
+  {
+    key: "health",
+    type: "hub",
+    label: "Health",
+    icon: "fitness-outline",
+    iconActive: "fitness",
+    description: "Everything that helps you manage day to day.",
+  },
 
   // —— How I’m Feeling children ——
   { key: "log", type: "screen", label: "Daily Log", icon: "heart-outline", iconActive: "heart", parent: "feelinghub", description: "Quick check-in for mood, energy, and sleep" },
@@ -166,8 +178,7 @@ export const NAV_ALIASES: Record<string, string> = {
   wellbeing: "wellbeinghub",
   caresupport: "carehub",
   you: "accounthub",
-  // Ambiguous former "health" hub → Health Records hub (not Vitals)
-  health: "recordshub",
+  // "health" is the bottom-tab mega-hub (canonical key in NAV_REGISTRY)
   accountHub: "accounthub",
   account: "accounthub",
 };
@@ -212,21 +223,37 @@ export function getHamburgerItems(options?: { role?: string }): NavRegistryEntry
   return HAMBURGER_KEYS.map((key) => BY_KEY.get(key)!).filter(Boolean);
 }
 
-/** Bottom tab destinations for Full Mode. */
-export const FULL_BOTTOM_TAB_KEYS = ["dashboard", "medications", "accounthub"] as const;
+/** Bottom tab destinations for Full Mode — Today / Health / You. */
+export const FULL_BOTTOM_TAB_KEYS = ["dashboard", "health", "accounthub"] as const;
 
 /** Bottom tab destinations for Simple Mode. */
 export const SIMPLE_BOTTOM_TAB_KEYS = ["dashboard", "medications", "appointments", "feelinghub", "accounthub"] as const;
+
+/** Destinations that highlight the Health bottom tab when open. */
+const HEALTH_TAB_SCREENS = new Set([
+  "health",
+  "medications",
+  "appointments",
+  "feelinghub",
+  "recordshub",
+  "wellbeinghub",
+  "carehub",
+]);
 
 export function primaryTabForScreen(screen: string): string {
   const resolved = resolveNavKey(screen);
   if ((FULL_BOTTOM_TAB_KEYS as readonly string[]).includes(resolved)) return resolved;
   if (resolved === "sickmode") return "dashboard";
   const parent = getParentHub(resolved);
-  if (parent === "feelinghub") return "feelinghub";
   if (parent === "accounthub" || parent === "emergencyhub") return "accounthub";
-  if (resolved === "medications" || resolved === "appointments") return resolved;
-  // Health-adjacent children highlight Medications tab as the nearest primary clinical tab
-  if (parent === "recordshub" || parent === "wellbeinghub" || parent === "carehub") return "medications";
+  if (HEALTH_TAB_SCREENS.has(resolved)) return "health";
+  if (
+    parent === "feelinghub" ||
+    parent === "recordshub" ||
+    parent === "wellbeinghub" ||
+    parent === "carehub"
+  ) {
+    return "health";
+  }
   return "dashboard";
 }
