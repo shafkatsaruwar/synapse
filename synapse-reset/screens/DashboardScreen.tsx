@@ -2207,18 +2207,6 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
       lineHeight: 20,
       color: C.textSecondary,
     },
-    moreToggle: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 6,
-      paddingVertical: 10,
-    },
-    moreToggleText: {
-      fontSize: 15,
-      fontWeight: "600",
-      color: C.tint,
-    },
     healthSnapshotEvergreen: {
       backgroundColor: C.surface,
       borderWidth: StyleSheet.hairlineWidth,
