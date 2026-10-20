@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Constants from "expo-constants";
-import { useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
+import { isEvergreenTheme, useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
 import GlassView from "@/components/GlassView";
 import { useSynapseHQPanel } from "@/components/SynapseHQPanel";
 import VisualScanImportModal from "@/screens/VisualScanImportModal";
@@ -735,11 +735,26 @@ export default function SidebarLayout({
           ]}
         >
           {Platform.OS === "web" ? (
-            <View style={[styles.mobileNav, simpleMode && styles.mobileNavSimple, styles.mobileNavFallback]}>
+            <View
+              style={[
+                styles.mobileNav,
+                simpleMode && styles.mobileNavSimple,
+                styles.mobileNavFallback,
+                isEvergreenTheme(themeId) && styles.mobileNavEvergreen,
+              ]}
+            >
               <View style={styles.mobileNavContent}>{bottomNavItems.map(renderBottomNavItem)}</View>
             </View>
           ) : (
-            <GlassView variant="nav" tint={themeId === "dark" ? "dark" : "light"} style={[styles.mobileNav, simpleMode && styles.mobileNavSimple]}>
+            <GlassView
+              variant="nav"
+              tint={themeId === "dark" ? "dark" : "light"}
+              style={[
+                styles.mobileNav,
+                simpleMode && styles.mobileNavSimple,
+                isEvergreenTheme(themeId) && styles.mobileNavEvergreen,
+              ]}
+            >
               <View style={styles.mobileNavContent}>{bottomNavItems.map(renderBottomNavItem)}</View>
             </GlassView>
           )}
@@ -1355,8 +1370,19 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     },
     mobileNavFallback: {
       backgroundColor: themeId === "light" ? "rgba(255,255,255,0.85)" : "rgba(28,28,30,0.9)",
-      borderWidth: 1,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
+    },
+    /** Soft Evergreen: tab bar shares the page ground — no bright white rim. */
+    mobileNavEvergreen: {
+      backgroundColor: themeId === "evergreenDark" ? "rgba(28,32,34,0.92)" : "rgba(247,248,250,0.94)",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+      shadowColor: "#20252A",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      elevation: 2,
     },
     mobileNavContent: {
       flexDirection: "row",

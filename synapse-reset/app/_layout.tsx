@@ -80,14 +80,15 @@ export default function RootLayout() {
   if (!ready) {
     return (
       <View
-        style={{ flex: 1, backgroundColor: "#F5F1EA" }}
+        // Match Soft Evergreen page ground so launch doesn’t flash a different cream.
+        style={{ flex: 1, backgroundColor: "#F7F8FA" }}
       />
     );
   }
 
   return (
     <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#F7F8FA" }}>
         <SafeAreaProvider>
           <QueryClientProvider client={queryClient}>
             <DisplaySettingsProvider>

@@ -10,7 +10,8 @@ interface AppBackgroundProps {
 export default function AppBackground({ children }: AppBackgroundProps) {
   const { themeId, colors } = useTheme();
 
-  // Soft Evergreen: flat cool off-white / charcoal — no beige glass overlays.
+  // Soft Evergreen: one flat cool off-white / charcoal field — no beige glass,
+  // prism blooms, or competing layer colors that break the single-surface feel.
   if (isEvergreenTheme(themeId)) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background }]}>
