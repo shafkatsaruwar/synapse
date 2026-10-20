@@ -1532,27 +1532,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         </View>
       </View>
 
-      {/* Emergency information */}
-      <Pressable
-        style={({ pressed }) => [...solidCard(styles.emergencyCard), pressed && { opacity: 0.9 }]}
-        onPress={() => {
-          Haptics.selectionAsync().catch(() => {});
-          onNavigate("emergencyhub");
-        }}
-        accessibilityRole="button"
-        accessibilityLabel="Emergency information"
-        accessibilityHint="Open your emergency card"
-      >
-        <View style={[styles.quietIconWrap, { backgroundColor: "#F3E8E6" }]}>
-          <Ionicons name="shield-outline" size={22} color={isDarkAppearance(themeId) ? C.tint : "#6B5E5A"} />
-        </View>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={styles.quietCardTitle}>Emergency information</Text>
-          <Text style={styles.quietCardBody}>Important details, ready when needed</Text>
-        </View>
-        <Ionicons name="open-outline" size={18} color={C.textTertiary} />
-      </Pressable>
-
       {/* Sick Mode entry → Health Status (Sick Mode lives inside that screen) */}
       <Pressable
         style={({ pressed }) => [
