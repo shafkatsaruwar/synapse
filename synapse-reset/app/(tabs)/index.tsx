@@ -40,7 +40,6 @@ import CycleTrackingScreen from "@/screens/CycleTrackingScreen";
 import RamadanDailyLogScreen from "@/screens/RamadanDailyLogScreen";
 import OnboardingScreen, { type OnboardingCompleteOptions } from "@/screens/OnboardingScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
-import EmergencyProtocolScreen from "@/screens/EmergencyProtocolScreen";
 import EmergencyCardScreen from "@/screens/EmergencyCardScreen";
 import MeetFounderScreen from "@/screens/MeetFounderScreen";
 import FeedbackScreen from "@/screens/FeedbackScreen";
@@ -1301,7 +1300,14 @@ export default function MainScreen() {
       case "caresupport":
         return <FeatureHubScreen hubId="carehub" onNavigate={handleNavigate} role={role} />;
       case "emergencyhub":
-        return <FeatureHubScreen hubId="emergencyhub" onNavigate={handleNavigate} role={role} />;
+      case "emergencycard":
+      case "emergency":
+        return (
+          <EmergencyCardScreen
+            onBack={() => backToParentOr("dashboard")}
+            onNavigate={handleNavigate}
+          />
+        );
       case "accounthub":
       case "you":
         return <FeatureHubScreen hubId="accounthub" onNavigate={handleNavigate} role={role} />;
@@ -1426,10 +1432,6 @@ export default function MainScreen() {
         return <AllergyScreen onBack={() => backToParentOr("accounthub")} />;
       case "cycletracking":
         return <CycleTrackingScreen onBack={() => backToParentOr("wellbeinghub")} />;
-      case "emergency":
-        return <EmergencyProtocolScreen onBack={() => backToParentOr("emergencyhub")} />;
-      case "emergencycard":
-        return <EmergencyCardScreen onBack={() => backToParentOr("emergencyhub")} onNavigate={handleNavigate} />;
       case "editprofile":
         return (
           <EditProfileScreen

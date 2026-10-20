@@ -49,7 +49,6 @@ import {
   type Vital,
   type HydrationEntry,
   disableRecoveryTracking,
-  enableRecoveryTracking,
 } from "@/lib/storage";
 import { getToday, formatDate, formatTime12h, formatTimestamp } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
@@ -1542,7 +1541,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         }}
         accessibilityRole="button"
         accessibilityLabel="Emergency information"
-        accessibilityHint="Open emergency card and protocol"
+        accessibilityHint="Open your emergency card"
       >
         <View style={[styles.quietIconWrap, { backgroundColor: "#F3E8E6" }]}>
           <Ionicons name="shield-outline" size={22} color={isDarkAppearance(themeId) ? C.tint : "#6B5E5A"} />

@@ -14,6 +14,8 @@ const NAV_ALIASES = {
   caresupport: "carehub",
   you: "accounthub",
   labs: "labwork",
+  emergency: "emergencyhub",
+  emergencycard: "emergencyhub",
 };
 
 const PARENT = {
@@ -29,8 +31,6 @@ const PARENT = {
   ramadan: "wellbeinghub",
   doctors: "carehub",
   pharmacies: "carehub",
-  emergencycard: "emergencyhub",
-  emergency: "emergencyhub",
   privacy: "accounthub",
   settings: "accounthub",
 };
@@ -133,10 +133,11 @@ state = pushNav({ screen: "dashboard", stack: [] }, "carehub");
 state = pushNav(state, "doctors");
 assert.deepEqual(popNav(state), { screen: "carehub", stack: [] });
 
-// Flow: Menu → Emergency → Emergency Card (parent recorded)
+// Flow: Menu / Emergency info → Emergency card directly (no protocol hub)
 state = pushNav({ screen: "dashboard", stack: [] }, "emergencyhub");
-state = pushNav(state, "emergencycard");
-assert.deepEqual(state, { screen: "emergencycard", stack: ["emergencyhub"] });
+assert.deepEqual(state, { screen: "emergencyhub", stack: [] });
+assert.equal(resolve("emergencycard"), "emergencyhub");
+assert.equal(resolve("emergency"), "emergencyhub");
 
 // Flow: Menu → You & Settings → Privacy
 state = pushNav({ screen: "dashboard", stack: [] }, "accounthub");

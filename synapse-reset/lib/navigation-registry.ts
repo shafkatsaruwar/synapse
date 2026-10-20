@@ -83,12 +83,12 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
   },
   {
     key: "emergencyhub",
-    type: "hub",
+    type: "screen",
     label: "Emergency",
     icon: "shield-outline",
     iconActive: "shield",
     hamburger: true,
-    description: "Quick access to your emergency card and protocol.",
+    description: "Your emergency card — critical info when it matters.",
   },
   {
     key: "accounthub",
@@ -142,10 +142,6 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
   { key: "caregiverdashboard", type: "screen", label: "Caregiver Dashboard", icon: "people-outline", iconActive: "people", parent: "carehub", role: "caregiver", description: "Tools for supporting someone else" },
   { key: "managedperson", type: "screen", label: "Managed Person", icon: "accessibility-outline", iconActive: "accessibility", parent: "carehub", role: "caregiver", description: "Details for the person you support" },
 
-  // —— Emergency children ——
-  { key: "emergencycard", type: "screen", label: "Emergency Card", icon: "card-outline", iconActive: "card", parent: "emergencyhub", description: "Critical info for urgent moments" },
-  { key: "emergency", type: "screen", label: "Emergency Protocol", icon: "shield-outline", iconActive: "shield", parent: "emergencyhub", description: "Steps and contacts for emergencies" },
-
   // —— Account children ——
   { key: "healthprofile", type: "screen", label: "Health Profile", icon: "person-outline", iconActive: "person", parent: "accounthub", description: "Basics about you" },
   { key: "healthprofileconditions", type: "screen", label: "Conditions", icon: "clipboard-outline", iconActive: "clipboard", parent: "accounthub", description: "Conditions that matter for your care" },
@@ -179,6 +175,9 @@ export const NAV_ALIASES: Record<string, string> = {
   wellbeing: "wellbeinghub",
   caresupport: "carehub",
   you: "accounthub",
+  // Emergency Protocol removed — card is the one destination
+  emergency: "emergencyhub",
+  emergencycard: "emergencyhub",
   // "health" is the bottom-tab mega-hub (canonical key in NAV_REGISTRY)
   accountHub: "accounthub",
   account: "accounthub",
@@ -246,7 +245,8 @@ export function primaryTabForScreen(screen: string): string {
   if ((FULL_BOTTOM_TAB_KEYS as readonly string[]).includes(resolved)) return resolved;
   if (resolved === "sickmode" || resolved === "healthstatus") return "dashboard";
   const parent = getParentHub(resolved);
-  if (parent === "accounthub" || parent === "emergencyhub") return "accounthub";
+  if (resolved === "emergencyhub") return "dashboard";
+  if (parent === "accounthub") return "accounthub";
   if (HEALTH_TAB_SCREENS.has(resolved)) return "health";
   if (
     parent === "feelinghub" ||
