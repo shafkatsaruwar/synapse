@@ -558,7 +558,8 @@ export default function SidebarLayout({
   const navBarBottom = Platform.OS === "web" ? 20 : insets.bottom + 16;
   /** Approximate vertical center of the bottom nav pill — radial fan origin. */
   const radialOriginBottom = navBarBottom + (simpleMode ? 30 : 34);
-  const showFloatingSimpleFab = simpleMode && showUniversalAdd;
+  /** Floating FAB only when the centered Quick Add tab is not available (Simple Mode or wide layouts). */
+  const showFloatingSimpleFab = showUniversalAdd && (simpleMode || !showBottomNav);
 
   const renderBottomNavItem = useCallback(
     (item: NavItem) => {
