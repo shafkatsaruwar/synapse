@@ -35,7 +35,7 @@ const DARK: SickModePalette = {
   accentBorder: "rgba(255,107,107,0.4)",
 };
 
-/** themeId from ThemeContext: "dark" -> dark palette; "light" | "calm" -> light palette. */
-export function getSickModePalette(themeId: "calm" | "light" | "dark"): SickModePalette {
-  return themeId === "dark" ? DARK : LIGHT;
+/** themeId from ThemeContext: dark / evergreenDark → dark palette; otherwise light. */
+export function getSickModePalette(themeId: string): SickModePalette {
+  return themeId === "dark" || themeId === "evergreenDark" ? DARK : LIGHT;
 }

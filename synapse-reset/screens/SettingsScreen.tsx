@@ -94,6 +94,15 @@ const SECTION_ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"
 
 const THEME_OPTIONS: { id: ThemePreference; label: string; description: string }[] = [
   { id: "system", label: "System", description: "Follow device appearance" },
+  { id: "evergreen", label: "Soft Evergreen", description: "Calm cool off-white with evergreen accent" },
+  { id: "calm", label: "Calm", description: "Warm beige, easy on the eyes" },
+  { id: "light", label: "Light", description: "Clean white, modern" },
+  { id: "dark", label: "Dark", description: "True black, OLED-friendly" },
+];
+
+/** Widget chrome does not yet include Soft Evergreen — keep legacy set. */
+const WIDGET_THEME_OPTIONS: { id: WidgetAppearancePreference; label: string; description: string }[] = [
+  { id: "system", label: "System", description: "Follow device appearance" },
   { id: "calm", label: "Calm", description: "Warm beige, easy on the eyes" },
   { id: "light", label: "Light", description: "Clean white, modern" },
   { id: "dark", label: "Dark", description: "True black, OLED-friendly" },
@@ -2084,7 +2093,7 @@ export default function SettingsScreen({
               })}
 
               <Text style={[styles.appearanceGroupTitle, { marginTop: 12 }]}>Widgets</Text>
-              {THEME_OPTIONS.map((opt) => {
+              {WIDGET_THEME_OPTIONS.map((opt) => {
                 const isSelected = (profile.widgetAppearance ?? "system") === opt.id;
                 return (
                   <Pressable
