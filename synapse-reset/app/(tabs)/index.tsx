@@ -96,7 +96,7 @@ const WHATS_NEW_TITLE = "Faster adds, smarter visits, cleaner care.";
 const WHATS_NEW_BODY =
   "This update makes it easier to add health info, prep for appointments, and find the support details that actually belong with each workflow.";
 const WHATS_NEW_BULLETS = [
-  "Quick Add now brings Scan, manual add, Calendar import, and symptom logging into one hub",
+  "Quick Add is now a centered + in the tab bar — tap for Scan, Medication, Appointment, Symptom, or More",
   "Apple Calendar import now prioritizes relevant appointments so visits are easier to find",
   "Appointments can show travel guidance based on your approximate current area",
   "Appointment cards now offer clear Edit, Reschedule, and Cancel actions",

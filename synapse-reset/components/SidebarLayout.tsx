@@ -60,8 +60,16 @@ const SIMPLE_NAV_ITEMS: NavItem[] = SIMPLE_BOTTOM_TAB_KEYS.map((key) => {
   return entryToNavItem(key);
 });
 
-/** Full Mode bottom tabs — Today / Health / Emergency / You. */
+/** Full Mode bottom tabs — Today / Health / Quick Add / Emergency / You. */
 const PRIMARY_ITEMS: NavItem[] = FULL_BOTTOM_TAB_KEYS.map((key) => {
+  if (key === "quickadd") {
+    return {
+      key: "quickadd",
+      label: "Add",
+      icon: "add" as IconName,
+      iconActive: "add" as IconName,
+    };
+  }
   if (key === "accounthub") return entryToNavItem(key, "You");
   if (key === "emergencyhub") return entryToNavItem(key, "Emergency");
   return entryToNavItem(key);
@@ -88,13 +96,32 @@ const ESSENTIAL_SICK_KEYS = [
   "accounthub",
   "settings",
 ];
-const SIMPLE_ADD_ACTIONS = [
-  { key: "medication" as const, label: "Add medication", icon: "medical-outline" as const, offsetX: -88, offsetY: -26 },
-  { key: "appointment" as const, label: "Add appointment", icon: "calendar-outline" as const, offsetX: -70, offsetY: -92 },
-  { key: "symptom" as const, label: "Add symptom", icon: "pulse-outline" as const, offsetX: -24, offsetY: -146 },
-] as const;
+
+/** Compact Zelle-style semicircle — five shortcuts fan out above the centered +. */
+const RADIAL_RADIUS = 112;
+const RADIAL_ADD_ACTIONS = (
+  [
+    { key: "scan" as const, label: "Scan", icon: "scan-outline" as const },
+    { key: "medication" as const, label: "Medication", icon: "medical-outline" as const },
+    { key: "appointment" as const, label: "Appointment", icon: "calendar-outline" as const },
+    { key: "symptom" as const, label: "Log Symptom", icon: "pulse-outline" as const },
+    { key: "more" as const, label: "More", icon: "ellipsis-horizontal" as const },
+  ] as const
+).map((action, index, list) => {
+  const span = Math.PI * 0.9;
+  const start = Math.PI / 2 + span / 2;
+  const end = Math.PI / 2 - span / 2;
+  const t = list.length <= 1 ? 0.5 : index / (list.length - 1);
+  const angle = start + (end - start) * t;
+  return {
+    ...action,
+    offsetX: Math.cos(angle) * RADIAL_RADIUS,
+    offsetY: -Math.sin(angle) * RADIAL_RADIUS,
+  };
+});
 
 type QuickAddTarget = "medication" | "appointment" | "symptom" | "calendar" | "labwork" | "imaging";
+type RadialAddKey = (typeof RADIAL_ADD_ACTIONS)[number]["key"];
 
 interface SidebarLayoutProps {
   activeScreen: string;
@@ -132,12 +159,14 @@ export default function SidebarLayout({
   const isWide = width >= 768;
   const isWebPlatform = Platform.OS === "web";
   const [moreOpen, setMoreOpen] = useState(false);
-  const [simpleAddOpen, setSimpleAddOpen] = useState(false);
+  const [radialMenuOpen, setRadialMenuOpen] = useState(false);
+  const [quickAddHubOpen, setQuickAddHubOpen] = useState(false);
   const [showVisualScanModal, setShowVisualScanModal] = useState(false);
   const [localWebSidebarCollapsed, setLocalWebSidebarCollapsed] = useState(webSidebarCollapsed);
   const drawerSlide = useRef(new Animated.Value(1)).current;
   const simpleAddFabSpin = useRef(new Animated.Value(0)).current;
-  const simpleAddActionProgress = useRef(SIMPLE_ADD_ACTIONS.map(() => new Animated.Value(0))).current;
+  const radialActionProgress = useRef(RADIAL_ADD_ACTIONS.map(() => new Animated.Value(0))).current;
+  const radialBackdropOpacity = useRef(new Animated.Value(0)).current;
   const simpleAddAnimatingRef = useRef(false);
 
   const isWideRef = useRef(isWide);
@@ -233,7 +262,7 @@ export default function SidebarLayout({
     loadBadges();
     const interval = setInterval(loadBadges, 10000);
     return () => clearInterval(interval);
-  }, [loadBadges, activeScreen, moreOpen, simpleAddOpen]);
+  }, [loadBadges, activeScreen, moreOpen, radialMenuOpen, quickAddHubOpen]);
 
   useEffect(() => {
     if (!__DEV__) {
@@ -344,8 +373,11 @@ export default function SidebarLayout({
     }).start(() => setMoreOpen(false));
   }, [drawerSlide]);
 
-  const closeSimpleAdd = useCallback(() => {
-    if (!simpleAddOpen || simpleAddAnimatingRef.current) return;
+  const closeRadialMenu = useCallback((afterClose?: () => void) => {
+    if (!radialMenuOpen || simpleAddAnimatingRef.current) {
+      afterClose?.();
+      return;
+    }
     simpleAddAnimatingRef.current = true;
     Animated.parallel([
       Animated.timing(simpleAddFabSpin, {
@@ -353,73 +385,281 @@ export default function SidebarLayout({
         duration: 180,
         useNativeDriver: true,
       }),
+      Animated.timing(radialBackdropOpacity, {
+        toValue: 0,
+        duration: 160,
+        useNativeDriver: true,
+      }),
       Animated.stagger(
-        24,
-        [...simpleAddActionProgress].reverse().map((value) =>
+        22,
+        [...radialActionProgress].reverse().map((value) =>
           Animated.timing(value, {
             toValue: 0,
-            duration: 150,
+            duration: 140,
             useNativeDriver: true,
           })
         )
       ),
     ]).start(() => {
       simpleAddAnimatingRef.current = false;
-      setSimpleAddOpen(false);
+      setRadialMenuOpen(false);
+      afterClose?.();
     });
-  }, [simpleAddActionProgress, simpleAddFabSpin, simpleAddOpen]);
+  }, [radialActionProgress, radialBackdropOpacity, radialMenuOpen, simpleAddFabSpin]);
 
-  const openSimpleAdd = useCallback(() => {
-    if (simpleAddOpen || simpleAddAnimatingRef.current) return;
+  const openRadialMenu = useCallback(() => {
+    if (radialMenuOpen || simpleAddAnimatingRef.current) return;
+    setQuickAddHubOpen(false);
     simpleAddAnimatingRef.current = true;
-    setSimpleAddOpen(true);
+    setRadialMenuOpen(true);
+    radialActionProgress.forEach((value) => value.setValue(0));
+    radialBackdropOpacity.setValue(0);
     Animated.parallel([
-      Animated.timing(simpleAddFabSpin, {
+      Animated.spring(simpleAddFabSpin, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 120,
+        friction: 12,
+      }),
+      Animated.timing(radialBackdropOpacity, {
         toValue: 1,
         duration: 180,
         useNativeDriver: true,
       }),
       Animated.stagger(
-        34,
-        simpleAddActionProgress.map((value) =>
+        36,
+        radialActionProgress.map((value) =>
           Animated.spring(value, {
             toValue: 1,
             useNativeDriver: true,
-            tension: 105,
-            friction: 10,
+            tension: 108,
+            friction: 11,
           })
         )
       ),
     ]).start(() => {
       simpleAddAnimatingRef.current = false;
     });
-  }, [simpleAddActionProgress, simpleAddFabSpin, simpleAddOpen]);
+  }, [radialActionProgress, radialBackdropOpacity, radialMenuOpen, simpleAddFabSpin]);
 
-  const toggleSimpleAdd = useCallback(() => {
+  const closeQuickAddHub = useCallback(() => {
+    setQuickAddHubOpen(false);
+    Animated.timing(simpleAddFabSpin, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [simpleAddFabSpin]);
+
+  const openQuickAddHub = useCallback(() => {
+    setQuickAddHubOpen(true);
+    Animated.spring(simpleAddFabSpin, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 120,
+      friction: 12,
+    }).start();
+  }, [simpleAddFabSpin]);
+
+  const openHubFromRadial = useCallback(() => {
+    if (simpleAddAnimatingRef.current) return;
+    simpleAddAnimatingRef.current = true;
+    Animated.parallel([
+      Animated.timing(radialBackdropOpacity, {
+        toValue: 0,
+        duration: 140,
+        useNativeDriver: true,
+      }),
+      Animated.stagger(
+        18,
+        [...radialActionProgress].reverse().map((value) =>
+          Animated.timing(value, {
+            toValue: 0,
+            duration: 120,
+            useNativeDriver: true,
+          })
+        )
+      ),
+    ]).start(() => {
+      simpleAddAnimatingRef.current = false;
+      setRadialMenuOpen(false);
+      openQuickAddHub();
+    });
+  }, [openQuickAddHub, radialActionProgress, radialBackdropOpacity]);
+
+  const toggleRadialMenu = useCallback(() => {
     void Haptics.selectionAsync().catch(() => {});
-    if (simpleAddOpen) {
-      closeSimpleAdd();
+    if (quickAddHubOpen) {
+      closeQuickAddHub();
       return;
     }
-    openSimpleAdd();
-  }, [closeSimpleAdd, openSimpleAdd, simpleAddOpen]);
+    if (radialMenuOpen) {
+      closeRadialMenu();
+      return;
+    }
+    openRadialMenu();
+  }, [closeQuickAddHub, closeRadialMenu, openRadialMenu, quickAddHubOpen, radialMenuOpen]);
+
+  /** Simple Mode FAB opens the full Quick Add sheet (preserves prior behavior). */
+  const toggleSimpleAddHub = useCallback(() => {
+    void Haptics.selectionAsync().catch(() => {});
+    if (quickAddHubOpen) {
+      closeQuickAddHub();
+      return;
+    }
+    if (radialMenuOpen) {
+      openHubFromRadial();
+      return;
+    }
+    openQuickAddHub();
+  }, [closeQuickAddHub, openHubFromRadial, openQuickAddHub, quickAddHubOpen, radialMenuOpen]);
 
   const handleSimpleAddPress = useCallback((target: QuickAddTarget) => {
     void Haptics.selectionAsync().catch(() => {});
-    closeSimpleAdd();
+    if (radialMenuOpen) closeRadialMenu();
+    if (quickAddHubOpen) closeQuickAddHub();
     onSimpleAddSelect?.(target);
-  }, [closeSimpleAdd, onSimpleAddSelect]);
+  }, [closeQuickAddHub, closeRadialMenu, onSimpleAddSelect, quickAddHubOpen, radialMenuOpen]);
 
   const handleScanPress = useCallback(() => {
     void Haptics.selectionAsync().catch(() => {});
-    closeSimpleAdd();
+    if (radialMenuOpen) closeRadialMenu();
+    if (quickAddHubOpen) closeQuickAddHub();
     setShowVisualScanModal(true);
-  }, [closeSimpleAdd]);
+  }, [closeQuickAddHub, closeRadialMenu, quickAddHubOpen, radialMenuOpen]);
+
+  const handleRadialActionPress = useCallback((key: RadialAddKey) => {
+    void Haptics.selectionAsync().catch(() => {});
+    if (key === "more") {
+      openHubFromRadial();
+      return;
+    }
+    if (key === "scan") {
+      handleScanPress();
+      return;
+    }
+    handleSimpleAddPress(key);
+  }, [handleScanPress, handleSimpleAddPress, openHubFromRadial]);
+
+  const handleBottomNavPress = useCallback((itemKey: string) => {
+    if (itemKey === "quickadd") {
+      toggleRadialMenu();
+      return;
+    }
+    if (radialMenuOpen) closeRadialMenu();
+    if (quickAddHubOpen) closeQuickAddHub();
+    onNavigate(itemKey);
+  }, [closeQuickAddHub, closeRadialMenu, onNavigate, quickAddHubOpen, radialMenuOpen, toggleRadialMenu]);
 
   const shouldShowWebSidebar = isWebPlatform && !isWide && !simpleMode;
   const sidebarWidth = 260;
   const collapsedSidebarWidth = 70;
   const currentSidebarWidth = localWebSidebarCollapsed ? collapsedSidebarWidth : sidebarWidth;
+  const navBarBottom = Platform.OS === "web" ? 20 : insets.bottom + 16;
+  /** Approximate vertical center of the bottom nav pill — radial fan origin. */
+  const radialOriginBottom = navBarBottom + (simpleMode ? 30 : 34);
+  const showFloatingSimpleFab = simpleMode && showUniversalAdd;
+
+  const renderBottomNavItem = useCallback(
+    (item: NavItem) => {
+      if (item.key === "quickadd") {
+        const open = radialMenuOpen || quickAddHubOpen;
+        return (
+          <Pressable
+            key={item.key}
+            style={styles.mobileNavItem}
+            onPress={() => handleBottomNavPress(item.key)}
+            testID="tab-quickadd"
+            accessibilityRole="button"
+            accessibilityLabel={open ? "Close quick add" : "Quick add"}
+            accessibilityHint={
+              open
+                ? "Close add options"
+                : "Open shortcuts for scan, medication, appointment, symptom, and more"
+            }
+            accessibilityState={{ expanded: open }}
+          >
+            <View style={styles.quickAddNavButtonWrap}>
+              <View style={[styles.quickAddNavButton, open && styles.quickAddNavButtonOpen]}>
+                <Animated.View
+                  style={{
+                    transform: [
+                      {
+                        rotate: simpleAddFabSpin.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ["0deg", "45deg"],
+                        }),
+                      },
+                      {
+                        scale: simpleAddFabSpin.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.04],
+                        }),
+                      },
+                    ],
+                  }}
+                >
+                  <Ionicons name="add" size={28} color="#fff" />
+                </Animated.View>
+              </View>
+            </View>
+          </Pressable>
+        );
+      }
+
+      const active = isNavItemActive(item.key);
+      const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
+      const badgeCount = getBadgeCount(item.key);
+      return (
+        <Pressable
+          key={item.key}
+          style={[styles.mobileNavItem, simpleMode && styles.mobileNavItemSimple, dimmed && { opacity: 0.35 }]}
+          onPress={() => handleBottomNavPress(item.key)}
+          onLongPress={item.key === "settings" || item.key === "accounthub" ? openSynapseHQ : undefined}
+          delayLongPress={3500}
+          testID={`tab-${item.key}`}
+          accessibilityRole="button"
+          accessibilityLabel={getNavAccessibilityLabel(item)}
+          accessibilityState={{ selected: active }}
+        >
+          <View style={styles.mobileNavIconWrap}>
+            <Ionicons
+              name={active ? item.iconActive : item.icon}
+              size={simpleMode ? 22 : 24}
+              color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
+            />
+            {renderIconBadge(badgeCount)}
+          </View>
+          {simpleMode ? (
+            <Text
+              style={[styles.mobileNavLabel, active && styles.mobileNavLabelActive]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.76}
+            >
+              {item.label}
+            </Text>
+          ) : null}
+        </Pressable>
+      );
+    },
+    [
+      C.accent,
+      C.red,
+      getBadgeCount,
+      getNavAccessibilityLabel,
+      handleBottomNavPress,
+      isNavItemActive,
+      openSynapseHQ,
+      quickAddHubOpen,
+      radialMenuOpen,
+      renderIconBadge,
+      simpleAddFabSpin,
+      simpleMode,
+      sickMode,
+      styles,
+    ]
+  );
 
   const mainContent = (
     <View style={styles.mobileContainer} {...swipePanResponder.panHandlers}>
@@ -481,7 +721,7 @@ export default function SidebarLayout({
           style={[
             styles.mobileNavWrap,
             {
-              bottom: Platform.OS === "web" ? 20 : insets.bottom + 16,
+              bottom: navBarBottom,
               left: 20,
               right: 20,
             },
@@ -489,104 +729,107 @@ export default function SidebarLayout({
         >
           {Platform.OS === "web" ? (
             <View style={[styles.mobileNav, simpleMode && styles.mobileNavSimple, styles.mobileNavFallback]}>
-              <View style={styles.mobileNavContent}>
-                {bottomNavItems.map((item) => {
-                  const active = isNavItemActive(item.key);
-                  const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
-                  const badgeCount = getBadgeCount(item.key);
-                  return (
-                    <Pressable
-                      key={item.key}
-                      style={[styles.mobileNavItem, simpleMode && styles.mobileNavItemSimple, dimmed && { opacity: 0.35 }]}
-                      onPress={() => onNavigate(item.key)}
-                      onLongPress={item.key === "settings" || item.key === "accounthub" ? openSynapseHQ : undefined}
-                      delayLongPress={3500}
-                      testID={`tab-${item.key}`}
-                      accessibilityRole="button"
-                      accessibilityLabel={getNavAccessibilityLabel(item)}
-                      accessibilityState={{ selected: active }}
-                    >
-                      <View style={styles.mobileNavIconWrap}>
-                        <Ionicons
-                          name={active ? item.iconActive : item.icon}
-                          size={simpleMode ? 22 : 24}
-                          color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
-                        />
-                        {renderIconBadge(badgeCount)}
-                      </View>
-                      {simpleMode ? (
-                        <Text
-                          style={[styles.mobileNavLabel, active && styles.mobileNavLabelActive]}
-                          numberOfLines={1}
-                          adjustsFontSizeToFit
-                          minimumFontScale={0.76}
-                        >
-                          {item.label}
-                        </Text>
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </View>
+              <View style={styles.mobileNavContent}>{bottomNavItems.map(renderBottomNavItem)}</View>
             </View>
           ) : (
             <GlassView variant="nav" tint={themeId === "dark" ? "dark" : "light"} style={[styles.mobileNav, simpleMode && styles.mobileNavSimple]}>
-              <View style={styles.mobileNavContent}>
-                {bottomNavItems.map((item) => {
-                  const active = isNavItemActive(item.key);
-                  const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
-                  const badgeCount = getBadgeCount(item.key);
-                  return (
-                    <Pressable
-                      key={item.key}
-                      style={[styles.mobileNavItem, simpleMode && styles.mobileNavItemSimple, dimmed && { opacity: 0.35 }]}
-                      onPress={() => onNavigate(item.key)}
-                      onLongPress={item.key === "settings" || item.key === "accounthub" ? openSynapseHQ : undefined}
-                      delayLongPress={3500}
-                      testID={`tab-${item.key}`}
-                      accessibilityRole="button"
-                      accessibilityLabel={getNavAccessibilityLabel(item)}
-                      accessibilityState={{ selected: active }}
-                    >
-                      <View style={styles.mobileNavIconWrap}>
-                        <Ionicons
-                          name={active ? item.iconActive : item.icon}
-                          size={simpleMode ? 22 : 24}
-                          color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
-                        />
-                        {renderIconBadge(badgeCount)}
-                      </View>
-                      {simpleMode ? (
-                        <Text
-                          style={[styles.mobileNavLabel, active && styles.mobileNavLabelActive]}
-                          numberOfLines={1}
-                          adjustsFontSizeToFit
-                          minimumFontScale={0.76}
-                        >
-                          {item.label}
-                        </Text>
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </View>
+              <View style={styles.mobileNavContent}>{bottomNavItems.map(renderBottomNavItem)}</View>
             </GlassView>
           )}
         </View>
       )}
 
-      {showUniversalAdd ? (
       <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, styles.simpleAddOverlayRoot]}>
-        {simpleAddOpen ? (
+        {radialMenuOpen ? (
+          <Animated.View
+            pointerEvents="auto"
+            style={[
+              styles.radialAddBackdrop,
+              { opacity: radialBackdropOpacity },
+            ]}
+          >
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => closeRadialMenu()}
+              accessibilityRole="button"
+              accessibilityLabel="Close quick add"
+            />
+          </Animated.View>
+        ) : null}
+
+        {radialMenuOpen ? (
+          <View
+            pointerEvents="box-none"
+            style={[
+              styles.radialAddLayer,
+              {
+                bottom: radialOriginBottom,
+              },
+            ]}
+          >
+            {RADIAL_ADD_ACTIONS.map((action, index) => {
+              const progress = radialActionProgress[index];
+              return (
+                <Animated.View
+                  key={action.key}
+                  pointerEvents="box-none"
+                  style={[
+                    styles.radialAddActionWrap,
+                    {
+                      opacity: progress,
+                      transform: [
+                        {
+                          translateX: progress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, action.offsetX],
+                          }),
+                        },
+                        {
+                          translateY: progress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, action.offsetY],
+                          }),
+                        },
+                        {
+                          scale: progress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.55, 1],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <Pressable
+                    style={({ pressed }) => [styles.radialAddAction, pressed && styles.simpleAddActionPressed]}
+                    onPress={() => handleRadialActionPress(action.key)}
+                    accessibilityRole="button"
+                    accessibilityLabel={action.label}
+                    hitSlop={6}
+                  >
+                    <View style={styles.radialAddActionButton}>
+                      <Ionicons name={action.icon} size={22} color={C.tint} />
+                    </View>
+                    <Text style={styles.radialAddActionLabel} numberOfLines={2}>
+                      {action.label}
+                    </Text>
+                  </Pressable>
+                </Animated.View>
+              );
+            })}
+          </View>
+        ) : null}
+
+        {quickAddHubOpen ? (
           <Pressable
             style={styles.simpleAddBackdrop}
-            onPress={closeSimpleAdd}
+            onPress={closeQuickAddHub}
             accessibilityRole="button"
             accessibilityLabel="Close quick add"
           />
         ) : null}
 
-        {simpleAddOpen ? (
+        {quickAddHubOpen ? (
           <GlassView
             variant="sheet"
             tint={themeId === "dark" ? "dark" : "light"}
@@ -606,7 +849,7 @@ export default function SidebarLayout({
               </View>
               <Pressable
                 style={({ pressed }) => [styles.quickAddCloseButton, pressed && styles.simpleAddActionPressed]}
-                onPress={closeSimpleAdd}
+                onPress={closeQuickAddHub}
                 accessibilityRole="button"
                 accessibilityLabel="Close quick add"
               >
@@ -666,53 +909,54 @@ export default function SidebarLayout({
           </GlassView>
         ) : null}
 
-        <View
-          pointerEvents="box-none"
-          style={[
-            styles.simpleAddWheelLayer,
-            {
-              right: isWide ? 24 : 20,
-              bottom: Platform.OS === "web" ? (showBottomNav ? 148 : 34) : insets.bottom + (showBottomNav ? 154 : 28),
-            },
-          ]}
-        >
-          <Pressable
-            ref={simpleAddFabRef}
-            collapsable={false}
-            style={styles.simpleAddFab}
-            onPress={toggleSimpleAdd}
-            accessibilityRole="button"
-            accessibilityLabel={simpleAddOpen ? "Close quick add" : "Quick add"}
-            accessibilityHint={
-              simpleAddOpen
-                ? "Close add options"
-                : "Add a medication, appointment, symptom, or scan a document"
-            }
+        {showFloatingSimpleFab ? (
+          <View
+            pointerEvents="box-none"
+            style={[
+              styles.simpleAddWheelLayer,
+              {
+                right: isWide ? 24 : 20,
+                bottom: Platform.OS === "web" ? (showBottomNav ? 148 : 34) : insets.bottom + (showBottomNav ? 154 : 28),
+              },
+            ]}
           >
-            <Animated.View
-              style={{
-                transform: [
-                  {
-                    rotate: simpleAddFabSpin.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ["0deg", "45deg"],
-                    }),
-                  },
-                  {
-                    scale: simpleAddFabSpin.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 1.04],
-                    }),
-                  },
-                ],
-              }}
+            <Pressable
+              ref={simpleAddFabRef}
+              collapsable={false}
+              style={styles.simpleAddFab}
+              onPress={toggleSimpleAddHub}
+              accessibilityRole="button"
+              accessibilityLabel={quickAddHubOpen ? "Close quick add" : "Quick add"}
+              accessibilityHint={
+                quickAddHubOpen
+                  ? "Close add options"
+                  : "Add a medication, appointment, symptom, or scan a document"
+              }
             >
-              <Ionicons name="add" size={30} color="#fff" />
-            </Animated.View>
-          </Pressable>
-        </View>
+              <Animated.View
+                style={{
+                  transform: [
+                    {
+                      rotate: simpleAddFabSpin.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ["0deg", "45deg"],
+                      }),
+                    },
+                    {
+                      scale: simpleAddFabSpin.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 1.04],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <Ionicons name="add" size={30} color="#fff" />
+              </Animated.View>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
-      ) : null}
 
       <VisualScanImportModal
         visible={showVisualScanModal}
@@ -1086,7 +1330,8 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       borderRadius: 32,
       paddingVertical: 12,
       paddingHorizontal: 10,
-      overflow: "hidden",
+      // Allow the centered Quick Add + to sit slightly proud of the pill.
+      overflow: "visible",
     },
     mobileNavSimple: {
       borderRadius: 28,
@@ -1159,6 +1404,83 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       // Below header + bottom tabs (zIndex 60) so navigation stays usable.
       zIndex: 40,
       elevation: 40,
+    },
+    quickAddNavButtonWrap: {
+      alignItems: "center",
+      justifyContent: "center",
+      minWidth: 52,
+      minHeight: 52,
+    },
+    quickAddNavButton: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: C.tint,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: C.tint,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.26,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    quickAddNavButtonOpen: {
+      backgroundColor: C.tint,
+    },
+    radialAddBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      // Leave the bottom tab bar clear so the dimmer never intercepts tab taps.
+      bottom: Platform.OS === "web" ? 108 : 96,
+      backgroundColor: themeId === "dark" ? "rgba(0,0,0,0.28)" : "rgba(17,24,39,0.18)",
+    },
+    radialAddLayer: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      height: 0,
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 48,
+    },
+    radialAddActionWrap: {
+      position: "absolute",
+      width: 72,
+      alignItems: "center",
+      marginLeft: -36,
+      marginTop: -36,
+    },
+    radialAddAction: {
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: "center",
+      justifyContent: "flex-start",
+      gap: 4,
+    },
+    radialAddActionButton: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: themeId === "light" || themeId === "evergreen" ? "#FFFFFF" : C.surface,
+      borderWidth: 1,
+      borderColor: themeId === "dark" || themeId === "evergreenDark" ? "rgba(255,255,255,0.12)" : "rgba(71,122,112,0.16)",
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+    radialAddActionLabel: {
+      color: C.text,
+      fontSize: 10,
+      fontWeight: "700",
+      textAlign: "center",
+      lineHeight: 12,
+      maxWidth: 68,
+      textShadowColor: themeId === "dark" || themeId === "evergreenDark" ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.9)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
     },
     simpleAddFab: {
       width: 64,

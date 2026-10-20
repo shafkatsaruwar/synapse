@@ -60,7 +60,7 @@ const HAMBURGER = [
   "accounthub",
 ];
 
-const FULL_BOTTOM = ["dashboard", "health", "emergencyhub", "accounthub"];
+const FULL_BOTTOM = ["dashboard", "health", "quickadd", "emergencyhub", "accounthub"];
 
 function resolve(raw) {
   return NAV_ALIASES[raw] ?? raw;
@@ -106,9 +106,11 @@ assert.equal(resolve("dailylog"), "log");
 assert.equal(resolve("feeling"), "feelinghub");
 assert.equal(resolve("health"), "health");
 assert.equal(resolve("healthdata"), "healthdata");
-assert.deepEqual(FULL_BOTTOM, ["dashboard", "health", "emergencyhub", "accounthub"]);
+assert.deepEqual(FULL_BOTTOM, ["dashboard", "health", "quickadd", "emergencyhub", "accounthub"]);
 assert.ok(!HAMBURGER.includes("health"));
 assert.ok(FULL_BOTTOM.includes("emergencyhub"));
+assert.equal(FULL_BOTTOM[2], "quickadd");
+assert.ok(!HAMBURGER.includes("quickadd"));
 
 // Flow: Menu → Health Records → Lab Work → Back
 let state = pushNav({ screen: "dashboard", stack: [] }, "recordshub");
