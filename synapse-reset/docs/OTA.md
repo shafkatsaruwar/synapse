@@ -13,13 +13,14 @@ LifeOS-style JS delivery: merge to `main` → GitHub Action publishes → instal
 | Piece | Value |
 |-------|--------|
 | Channel | `production` (preview builds use `preview`) |
-| Runtime | `1.14` (fixed string; bare workflow) |
+| Runtime | `1.15` (fixed string; bare workflow) |
 | Update URL | `https://u.expo.dev/2ae7d5f4-1514-408d-b1ec-250da7c8ccfa` |
 | GitHub secrets | `EXPO_TOKEN` (required), optional `EAS_PROJECT_ID` UUID, optional `EXPO_PUBLIC_*` |
 
 ## Which installs can receive OTA
 
-- **TestFlight / store builds that embed Updates** (e.g. build **8+** from the earlier OTA-enabled binary, or any later production build after this config ships natively).
+- **TestFlight / store builds that embed Updates** for runtime `1.15` (build **9+** after this release).
+- Builds on runtime `1.14` (e.g. build **8**) only receive OTAs published for runtime `1.14`.
 - Builds **≤7** (Updates disabled / no module) **cannot** receive OTA — they need a new native install.
 
 ## OTA-safe vs needs native build
