@@ -223,8 +223,16 @@ export function getHamburgerItems(options?: { role?: string }): NavRegistryEntry
   return HAMBURGER_KEYS.map((key) => BY_KEY.get(key)!).filter(Boolean);
 }
 
-/** Bottom tab destinations for Full Mode — Today / Health / Emergency / You. */
-export const FULL_BOTTOM_TAB_KEYS = ["dashboard", "health", "emergencyhub", "accounthub"] as const;
+/**
+ * Full Mode bottom tabs — Today / Health / Quick Add / Emergency / You.
+ * `quickadd` is a local action tab (radial menu), not a navigable screen.
+ */
+export const FULL_BOTTOM_TAB_KEYS = ["dashboard", "health", "quickadd", "emergencyhub", "accounthub"] as const;
+
+/** Bottom-tab keys that navigate to a real screen (excludes Quick Add). */
+export const FULL_BOTTOM_TAB_DESTINATIONS = FULL_BOTTOM_TAB_KEYS.filter(
+  (key) => key !== "quickadd"
+);
 
 /** Bottom tab destinations for Simple Mode. */
 export const SIMPLE_BOTTOM_TAB_KEYS = ["dashboard", "medications", "appointments", "feelinghub", "accounthub"] as const;
@@ -242,7 +250,8 @@ const HEALTH_TAB_SCREENS = new Set([
 
 export function primaryTabForScreen(screen: string): string {
   const resolved = resolveNavKey(screen);
-  if ((FULL_BOTTOM_TAB_KEYS as readonly string[]).includes(resolved)) return resolved;
+  if (resolved === "quickadd") return "dashboard";
+  if ((FULL_BOTTOM_TAB_DESTINATIONS as readonly string[]).includes(resolved)) return resolved;
   if (resolved === "sickmode" || resolved === "healthstatus") return "dashboard";
   const parent = getParentHub(resolved);
   if (parent === "accounthub") return "accounthub";
@@ -254,6 +263,9 @@ export function primaryTabForScreen(screen: string): string {
     parent === "carehub"
   ) {
     return "health";
+  }
+  if (parent === "emergencyhub" || resolved === "emergency" || resolved === "emergencycard") {
+    return "emergencyhub";
   }
   return "dashboard";
 }

@@ -17,6 +17,8 @@ interface GlassViewProps {
 /**
  * Glass-style container using BlurView on native; translucent fallback on web.
  * Use for cards and floating bars (thinMaterial / ultraThinMaterial style).
+ * Nav skips the white edge-shine / corner bloom so the tab bar doesn’t ring
+ * against Soft Evergreen’s single flat background.
  */
 export default function GlassView({
   children,
@@ -29,6 +31,7 @@ export default function GlassView({
   const variantStyle = styles[variant];
   const resolvedIntensity = intensity ?? GLASS_INTENSITY[variant];
   const content = contentStyle ? <View style={contentStyle}>{children}</View> : children;
+  const isNav = variant === "nav";
 
   if (Platform.OS === "web") {
     return (
@@ -45,9 +48,13 @@ export default function GlassView({
   }
   return (
     <BlurView intensity={resolvedIntensity} tint={tint} style={[styles.blur, variantStyle, style]}>
-      <View pointerEvents="none" style={[styles.cornerGlow, tint === "dark" && styles.cornerGlowDark]} />
+      {!isNav ? (
+        <View pointerEvents="none" style={[styles.cornerGlow, tint === "dark" && styles.cornerGlowDark]} />
+      ) : null}
       {content}
-      <View pointerEvents="none" style={[styles.edgeShine, tint === "dark" && styles.edgeShineDark]} />
+      {!isNav ? (
+        <View pointerEvents="none" style={[styles.edgeShine, tint === "dark" && styles.edgeShineDark]} />
+      ) : null}
     </BlurView>
   );
 }
@@ -125,10 +132,15 @@ const styles = StyleSheet.create({
     ...raised("lg", "#6F645E"),
   },
   nav: {
-    backgroundColor: "rgba(255,255,255,0.42)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.92)",
-    ...raised("lg", "#6F766C"),
+    // Soft frosted pill — subtle gray hairline, no bright white chrome ring.
+    backgroundColor: "rgba(255,255,255,0.78)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(32,37,42,0.08)",
+    shadowColor: "#20252A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: Platform.OS === "android" ? undefined : 0.06,
+    shadowRadius: Platform.OS === "android" ? undefined : 10,
+    elevation: 3,
   },
   hero: {
     backgroundColor: "rgba(255,255,255,0.36)",

@@ -1,7 +1,7 @@
 import { Theme } from "@/contexts/ThemeContext";
 
 const light: Theme = {
-  background: "#F5F1EA",
+  background: "#F7F8FA",
   surface: "rgba(255,255,255,0.42)",
   surfaceElevated: "rgba(255,255,255,0.56)",
   surfaceHover: "rgba(255,255,255,0.68)",

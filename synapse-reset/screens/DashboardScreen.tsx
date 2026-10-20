@@ -18,12 +18,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { featureFlags } from "@/constants/feature-flags";
 import { isDarkAppearance, isEvergreenTheme, useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useModeAwareScreen } from "@/contexts/AppModeContext";
 import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import GlassView from "@/components/GlassView";
 import { raised } from "@/constants/raised";
+import { softCardElevation } from "@/constants/soft-card";
+import SoftCard from "@/components/SoftCard";
 import {
   healthLogStorage,
   medicationStorage,
@@ -544,7 +545,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const [loaded, setLoaded] = useState(false);
   const [showRecoverySetup, setShowRecoverySetup] = useState(false);
   const [recoveryFocusInput, setRecoveryFocusInput] = useState("");
-  const [showMoreToday, setShowMoreToday] = useState(false);
 
   const loadData = useCallback(async () => {
     const [logsData, meds, ml, apts, fl, sett, profileInfo, symptomsData, vitalsData, hydrationData] = await Promise.all([
@@ -666,9 +666,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     if (diffHours <= 0) return `${remMinutes} min until iftar`;
     return `${diffHours} hr ${remMinutes.toString().padStart(2, "0")} min until iftar`;
   };
-
-  const ramadanQuote =
-    ramadanDay ? RAMADAN_QUOTES[(ramadanDay.hijriDay - 1) % RAMADAN_QUOTES.length] : RAMADAN_QUOTES[0];
 
   const goodDayMessage =
     ramadanDay && settings.ramadanMode
@@ -933,12 +930,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   /** Unified Health Status — Soft Evergreen; transforms when Sick Mode is on. */
   const renderHealthStatusCard = () => (
-    <View
-      style={[
-        styles.healthStatusCard,
-        isEvergreenTheme(themeId) && styles.quietCardEvergreen,
-        isSickMode && styles.healthStatusCardSick,
-      ]}
+    <SoftCard
+      style={[styles.healthStatusCard, isSickMode && styles.healthStatusCardSick]}
     >
       <View style={styles.healthStatusHeader}>
         <View style={{ flex: 1, gap: 2 }}>
@@ -1151,7 +1144,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           </View>
         </View>
       )}
-    </View>
+    </SoftCard>
   );
 
   const renderMedicationsCard = () => (
@@ -1269,30 +1262,12 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     paddingBottom: contentPadding.paddingBottom,
   };
   const simpleModeBottomBleed = Platform.OS === "web" ? 108 : insets.bottom + 96;
-  const fabBottom = Platform.OS === "web"
-    ? (modeUI.isSimpleMode ? 132 : 148)
-    : modeUI.isSimpleMode ? insets.bottom + 108 : insets.bottom + 154;
-  const fab = modeUI.isSimpleMode ? null : (
-    <Pressable
-      style={({ pressed }) => [styles.fab, { bottom: fabBottom, opacity: pressed ? 0.85 : 1 }]}
-      onPress={() => {
-        Haptics.selectionAsync();
-        onNavigate("emergencycard");
-      }}
-      accessibilityRole="button"
-      accessibilityLabel="Emergency Card"
-      accessibilityHint="Open critical medical information"
-    >
-      <Ionicons name="medical-outline" size={22} color={C.red} />
-    </Pressable>
-  );
-  /** Legacy Light theme still uses the beige glass gradient wrapper. Soft Evergreen is flat. */
-  const isLightTheme = themeId === "light";
-  const glassTint = isDarkAppearance(themeId) ? "dark" : "light";
+  /** Flat Soft Evergreen–aligned page ground — no transparent gaps over a second layer. */
+  const pageGround = C.background;
 
   if (!loaded) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center", backgroundColor: "transparent" }]}>
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center", backgroundColor: pageGround }]}>
         <ActivityIndicator size="large" color={C.tint} />
         <Text style={[styles.dateText, { marginTop: 12 }]}>Loading…</Text>
       </View>
@@ -1305,7 +1280,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         style={[
           styles.container,
           {
-            backgroundColor: isLightTheme ? "transparent" : C.background,
+            backgroundColor: pageGround,
             marginBottom: -simpleModeBottomBleed,
             paddingBottom: simpleModeBottomBleed,
           },
@@ -1363,7 +1338,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             {renderHealthStatusCard()}
           </View>
         </ScrollView>
-        {fab}
       </View>
     );
     return simpleContent;
@@ -1395,11 +1369,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const cardStackPadding = isWide ? 0 : 16;
   const dualColumn = width >= 360;
 
-  const solidCard = (extra?: object) => [
-    styles.quietCard,
-    isEvergreenTheme(themeId) && styles.quietCardEvergreen,
-    extra,
-  ];
+  const solidCard = (extra?: object) => [styles.quietCard, extra];
 
   const inner = (
     <View style={{ marginHorizontal: cardStackPadding, gap: 18 }}>
@@ -1549,9 +1519,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       >
         <View style={[styles.quietIconWrap, { backgroundColor: isSickMode ? C.redLight : "#F8E8E8" }]}>
           <Ionicons name="medkit-outline" size={20} color={isSickMode ? C.red : C.tint} />
-          <View style={styles.sickModeMedicalBadge} pointerEvents="none">
-            <Ionicons name="medical" size={9} color="#fff" />
-          </View>
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={styles.halfCardTitle}>{isSickMode ? "Sick Mode is on" : "Sick Mode"}</Text>
@@ -1561,121 +1528,23 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         </View>
         <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
       </Pressable>
-
-      <Pressable
-        onPress={() => {
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-          setShowMoreToday((v) => !v);
-        }}
-        style={styles.moreToggle}
-        accessibilityRole="button"
-        accessibilityLabel={showMoreToday ? "Hide more today" : "Show more today"}
-      >
-        <Text style={styles.moreToggleText}>{showMoreToday ? "Hide more" : "More today"}</Text>
-        <Ionicons name={showMoreToday ? "chevron-up" : "chevron-down"} size={18} color={C.tint} />
-      </Pressable>
-
-      {showMoreToday ? (
-        <View style={{ gap: 12 }}>
-          {!!ramadanDay && settings.ramadanMode ? (
-            <View style={styles.ramadanSection}>
-              <GlassView intensity={50} tint={glassTint} style={[styles.feelingCardGlass, themeId === "light" && styles.feelingCardLight]}>
-                <Pressable
-                  style={styles.feelingCardInner}
-                  onPress={() => onNavigate("ramadandailylog")}
-                  accessibilityRole="button"
-                  accessibilityLabel="Ramadan Daily Log"
-                >
-                  <View>
-                    <Text style={styles.feelingTitle}>Ramadan Daily Log</Text>
-                    <Text style={styles.feelingSubtitle}>Log your fast, water, energy, mood & motivation.</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={C.tint} />
-                </Pressable>
-              </GlassView>
-              <GlassView intensity={50} tint={glassTint} style={[styles.ramadanQuoteCardGlass, themeId === "light" && styles.ramadanQuoteCardLight]}>
-                <View style={styles.ramadanQuoteRow}>
-                  <Ionicons name="sparkles" size={16} color={C.pink} />
-                  <Text style={styles.ramadanQuoteText}>{ramadanQuote}</Text>
-                </View>
-              </GlassView>
-            </View>
-          ) : null}
-
-          {featureFlags.documentScannerEnabled ? (
-            <View style={[styles.grid, isWide && styles.gridWide]}>
-              <GlassView intensity={50} tint={glassTint} style={[styles.cardGlass, isWide && styles.cardWide]}>
-                <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("documents")} accessibilityLabel="Document Scanner" accessibilityRole="button">
-                  <View style={[styles.cardHeader, { marginBottom: 0 }]}>
-                    <View style={[styles.cardIcon, { backgroundColor: C.pinkLight }]}>
-                      <Ionicons name="scan" size={16} color={C.pink} />
-                    </View>
-                    <Text style={styles.cardLabel}>Document Scanner</Text>
-                  </View>
-                  <Text style={styles.reportDesc}>Upload lab reports and prescriptions for AI extraction</Text>
-                </Pressable>
-              </GlassView>
-              <GlassView intensity={50} tint={glassTint} style={[styles.cardGlass, isWide && styles.cardWide]}>
-                <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("insights")} accessibilityLabel="AI Health Insights" accessibilityRole="button">
-                  <View style={[styles.cardHeader, { marginBottom: 0 }]}>
-                    <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
-                      <Ionicons name="sparkles" size={16} color={C.accent} />
-                    </View>
-                    <Text style={styles.cardLabel}>AI Health Insights</Text>
-                  </View>
-                  <Text style={styles.reportDesc}>Get personalized analysis of your health patterns</Text>
-                </Pressable>
-              </GlassView>
-            </View>
-          ) : null}
-        </View>
-      ) : null}
     </View>
   );
 
   if (isWide) {
-    const content = (
-      <View style={[styles.container, styles.content, contentPadding, { alignSelf: "stretch", backgroundColor: isLightTheme ? "transparent" : C.background, paddingHorizontal: 16 }]}>
+    return (
+      <View style={[styles.container, styles.content, contentPadding, { alignSelf: "stretch", backgroundColor: pageGround, paddingHorizontal: 16 }]}>
         {inner}
-        {fab}
       </View>
     );
-
-    if (isLightTheme) {
-      return (
-        <LinearGradient
-          colors={["#F5F1EA", "#ECEDE5", "#E0EAE0"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gradientContainer}
-        >
-          {content}
-        </LinearGradient>
-      );
-    }
-
-    return content;
   }
 
   const main = (
-    <View style={[styles.container, { backgroundColor: isLightTheme ? "transparent" : C.background }, Platform.OS === "web" && { flex: 0 }]}>
-      {Platform.OS === "web" ? (
-        <View style={{ overflow: "auto", width: "100%", paddingBottom: 1200 }}>
-          <View style={[contentPadding, { paddingHorizontal: 0 }]}>
-            {inner}
-          </View>
-        </View>
-      ) : (
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={[contentPadding, styles.scrollViewContent, { paddingHorizontal: 0 }]}
-          showsVerticalScrollIndicator={true}
-          bounces={true}
-          alwaysBounceVertical={true}
-        >
-          {inner}
-        </ScrollView>
-      )}
+    <View style={[styles.container, { backgroundColor: pageGround }, Platform.OS === "web" && { flex: 0 }]}>
+      {/* Today (main) is a fixed composition — no vertical scroll on this page only. */}
+      <View style={[styles.scrollView, contentPadding, styles.scrollViewContent, { paddingHorizontal: 0 }]}>
+        {inner}
+      </View>
       <Modal visible={showRecoverySetup} animationType="fade" transparent onRequestClose={() => setShowRecoverySetup(false)}>
         <View style={styles.recoveryModalBackdrop}>
           <View style={styles.recoveryModalCard}>
@@ -1716,22 +1585,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           </View>
         </View>
       </Modal>
-      {fab}
     </View>
   );
-
-  if (isLightTheme) {
-    return (
-      <LinearGradient
-        colors={["#F5F1EA", "#ECEDE5", "#E0EAE0"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradientContainer}
-      >
-        {main}
-      </LinearGradient>
-    );
-  }
 
   return main;
 }
@@ -2197,9 +2052,10 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
       backgroundColor: C.surface,
       borderRadius: 22,
       padding: 16,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: C.border,
+      // Soft Evergreen elevation (includes 1px border) — matches SoftCard.
+      ...softCardElevation(isDarkAppearance(themeId) ? "dark" : "light"),
     },
+    // Optional lighter Soft Evergreen accent for View-based call sites.
     quietCardEvergreen: {
       shadowColor: "#20252A",
       shadowOffset: { width: 0, height: 1 },
@@ -2210,7 +2066,7 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
     medHeroCard: {
       paddingVertical: 4,
       paddingHorizontal: 4,
-      overflow: "hidden",
+      // Avoid overflow:"hidden" — it clips soft card shadows on iOS.
     },
     medHeroTop: {
       flexDirection: "row",
@@ -2300,23 +2156,115 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
       lineHeight: 20,
       color: C.textSecondary,
     },
-    moreToggle: {
+    healthSnapshotEvergreen: {
+      backgroundColor: C.surface,
+      ...softCardElevation(isDarkAppearance(themeId) ? "dark" : "light"),
+    },
+    healthStatusCard: {
+      // SoftCard supplies fill / border / shadow; keep padding + gap only.
+      padding: 16,
+      gap: 14,
+    },
+    healthStatusCardSick: {
+      borderColor: C.red,
+      backgroundColor: isDarkAppearance(themeId) ? C.surface : "#FFF8F7",
+    },
+    healthStatusHeader: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 12,
+    },
+    healthStatusTitle: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: C.text,
+      letterSpacing: -0.3,
+    },
+    healthStatusLabel: {
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: C.textTertiary,
+      marginBottom: 6,
+    },
+    healthStatusSection: {
+      gap: 8,
+    },
+    healthStatusActionRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    healthStatusPrimaryBtn: {
+      flex: 1,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      gap: 6,
-      paddingVertical: 10,
+      gap: 8,
+      backgroundColor: C.red,
+      paddingVertical: 12,
+      borderRadius: 14,
     },
-    moreToggleText: {
-      fontSize: 15,
-      fontWeight: "600",
-      color: C.tint,
+    healthStatusPrimaryBtnText: {
+      color: "#fff",
+      fontWeight: "700",
+      fontSize: 14,
     },
-    healthSnapshotEvergreen: {
-      backgroundColor: C.surface,
+    healthStatusSecondaryBtn: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 12,
+      borderRadius: 14,
+      backgroundColor: C.tintLight,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: C.border,
-      overflow: "hidden",
+    },
+    healthStatusSecondaryBtnText: {
+      color: C.tint,
+      fontWeight: "600",
+      fontSize: 14,
+    },
+    sickModeBadge: {
+      backgroundColor: C.red,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 999,
+    },
+    sickModeBadgeText: {
+      color: "#fff",
+      fontSize: 11,
+      fontWeight: "700",
+    },
+    sickModeAccessRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 14,
+    },
+    statusGlanceRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingVertical: 4,
+    },
+    weekMetricTileQuiet: {
+      flex: 1,
+      minWidth: "30%",
+      backgroundColor: isDarkAppearance(themeId) ? C.surfaceElevated : "#F7F8FA",
+      borderRadius: 14,
+      padding: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+      gap: 4,
+    },
+    weekInsightQuiet: {
+      marginTop: 4,
+      padding: 12,
+      borderRadius: 14,
+      backgroundColor: isDarkAppearance(themeId) ? C.surfaceElevated : "#F7F8FA",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
     },
     healthStatusCard: {
       backgroundColor: C.surface,
@@ -2868,23 +2816,5 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
     reportDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 14 },
     reportBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
     reportBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
-    fab: {
-      position: "absolute",
-      left: 20,
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: themeId === "dark" ? "rgba(255,59,48,0.16)" : C.surface,
-      borderWidth: 1.5,
-      borderColor: C.red,
-      alignItems: "center",
-      justifyContent: "center",
-      shadowColor: C.red,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.16,
-      shadowRadius: 8,
-      elevation: 4,
-      zIndex: 28,
-    },
   });
 }
