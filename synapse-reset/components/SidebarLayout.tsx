@@ -97,37 +97,46 @@ const ESSENTIAL_SICK_KEYS = [
   "settings",
 ];
 
+/** Equal-diameter action discs; 48pt meets the 44×44 minimum touch target. */
+const RADIAL_BUTTON_SIZE = 48;
+/** Half-button — wrap is anchored so the disc center sits on the geometric origin. */
+const RADIAL_BUTTON_CENTER = RADIAL_BUTTON_SIZE / 2;
+/** Label column width; wrap is centered on the origin with marginLeft = -width/2. */
+const RADIAL_WRAP_WIDTH = 76;
 /**
- * Compact Zelle-style arc — five shortcuts above the centered +.
- * Keep the span tight so outer buttons (Scan / More) stay clearly above the tab bar
- * instead of sliding down behind it.
+ * Symmetrical arc above the + (150°). Appointment is straight up (π/2);
+ * Scan↔More and Medication↔Log Symptom are equal angular mirrors.
  */
-const RADIAL_RADIUS = 132;
-const RADIAL_LIFT = 36;
-const RADIAL_ADD_ACTIONS = (
-  [
-    { key: "scan" as const, label: "Scan", icon: "scan-outline" as const },
-    { key: "medication" as const, label: "Medication", icon: "medical-outline" as const },
-    { key: "appointment" as const, label: "Appointment", icon: "calendar-outline" as const },
-    { key: "symptom" as const, label: "Log Symptom", icon: "pulse-outline" as const },
-    { key: "more" as const, label: "More", icon: "ellipsis-horizontal" as const },
-  ] as const
-).map((action, index, list) => {
-  // ~110° arc centered on straight up — close together, all elevated.
-  const span = Math.PI * 0.62;
-  const start = Math.PI / 2 + span / 2;
-  const end = Math.PI / 2 - span / 2;
-  const t = list.length <= 1 ? 0.5 : index / (list.length - 1);
-  const angle = start + (end - start) * t;
-  return {
-    ...action,
-    offsetX: Math.cos(angle) * RADIAL_RADIUS,
-    offsetY: -Math.sin(angle) * RADIAL_RADIUS - RADIAL_LIFT,
-  };
-});
+const RADIAL_ARC_SPAN = (Math.PI * 150) / 180;
+/** Approximate bottom-nav pill height (padding + centered + control). */
+const BOTTOM_NAV_PILL_HEIGHT = 72;
+
+const RADIAL_ADD_ACTION_META = [
+  { key: "scan" as const, label: "Scan", icon: "scan-outline" as const },
+  { key: "medication" as const, label: "Medication", icon: "medical-outline" as const },
+  { key: "appointment" as const, label: "Appointment", icon: "calendar-outline" as const },
+  { key: "symptom" as const, label: "Log Symptom", icon: "pulse-outline" as const },
+  { key: "more" as const, label: "More", icon: "ellipsis-horizontal" as const },
+] as const;
+
+/** Place each action on a circle of `radius` centered on the + (standard math angles). */
+function buildRadialAddActions(radius: number) {
+  const count = RADIAL_ADD_ACTION_META.length;
+  const start = Math.PI / 2 + RADIAL_ARC_SPAN / 2;
+  const step = count <= 1 ? 0 : RADIAL_ARC_SPAN / (count - 1);
+  return RADIAL_ADD_ACTION_META.map((action, index) => {
+    const angle = start - index * step;
+    return {
+      ...action,
+      offsetX: Math.cos(angle) * radius,
+      // RN Y grows downward — negate so π/2 lands directly above the +.
+      offsetY: -Math.sin(angle) * radius,
+    };
+  });
+}
 
 type QuickAddTarget = "medication" | "appointment" | "symptom" | "calendar" | "labwork" | "imaging";
-type RadialAddKey = (typeof RADIAL_ADD_ACTIONS)[number]["key"];
+type RadialAddKey = (typeof RADIAL_ADD_ACTION_META)[number]["key"];
 
 interface SidebarLayoutProps {
   activeScreen: string;
@@ -171,7 +180,7 @@ export default function SidebarLayout({
   const [localWebSidebarCollapsed, setLocalWebSidebarCollapsed] = useState(webSidebarCollapsed);
   const drawerSlide = useRef(new Animated.Value(1)).current;
   const simpleAddFabSpin = useRef(new Animated.Value(0)).current;
-  const radialActionProgress = useRef(RADIAL_ADD_ACTIONS.map(() => new Animated.Value(0))).current;
+  const radialActionProgress = useRef(RADIAL_ADD_ACTION_META.map(() => new Animated.Value(0))).current;
   const radialBackdropOpacity = useRef(new Animated.Value(0)).current;
   const simpleAddAnimatingRef = useRef(false);
 
@@ -562,8 +571,18 @@ export default function SidebarLayout({
   const collapsedSidebarWidth = 70;
   const currentSidebarWidth = localWebSidebarCollapsed ? collapsedSidebarWidth : sidebarWidth;
   const navBarBottom = Platform.OS === "web" ? 20 : insets.bottom + 16;
-  /** Approximate vertical center of the bottom nav pill — radial fan origin. */
-  const radialOriginBottom = navBarBottom + (simpleMode ? 30 : 34);
+  /**
+   * Geometric origin = center of the nav + control.
+   * Nav wrap sits `navBarBottom` above the safe-area floor; + is vertically centered in the pill.
+   */
+  const radialOriginBottom = navBarBottom + BOTTOM_NAV_PILL_HEIGHT / 2;
+  /** Radius scales with width so outer actions stay on-screen with even spacing. */
+  const radialRadius = useMemo(() => {
+    const halfWidth = width / 2;
+    const maxRadius = halfWidth - RADIAL_BUTTON_CENTER - RADIAL_WRAP_WIDTH / 2;
+    return Math.round(Math.min(130, Math.max(112, maxRadius)));
+  }, [width]);
+  const radialAddActions = useMemo(() => buildRadialAddActions(radialRadius), [radialRadius]);
   /** Floating FAB only when the centered Quick Add tab is not available (Simple Mode or wide layouts). */
   const showFloatingSimpleFab = showUniversalAdd && (simpleMode || !showBottomNav);
 
@@ -793,11 +812,12 @@ export default function SidebarLayout({
             style={[
               styles.radialAddLayer,
               {
+                // Origin coincides with the center of the nav + button.
                 bottom: radialOriginBottom,
               },
             ]}
           >
-            {RADIAL_ADD_ACTIONS.map((action, index) => {
+            {radialAddActions.map((action, index) => {
               const progress = radialActionProgress[index];
               return (
                 <Animated.View
@@ -823,7 +843,7 @@ export default function SidebarLayout({
                         {
                           scale: progress.interpolate({
                             inputRange: [0, 1],
-                            outputRange: [0.55, 1],
+                            outputRange: [0.4, 1],
                           }),
                         },
                       ],
@@ -1477,9 +1497,9 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     radialAddBackdrop: {
       ...StyleSheet.absoluteFillObject,
       // Leave the bottom tab bar clear so the dimmer never intercepts tab taps.
-      // Transparent — tap-outside still closes; no haze over the dashboard.
       bottom: Platform.OS === "web" ? 108 : 96,
-      backgroundColor: "transparent",
+      // Subtle Zelle-style dim — content stays visible underneath the floating discs.
+      backgroundColor: themeId === "dark" || themeId === "evergreenDark" ? "rgba(0,0,0,0.28)" : "rgba(17,24,39,0.14)",
     },
     radialAddLayer: {
       position: "absolute",
@@ -1492,12 +1512,14 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     },
     radialAddActionWrap: {
       position: "absolute",
-      width: 76,
+      width: RADIAL_WRAP_WIDTH,
       alignItems: "center",
-      marginLeft: -38,
-      marginTop: -28,
+      // Anchor the wrap so the disc center (not the label block) sits on the origin.
+      marginLeft: -(RADIAL_WRAP_WIDTH / 2),
+      marginTop: -RADIAL_BUTTON_CENTER,
     },
     radialAddAction: {
+      width: RADIAL_WRAP_WIDTH,
       minWidth: 44,
       minHeight: 44,
       alignItems: "center",
@@ -1505,15 +1527,14 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       gap: 5,
     },
     radialAddActionButton: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
+      width: RADIAL_BUTTON_SIZE,
+      height: RADIAL_BUTTON_SIZE,
+      borderRadius: RADIAL_BUTTON_CENTER,
       backgroundColor: themeId === "light" || themeId === "evergreen" ? "#FFFFFF" : C.surface,
-      borderWidth: 1,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: themeId === "dark" || themeId === "evergreenDark" ? "rgba(255,255,255,0.14)" : "rgba(71,122,112,0.18)",
       alignItems: "center",
       justifyContent: "center",
-      // Flat discs — the soft shadow read as a weird glow on the dimmed backdrop.
       shadowColor: "transparent",
       shadowOpacity: 0,
       shadowRadius: 0,
@@ -1525,7 +1546,8 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       fontWeight: "700",
       textAlign: "center",
       lineHeight: 12,
-      maxWidth: 72,
+      width: RADIAL_WRAP_WIDTH,
+      maxWidth: RADIAL_WRAP_WIDTH,
     },
     simpleAddFab: {
       width: 64,
