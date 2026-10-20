@@ -37,16 +37,23 @@ interface NavItem {
   iconActive: IconName;
 }
 
+/** Simple Mode keeps essential destinations reachable in one tap. */
 const SIMPLE_NAV_ITEMS: NavItem[] = [
-  { key: "dashboard", label: "Home", icon: "home-outline", iconActive: "home" },
+  { key: "dashboard", label: "Today", icon: "home-outline", iconActive: "home" },
   { key: "medications", label: "Meds", icon: "medical-outline", iconActive: "medical" },
   { key: "appointments", label: "Visits", icon: "calendar-outline", iconActive: "calendar" },
-  { key: "symptoms", label: "Symptoms", icon: "pulse-outline", iconActive: "pulse" },
-  { key: "settings", label: "Account", icon: "person-circle-outline", iconActive: "person-circle" },
+  { key: "feeling", label: "Feeling", icon: "heart-outline", iconActive: "heart" },
+  { key: "you", label: "You", icon: "person-circle-outline", iconActive: "person-circle" },
 ];
 
 const NAV_ITEMS: NavItem[] = [
-  { key: "dashboard", label: "Dashboard", icon: "grid-outline", iconActive: "grid" },
+  { key: "dashboard", label: "Today", icon: "home-outline", iconActive: "home" },
+  { key: "health", label: "Health", icon: "fitness-outline", iconActive: "fitness" },
+  { key: "you", label: "You", icon: "person-circle-outline", iconActive: "person-circle" },
+  { key: "feeling", label: "How I’m Feeling", icon: "heart-outline", iconActive: "heart" },
+  { key: "healthrecords", label: "Health Records", icon: "folder-outline", iconActive: "folder" },
+  { key: "wellbeing", label: "Wellbeing", icon: "leaf-outline", iconActive: "leaf" },
+  { key: "caresupport", label: "Care & Support", icon: "people-outline", iconActive: "people" },
   { key: "caregiverdashboard", label: "Caregiver Dashboard", icon: "people-outline", iconActive: "people" },
   { key: "managedperson", label: "Managed Person", icon: "accessibility-outline", iconActive: "accessibility" },
   { key: "log", label: "Daily Log", icon: "heart-outline", iconActive: "heart" },
@@ -68,27 +75,84 @@ const NAV_ITEMS: NavItem[] = [
   { key: "goals", label: "Goals", icon: "flag-outline", iconActive: "flag" },
   { key: "appointments", label: "Appointments", icon: "calendar-outline", iconActive: "calendar" },
   { key: "reports", label: "Reports", icon: "bar-chart-outline", iconActive: "bar-chart" },
+  { key: "ramadan", label: "Ramadan Mode", icon: "moon-outline", iconActive: "moon" },
+  { key: "doctors", label: "Doctors", icon: "medkit-outline", iconActive: "medkit" },
+  { key: "pharmacies", label: "Pharmacies", icon: "storefront-outline", iconActive: "storefront" },
   { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
-  { key: "settings", label: "Account", icon: "person-circle-outline", iconActive: "person-circle" },
+  { key: "settings", label: "Preferences", icon: "options-outline", iconActive: "options" },
   { key: "emergency", label: "Emergency Protocol", icon: "shield-outline", iconActive: "shield" },
   { key: "emergencycard", label: "Emergency Card", icon: "card-outline", iconActive: "card" },
 ];
 
-const PRIMARY_KEYS = ["dashboard", "symptoms", "settings"];
-const PRIMARY_ITEMS = NAV_ITEMS.filter((n) => PRIMARY_KEYS.includes(n.key));
+const CAREGIVER_ONLY_KEYS = new Set(["caregiverdashboard", "managedperson"]);
+
+/** Three principal destinations for Full Mode. */
+const PRIMARY_KEYS = ["dashboard", "health", "you"];
+const PRIMARY_ITEMS = PRIMARY_KEYS.map((key) => NAV_ITEMS.find((n) => n.key === key)!).filter(Boolean);
 const MORE_ITEMS = NAV_ITEMS.filter((n) => !PRIMARY_KEYS.includes(n.key));
 
+/**
+ * Map leaf screens → primary tab highlight so navigating into Health/You children
+ * keeps the correct bottom-tab selected without renaming existing route keys.
+ */
+const PRIMARY_HIGHLIGHT_FOR_SCREEN: Record<string, string> = {
+  dashboard: "dashboard",
+  sickmode: "dashboard",
+  health: "health",
+  feeling: "health",
+  healthrecords: "health",
+  wellbeing: "health",
+  caresupport: "health",
+  medications: "health",
+  appointments: "health",
+  log: "health",
+  logtoday: "health",
+  symptoms: "health",
+  healthdata: "health",
+  labwork: "health",
+  imaging: "health",
+  timeline: "health",
+  reports: "health",
+  monthlycheckin: "health",
+  cycletracking: "health",
+  eating: "health",
+  mentalhealth: "health",
+  comfort: "health",
+  goals: "health",
+  ramadan: "health",
+  ramadandailylog: "health",
+  documents: "health",
+  insights: "health",
+  doctors: "health",
+  pharmacies: "health",
+  caregiverdashboard: "health",
+  managedperson: "health",
+  you: "you",
+  settings: "you",
+  privacy: "you",
+  healthprofile: "you",
+  healthprofileconditions: "you",
+  allergy: "you",
+  emergency: "you",
+  emergencycard: "you",
+  editprofile: "you",
+  feedback: "you",
+  meetfounder: "you",
+  auth: "you",
+};
+
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
-  { title: "Main", keys: ["dashboard"] },
-  { title: "Caregiver", keys: ["caregiverdashboard", "managedperson"] },
+  { title: "Today", keys: ["dashboard"] },
+  { title: "Health", keys: ["health", "medications", "appointments", "feeling", "healthrecords", "wellbeing", "caresupport"] },
+  { title: "How I’m Feeling", keys: ["log", "symptoms", "monthlycheckin"] },
+  { title: "Health Records", keys: ["healthdata", "labwork", "imaging", "timeline", "reports", "documents"] },
+  { title: "Wellbeing", keys: ["eating", "mentalhealth", "comfort", "goals", "cycletracking", "ramadan"] },
+  { title: "Care & Support", keys: ["doctors", "pharmacies", "caregiverdashboard", "managedperson"] },
   { title: "Emergency", keys: ["emergency", "emergencycard"] },
-  { title: "Primary", keys: ["log", "medications", "healthdata", "appointments", "symptoms"] },
-  { title: "Diagnostics", keys: ["labwork", "imaging"] },
-  { title: "Health & Insights", keys: ["timeline", "reports", "monthlycheckin", "cycletracking", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
-  { title: "System", keys: ["privacy", "settings"] },
+  { title: "You", keys: ["you", "privacy", "settings"] },
 ];
 
-const ESSENTIAL_SICK_KEYS = ["dashboard", "sickmode", "medications", "symptoms", "settings"];
+const ESSENTIAL_SICK_KEYS = ["dashboard", "sickmode", "medications", "symptoms", "feeling", "health", "you", "settings"];
 const SIMPLE_ADD_ACTIONS = [
   { key: "medication" as const, label: "Add medication", icon: "medical-outline" as const, offsetX: -88, offsetY: -26 },
   { key: "appointment" as const, label: "Add appointment", icon: "calendar-outline" as const, offsetX: -70, offsetY: -92 },
@@ -255,7 +319,29 @@ export default function SidebarLayout({
     };
   }, [moreOpen]);
 
-  const alwaysNavKeys = ["dashboard", "caregiverdashboard", "managedperson", "medications", "symptoms", "labwork", "imaging", "timeline", "settings", "privacy", "emergency", "emergencycard"];
+  const alwaysNavKeys = [
+    "dashboard",
+    "health",
+    "you",
+    "feeling",
+    "healthrecords",
+    "wellbeing",
+    "caresupport",
+    "caregiverdashboard",
+    "managedperson",
+    "medications",
+    "symptoms",
+    "labwork",
+    "imaging",
+    "timeline",
+    "settings",
+    "privacy",
+    "emergency",
+    "emergencycard",
+    "doctors",
+    "pharmacies",
+    "ramadan",
+  ];
   const enabledKeysSet = new Set(
     enabledSections !== undefined
       ? [...alwaysNavKeys, ...enabledSections]
@@ -266,13 +352,35 @@ export default function SidebarLayout({
   const bottomNavItems = simpleMode ? SIMPLE_NAV_ITEMS : primaryItemsFiltered;
   const showBottomNav = simpleMode || (!isWide && primaryItemsFiltered.length > 0);
   const shouldShowHeaderRow = !simpleMode && (!isWide || headerRight != null);
+  const highlightedPrimary = PRIMARY_HIGHLIGHT_FOR_SCREEN[activeScreen] ?? activeScreen;
 
   const displayName = settingsName?.trim() || "You";
-  const getBadgeCount = useCallback((key: string) => badgeCounts[key] ?? 0, [badgeCounts]);
+  const getBadgeCount = useCallback((key: string) => {
+    if (key === "health") {
+      return (badgeCounts.medications ?? 0) + (badgeCounts.appointments ?? 0) + (badgeCounts.monthlycheckin ?? 0);
+    }
+    if (key === "feeling") return badgeCounts.monthlycheckin ?? 0;
+    return badgeCounts[key] ?? 0;
+  }, [badgeCounts]);
   const getNavAccessibilityLabel = useCallback((item: NavItem) => {
     const count = getBadgeCount(item.key);
     return count > 0 ? `${item.label}, ${count > 9 ? "9 plus" : count} pending` : item.label;
   }, [getBadgeCount]);
+  const isNavItemActive = useCallback(
+    (itemKey: string) => {
+      if (simpleMode) {
+        if (itemKey === "feeling") {
+          return ["feeling", "log", "logtoday", "symptoms", "monthlycheckin"].includes(activeScreen);
+        }
+        if (itemKey === "you") {
+          return highlightedPrimary === "you" || activeScreen === "settings";
+        }
+        return activeScreen === itemKey;
+      }
+      return itemKey === highlightedPrimary || activeScreen === itemKey;
+    },
+    [activeScreen, highlightedPrimary, simpleMode]
+  );
   const renderIconBadge = useCallback((count: number) => {
     if (count <= 0) return null;
     return (
@@ -458,7 +566,7 @@ export default function SidebarLayout({
             <View style={[styles.mobileNav, simpleMode && styles.mobileNavSimple, styles.mobileNavFallback]}>
               <View style={styles.mobileNavContent}>
                 {bottomNavItems.map((item) => {
-                  const active = activeScreen === item.key;
+                  const active = isNavItemActive(item.key);
                   const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
                   const badgeCount = getBadgeCount(item.key);
                   return (
@@ -466,7 +574,7 @@ export default function SidebarLayout({
                       key={item.key}
                       style={[styles.mobileNavItem, simpleMode && styles.mobileNavItemSimple, dimmed && { opacity: 0.35 }]}
                       onPress={() => onNavigate(item.key)}
-                      onLongPress={item.key === "settings" ? openSynapseHQ : undefined}
+                      onLongPress={item.key === "settings" || item.key === "you" ? openSynapseHQ : undefined}
                       delayLongPress={3500}
                       testID={`tab-${item.key}`}
                       accessibilityRole="button"
@@ -500,7 +608,7 @@ export default function SidebarLayout({
             <GlassView variant="nav" tint={themeId === "dark" ? "dark" : "light"} style={[styles.mobileNav, simpleMode && styles.mobileNavSimple]}>
               <View style={styles.mobileNavContent}>
                 {bottomNavItems.map((item) => {
-                  const active = activeScreen === item.key;
+                  const active = isNavItemActive(item.key);
                   const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
                   const badgeCount = getBadgeCount(item.key);
                   return (
@@ -508,7 +616,7 @@ export default function SidebarLayout({
                       key={item.key}
                       style={[styles.mobileNavItem, simpleMode && styles.mobileNavItemSimple, dimmed && { opacity: 0.35 }]}
                       onPress={() => onNavigate(item.key)}
-                      onLongPress={item.key === "settings" ? openSynapseHQ : undefined}
+                      onLongPress={item.key === "settings" || item.key === "you" ? openSynapseHQ : undefined}
                       delayLongPress={3500}
                       testID={`tab-${item.key}`}
                       accessibilityRole="button"
@@ -649,8 +757,12 @@ export default function SidebarLayout({
             style={styles.simpleAddFab}
             onPress={toggleSimpleAdd}
             accessibilityRole="button"
-            accessibilityLabel={simpleAddOpen ? "Close quick add" : "Open quick add"}
-            accessibilityHint={simpleAddOpen ? "Close add options" : "Open scan and quick add options"}
+            accessibilityLabel={simpleAddOpen ? "Close quick add" : "Quick add"}
+            accessibilityHint={
+              simpleAddOpen
+                ? "Close add options"
+                : "Add a medication, appointment, symptom, or scan a document"
+            }
           >
             <Animated.View
               style={{
@@ -742,14 +854,17 @@ export default function SidebarLayout({
                 </View>
 
                 {DRAWER_GROUPS.map((group, groupIndex) => {
-                  if (group.title === "Caregiver" && role !== "caregiver") return null;
                   const navItems = group.keys
                     .map((key) => NAV_ITEMS.find((n) => n.key === key))
-                    .filter((n): n is NavItem => n != null && moreItemsFiltered.some((m) => m.key === n.key));
+                    .filter((n): n is NavItem => {
+                      if (n == null) return false;
+                      if (CAREGIVER_ONLY_KEYS.has(n.key) && role !== "caregiver") return false;
+                      return moreItemsFiltered.some((m) => m.key === n.key) || PRIMARY_KEYS.includes(n.key);
+                    });
                   const items: NavItem[] = navItems;
                   if (items.length === 0) return null;
                   const isFirstGroup = groupIndex === 0;
-                  const isRecordsGroup = group.title === "Diagnostics";
+                  const isRecordsGroup = group.title === "Health Records";
                   return (
                     <View
                       key={group.title}
@@ -760,7 +875,7 @@ export default function SidebarLayout({
                       <Text style={styles.drawerGroupTitle}>{group.title}</Text>
                       {items.map((item) => {
                         const isLogout = item.key === "logout";
-                        const active = !isLogout && activeScreen === item.key;
+                        const active = !isLogout && (activeScreen === item.key || isNavItemActive(item.key));
                         const isEmergencyCard = item.key === "emergencycard";
                         const isCaregiverDashboard = item.key === "caregiverdashboard";
                         const isLabWork = item.key === "labwork";
@@ -895,11 +1010,14 @@ export default function SidebarLayout({
               showsVerticalScrollIndicator={false}
               bounces={false}
             >
-              {DRAWER_GROUPS.map((group, groupIndex) => {
-                if (group.title === "Caregiver" && role !== "caregiver") return null;
+              {DRAWER_GROUPS.map((group) => {
                 const navItems = group.keys
                   .map((key) => NAV_ITEMS.find((n) => n.key === key))
-                  .filter((n): n is NavItem => n != null);
+                  .filter((n): n is NavItem => {
+                    if (n == null) return false;
+                    if (CAREGIVER_ONLY_KEYS.has(n.key) && role !== "caregiver") return false;
+                    return true;
+                  });
                 if (navItems.length === 0) return null;
 
                 return (
@@ -915,7 +1033,7 @@ export default function SidebarLayout({
                       {group.title}
                     </Text>
                     {navItems.map((item) => {
-                      const active = activeScreen === item.key;
+                      const active = activeScreen === item.key || isNavItemActive(item.key);
                       const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
                       return (
                         <Pressable

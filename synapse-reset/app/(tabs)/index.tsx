@@ -37,7 +37,7 @@ import DoctorsScreen from "@/screens/DoctorsScreen";
 import PharmaciesScreen from "@/screens/PharmaciesScreen";
 import CycleTrackingScreen from "@/screens/CycleTrackingScreen";
 import RamadanDailyLogScreen from "@/screens/RamadanDailyLogScreen";
-import OnboardingScreen from "@/screens/OnboardingScreen";
+import OnboardingScreen, { type OnboardingCompleteOptions } from "@/screens/OnboardingScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
 import EmergencyProtocolScreen from "@/screens/EmergencyProtocolScreen";
 import EmergencyCardScreen from "@/screens/EmergencyCardScreen";
@@ -46,6 +46,10 @@ import FeedbackScreen from "@/screens/FeedbackScreen";
 import IcsImportPreviewScreen from "@/screens/IcsImportPreviewScreen";
 import CaregiverDashboardScreen from "@/screens/CaregiverDashboardScreen";
 import ManagedPersonScreen from "@/screens/ManagedPersonScreen";
+import FeatureHubScreen from "@/screens/FeatureHubScreen";
+import ContextualTip from "@/components/ContextualTip";
+import { trackReturnSession } from "@/lib/product-milestones";
+import { TIP_BLOCKED_SCREENS } from "@/lib/contextual-tips-storage";
 import {
   hydrationStorage,
   medicationLogStorage,
@@ -71,7 +75,7 @@ import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import AppBackground from "@/components/AppBackground";
 import BiometricGate from "@/components/BiometricGate";
 import AppWalkthrough from "@/components/AppWalkthrough";
-import { getHasSeenWalkthrough, setHasSeenWalkthrough } from "@/lib/walkthrough-storage";
+import { setHasSeenWalkthrough } from "@/lib/walkthrough-storage";
 import { WalkthroughProvider, useWalkthroughTargets } from "@/contexts/WalkthroughContext";
 import {
   markFeedbackPromptCompleted,
@@ -764,22 +768,12 @@ export default function MainScreen() {
     };
   }, [WHATS_NEW_SEEN_KEY, showOnboarding, suppressPostOnboardingPrompts]);
 
+  // Full walkthrough no longer auto-launches after onboarding.
+  // It remains available from Settings → App Tour (Help).
   useEffect(() => {
-    if (showOnboarding !== false || isSimpleMode) return;
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      try {
-        const seen = await getHasSeenWalkthrough();
-        if (!cancelled && !seen) setShowWalkthrough(true);
-      } catch {
-        if (!cancelled) setShowWalkthrough(true);
-      }
-    }, 600);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [isSimpleMode, showOnboarding]);
+    if (showOnboarding !== false) return;
+    void trackReturnSession();
+  }, [showOnboarding]);
 
   const handleNavigate = (screen: string) => {
     setActiveScreen(screen);
@@ -935,21 +929,31 @@ export default function MainScreen() {
     syncWidgetSnapshot().catch(() => {});
   };
 
-  const handleOnboardingComplete = async (options?: { openMedications?: boolean; appMode?: "simple" | "full" }) => {
-    const completedAppMode = options?.appMode ?? "full";
-    if (completedAppMode === "simple") {
-      await setHasSeenWalkthrough(true);
-      setPendingSimpleModeTourAfterWhatsNew(true);
-      setSuppressPostOnboardingPrompts(true);
-      try {
-        await AsyncStorage.setItem(WHATS_NEW_SEEN_KEY, "true");
-      } catch {}
-    } else {
-      await setHasSeenWalkthrough(false);
-      setSuppressPostOnboardingPrompts(false);
-    }
+  const handleOnboardingComplete = async (options?: OnboardingCompleteOptions) => {
+    // Do not auto-start the guided walkthrough or Simple Mode tour after onboarding.
+    await setHasSeenWalkthrough(true);
+    setPendingSimpleModeTourAfterWhatsNew(false);
+    setSuppressPostOnboardingPrompts(true);
+    try {
+      await AsyncStorage.setItem(WHATS_NEW_SEEN_KEY, "true");
+    } catch {}
     setShowOnboarding(false);
-    if (options?.openMedications) setActiveScreen("medications");
+
+    const firstAction = options?.firstAction
+      ?? (options?.openMedications ? "medications" : "explore");
+    if (firstAction === "medications") {
+      setSimpleAddMedicationOwner("self");
+      setSimpleAddMedicationReturnScreen("dashboard");
+      setActiveScreen("medications");
+      setSimpleAddMedicationToken((value) => value + 1);
+    } else if (firstAction === "appointments") {
+      setActiveScreen("appointments");
+      setSimpleAddAppointmentToken((value) => value + 1);
+    } else if (firstAction === "feeling") {
+      setActiveScreen("feeling");
+    } else {
+      setActiveScreen("dashboard");
+    }
     setRefreshKey((k) => k + 1);
   };
 
@@ -1075,7 +1079,7 @@ export default function MainScreen() {
   }, []);
 
   const { colors: C, themeId } = useTheme();
-  const { caregiverProfile, needsCaregiverOnboarding, saveCaregiverProfile, clearCaregiverMode } = useRole();
+  const { role, caregiverProfile, needsCaregiverOnboarding, saveCaregiverProfile, clearCaregiverMode } = useRole();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
   const [caregiverNameDraft, setCaregiverNameDraft] = useState("");
   const [caregiverAgeDraft, setCaregiverAgeDraft] = useState("");
@@ -1232,6 +1236,24 @@ export default function MainScreen() {
     switch (activeScreen) {
       case "dashboard":
         return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
+      case "health":
+        return <FeatureHubScreen hubId="health" onNavigate={handleNavigate} />;
+      case "feeling":
+        return <FeatureHubScreen hubId="feeling" onNavigate={handleNavigate} />;
+      case "healthrecords":
+        return <FeatureHubScreen hubId="healthrecords" onNavigate={handleNavigate} />;
+      case "wellbeing":
+        return <FeatureHubScreen hubId="wellbeing" onNavigate={handleNavigate} />;
+      case "caresupport":
+        return (
+          <FeatureHubScreen
+            hubId="caresupport"
+            onNavigate={handleNavigate}
+            includeCaregiver={role === "caregiver"}
+          />
+        );
+      case "you":
+        return <FeatureHubScreen hubId="you" onNavigate={handleNavigate} />;
       case "caregiverdashboard":
         return (
           <CaregiverDashboardScreen
@@ -1302,11 +1324,11 @@ export default function MainScreen() {
       case "privacy":
         return <PrivacyScreen />;
       case "healthprofile":
-        return <HealthProfileScreen onBack={() => handleNavigate("settings")} onNavigate={handleNavigate} />;
+        return <HealthProfileScreen onBack={() => handleNavigate("you")} onNavigate={handleNavigate} />;
       case "doctors":
-        return <DoctorsScreen onBack={() => handleNavigate("settings")} />;
+        return <DoctorsScreen onBack={() => handleNavigate("caresupport")} />;
       case "pharmacies":
-        return <PharmaciesScreen onBack={() => handleNavigate("settings")} />;
+        return <PharmaciesScreen onBack={() => handleNavigate("caresupport")} />;
       case "ramadandailylog":
         return <RamadanDailyLogScreen onBack={() => handleNavigate("dashboard")} />;
       case "healthprofileconditions":
@@ -1314,15 +1336,15 @@ export default function MainScreen() {
       case "allergy":
         return <AllergyScreen onBack={() => handleNavigate("healthprofile")} />;
       case "cycletracking":
-        return <CycleTrackingScreen onBack={() => handleNavigate("settings")} />;
+        return <CycleTrackingScreen onBack={() => handleNavigate("wellbeing")} />;
       case "emergency":
-        return <EmergencyProtocolScreen onBack={() => handleNavigate("dashboard")} />;
+        return <EmergencyProtocolScreen onBack={() => handleNavigate("you")} />;
       case "emergencycard":
-        return <EmergencyCardScreen onBack={() => handleNavigate("dashboard")} onNavigate={handleNavigate} />;
+        return <EmergencyCardScreen onBack={() => handleNavigate("you")} onNavigate={handleNavigate} />;
       case "editprofile":
         return (
           <EditProfileScreen
-            onBack={() => handleNavigate("settings")}
+            onBack={() => handleNavigate("you")}
             onNavigate={handleNavigate}
             onRestoreComplete={() => setRefreshKey((k) => k + 1)}
           />
@@ -1378,7 +1400,13 @@ export default function MainScreen() {
       webSidebarCollapsed={webSidebarCollapsed}
       onWebSidebarToggle={setWebSidebarCollapsed}
     >
-      {renderScreen()}
+      <>
+        <ContextualTip
+          screen={activeScreen}
+          blocked={sickMode || TIP_BLOCKED_SCREENS.has(activeScreen)}
+        />
+        {renderScreen()}
+      </>
     </SidebarLayout>
   );
 
