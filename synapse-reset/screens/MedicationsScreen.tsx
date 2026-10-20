@@ -1466,7 +1466,16 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
     return Array.from({ length: count }, (_, i) => `Dose ${i + 1}`);
   };
 
-  const topPad = isWide ? 28 : (Platform.OS === "web" ? 40 : insets.top + 24);
+  // SidebarLayout already applies the top safe-area inset for the hamburger row.
+  // Only Simple Mode (no chrome header) needs insets.top here — otherwise we get a
+  // large empty band under the Dynamic Island.
+  const topPad = isWide
+    ? 28
+    : Platform.OS === "web"
+      ? 40
+      : modeUI.isSimpleMode
+        ? insets.top + 24
+        : 8;
   const getCaregiverMedStatus = (med: Medication) => {
     const normalized = normalizeMedication(med);
     const logs = medLogs.filter((log) => log.medicationId === med.id && log.taken);
