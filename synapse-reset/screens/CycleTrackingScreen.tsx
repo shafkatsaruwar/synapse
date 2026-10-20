@@ -153,7 +153,7 @@ function makeInsights(cycles: CycleGroup[], entries: CycleEntry[], healthLogs: H
   return insights.slice(0, 4);
 }
 
-export default function CycleTrackingScreen({ onBack }: CycleTrackingScreenProps) {
+export default function CycleTrackingScreen(_props: CycleTrackingScreenProps) {
   const insets = useSafeAreaInsets();
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -291,11 +291,6 @@ export default function CycleTrackingScreen({ onBack }: CycleTrackingScreenProps
         contentContainerStyle={[styles.content, { paddingTop: Platform.OS === "web" ? 40 : 14, paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Pressable onPress={onBack} style={styles.backRow} accessibilityRole="button" accessibilityLabel="Back to Settings">
-          <Ionicons name="arrow-back" size={22} color={C.text} />
-          <Text style={styles.backText}>Settings</Text>
-        </Pressable>
-
         <Text style={styles.title}>Cycle tracking</Text>
         <Text style={styles.subtitle}>Pattern-aware logging for flow, symptoms, energy, and context.</Text>
 
@@ -497,8 +492,6 @@ function makeStyles(C: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 24 },
-    backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 20 },
-    backText: { fontWeight: "600", fontSize: 15, color: C.text },
     title: { fontWeight: "800", fontSize: 30, color: C.text, marginBottom: 8 },
     subtitle: { fontWeight: "500", fontSize: 14, color: C.textSecondary, marginBottom: 18, lineHeight: 20 },
     card: { backgroundColor: C.surface, borderRadius: 22, padding: 18, borderWidth: 1, borderColor: C.border, marginBottom: 12, ...raised("md", "#55718F") },

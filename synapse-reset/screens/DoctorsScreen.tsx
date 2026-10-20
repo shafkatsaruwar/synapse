@@ -15,7 +15,7 @@ interface DoctorsScreenProps {
   onBack: () => void;
 }
 
-export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
+export default function DoctorsScreen(_props: DoctorsScreenProps) {
   const insets = useSafeAreaInsets();
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -147,9 +147,6 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: Platform.OS === "web" ? 16 : 14 }]}>
-        <Pressable onPress={onBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back">
-          <Ionicons name="chevron-back" size={24} color={C.text} />
-        </Pressable>
         <Text style={styles.title} numberOfLines={1}>Doctors – {activeOwnerLabel}</Text>
         <Pressable
           style={styles.addBtn}
@@ -346,7 +343,6 @@ function makeStyles(C: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-    backBtn: { marginRight: 8 },
     title: { flex: 1, fontWeight: "700", fontSize: 20, color: C.text },
     addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", ...raised("md", C.tint) },
     scroll: { flex: 1 },
