@@ -142,15 +142,18 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
   { key: "caregiverdashboard", type: "screen", label: "Caregiver Dashboard", icon: "people-outline", iconActive: "people", parent: "carehub", role: "caregiver", description: "Tools for supporting someone else" },
   { key: "managedperson", type: "screen", label: "Managed Person", icon: "accessibility-outline", iconActive: "accessibility", parent: "carehub", role: "caregiver", description: "Details for the person you support" },
 
-  // —— Account children ——
-  { key: "healthprofile", type: "screen", label: "Health Profile", icon: "person-outline", iconActive: "person", parent: "accounthub", description: "Basics about you" },
-  { key: "healthprofileconditions", type: "screen", label: "Conditions", icon: "clipboard-outline", iconActive: "clipboard", parent: "accounthub", description: "Conditions that matter for your care" },
+  // —— You & Settings children (Settings 2.0) ——
+  { key: "healthprofile", type: "screen", label: "Personal Profile", icon: "person-outline", iconActive: "person", parent: "accounthub", description: "Your information and photo" },
+  { key: "healthprofileconditions", type: "screen", label: "Conditions & Allergies", icon: "clipboard-outline", iconActive: "clipboard", parent: "accounthub", description: "Important health information" },
   { key: "allergy", type: "screen", label: "Allergies", icon: "alert-circle-outline", iconActive: "alert-circle", parent: "accounthub", description: "Allergies and sensitivities" },
-  { key: "settings", type: "screen", label: "Preferences", icon: "options-outline", iconActive: "options", parent: "accounthub", description: "Appearance, mode, notifications, and account" },
-  { key: "privacy", type: "screen", label: "Privacy", icon: "lock-closed-outline", iconActive: "lock-closed", parent: "accounthub", description: "Local-first defaults and app lock" },
-  { key: "editprofile", type: "screen", label: "Backup & Restore", icon: "cloud-outline", iconActive: "cloud", parent: "accounthub", description: "Optional iCloud backup and local export" },
+  { key: "careteam", type: "screen", label: "Care Team", icon: "people-outline", iconActive: "people", parent: "accounthub", description: "Doctors and pharmacies" },
+  { key: "settings", type: "screen", label: "Preferences", icon: "options-outline", iconActive: "options", parent: "accounthub", description: "Appearance, modes, and navigation" },
+  { key: "caresharing", type: "screen", label: "Care & Sharing", icon: "shield-checkmark-outline", iconActive: "shield-checkmark", parent: "accounthub", description: "Roles and caregiver connections" },
+  { key: "integrations", type: "screen", label: "Integrations", icon: "extension-puzzle-outline", iconActive: "extension-puzzle", parent: "accounthub", description: "Apple Health and assistants" },
+  { key: "privacy", type: "screen", label: "Privacy", icon: "lock-closed-outline", iconActive: "lock-closed", parent: "accounthub", description: "App lock and local-first data" },
+  { key: "editprofile", type: "screen", label: "Backup & Restore", icon: "cloud-outline", iconActive: "cloud", parent: "accounthub", description: "Keep your data safe" },
   { key: "feedback", type: "screen", label: "Help & Feedback", icon: "chatbubble-ellipses-outline", iconActive: "chatbubble-ellipses", parent: "accounthub", description: "Share feedback or get help" },
-  { key: "meetfounder", type: "screen", label: "Meet the Founder", icon: "heart-outline", iconActive: "heart", parent: "accounthub" },
+  { key: "meetfounder", type: "screen", label: "About Synapse", icon: "heart-outline", iconActive: "heart", parent: "accounthub", description: "Meet the founder" },
   { key: "auth", type: "screen", label: "Sign In", icon: "log-in-outline", iconActive: "log-in", parent: "accounthub" },
 
   // —— Other retained screens (not hamburger children) ——

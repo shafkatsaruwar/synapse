@@ -1,6 +1,6 @@
 /**
- * Sick Mode color palettes that adapt to Light vs Dark app appearance.
- * Use with themeId from useTheme() or colorScheme from useColorScheme().
+ * Sick Mode color palettes — calm recovery companion, not emergency-red by default.
+ * Reserve strong red for genuine urgent alerts in UI, not the whole chrome.
  */
 
 export type SickModePalette = {
@@ -9,30 +9,30 @@ export type SickModePalette = {
   accent: string;
   text: string;
   progress: string;
-  /** Light tint for banners/cards (e.g. alert card background) */
+  /** Soft tint for status chips */
   accentLight: string;
-  /** Border color for alert areas */
+  /** Border color for soft cards */
   accentBorder: string;
 };
 
 const LIGHT: SickModePalette = {
-  background: "#FFF4F4",
-  card: "#FDE2E2",
-  accent: "#D32F2F",
+  background: "transparent",
+  card: "#FFFFFF",
+  accent: "#8B5E5E",
   text: "#1A1A1A",
-  progress: "#F6C1C1",
-  accentLight: "#FDE2E2",
-  accentBorder: "rgba(211,47,47,0.35)",
+  progress: "#E8E0E0",
+  accentLight: "rgba(139,94,94,0.10)",
+  accentBorder: "rgba(139,94,94,0.18)",
 };
 
 const DARK: SickModePalette = {
-  background: "#2A0F0F",
-  card: "#3A1616",
-  accent: "#FF6B6B",
+  background: "transparent",
+  card: "#1C1C1E",
+  accent: "#E8A0A0",
   text: "#FFFFFF",
-  progress: "#5A2A2A",
-  accentLight: "#3A1616",
-  accentBorder: "rgba(255,107,107,0.4)",
+  progress: "#3A2A2A",
+  accentLight: "rgba(232,160,160,0.12)",
+  accentBorder: "rgba(232,160,160,0.22)",
 };
 
 /** themeId from ThemeContext: dark / evergreenDark → dark palette; otherwise light. */

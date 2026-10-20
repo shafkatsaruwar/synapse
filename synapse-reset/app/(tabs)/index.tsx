@@ -39,7 +39,6 @@ import PharmaciesScreen from "@/screens/PharmaciesScreen";
 import CycleTrackingScreen from "@/screens/CycleTrackingScreen";
 import RamadanDailyLogScreen from "@/screens/RamadanDailyLogScreen";
 import OnboardingScreen, { type OnboardingCompleteOptions } from "@/screens/OnboardingScreen";
-import EditProfileScreen from "@/screens/EditProfileScreen";
 import EmergencyCardScreen from "@/screens/EmergencyCardScreen";
 import MeetFounderScreen from "@/screens/MeetFounderScreen";
 import FeedbackScreen from "@/screens/FeedbackScreen";
@@ -47,6 +46,8 @@ import IcsImportPreviewScreen from "@/screens/IcsImportPreviewScreen";
 import CaregiverDashboardScreen from "@/screens/CaregiverDashboardScreen";
 import ManagedPersonScreen from "@/screens/ManagedPersonScreen";
 import FeatureHubScreen from "@/screens/FeatureHubScreen";
+import PreferencesScreen from "@/screens/PreferencesScreen";
+import BackupRestoreScreen from "@/screens/BackupRestoreScreen";
 import ContextualTip from "@/components/ContextualTip";
 import { trackReturnSession } from "@/lib/product-milestones";
 import { TIP_BLOCKED_SCREENS } from "@/lib/contextual-tips-storage";
@@ -1274,10 +1275,10 @@ export default function MainScreen() {
 
   const renderScreen = () => {
     if (sickMode && activeScreen === "dashboard") {
-      return <SickModeScreen onDeactivate={handleDeactivateSickMode} onRefreshKey={refreshKey} />;
+      return <SickModeScreen onDeactivate={handleDeactivateSickMode} onRefreshKey={refreshKey} onNavigate={handleNavigate} />;
     }
     if (activeScreen === "sickmode") {
-      return <SickModeScreen onDeactivate={handleDeactivateSickMode} onRefreshKey={refreshKey} />;
+      return <SickModeScreen onDeactivate={handleDeactivateSickMode} onRefreshKey={refreshKey} onNavigate={handleNavigate} />;
     }
 
     switch (activeScreen) {
@@ -1352,7 +1353,7 @@ export default function MainScreen() {
         return (
           <ManagedPersonScreen
             onBack={() => backToParentOr("carehub")}
-            onRemoved={() => handleNavigate("settings")}
+            onRemoved={() => handleNavigate("caresharing")}
           />
         );
       case "log":
@@ -1434,28 +1435,15 @@ export default function MainScreen() {
         return <CycleTrackingScreen onBack={() => backToParentOr("wellbeinghub")} />;
       case "editprofile":
         return (
-          <EditProfileScreen
-            onBack={() => backToParentOr("accounthub")}
+          <BackupRestoreScreen
             onNavigate={handleNavigate}
             onRestoreComplete={() => setRefreshKey((k) => k + 1)}
           />
         );
-      case "meetfounder":
-        return <MeetFounderScreen />;
-      case "feedback":
-        return (
-          <FeedbackScreen
-            key={`${feedbackEntrySource}-${feedbackInitialSentiment ?? "choice"}`}
-            onBack={() => {
-              setFeedbackInitialSentiment(null);
-              setActiveScreen(feedbackEntrySource === "prompt" ? "dashboard" : "settings");
-              setRefreshKey((k) => k + 1);
-            }}
-            initialSentiment={feedbackInitialSentiment}
-            onFinished={handleFinishFeedbackFlow}
-          />
-        );
-      case "settings":
+      case "careteam":
+        return <FeatureHubScreen hubId="carehub" onNavigate={handleNavigate} role={role} />;
+      case "caresharing":
+      case "integrations":
         return (
           <SettingsScreen
             onResetApp={handleResetApp}
@@ -1466,11 +1454,28 @@ export default function MainScreen() {
             openAppearanceModalToken={openAppearanceModalToken}
           />
         );
+      case "meetfounder":
+        return <MeetFounderScreen />;
+      case "feedback":
+        return (
+          <FeedbackScreen
+            key={`${feedbackEntrySource}-${feedbackInitialSentiment ?? "choice"}`}
+            onBack={() => {
+              setFeedbackInitialSentiment(null);
+              setActiveScreen(feedbackEntrySource === "prompt" ? "dashboard" : "accounthub");
+              setRefreshKey((k) => k + 1);
+            }}
+            initialSentiment={feedbackInitialSentiment}
+            onFinished={handleFinishFeedbackFlow}
+          />
+        );
+      case "settings":
+        return <PreferencesScreen onNavigate={handleNavigate} />;
       case "auth":
         return (
           <AuthScreen
-            onBack={() => handleNavigate("settings")}
-            onSuccess={() => handleNavigate("settings")}
+            onBack={() => handleNavigate("caresharing")}
+            onSuccess={() => handleNavigate("caresharing")}
           />
         );
       default:

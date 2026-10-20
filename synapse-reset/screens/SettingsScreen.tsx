@@ -1230,7 +1230,7 @@ export default function SettingsScreen({
           showsVerticalScrollIndicator={false}
           bounces={true}
         >
-          <Text style={[styles.title, { fontSize: simpleHeaderTitleSize, marginBottom: 18 }]}>Account</Text>
+          <Text style={[styles.title, { fontSize: simpleHeaderTitleSize, marginBottom: 18 }]}>Care & Sharing</Text>
 
           <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
             <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Profile</Text>
@@ -1500,7 +1500,7 @@ export default function SettingsScreen({
         showsVerticalScrollIndicator={false}
         bounces={true}
       >
-        <Text style={styles.title}>Account</Text>
+        <Text style={styles.title}>Care & Sharing</Text>
 
         {/* ——— Local Profile Header ——— */}
         <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={styles.cardGlass}>
