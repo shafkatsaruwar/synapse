@@ -279,7 +279,7 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
             <View style={styles.cardWithEdit}>
               {previewCard}
               <Pressable
-                style={({ pressed }) => [styles.pencilBtn, pressed && { opacity: 0.85 }]}
+                style={({ pressed }) => [styles.pencilBtn, pressed && { opacity: 0.9, transform: [{ scale: 0.96 }] }]}
                 onPress={() => {
                   Haptics.selectionAsync().catch(() => {});
                   setIsEditing(true);
@@ -287,7 +287,7 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
                 accessibilityRole="button"
                 accessibilityLabel="Edit emergency card"
               >
-                <Ionicons name="pencil" size={18} color={C.tint} />
+                <Ionicons name="pencil" size={20} color={CARD_HEADER} />
               </Pressable>
             </View>
 
@@ -583,21 +583,21 @@ function makeStyles(C: Theme) {
     },
     pencilBtn: {
       position: "absolute",
-      top: 8,
-      right: 8,
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: C.surface,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: C.border,
+      top: 10,
+      right: 10,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      // Solid white chip + maroon pencil so it reads clearly on the red card header.
+      backgroundColor: "#FFFFFF",
+      borderWidth: 0,
       alignItems: "center",
       justifyContent: "center",
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.12,
-      shadowRadius: 6,
-      elevation: 3,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.28,
+      shadowRadius: 8,
+      elevation: 6,
       zIndex: 2,
     },
     cardPreviewWrap: {
