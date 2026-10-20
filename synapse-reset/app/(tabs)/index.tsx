@@ -22,7 +22,8 @@ import MentalHealthModeScreen from "@/screens/MentalHealthModeScreen";
 import ComfortScreen from "@/screens/ComfortScreen";
 import GoalsScreen from "@/screens/GoalsScreen";
 import ReportsScreen from "@/screens/ReportsScreen";
-import SettingsScreen from "@/screens/SettingsScreen";
+import CareSharingScreen from "@/screens/CareSharingScreen";
+import IntegrationsScreen from "@/screens/IntegrationsScreen";
 import AuthScreen from "@/screens/AuthScreen";
 import HealthDataScreen from "@/screens/HealthDataScreen";
 import DocumentsScreen from "@/screens/DocumentsScreen";
@@ -386,7 +387,6 @@ export default function MainScreen() {
   const [showSimpleModeTour, setShowSimpleModeTour] = useState(false);
   const [simpleModeTourStep, setSimpleModeTourStep] = useState(0);
   const [pendingSimpleModeTourAfterWhatsNew, setPendingSimpleModeTourAfterWhatsNew] = useState(false);
-  const [openAppearanceModalToken] = useState(0);
   const [showFeedbackPrompt, setShowFeedbackPrompt] = useState(false);
   const [suppressPostOnboardingPrompts, setSuppressPostOnboardingPrompts] = useState(false);
   const [feedbackInitialSentiment, setFeedbackInitialSentiment] = useState<FeedbackSentiment | null>(null);
@@ -1432,15 +1432,18 @@ export default function MainScreen() {
       case "careteam":
         return <FeatureHubScreen hubId="carehub" onNavigate={handleNavigate} role={role} />;
       case "caresharing":
-      case "integrations":
         return (
-          <SettingsScreen
+          <CareSharingScreen
             onResetApp={handleResetApp}
             onNavigate={handleNavigate}
             onRestoreComplete={() => setRefreshKey((k) => k + 1)}
-            onShowAppTour={() => setShowWalkthrough(true)}
-            onShowWhatsNew={() => setShowWhatsNew(true)}
-            openAppearanceModalToken={openAppearanceModalToken}
+          />
+        );
+      case "integrations":
+        return (
+          <IntegrationsScreen
+            onNavigate={handleNavigate}
+            onRestoreComplete={() => setRefreshKey((k) => k + 1)}
           />
         );
       case "meetfounder":
@@ -1459,7 +1462,7 @@ export default function MainScreen() {
           />
         );
       case "settings":
-        return <PreferencesScreen onNavigate={handleNavigate} />;
+        return <PreferencesScreen onNavigate={handleNavigate} onResetApp={handleResetApp} />;
       case "auth":
         return (
           <AuthScreen

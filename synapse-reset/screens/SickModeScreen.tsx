@@ -19,11 +19,15 @@ import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { cancelRecoveryCheckIn } from "@/lib/notification-manager";
 import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 import { raised } from "@/constants/raised";
+import {
+  applyCheckIn,
+  applyTemperatureLog,
+  CHECK_IN_INTERVAL_MS,
+  type FeelingChoice,
+} from "@/lib/sick-mode-checkin";
 
-const CHECK_IN_INTERVAL_MS = 2 * 60 * 60 * 1000;
 const COMFORT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-type FeelingChoice = "better" | "same" | "worse";
 type ToolId = "temperature" | "hydration" | "food" | "rest" | "help" | "history" | null;
 
 interface SickModeScreenProps {
@@ -173,41 +177,16 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey, onNavigate 
     await syncWidgetSnapshot().catch(() => {});
   };
 
-  const scheduleNextCheckIn = (base: SickModeData): SickModeData => ({
-    ...base,
-    checkInTimer: new Date(Date.now() + CHECK_IN_INTERVAL_MS).toISOString(),
-    lastCheckIn: new Date().toISOString(),
-  });
-
   const handleCheckInSubmit = async () => {
     if (!sickData || !checkInFeeling) return;
 
-    const note = checkInNote.trim();
-    const symptoms = note
-      ? Array.from(new Set([...(sickData.symptoms || []), note]))
-      : sickData.symptoms || [];
-
-    let updatedTemps = sickData.temperatures || [];
     const tempVal = parseFloat(checkInTemp);
     const hasTemp = checkInTemp.trim().length > 0 && !Number.isNaN(tempVal);
-    if (hasTemp) {
-      const time = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-      updatedTemps = [...updatedTemps, { time, value: tempVal }];
-    }
-
-    // Feeling "better" can mark recovering — temperature alone never ends Sick Mode.
-    let next: SickModeData = {
-      ...sickData,
-      temperatures: updatedTemps,
-      symptoms,
-      lastCheckIn: new Date().toISOString(),
-    };
-
-    if (checkInFeeling === "better") {
-      next = { ...next, recoveryMode: true, checkInTimer: undefined };
-    } else {
-      next = scheduleNextCheckIn(next);
-    }
+    const { next, highFever, enteredRecovering } = applyCheckIn(sickData, {
+      feeling: checkInFeeling,
+      temperatureF: hasTemp ? tempVal : null,
+      note: checkInNote,
+    });
 
     await persistSick(next);
     setShowCheckInModal(false);
@@ -216,13 +195,13 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey, onNavigate 
     setCheckInNote("");
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    if (hasTemp && tempVal >= 102) {
+    if (highFever) {
       Alert.alert(
         "High fever — seek care",
         `Your temperature is ${tempVal}°F. Contact a doctor or seek urgent care. This check-in was saved; Sick Mode stays on until you end it.`,
         [{ text: "OK" }]
       );
-    } else if (checkInFeeling === "better") {
+    } else if (enteredRecovering) {
       Alert.alert(
         "Glad you’re improving",
         "Sick Mode is now in recovering. Check-ins pause. End Sick Mode when you feel ready — your logs stay saved.",
@@ -245,7 +224,8 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey, onNavigate 
       return;
     }
     // Persist next timer so skip doesn’t strand the protocol.
-    await persistSick(scheduleNextCheckIn(sickData));
+    const { next } = applyCheckIn(sickData, { feeling: "same" });
+    await persistSick(next);
     setShowCheckInModal(false);
     setCheckInFeeling(null);
     setCheckInTemp("");
@@ -280,11 +260,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey, onNavigate 
   const addTemperature = async () => {
     const val = parseFloat(tempInput);
     if (Number.isNaN(val) || !sickData) return;
-    const time = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-    await persistSick({
-      ...sickData,
-      temperatures: [...(sickData.temperatures || []), { time, value: val }],
-    });
+    await persistSick(applyTemperatureLog(sickData, val));
     setTempInput("");
     setActiveTool(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

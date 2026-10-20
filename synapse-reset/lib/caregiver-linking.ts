@@ -15,6 +15,17 @@ import {
   type Appointment,
 } from "@/lib/storage";
 
+import {
+  CAREGIVER_LINK_CODE_LENGTH,
+  normalizeCaregiverLinkCode,
+} from "@/lib/caregiver-link-code";
+
+export {
+  CAREGIVER_LINK_CODE_LENGTH,
+  isValidCaregiverLinkCode,
+  normalizeCaregiverLinkCode,
+} from "@/lib/caregiver-link-code";
+
 const INSTALL_USER_ID_KEY = "synapse_linking_install_user_id";
 const REPORTED_EVENT_KEYS = "synapse_linking_reported_events";
 const LINK_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -228,8 +239,8 @@ export async function generatePatientLinkCode(authUserId?: string | null): Promi
 export async function linkCaregiverWithCode(codeInput: string, authUserId?: string | null): Promise<{ patientUserId?: string; error: Error | null }> {
   const supabase = getSupabase();
   if (!supabase) return { error: new Error("Supabase not configured") };
-  const code = codeInput.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (code.length !== 6) return { error: new Error("Enter the 6-character code.") };
+  const code = normalizeCaregiverLinkCode(codeInput);
+  if (code.length !== CAREGIVER_LINK_CODE_LENGTH) return { error: new Error("Enter the 6-character code.") };
   const caregiverUserId = await getLinkingUserId(authUserId);
 
   let codeRow: { id: string; patient_user_id: string } | null = null;

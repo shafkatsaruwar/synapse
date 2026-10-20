@@ -18,8 +18,8 @@ import * as FileSystem from "expo-file-system/legacy";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useTheme, type ThemePreference, type Theme } from "@/contexts/ThemeContext";
-import { useDisplaySettings, type TextSizeSetting } from "@/contexts/DisplaySettingsContext";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import { useAppMode } from "@/contexts/AppModeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import GlassView from "@/components/GlassView";
@@ -27,29 +27,15 @@ import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 import {
   settingsStorage,
   healthProfileStorage,
-  conditionStorage,
   clearAllData,
-  ALL_SECTION_KEYS,
-  REQUIRED_SECTION_KEYS,
-  medicationStorage,
-  medicationLogStorage,
-  appointmentStorage,
   type UserSettings,
-  type Medication,
-  type MedicationLog,
-  type Appointment,
   type HealthProfileInfo,
   type UserRole,
-  type WidgetAppearancePreference,
-  type AppMode,
 } from "@/lib/storage";
 import { useRole } from "@/contexts/RoleContext";
-import { getToday } from "@/lib/date-utils";
-import { isCurrentMonthRamadan } from "@/lib/hijri";
 import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { raised } from "@/constants/raised";
-import { getCloudKitBackupStatus, restoreFromICloud, saveToICloud } from "@/lib/cloudkit-backup";
 import { getBackupStatus, backupNow, type BackupStatus } from "@/lib/backup";
 import {
   connectAppleHealth,
@@ -67,59 +53,16 @@ import {
   type CaregiverLinkState,
 } from "@/lib/caregiver-linking";
 
-const SECTION_LABELS: Record<string, string> = {
-  log: "Daily Log", healthdata: "Vitals", medications: "Medications", symptoms: "Symptoms",
-  labwork: "Lab Work", imaging: "Imaging",
-  timeline: "Timeline",
-  monthlycheckin: "Monthly check-in", eating: "Eating", mentalhealth: "Mental health day",
-  comfort: "Mood lifters", goals: "Goals", appointments: "Appointments", reports: "Reports", privacy: "Privacy", cycletracking: "Cycle tracking",
-};
+export type SettingsScreenVariant = "care" | "integrations";
 
 interface SettingsScreenProps {
+  /** care = roles/linking; integrations = Apple Health + assistant. Defaults to care. */
+  variant?: SettingsScreenVariant;
   onResetApp?: () => void;
   onNavigate?: (screen: string) => void;
   onRestoreComplete?: () => void;
-  onShowAppTour?: () => void;
-  onShowWhatsNew?: () => void;
-  openAppearanceModalToken?: number;
 }
 
-const SECTION_ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
-  log: "heart-outline", healthdata: "analytics-outline", medications: "medical-outline", symptoms: "pulse-outline",
-  labwork: "flask-outline", imaging: "scan-outline",
-  timeline: "git-branch-outline",
-  monthlycheckin: "fitness-outline", eating: "restaurant-outline", mentalhealth: "heart-outline", comfort: "happy-outline",
-  goals: "flag-outline", appointments: "calendar-outline", reports: "document-text-outline", privacy: "shield-outline", cycletracking: "water-outline",
-};
-
-const THEME_OPTIONS: { id: ThemePreference; label: string; description: string }[] = [
-  { id: "system", label: "System", description: "Follow device appearance" },
-  { id: "evergreen", label: "Soft Evergreen", description: "Calm cool off-white with evergreen accent" },
-  { id: "calm", label: "Calm", description: "Warm beige, easy on the eyes" },
-  { id: "light", label: "Light", description: "Clean white, modern" },
-  { id: "dark", label: "Dark", description: "True black, OLED-friendly" },
-];
-
-/** Widget chrome does not yet include Soft Evergreen — keep legacy set. */
-const WIDGET_THEME_OPTIONS: { id: WidgetAppearancePreference; label: string; description: string }[] = [
-  { id: "system", label: "System", description: "Follow device appearance" },
-  { id: "calm", label: "Calm", description: "Warm beige, easy on the eyes" },
-  { id: "light", label: "Light", description: "Clean white, modern" },
-  { id: "dark", label: "Dark", description: "True black, OLED-friendly" },
-];
-
-const APP_MODE_OPTIONS: { id: AppMode; label: string; description: string }[] = [
-  { id: "simple", label: "Simple Mode", description: "Bigger text, bigger buttons, and simpler main screens" },
-  { id: "full", label: "Full Mode", description: "Detailed tracking and more control" },
-];
-
-const SIMPLE_TEXT_SIZE_OPTIONS: { id: TextSizeSetting; label: string }[] = [
-  { id: "normal", label: "Normal" },
-  { id: "large", label: "Large" },
-  { id: "extra_large", label: "Extra Large" },
-];
-
-type CloudKitStatus = Awaited<ReturnType<typeof getCloudKitBackupStatus>>;
 type CaregiverOnboardingStep =
   | "entry"
   | "role"
@@ -172,43 +115,31 @@ async function persistProfileImage(sourceUri: string, previousUri?: string) {
 }
 
 export default function SettingsScreen({
+  variant = "care",
   onResetApp,
   onNavigate,
   onRestoreComplete,
-  onShowAppTour,
-  onShowWhatsNew,
-  openAppearanceModalToken,
 }: SettingsScreenProps) {
+  const isCare = variant === "care";
+  const isIntegrations = variant === "integrations";
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const { user, signOut } = useAuth();
-  const { appMode, setAppMode } = useAppMode();
+  const { appMode } = useAppMode();
   const { role: activeRole, caregiverProfile, setRole, saveCaregiverProfile, clearCaregiverMode } = useRole();
-  const { textSize, setTextSize, textScale } = useDisplaySettings();
-  const { colors: C, preference, setThemeId, themeId } = useTheme();
+  const { textScale } = useDisplaySettings();
+  const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
   const authUserId = (user as { id?: string } | null)?.id ?? null;
 
   const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
   const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", widgetAppearance: "system", backupCriticalMedications: [] });
-  const [saved, setSaved] = useState(true);
   const [showNameModal, setShowNameModal] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [conditionsCount, setConditionsCount] = useState(0);
   const [roleDetailsEditing, setRoleDetailsEditing] = useState(false);
 
-  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
-  const [showSectionsModal, setShowSectionsModal] = useState(false);
-  const [showAppearanceModal, setShowAppearanceModal] = useState(false);
-  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
-  const [sectionSelections, setSectionSelections] = useState<Set<string>>(new Set());
-  const [medications, setMedications] = useState<Medication[]>([]);
-  const [medLogs, setMedLogs] = useState<MedicationLog[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [cloudStatus, setCloudStatus] = useState<CloudKitStatus | null>(null);
-  const [cloudBusy, setCloudBusy] = useState(false);
   const [appleHealthStatus, setAppleHealthStatus] = useState<AppleHealthStatus | null>(null);
   const [appleHealthBusy, setAppleHealthBusy] = useState(false);
   const [assistantBackup, setAssistantBackup] = useState<BackupStatus | null>(null);
@@ -230,38 +161,17 @@ export default function SettingsScreen({
   };
 
   const loadData = useCallback(async () => {
-    const today = getToday();
-    const [s, profileInfo, conds, meds, logs, apts] = await Promise.all([
+    const [s, profileInfo] = await Promise.all([
       settingsStorage.get(),
       healthProfileStorage.get(),
-      conditionStorage.getAll(),
-      medicationStorage.getAll(),
-      medicationLogStorage.getByDate(today),
-      appointmentStorage.getAll(),
     ]);
     setSettings(s);
     setProfile(profileInfo);
-    setConditionsCount(conds.length);
-    setSectionSelections(
-      new Set((s.enabledSections?.length ? s.enabledSections : ALL_SECTION_KEYS) as unknown as string[])
-    );
-    setMedications(meds.filter((m) => m.active));
-    setMedLogs(logs);
-    setAppointments(
-      apts
-        .filter((a) => !a.status || a.status !== "cancelled")
-        .filter((a) => a.date >= today)
-        .sort((a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || ""))
-    );
   }, []);
 
   React.useEffect(() => {
     loadData();
   }, [loadData]);
-
-  const refreshCloudStatus = useCallback(() => {
-    getCloudKitBackupStatus().then(setCloudStatus).catch(() => {});
-  }, []);
 
   const refreshAppleHealthStatus = useCallback(() => {
     getAppleHealthStatus().then(setAppleHealthStatus).catch(() => {});
@@ -278,10 +188,6 @@ export default function SettingsScreen({
   const refreshCaregiverLinkState = useCallback(() => {
     getCaregiverLinkState(authUserId).then(setCaregiverLinkState).catch(() => setCaregiverLinkState(null));
   }, [authUserId]);
-
-  useEffect(() => {
-    refreshCloudStatus();
-  }, [refreshCloudStatus]);
 
   useEffect(() => {
     refreshAppleHealthStatus();
@@ -306,18 +212,7 @@ export default function SettingsScreen({
     return () => clearInterval(interval);
   }, [caregiverLinkState?.pendingCode]);
 
-  useEffect(() => {
-    if ((openAppearanceModalToken ?? 0) > 0) {
-      setShowAppearanceModal(true);
-    }
-  }, [openAppearanceModalToken]);
 
-  const handleSave = async () => {
-    await settingsStorage.save(settings);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setSaved(true);
-    syncAllFromSettings().catch(() => {});
-  };
 
   const handleSaveProfile = async (nextProfile: HealthProfileInfo) => {
     setProfile(nextProfile);
@@ -325,11 +220,6 @@ export default function SettingsScreen({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     syncAllFromSettings().catch(() => {});
     syncWidgetSnapshot().catch(() => {});
-  };
-
-  const handleWidgetAppearanceChange = async (id: WidgetAppearancePreference) => {
-    Haptics.selectionAsync();
-    await handleSaveProfile({ ...profile, widgetAppearance: id });
   };
 
   const handlePickProfileImage = async () => {
@@ -351,42 +241,6 @@ export default function SettingsScreen({
     await handleSaveProfile({ ...profile, profileImageUri: persistedUri });
   };
 
-  const toggleSection = (key: string) => {
-    if (REQUIRED_SECTION_KEYS.includes(key)) return;
-    setSectionSelections((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-    Haptics.selectionAsync();
-  };
-
-  const handleSaveSections = async () => {
-    const list = Array.from(sectionSelections);
-    await settingsStorage.save({ ...settings, enabledSections: list.length > 0 ? list : (ALL_SECTION_KEYS as unknown as string[]) });
-    setSettings((s) => ({ ...s, enabledSections: list.length > 0 ? list : (ALL_SECTION_KEYS as unknown as string[]) }));
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setShowSectionsModal(false);
-  };
-
-  const handleThemeChange = async (id: ThemePreference) => {
-    Haptics.selectionAsync();
-    await setThemeId(id);
-  };
-
-  const handleAppModeChange = async (mode: AppMode) => {
-    Haptics.selectionAsync();
-    await setAppMode(mode);
-    setSettings((prev) => ({ ...prev, appMode: mode }));
-  };
-
-  const handleTextSizeChange = async (size: TextSizeSetting) => {
-    Haptics.selectionAsync();
-    await setTextSize(size);
-    setSettings((prev) => ({ ...prev, textSize: size }));
-  };
-
   const openNameModal = () => {
     setDraftName(settings.name?.trim() || "");
     setShowNameModal(true);
@@ -397,7 +251,6 @@ export default function SettingsScreen({
     const nextSettings = { ...settings, name: trimmedName };
     setSettings(nextSettings);
     await settingsStorage.save(nextSettings);
-    setSaved(true);
     setShowNameModal(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
@@ -410,54 +263,6 @@ export default function SettingsScreen({
 
   const saveBackupRoleDetails = async (updates: Partial<HealthProfileInfo>) => {
     await handleSaveProfile({ ...profile, ...updates });
-  };
-
-  const cloudKitUnavailableMessage = (status?: string | null) => {
-    switch (status) {
-      case "native_bridge_missing":
-        return "CloudKit needs a native iOS build. Expo Go cannot access Synapse’s iCloud container.";
-      case "unsupported_platform":
-        return "iCloud backup is only available on iOS.";
-      case "no_account":
-        return "Sign in to iCloud on this device, then try again.";
-      case "restricted":
-        return "iCloud is restricted on this device. Check Screen Time or MDM settings.";
-      case "temporarily_unavailable":
-        return "iCloud is temporarily unavailable. Try again in a moment.";
-      case "save_in_progress":
-      case "restore_in_progress":
-        return "A backup operation is already in progress. Try again in a moment.";
-      case "no_backup_found":
-        return "Synapse could not find a private iCloud backup for this Apple ID yet.";
-      case "account_unavailable":
-        return "CloudKit is not available right now. Synapse will keep your data local until iCloud is ready.";
-      default:
-        return "CloudKit is not available right now. Synapse will keep your data local until iCloud is ready.";
-    }
-  };
-
-  const handleBackupNow = async () => {
-    Haptics.selectionAsync();
-    if (cloudStatus && !cloudStatus.available) {
-      Alert.alert("CloudKit unavailable", cloudKitUnavailableMessage(cloudStatus.accountStatus));
-      return;
-    }
-    setCloudBusy(true);
-    try {
-      const result = await saveToICloud();
-      refreshCloudStatus();
-      if (result.skipped) {
-        Alert.alert("iCloud backup unavailable", cloudKitUnavailableMessage(result.skipReason || cloudStatus?.accountStatus));
-      } else if (result.error) {
-        Alert.alert("iCloud backup failed", result.error.message);
-      } else {
-        Alert.alert("Backed up", "Your latest Synapse backup is saved privately in iCloud.");
-      }
-    } catch (error) {
-      Alert.alert("Backup failed", error instanceof Error ? error.message : "Could not save a backup right now.");
-    } finally {
-      setCloudBusy(false);
-    }
   };
 
   const handleAssistantSync = async () => {
@@ -489,51 +294,6 @@ export default function SettingsScreen({
     } catch {
       Alert.alert("Sign out failed", "Could not sign out right now.");
     }
-  };
-
-  const handleRestoreCloudKit = () => {
-    Haptics.selectionAsync();
-    if (cloudStatus && !cloudStatus.available) {
-      Alert.alert("CloudKit unavailable", cloudKitUnavailableMessage(cloudStatus.accountStatus));
-      return;
-    }
-    Alert.alert(
-      "Restore from iCloud?",
-      "Synapse will find your latest private iCloud backup and restore it on this device.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Restore",
-          style: "default",
-          onPress: async () => {
-            setCloudBusy(true);
-            try {
-              const result = await restoreFromICloud({ uploadLocalIfNewer: false, forceRestoreLatest: true });
-              await loadData();
-              onRestoreComplete?.();
-              syncWidgetSnapshot().catch(() => {});
-              refreshCloudStatus();
-              if (result.restored) {
-                Alert.alert("Restored", "Your latest iCloud backup has been restored.");
-              } else if (result.error) {
-                Alert.alert("iCloud restore failed", result.error.message);
-              } else if (result.skipped && result.skipReason && result.skipReason !== "no_backup_found") {
-                Alert.alert("iCloud restore unavailable", cloudKitUnavailableMessage(result.skipReason));
-              } else {
-                Alert.alert(
-                  "No iCloud backup found",
-                  "Synapse could not find a private iCloud backup for this Apple ID yet.",
-                );
-              }
-            } catch (error) {
-              Alert.alert("Restore failed", error instanceof Error ? error.message : "Could not restore right now.");
-            } finally {
-              setCloudBusy(false);
-            }
-          },
-        },
-      ]
-    );
   };
 
   const handleConnectAppleHealth = async () => {
@@ -743,23 +503,6 @@ export default function SettingsScreen({
     }
   };
 
-  const dateObj = new Date();
-  const getDoseCount = (med: Medication) => (Array.isArray(med.doses) && med.doses.length > 0 ? med.doses.length : (med as { doses?: number }).doses ?? 1);
-  const totalDoses = medications.reduce((s, m) => s + getDoseCount(m), 0);
-  const takenDoses = medications.reduce((s, m) => {
-    const dc = getDoseCount(m);
-    let t = 0;
-    for (let i = 0; i < dc; i++) {
-      if (medLogs.find((l) => l.medicationId === m.id && (l.doseIndex ?? 0) === i)?.taken) t++;
-    }
-    return s + t;
-  }, 0);
-  const medProgressLabel = totalDoses > 0 ? `${takenDoses}/${totalDoses} today` : "0/0 today";
-  const nextApt = appointments[0];
-  const nextAptLabel = nextApt
-    ? `${new Date(nextApt.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${nextApt.doctorName}`
-    : "None scheduled";
-
   const saveSimpleRoleDetails = async () => {
     await saveBackupRoleDetails({
       caredForName: profile.userRole === "caregiver" ? profile.caredForName?.trim() || undefined : undefined,
@@ -812,15 +555,6 @@ export default function SettingsScreen({
   };
 
   const shortcutCardMap = {
-    healthprofile: {
-      key: "healthprofile",
-      title: "Health Profile",
-      description: "Conditions, allergies, vaccines",
-      icon: "person-outline" as const,
-      tintColor: C.tint,
-      tintBg: C.tintLight,
-      onPress: () => onNavigate?.("healthprofile"),
-    },
     doctors: {
       key: "doctors",
       title: "Doctors",
@@ -839,98 +573,11 @@ export default function SettingsScreen({
       tintBg: C.tintLight,
       onPress: () => onNavigate?.("pharmacies"),
     },
-    appearance: {
-      key: "appearance",
-      title: "Appearances",
-      description: "App and widget themes",
-      icon: "color-palette-outline" as const,
-      tintColor: C.tint,
-      tintBg: C.tintLight,
-      onPress: () => setShowAppearanceModal(true),
-    },
-    notifications: {
-      key: "notifications",
-      title: "Notifications",
-      description: "Medication, appointment, and check-in reminders",
-      icon: "notifications-outline" as const,
-      tintColor: C.tint,
-      tintBg: C.tintLight,
-      onPress: () => setShowNotificationsModal(true),
-    },
-    feedback: {
-      key: "feedback",
-      title: "Send Feedback",
-      description: "Tell us what feels good or needs work",
-      icon: "chatbubble-ellipses-outline" as const,
-      tintColor: C.tint,
-      tintBg: C.tintLight,
-      onPress: () => onNavigate?.("feedback"),
-    },
-    sections: {
-      key: "sections",
-      title: "Menu Sections",
-      description: "Choose what shows in the menu",
-      icon: "grid-outline" as const,
-      tintColor: C.tint,
-      tintBg: C.tintLight,
-      onPress: () => setShowSectionsModal(true),
-    },
-    founder: {
-      key: "founder",
-      title: "Meet the Founder",
-      description: "Why Synapse exists",
-      icon: "sparkles-outline" as const,
-      tintColor: C.tint,
-      tintBg: C.tintLight,
-      onPress: () => onNavigate?.("meetfounder"),
-    },
-    ...(onShowWhatsNew
-      ? {
-          whatsnew: {
-            key: "whatsnew",
-            title: "What’s New",
-            description: "See the latest features again",
-            icon: "megaphone-outline" as const,
-            tintColor: C.tint,
-            tintBg: C.tintLight,
-            onPress: () => {
-              Haptics.selectionAsync();
-              onShowWhatsNew();
-            },
-          },
-        }
-      : {}),
-    ...(onShowAppTour
-      ? {
-          tour: {
-            key: "tour",
-            title: "App Tour",
-            description: "Replay the optional guided walkthrough anytime",
-            icon: "compass-outline" as const,
-            tintColor: C.tint,
-            tintBg: C.tintLight,
-            onPress: () => {
-              Haptics.selectionAsync();
-              onShowAppTour();
-              onNavigate?.("dashboard");
-            },
-          },
-        }
-      : {}),
   } as const;
 
-  const accountShortcutCards = [
-    shortcutCardMap.healthprofile,
-    shortcutCardMap.doctors,
-    shortcutCardMap.pharmacies,
-    shortcutCardMap.appearance,
-    shortcutCardMap.notifications,
-    shortcutCardMap.feedback,
-    shortcutCardMap.sections,
-    shortcutCardMap.founder,
-    ...(shortcutCardMap.whatsnew ? [shortcutCardMap.whatsnew] : []),
-    ...(shortcutCardMap.tour ? [shortcutCardMap.tour] : []),
-  ];
+  const accountShortcutCards = isCare
+    ? [shortcutCardMap.doctors, shortcutCardMap.pharmacies]
+    : [];
 
   const simpleHeaderTitleSize = Math.round(28 * textScale);
   const simpleSectionTitleSize = Math.round(20 * textScale);
@@ -1221,6 +868,83 @@ export default function SettingsScreen({
     </View>
   );
 
+  if (appMode === "simple" && isIntegrations) {
+    return (
+      <View style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[simpleContentPadding, styles.scrollViewContent, styles.simpleSettingsContent]}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={[styles.title, { fontSize: simpleHeaderTitleSize, marginBottom: 18 }]}>Integrations</Text>
+          <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
+            <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Apple Health</Text>
+            <Text style={[styles.simpleSettingsPrompt, { fontSize: simpleBodySize }]}>
+              {appleHealthStatus?.connected
+                ? appleHealthStatus.lastSyncAt
+                  ? `Connected · last sync ${new Date(appleHealthStatus.lastSyncAt).toLocaleString()}`
+                  : "Connected"
+                : Platform.OS === "ios"
+                  ? "Not connected"
+                  : "Apple Health is iOS-only"}
+            </Text>
+            <View style={styles.simpleSettingsButtonRow}>
+              {appleHealthStatus?.connected ? (
+                <>
+                  <Pressable style={styles.simpleSettingsPrimaryButton} onPress={handleSyncAppleHealth} disabled={appleHealthBusy}>
+                    <Text style={[styles.simpleSettingsPrimaryButtonText, { fontSize: simpleActionSize }]}>
+                      {appleHealthBusy ? "Working..." : "Sync now"}
+                    </Text>
+                  </Pressable>
+                  <Pressable style={styles.simpleSettingsSecondaryButton} onPress={handleDisconnectAppleHealth} disabled={appleHealthBusy}>
+                    <Text style={[styles.simpleSettingsSecondaryButtonText, { fontSize: simpleActionSize }]}>Disconnect</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Pressable
+                  style={styles.simpleSettingsPrimaryButton}
+                  onPress={handleConnectAppleHealth}
+                  disabled={appleHealthBusy || Platform.OS !== "ios"}
+                >
+                  <Text style={[styles.simpleSettingsPrimaryButtonText, { fontSize: simpleActionSize }]}>
+                    {appleHealthBusy ? "Working..." : "Connect"}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </GlassView>
+          <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
+            <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Assistant access</Text>
+            <Text style={[styles.simpleSettingsPrompt, { fontSize: simpleBodySize }]}>
+              {authUserId ? formatBackupTime(assistantBackup?.lastSyncedAt) : "Sign in to enable optional assistant sync"}
+            </Text>
+            <View style={styles.simpleSettingsButtonRow}>
+              {authUserId ? (
+                <>
+                  <Pressable style={styles.simpleSettingsPrimaryButton} onPress={handleAssistantSync} disabled={assistantBusy}>
+                    <Text style={[styles.simpleSettingsPrimaryButtonText, { fontSize: simpleActionSize }]}>
+                      {assistantBusy ? "Working..." : "Sync now"}
+                    </Text>
+                  </Pressable>
+                  <Pressable style={styles.simpleSettingsSecondaryButton} onPress={handleAssistantSignOut} disabled={assistantBusy}>
+                    <Text style={[styles.simpleSettingsSecondaryButtonText, { fontSize: simpleActionSize }]}>Sign out</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Pressable style={styles.simpleSettingsPrimaryButton} onPress={() => onNavigate?.("auth")}>
+                  <Text style={[styles.simpleSettingsPrimaryButtonText, { fontSize: simpleActionSize }]}>Sign in</Text>
+                </Pressable>
+              )}
+            </View>
+          </GlassView>
+          <Pressable style={styles.simpleSettingsSecondaryButton} onPress={() => onNavigate?.("settings")}>
+            <Text style={[styles.simpleSettingsSecondaryButtonText, { fontSize: simpleActionSize }]}>Open Preferences</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+    );
+  }
+
   if (appMode === "simple") {
     return (
       <View style={styles.container}>
@@ -1388,46 +1112,16 @@ export default function SettingsScreen({
             {renderCaregiverLinkingSection(true)}
           </GlassView>
 
-          <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
-            <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Accessibility</Text>
-            <Text style={[styles.simpleSettingsPrompt, { fontSize: simpleBodySize }]}>Text size</Text>
-            <View style={styles.simpleSettingsOptionStack}>
-              {SIMPLE_TEXT_SIZE_OPTIONS.map((option) => {
-                const active = textSize === option.id;
-                return (
-                  <Pressable
-                    key={option.id}
-                    style={[styles.simpleSettingsOptionButton, active && styles.simpleSettingsOptionButtonActive]}
-                    onPress={() => void handleTextSizeChange(option.id)}
-                  >
-                    <Text style={[styles.simpleSettingsOptionText, { fontSize: simpleBodySize }, active && styles.simpleSettingsOptionTextActive]}>
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </GlassView>
-
-          <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
-            <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>App Mode</Text>
-            <View style={styles.simpleSettingsOptionStack}>
-              {APP_MODE_OPTIONS.map((option) => {
-                const active = appMode === option.id;
-                return (
-                  <Pressable
-                    key={option.id}
-                    style={[styles.simpleSettingsOptionButton, active && styles.simpleSettingsOptionButtonActive]}
-                    onPress={() => void handleAppModeChange(option.id)}
-                  >
-                    <Text style={[styles.simpleSettingsOptionText, { fontSize: simpleBodySize }, active && styles.simpleSettingsOptionTextActive]}>
-                      {option.id === "simple" ? "Simple" : "Full"}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </GlassView>
+          <Pressable
+            style={[styles.simpleSettingsCard, styles.simpleSettingsSecondaryButton, { marginBottom: 12 }]}
+            onPress={() => onNavigate?.("settings")}
+            accessibilityRole="button"
+            accessibilityLabel="Open Preferences"
+          >
+            <Text style={[styles.simpleSettingsSecondaryButtonText, { fontSize: simpleActionSize }]}>
+              Preferences — mode, text size, appearance
+            </Text>
+          </Pressable>
 
           {onResetApp ? (
             <View style={styles.simpleSettingsDangerWrap}>
@@ -1500,9 +1194,15 @@ export default function SettingsScreen({
         showsVerticalScrollIndicator={false}
         bounces={true}
       >
-        <Text style={styles.title}>Care & Sharing</Text>
+        <Text style={styles.title}>{isIntegrations ? "Integrations" : "Care & Sharing"}</Text>
+        {isIntegrations ? (
+          <Text style={[styles.desc, { marginBottom: 16 }]}>
+            Connect optional services. Private CloudKit backup lives under Backup & Restore. Appearance and mode live in Preferences.
+          </Text>
+        ) : null}
 
-        {/* ——— Local Profile Header ——— */}
+        {/* ——— Local Profile Header (Care only) ——— */}
+        {isCare ? (
         <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={styles.cardGlass}>
           <Pressable
             style={({ pressed }) => [styles.cardPressable, { opacity: pressed ? 0.9 : 1 }]}
@@ -1558,48 +1258,16 @@ export default function SettingsScreen({
           </Pressable>
           </Pressable>
         </GlassView>
+        ) : null}
 
-        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
-          <Text style={styles.sectionTitle}>CloudKit Backup</Text>
-          <Text style={styles.desc}>
-            Private CloudKit backup for medications, appointments, logs, labs, imaging, and health notes.
-          </Text>
-          <View style={styles.syncedBadge}>
-            <Ionicons
-              name={cloudStatus?.available ? "cloud-done-outline" : "cloud-offline-outline"}
-              size={15}
-              color={cloudStatus?.available ? C.green : C.textTertiary}
-            />
-            <Text style={[styles.syncedText, !cloudStatus?.available && { color: C.textTertiary }]}>
-              {cloudStatus?.available
-                ? formatBackupTime(cloudStatus.lastSyncedAt ?? cloudStatus.cloudLastUpdatedAt)
-                : cloudStatus?.accountStatus === "native_bridge_missing"
-                  ? "iCloud backup needs a native iOS build"
-                  : cloudStatus?.accountStatus === "unsupported_platform"
-                    ? "iCloud backup is iOS-only"
-                    : cloudStatus?.lastError
-                      ? `iCloud error: ${cloudStatus.lastError}`
-                      : "iCloud will sync when available"}
-            </Text>
-          </View>
-          <View style={styles.backupActions}>
-            <Pressable
-              style={[styles.secondaryBtn, cloudBusy && { opacity: 0.55 }]}
-              onPress={handleBackupNow}
-              disabled={cloudBusy}
-            >
-              <Text style={styles.secondaryBtnText}>{cloudBusy ? "Working..." : "Backup Now"}</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.outlineBtn, cloudBusy && { opacity: 0.55 }]}
-              onPress={handleRestoreCloudKit}
-              disabled={cloudBusy}
-            >
-              <Text style={styles.outlineBtnText}>Restore</Text>
-            </Pressable>
-          </View>
-        </GlassView>
+        {isCare ? (
+          <Pressable style={[styles.secondaryBtn, { marginBottom: 12 }]} onPress={() => onNavigate?.("editprofile")}>
+            <Text style={styles.secondaryBtnText}>Backup & Restore</Text>
+          </Pressable>
+        ) : null}
 
+        {isIntegrations ? (
+        <>
         <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
           <Text style={styles.sectionTitle}>Assistant access</Text>
           <Text style={styles.desc}>
@@ -1704,7 +1372,10 @@ export default function SettingsScreen({
             )}
           </View>
         </GlassView>
+        </>
+        ) : null}
 
+        {isCare ? (
         <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
           <Text style={styles.sectionTitle}>Role</Text>
           <Text style={[styles.desc, { marginBottom: 12 }]}>Tell Synapse who this setup is for so the app can stay context-aware.</Text>
@@ -1858,11 +1529,13 @@ export default function SettingsScreen({
           ) : null}
           {renderCaregiverLinkingSection(false)}
         </GlassView>
+        ) : null}
 
+        {isCare && accountShortcutCards.length > 0 ? (
         <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={styles.groupCard}>
           <View style={styles.groupHeader}>
-            <Text style={styles.groupTitle}>Health Hub</Text>
-            <Text style={styles.groupSubtitle}>Quick ways into the stuff people actually use.</Text>
+            <Text style={styles.groupTitle}>Care team</Text>
+            <Text style={styles.groupSubtitle}>Doctors and pharmacies for this setup.</Text>
           </View>
           <View style={styles.tileGrid}>
             {accountShortcutCards.map((item) => (
@@ -1882,77 +1555,21 @@ export default function SettingsScreen({
             ))}
           </View>
         </GlassView>
+        ) : null}
 
-        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
-          <Text style={styles.sectionTitle}>App Mode</Text>
-          <Text style={[styles.desc, { marginBottom: 12 }]}>
-            Simple Mode is a focused view for Dashboard, Medications, Appointments, Symptoms, and Roles. Full Mode keeps the full detailed experience.
-          </Text>
-          <View style={styles.roleRow}>
-            {APP_MODE_OPTIONS.map((option) => {
-              const active = appMode === option.id;
-              return (
-                <Pressable
-                  key={option.id}
-                  style={[styles.roleChip, active && styles.roleChipActive]}
-                  onPress={() => void handleAppModeChange(option.id)}
-                >
-                  <Text style={[styles.roleChipText, active && styles.roleChipTextActive]}>{option.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text style={[styles.desc, { marginTop: 12 }]}>
-            Simple Mode keeps those main areas easier to reach with larger controls and less clutter.
-          </Text>
-        </GlassView>
-
-        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.cardGlass}>
-          <Pressable
-            style={styles.cardPressable}
-            testID="ramadan-mode-toggle"
-            onPress={() => {
-              const next = !settings.ramadanMode;
-              if (next) {
-                if (!isCurrentMonthRamadan()) {
-                  Alert.alert(
-                    "Not Ramadan Yet",
-                    "We're so glad you're looking forward to Ramadan! The toggle will activate automatically when Ramadan begins. Come back then 🌙",
-                    [{ text: "Got it" }]
-                  );
-                  return;
-                }
-              }
-              setSettings((p) => ({ ...p, ramadanMode: next }));
-              setSaved(false);
-              Haptics.selectionAsync();
-            }}
-            accessibilityRole="switch"
-            accessibilityState={{ checked: settings.ramadanMode }}
-          >
-            <View style={styles.toggleHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sectionTitle}>Ramadan Mode</Text>
-                <Text style={styles.desc}>Enable fasting tracking with Fajr & Iftar times</Text>
-              </View>
-              <View style={[styles.toggle, settings.ramadanMode && styles.toggleActive]}>
-                <View style={[styles.toggleThumb, settings.ramadanMode && styles.toggleThumbActive]} />
-              </View>
-            </View>
+        {isCare ? (
+          <Pressable style={[styles.secondaryBtn, { marginBottom: 12 }]} onPress={() => onNavigate?.("settings")}>
+            <Text style={styles.secondaryBtnText}>Open Preferences</Text>
           </Pressable>
-        </GlassView>
+        ) : null}
 
-        <Pressable
-          style={({ pressed }) => [styles.saveBtn, saved && styles.saveBtnSaved, { opacity: pressed ? 0.85 : 1 }]}
-          onPress={handleSave}
-          accessibilityRole="button"
-          accessibilityLabel={saved ? "Settings saved" : "Save settings"}
-        >
-          <Ionicons name={saved ? "checkmark-circle" : "save-outline"} size={18} color="#fff" />
-          <Text style={styles.saveBtnText}>{saved ? "Saved" : "Save Settings"}</Text>
-        </Pressable>
+        {isIntegrations ? (
+          <Pressable style={[styles.secondaryBtn, { marginBottom: 12 }]} onPress={() => onNavigate?.("editprofile")}>
+            <Text style={styles.secondaryBtnText}>Backup & Restore</Text>
+          </Pressable>
+        ) : null}
 
-        {onResetApp && (
+        {isCare && onResetApp && (
           <Pressable
             style={({ pressed }) => [styles.resetAppBtn, { opacity: pressed ? 0.8 : 1 }]}
             onPress={() => setShowResetConfirm(true)}
@@ -2014,159 +1631,6 @@ export default function SettingsScreen({
         </Pressable>
       </Modal>
 
-      <Modal visible={showSectionsModal} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setShowSectionsModal(false)}>
-          <Pressable style={[styles.resetModal, { maxWidth: 400 }]} onPress={() => {}}>
-            <Text style={[styles.resetTitle, { marginBottom: 8 }]}>Manage sections</Text>
-            <Text style={[styles.resetDesc, { marginBottom: 16 }]}>Choose which sections appear in the menu.</Text>
-            <ScrollView style={{ maxHeight: 320, width: "100%" }} showsVerticalScrollIndicator>
-              {(ALL_SECTION_KEYS as unknown as string[]).map((key) => {
-                const label = SECTION_LABELS[key] ?? key;
-                const isRequired = REQUIRED_SECTION_KEYS.includes(key);
-                const isSelected = isRequired || sectionSelections.has(key);
-                const iconName = SECTION_ICONS[key] ?? "ellipse-outline";
-                return (
-                  <Pressable
-                    key={key}
-                    style={[styles.profileRow, { marginBottom: 8, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: isSelected ? C.tint : C.border, backgroundColor: isSelected ? C.tintLight : C.surface, opacity: isRequired ? 0.75 : 1 }]}
-                    onPress={() => toggleSection(key)}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: isSelected }}
-                    accessibilityLabel={`${label}, ${isRequired ? "required" : isSelected ? "on" : "off"}`}
-                  >
-                    <View style={[styles.profileIcon, { backgroundColor: isSelected ? C.tint : C.surfaceElevated }]}>
-                      <Ionicons name={iconName} size={18} color={isSelected ? "#fff" : C.textSecondary} />
-                    </View>
-                    <Text style={[styles.profileRowTitle, { flex: 1, marginBottom: 0 }]} numberOfLines={1}>{label}</Text>
-                    {isRequired ? (
-                      <Ionicons name="lock-closed" size={14} color={C.tint} />
-                    ) : (
-                      <View style={[styles.sectionCheckbox, isSelected && styles.sectionCheckboxActive]}>
-                        {isSelected ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
-                      </View>
-                    )}
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            <View style={[styles.modalActions, { marginTop: 16 }]}>
-              <Pressable style={styles.cancelBtn} onPress={() => setShowSectionsModal(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={[styles.resetConfirmBtn, { backgroundColor: C.tint }]} onPress={handleSaveSections}>
-                <Text style={styles.resetConfirmText}>Done</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      <Modal visible={showAppearanceModal} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setShowAppearanceModal(false)}>
-          <Pressable style={[styles.resetModal, styles.appearanceModal]} onPress={() => {}}>
-            <Text style={[styles.resetTitle, { marginBottom: 8 }]}>Appearances</Text>
-            <Text style={[styles.resetDesc, { marginBottom: 16 }]}>Choose your appearance for the widgets and your app.</Text>
-            <ScrollView style={{ maxHeight: 420, width: "100%" }} showsVerticalScrollIndicator>
-              <Text style={styles.appearanceGroupTitle}>App</Text>
-              {THEME_OPTIONS.map((opt) => {
-                const isSelected = preference === opt.id;
-                return (
-                  <Pressable
-                    key={`app-${opt.id}`}
-                    style={[styles.themeOption, isSelected && styles.themeOptionSelected]}
-                    onPress={() => handleThemeChange(opt.id)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: isSelected }}
-                    accessibilityLabel={`${opt.label} app appearance`}
-                  >
-                    <View style={styles.themeOptionContent}>
-                      <View style={[styles.themeRadio, isSelected && styles.themeRadioSelected]}>
-                        {isSelected && <View style={styles.themeRadioDot} />}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.themeOptionLabel, isSelected && { color: C.tint }]}>{opt.label}</Text>
-                        <Text style={styles.themeOptionDesc}>{opt.description}</Text>
-                      </View>
-                    </View>
-                  </Pressable>
-                );
-              })}
-
-              <Text style={[styles.appearanceGroupTitle, { marginTop: 12 }]}>Widgets</Text>
-              {WIDGET_THEME_OPTIONS.map((opt) => {
-                const isSelected = (profile.widgetAppearance ?? "system") === opt.id;
-                return (
-                  <Pressable
-                    key={`widget-${opt.id}`}
-                    style={[styles.themeOption, isSelected && styles.themeOptionSelected]}
-                    onPress={() => handleWidgetAppearanceChange(opt.id)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: isSelected }}
-                    accessibilityLabel={`${opt.label} widget appearance`}
-                  >
-                    <View style={styles.themeOptionContent}>
-                      <View style={[styles.themeRadio, isSelected && styles.themeRadioSelected]}>
-                        {isSelected && <View style={styles.themeRadioDot} />}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.themeOptionLabel, isSelected && { color: C.tint }]}>{opt.label}</Text>
-                        <Text style={styles.themeOptionDesc}>{opt.description}</Text>
-                      </View>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            <View style={[styles.modalActions, { marginTop: 16, width: "100%" }]}>
-              <Pressable style={[styles.resetConfirmBtn, { backgroundColor: C.tint }]} onPress={() => setShowAppearanceModal(false)}>
-                <Text style={styles.resetConfirmText}>Done</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      <Modal visible={showNotificationsModal} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setShowNotificationsModal(false)}>
-          <Pressable style={[styles.resetModal, styles.appearanceModal]} onPress={() => {}}>
-            <Text style={[styles.resetTitle, { marginBottom: 8 }]}>Notifications</Text>
-            <Text style={[styles.resetDesc, { marginBottom: 16 }]}>Local reminders for medications, appointments, and check-ins.</Text>
-            <ScrollView style={{ maxHeight: 420, width: "100%" }} showsVerticalScrollIndicator>
-              {[
-                { key: "notificationsMedications" as const, label: "Medication reminders", desc: "Daily reminders to take your medications" },
-                { key: "notificationsAppointments" as const, label: "Appointment reminders", desc: "Friendly day-before, same-day, and time-to-leave reminders" },
-                { key: "notificationsDailyCheckIn" as const, label: "Daily check-in reminders", desc: "Remind to log mood and symptoms (default 8 PM)" },
-                { key: "notificationsMonthly" as const, label: "Monthly reminders", desc: "Monthly health review reminder" },
-              ].map(({ key, label, desc }) => (
-                <Pressable
-                  key={key}
-                  style={[styles.notificationOption, { marginTop: 8 }]}
-                  onPress={() => {
-                    setSettings((p) => ({ ...p, [key]: !(p[key] !== false) }));
-                    setSaved(false);
-                    Haptics.selectionAsync();
-                  }}
-                  accessibilityRole="switch"
-                  accessibilityState={{ checked: settings[key] !== false }}
-                >
-                  <View style={{ flex: 1, paddingRight: 12 }}>
-                    <Text style={styles.sectionTitle}>{label}</Text>
-                    <Text style={[styles.desc, { marginBottom: 0 }]}>{desc}</Text>
-                  </View>
-                  <View style={[styles.toggle, settings[key] !== false && styles.toggleActive]}>
-                    <View style={[styles.toggleThumb, settings[key] !== false && styles.toggleThumbActive]} />
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
-            <View style={[styles.modalActions, { marginTop: 16, width: "100%" }]}>
-              <Pressable style={[styles.resetConfirmBtn, { backgroundColor: C.tint }]} onPress={() => setShowNotificationsModal(false)}>
-                <Text style={styles.resetConfirmText}>Done</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 }

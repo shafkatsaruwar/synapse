@@ -23,13 +23,14 @@ import { HAMBURGER_KEYS, NAV_REGISTRY } from "@/lib/navigation-registry";
 
 type PreferencesScreenProps = {
   onNavigate?: (screen: string) => void;
+  onResetApp?: () => void;
 };
 
-export default function PreferencesScreen({ onNavigate }: PreferencesScreenProps) {
+export default function PreferencesScreen({ onNavigate, onResetApp }: PreferencesScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
-  const { colors: C, preference, setThemeId, themeId } = useTheme();
+  const { colors: C, preference, setThemeId } = useTheme();
   const { appMode, setAppMode } = useAppMode();
   const { textSize, setTextSize } = useDisplaySettings();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -39,6 +40,7 @@ export default function PreferencesScreen({ onNavigate }: PreferencesScreenProps
   const [showAppearance, setShowAppearance] = useState(false);
   const [showSections, setShowSections] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [sectionSelections, setSectionSelections] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -224,6 +226,29 @@ export default function PreferencesScreen({ onNavigate }: PreferencesScreenProps
           </View>
           <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
         </Pressable>
+
+        {onResetApp ? (
+          <>
+            <Text style={styles.sectionLabel}>Advanced</Text>
+            <View style={styles.card}>
+              <Text style={styles.rowTitle}>Reset App</Text>
+              <Text style={styles.rowBody}>
+                Erase local data on this device and return to onboarding. CloudKit backups are not deleted.
+              </Text>
+              <Pressable
+                style={styles.dangerBtn}
+                onPress={() => setShowResetConfirm(true)}
+                testID="preferences-reset-app"
+                accessibilityRole="button"
+                accessibilityLabel="Reset app"
+                accessibilityHint="Erases all local data and returns to onboarding"
+              >
+                <Ionicons name="trash-outline" size={16} color={C.red} />
+                <Text style={styles.dangerBtnText}>Reset App</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : null}
       </ScrollView>
 
       <Modal visible={showAppearance} transparent animationType="fade" onRequestClose={() => setShowAppearance(false)}>
@@ -330,6 +355,33 @@ export default function PreferencesScreen({ onNavigate }: PreferencesScreenProps
             <Pressable style={styles.modalDone} onPress={() => setShowNotifications(false)}>
               <Text style={styles.modalDoneText}>Done</Text>
             </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={showResetConfirm} transparent animationType="fade" onRequestClose={() => setShowResetConfirm(false)}>
+        <Pressable style={styles.overlay} onPress={() => setShowResetConfirm(false)}>
+          <Pressable style={styles.modal} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Reset App?</Text>
+            <Text style={styles.modalHint}>
+              This deletes medications, appointments, logs, and settings on this device. It cannot be undone unless you restore from Backup & Restore.
+            </Text>
+            <View style={styles.resetActions}>
+              <Pressable style={styles.resetCancel} onPress={() => setShowResetConfirm(false)}>
+                <Text style={styles.resetCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={styles.resetConfirm}
+                onPress={() => {
+                  setShowResetConfirm(false);
+                  onResetApp?.();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Confirm reset app"
+              >
+                <Text style={styles.resetConfirmText}>Reset</Text>
+              </Pressable>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -442,5 +494,39 @@ function makeStyles(C: Theme) {
       backgroundColor: C.text,
     },
     modalDoneText: { fontWeight: "700", fontSize: 16, color: "#fff" },
+    dangerBtn: {
+      marginTop: 14,
+      minHeight: 48,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.red,
+      backgroundColor: C.surfaceElevated,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
+    dangerBtnText: { fontWeight: "700", fontSize: 15, color: C.red },
+    resetActions: { flexDirection: "row", gap: 10, marginTop: 16 },
+    resetCancel: {
+      flex: 1,
+      minHeight: 48,
+      borderRadius: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    resetCancelText: { fontWeight: "700", fontSize: 15, color: C.textSecondary },
+    resetConfirm: {
+      flex: 1,
+      minHeight: 48,
+      borderRadius: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.red,
+    },
+    resetConfirmText: { fontWeight: "700", fontSize: 15, color: "#fff" },
   });
 }
