@@ -97,8 +97,13 @@ const ESSENTIAL_SICK_KEYS = [
   "settings",
 ];
 
-/** Compact Zelle-style semicircle — five shortcuts fan out above the centered +. */
-const RADIAL_RADIUS = 112;
+/**
+ * Compact Zelle-style arc — five shortcuts above the centered +.
+ * Keep the span tight so outer buttons (Scan / More) stay clearly above the tab bar
+ * instead of sliding down behind it.
+ */
+const RADIAL_RADIUS = 132;
+const RADIAL_LIFT = 36;
 const RADIAL_ADD_ACTIONS = (
   [
     { key: "scan" as const, label: "Scan", icon: "scan-outline" as const },
@@ -108,7 +113,8 @@ const RADIAL_ADD_ACTIONS = (
     { key: "more" as const, label: "More", icon: "ellipsis-horizontal" as const },
   ] as const
 ).map((action, index, list) => {
-  const span = Math.PI * 0.9;
+  // ~110° arc centered on straight up — close together, all elevated.
+  const span = Math.PI * 0.62;
   const start = Math.PI / 2 + span / 2;
   const end = Math.PI / 2 - span / 2;
   const t = list.length <= 1 ? 0.5 : index / (list.length - 1);
@@ -116,7 +122,7 @@ const RADIAL_ADD_ACTIONS = (
   return {
     ...action,
     offsetX: Math.cos(angle) * RADIAL_RADIUS,
-    offsetY: -Math.sin(angle) * RADIAL_RADIUS,
+    offsetY: -Math.sin(angle) * RADIAL_RADIUS - RADIAL_LIFT,
   };
 });
 
@@ -740,7 +746,15 @@ export default function SidebarLayout({
         </View>
       )}
 
-      <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, styles.simpleAddOverlayRoot]}>
+      <View
+        pointerEvents="box-none"
+        style={[
+          StyleSheet.absoluteFill,
+          styles.simpleAddOverlayRoot,
+          // Sit above the tab bar while open so Scan / More are not covered by the pill.
+          radialMenuOpen && styles.simpleAddOverlayRootRaised,
+        ]}
+      >
         {radialMenuOpen ? (
           <Animated.View
             pointerEvents="auto"
@@ -1402,9 +1416,13 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       color: C.accent,
     },
     simpleAddOverlayRoot: {
-      // Below header + bottom tabs (zIndex 60) so navigation stays usable.
+      // Below header + bottom tabs (zIndex 60) so navigation stays usable when closed.
       zIndex: 40,
       elevation: 40,
+    },
+    simpleAddOverlayRootRaised: {
+      zIndex: 70,
+      elevation: 70,
     },
     quickAddNavButtonWrap: {
       alignItems: "center",
@@ -1419,11 +1437,11 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       backgroundColor: C.tint,
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: C.tint,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.26,
-      shadowRadius: 12,
-      elevation: 8,
+      // Keep the + crisp — no soft halo.
+      shadowColor: "transparent",
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      elevation: 0,
     },
     quickAddNavButtonOpen: {
       backgroundColor: C.tint,
@@ -1445,17 +1463,17 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     },
     radialAddActionWrap: {
       position: "absolute",
-      width: 72,
+      width: 76,
       alignItems: "center",
-      marginLeft: -36,
-      marginTop: -36,
+      marginLeft: -38,
+      marginTop: -28,
     },
     radialAddAction: {
       minWidth: 44,
       minHeight: 44,
       alignItems: "center",
       justifyContent: "flex-start",
-      gap: 4,
+      gap: 5,
     },
     radialAddActionButton: {
       width: 48,
@@ -1463,14 +1481,14 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       borderRadius: 24,
       backgroundColor: themeId === "light" || themeId === "evergreen" ? "#FFFFFF" : C.surface,
       borderWidth: 1,
-      borderColor: themeId === "dark" || themeId === "evergreenDark" ? "rgba(255,255,255,0.12)" : "rgba(71,122,112,0.16)",
+      borderColor: themeId === "dark" || themeId === "evergreenDark" ? "rgba(255,255,255,0.14)" : "rgba(71,122,112,0.18)",
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.12,
-      shadowRadius: 12,
-      elevation: 6,
+      // Flat discs — the soft shadow read as a weird glow on the dimmed backdrop.
+      shadowColor: "transparent",
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      elevation: 0,
     },
     radialAddActionLabel: {
       color: C.text,
@@ -1478,10 +1496,7 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       fontWeight: "700",
       textAlign: "center",
       lineHeight: 12,
-      maxWidth: 68,
-      textShadowColor: themeId === "dark" || themeId === "evergreenDark" ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.9)",
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 2,
+      maxWidth: 72,
     },
     simpleAddFab: {
       width: 64,
