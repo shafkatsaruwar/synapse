@@ -50,6 +50,8 @@ import FeatureHubScreen from "@/screens/FeatureHubScreen";
 import ContextualTip from "@/components/ContextualTip";
 import { trackReturnSession } from "@/lib/product-milestones";
 import { TIP_BLOCKED_SCREENS } from "@/lib/contextual-tips-storage";
+import { getParentHub, resolveNavKey } from "@/lib/navigation-registry";
+import { popNav, pushNav, resolveNavigationRequest, type NavStackState } from "@/lib/navigation-stack";
 import {
   hydrationStorage,
   medicationLogStorage,
@@ -321,9 +323,60 @@ export default function MainScreen() {
   const isTablet = useIsTablet();
   const { isSimpleMode } = useAppMode();
   const { widgetTarget, medId, mode } = useLocalSearchParams<{ widgetTarget?: string | string[]; medId?: string | string[]; mode?: string | string[] }>();
-  const [activeScreen, setActiveScreen] = useState("dashboard");
+  const [navState, setNavState] = useState<NavStackState>({ screen: "dashboard", stack: [] });
+  const [invalidNavKey, setInvalidNavKey] = useState<string | null>(null);
+  const activeScreen = navState.screen;
   const [refreshKey, setRefreshKey] = useState(0);
   const [sickMode, setSickMode] = useState(false);
+
+  const navigateTo = useCallback((raw: string, options?: { reset?: boolean; source?: string }) => {
+    const result = resolveNavigationRequest(raw);
+    if (!result.ok) {
+      const source = options?.source ?? "unknown";
+      if (__DEV__) {
+        console.warn(`[nav] Invalid navigation key "${result.key}" from ${source}`);
+      }
+      setInvalidNavKey(result.key);
+      setNavState({ screen: "__invalid__", stack: [] });
+      setRefreshKey((k) => k + 1);
+      return;
+    }
+    setInvalidNavKey(null);
+    setNavState((prev) => pushNav(prev, result.key, { reset: options?.reset, source: options?.source }));
+    setRefreshKey((k) => k + 1);
+    settingsStorage.get().then((s) => setSickMode(s.sickMode)).catch(() => {});
+  }, []);
+
+  /** UI navigation — preserves hub → child back stack. Top-level destinations reset. */
+  const handleNavigate = useCallback(
+    (screen: string) => {
+      navigateTo(screen, { source: "ui" });
+    },
+    [navigateTo]
+  );
+
+  /** External jumps (deep links, notifications, widgets) — reset stack. */
+  const setActiveScreen = useCallback(
+    (screen: string) => {
+      navigateTo(screen, { reset: true, source: "external" });
+    },
+    [navigateTo]
+  );
+
+  const handleBack = useCallback(() => {
+    setNavState((prev) => popNav(prev));
+    setInvalidNavKey(null);
+    setRefreshKey((k) => k + 1);
+  }, []);
+
+  const backToParentOr = useCallback((fallbackHub: string) => {
+    setNavState((prev) => {
+      if (prev.stack.length > 0) return popNav(prev);
+      const parent = getParentHub(prev.screen) ?? fallbackHub;
+      return { screen: resolveNavKey(parent), stack: [] };
+    });
+    setRefreshKey((k) => k + 1);
+  }, []);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [walkthroughStepId, setWalkthroughStepId] = useState<string | null>(null);
@@ -774,12 +827,6 @@ export default function MainScreen() {
     if (showOnboarding !== false) return;
     void trackReturnSession();
   }, [showOnboarding]);
-
-  const handleNavigate = (screen: string) => {
-    setActiveScreen(screen);
-    setRefreshKey((k) => k + 1);
-    settingsStorage.get().then(s => setSickMode(s.sickMode));
-  };
 
   const handleQuickAddNavigate = useCallback((target: "medication" | "appointment" | "symptom" | "calendar" | "labwork" | "imaging") => {
     if (target === "medication") {
@@ -1236,24 +1283,51 @@ export default function MainScreen() {
     switch (activeScreen) {
       case "dashboard":
         return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
-      case "health":
-        return <FeatureHubScreen hubId="health" onNavigate={handleNavigate} />;
+      case "feelinghub":
       case "feeling":
-        return <FeatureHubScreen hubId="feeling" onNavigate={handleNavigate} />;
+        return <FeatureHubScreen hubId="feelinghub" onNavigate={handleNavigate} role={role} />;
+      case "recordshub":
       case "healthrecords":
-        return <FeatureHubScreen hubId="healthrecords" onNavigate={handleNavigate} />;
+      case "health":
+        return <FeatureHubScreen hubId="recordshub" onNavigate={handleNavigate} role={role} />;
+      case "wellbeinghub":
       case "wellbeing":
-        return <FeatureHubScreen hubId="wellbeing" onNavigate={handleNavigate} />;
+        return <FeatureHubScreen hubId="wellbeinghub" onNavigate={handleNavigate} role={role} />;
+      case "carehub":
       case "caresupport":
-        return (
-          <FeatureHubScreen
-            hubId="caresupport"
-            onNavigate={handleNavigate}
-            includeCaregiver={role === "caregiver"}
-          />
-        );
+        return <FeatureHubScreen hubId="carehub" onNavigate={handleNavigate} role={role} />;
+      case "emergencyhub":
+        return <FeatureHubScreen hubId="emergencyhub" onNavigate={handleNavigate} role={role} />;
+      case "accounthub":
       case "you":
-        return <FeatureHubScreen hubId="you" onNavigate={handleNavigate} />;
+        return <FeatureHubScreen hubId="accounthub" onNavigate={handleNavigate} role={role} />;
+      case "__invalid__":
+        return (
+          <View style={{ flex: 1, padding: 24, justifyContent: "center", gap: 16 }}>
+            <Text style={{ fontSize: 22, fontWeight: "700", color: "#1C1C1E" }}>
+              That screen isn’t available
+            </Text>
+            <Text style={{ fontSize: 15, lineHeight: 22, color: "#636366" }}>
+              {__DEV__
+                ? `Unknown navigation key: ${invalidNavKey ?? "(empty)"}. Returning home is safe.`
+                : "We couldn’t open that destination. You can return home and try again from the menu."}
+            </Text>
+            <Pressable
+              onPress={() => navigateTo("dashboard", { reset: true, source: "invalid-recovery" })}
+              style={{
+                alignSelf: "flex-start",
+                backgroundColor: "#C73A4A",
+                paddingHorizontal: 18,
+                paddingVertical: 12,
+                borderRadius: 12,
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Return Home"
+            >
+              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>Return Home</Text>
+            </Pressable>
+          </View>
+        );
       case "caregiverdashboard":
         return (
           <CaregiverDashboardScreen
@@ -1267,7 +1341,7 @@ export default function MainScreen() {
       case "managedperson":
         return (
           <ManagedPersonScreen
-            onBack={() => handleNavigate("caregiverdashboard")}
+            onBack={() => backToParentOr("carehub")}
             onRemoved={() => handleNavigate("settings")}
           />
         );
@@ -1275,7 +1349,7 @@ export default function MainScreen() {
         return (
           <DailyLogScreen
             key={refreshKey}
-            onBack={() => handleNavigate("feeling")}
+            onBack={() => backToParentOr("feelinghub")}
           />
         );
       case "logtoday":
@@ -1283,7 +1357,7 @@ export default function MainScreen() {
           <DailyLogScreen
             key={refreshKey}
             openTodayOnLaunch
-            onBack={() => handleNavigate("feeling")}
+            onBack={() => backToParentOr("feelinghub")}
           />
         );
       case "healthdata":
@@ -1335,27 +1409,27 @@ export default function MainScreen() {
       case "privacy":
         return <PrivacyScreen />;
       case "healthprofile":
-        return <HealthProfileScreen onBack={() => handleNavigate("you")} onNavigate={handleNavigate} />;
+        return <HealthProfileScreen onBack={() => backToParentOr("accounthub")} onNavigate={handleNavigate} />;
       case "doctors":
-        return <DoctorsScreen onBack={() => handleNavigate("caresupport")} />;
+        return <DoctorsScreen onBack={() => backToParentOr("carehub")} />;
       case "pharmacies":
-        return <PharmaciesScreen onBack={() => handleNavigate("caresupport")} />;
+        return <PharmaciesScreen onBack={() => backToParentOr("carehub")} />;
       case "ramadandailylog":
-        return <RamadanDailyLogScreen onBack={() => handleNavigate("dashboard")} />;
+        return <RamadanDailyLogScreen onBack={() => backToParentOr("wellbeinghub")} />;
       case "healthprofileconditions":
-        return <HealthProfileConditionsScreen onBack={() => handleNavigate("healthprofile")} />;
+        return <HealthProfileConditionsScreen onBack={() => backToParentOr("accounthub")} />;
       case "allergy":
-        return <AllergyScreen onBack={() => handleNavigate("healthprofile")} />;
+        return <AllergyScreen onBack={() => backToParentOr("accounthub")} />;
       case "cycletracking":
-        return <CycleTrackingScreen onBack={() => handleNavigate("wellbeing")} />;
+        return <CycleTrackingScreen onBack={() => backToParentOr("wellbeinghub")} />;
       case "emergency":
-        return <EmergencyProtocolScreen onBack={() => handleNavigate("you")} />;
+        return <EmergencyProtocolScreen onBack={() => backToParentOr("emergencyhub")} />;
       case "emergencycard":
-        return <EmergencyCardScreen onBack={() => handleNavigate("you")} onNavigate={handleNavigate} />;
+        return <EmergencyCardScreen onBack={() => backToParentOr("emergencyhub")} onNavigate={handleNavigate} />;
       case "editprofile":
         return (
           <EditProfileScreen
-            onBack={() => handleNavigate("you")}
+            onBack={() => backToParentOr("accounthub")}
             onNavigate={handleNavigate}
             onRestoreComplete={() => setRefreshKey((k) => k + 1)}
           />
@@ -1394,7 +1468,29 @@ export default function MainScreen() {
           />
         );
       default:
-        return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
+        if (__DEV__) {
+          console.warn(`[nav] Unhandled screen key "${activeScreen}" — showing recovery`);
+        }
+        return (
+          <View style={{ flex: 1, padding: 24, justifyContent: "center", gap: 16 }}>
+            <Text style={{ fontSize: 22, fontWeight: "700" }}>That screen isn’t available</Text>
+            <Text style={{ fontSize: 15, lineHeight: 22, color: "#636366" }}>
+              {__DEV__ ? `Unhandled key: ${activeScreen}` : "Please return home and try again."}
+            </Text>
+            <Pressable
+              onPress={() => navigateTo("dashboard", { reset: true, source: "default-recovery" })}
+              style={{
+                alignSelf: "flex-start",
+                backgroundColor: "#C73A4A",
+                paddingHorizontal: 18,
+                paddingVertical: 12,
+                borderRadius: 12,
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>Return Home</Text>
+            </Pressable>
+          </View>
+        );
     }
   };
 
@@ -1402,6 +1498,8 @@ export default function MainScreen() {
     <SidebarLayout
       activeScreen={sickMode && activeScreen === "dashboard" ? "sickmode" : activeScreen}
       onNavigate={handleNavigate}
+      onBack={handleBack}
+      canGoBack={navState.stack.length > 0 || !!getParentHub(activeScreen)}
       onSimpleAddSelect={handleQuickAddNavigate}
       sickMode={sickMode}
       simpleMode={isSimpleMode}

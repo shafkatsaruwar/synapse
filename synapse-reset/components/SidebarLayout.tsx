@@ -17,18 +17,22 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Constants from "expo-constants";
 import { useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
-import { useRole } from "@/contexts/RoleContext";
 import GlassView from "@/components/GlassView";
 import { useSynapseHQPanel } from "@/components/SynapseHQPanel";
 import VisualScanImportModal from "@/screens/VisualScanImportModal";
-import { featureFlags } from "@/constants/feature-flags";
-import { useAuth } from "@/contexts/AuthContext";
 import { healthProfileStorage, settingsStorage } from "@/lib/storage";
 import { getDeveloperMode } from "@/lib/developer-mode";
 import { getNavBadgeCounts, type NavBadgeCounts } from "@/lib/nav-badge-counts";
+import {
+  FULL_BOTTOM_TAB_KEYS,
+  getHamburgerItems,
+  getNavEntry,
+  primaryTabForScreen,
+  resolveNavKey,
+  SIMPLE_BOTTOM_TAB_KEYS,
+  type IconName,
+} from "@/lib/navigation-registry";
 import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
-
-type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
 interface NavItem {
   key: string;
@@ -37,122 +41,51 @@ interface NavItem {
   iconActive: IconName;
 }
 
+function entryToNavItem(key: string, labelOverride?: string): NavItem {
+  const entry = getNavEntry(key)!;
+  return {
+    key: entry.key,
+    label: labelOverride ?? entry.label,
+    icon: entry.icon,
+    iconActive: entry.iconActive,
+  };
+}
+
 /** Simple Mode keeps essential destinations reachable in one tap. */
-const SIMPLE_NAV_ITEMS: NavItem[] = [
-  { key: "dashboard", label: "Today", icon: "home-outline", iconActive: "home" },
-  { key: "medications", label: "Meds", icon: "medical-outline", iconActive: "medical" },
-  { key: "appointments", label: "Visits", icon: "calendar-outline", iconActive: "calendar" },
-  { key: "feeling", label: "Feeling", icon: "heart-outline", iconActive: "heart" },
-  { key: "you", label: "You", icon: "person-circle-outline", iconActive: "person-circle" },
+const SIMPLE_NAV_ITEMS: NavItem[] = SIMPLE_BOTTOM_TAB_KEYS.map((key) => {
+  if (key === "medications") return entryToNavItem(key, "Meds");
+  if (key === "appointments") return entryToNavItem(key, "Visits");
+  if (key === "feelinghub") return entryToNavItem(key, "Feeling");
+  if (key === "accounthub") return entryToNavItem(key, "You");
+  return entryToNavItem(key);
+});
+
+/** Full Mode bottom tabs — Today / Medications / You (no ambiguous Health). */
+const PRIMARY_ITEMS: NavItem[] = FULL_BOTTOM_TAB_KEYS.map((key) => {
+  if (key === "accounthub") return entryToNavItem(key, "You");
+  return entryToNavItem(key);
+});
+
+/** Primary hamburger: exactly the nine top-level destinations. */
+const HAMBURGER_ITEMS: NavItem[] = getHamburgerItems().map((e) => ({
+  key: e.key,
+  label: e.label,
+  icon: e.icon,
+  iconActive: e.iconActive,
+}));
+
+const ESSENTIAL_SICK_KEYS = [
+  "dashboard",
+  "sickmode",
+  "medications",
+  "symptoms",
+  "feelinghub",
+  "emergencyhub",
+  "emergency",
+  "emergencycard",
+  "accounthub",
+  "settings",
 ];
-
-const NAV_ITEMS: NavItem[] = [
-  { key: "dashboard", label: "Today", icon: "home-outline", iconActive: "home" },
-  { key: "health", label: "Health", icon: "fitness-outline", iconActive: "fitness" },
-  { key: "you", label: "You", icon: "person-circle-outline", iconActive: "person-circle" },
-  { key: "feeling", label: "How I’m Feeling", icon: "heart-outline", iconActive: "heart" },
-  { key: "healthrecords", label: "Health Records", icon: "folder-outline", iconActive: "folder" },
-  { key: "wellbeing", label: "Wellbeing", icon: "leaf-outline", iconActive: "leaf" },
-  { key: "caresupport", label: "Care & Support", icon: "people-outline", iconActive: "people" },
-  { key: "caregiverdashboard", label: "Caregiver Dashboard", icon: "people-outline", iconActive: "people" },
-  { key: "managedperson", label: "Managed Person", icon: "accessibility-outline", iconActive: "accessibility" },
-  { key: "log", label: "Daily Log", icon: "heart-outline", iconActive: "heart" },
-  { key: "healthdata", label: "Vitals", icon: "analytics-outline", iconActive: "analytics" },
-  { key: "medications", label: "Medications", icon: "medical-outline", iconActive: "medical" },
-  { key: "symptoms", label: "Symptoms", icon: "pulse-outline", iconActive: "pulse" },
-  { key: "labwork", label: "LabWork", icon: "flask-outline", iconActive: "flask" },
-  { key: "imaging", label: "Imaging", icon: "scan-outline", iconActive: "scan" },
-  { key: "timeline", label: "Timeline", icon: "git-branch-outline", iconActive: "git-branch" },
-  ...(featureFlags.documentScannerEnabled ? [
-    { key: "documents", label: "Documents", icon: "scan-outline", iconActive: "scan" },
-    { key: "insights", label: "Insights", icon: "sparkles-outline", iconActive: "sparkles" },
-  ] : []) as NavItem[],
-  { key: "monthlycheckin", label: "Monthly check-in", icon: "fitness-outline", iconActive: "fitness" },
-  { key: "cycletracking", label: "Cycle tracking", icon: "water-outline", iconActive: "water" },
-  { key: "eating", label: "Eating", icon: "restaurant-outline", iconActive: "restaurant" },
-  { key: "mentalhealth", label: "Mental health day", icon: "heart-outline", iconActive: "heart" },
-  { key: "comfort", label: "Mood lifters", icon: "happy-outline", iconActive: "happy" },
-  { key: "goals", label: "Goals", icon: "flag-outline", iconActive: "flag" },
-  { key: "appointments", label: "Appointments", icon: "calendar-outline", iconActive: "calendar" },
-  { key: "reports", label: "Reports", icon: "bar-chart-outline", iconActive: "bar-chart" },
-  { key: "ramadan", label: "Ramadan Mode", icon: "moon-outline", iconActive: "moon" },
-  { key: "doctors", label: "Doctors", icon: "medkit-outline", iconActive: "medkit" },
-  { key: "pharmacies", label: "Pharmacies", icon: "storefront-outline", iconActive: "storefront" },
-  { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
-  { key: "settings", label: "Preferences", icon: "options-outline", iconActive: "options" },
-  { key: "emergency", label: "Emergency Protocol", icon: "shield-outline", iconActive: "shield" },
-  { key: "emergencycard", label: "Emergency Card", icon: "card-outline", iconActive: "card" },
-];
-
-const CAREGIVER_ONLY_KEYS = new Set(["caregiverdashboard", "managedperson"]);
-
-/** Three principal destinations for Full Mode. */
-const PRIMARY_KEYS = ["dashboard", "health", "you"];
-const PRIMARY_ITEMS = PRIMARY_KEYS.map((key) => NAV_ITEMS.find((n) => n.key === key)!).filter(Boolean);
-const MORE_ITEMS = NAV_ITEMS.filter((n) => !PRIMARY_KEYS.includes(n.key));
-
-/**
- * Map leaf screens → primary tab highlight so navigating into Health/You children
- * keeps the correct bottom-tab selected without renaming existing route keys.
- */
-const PRIMARY_HIGHLIGHT_FOR_SCREEN: Record<string, string> = {
-  dashboard: "dashboard",
-  sickmode: "dashboard",
-  health: "health",
-  feeling: "health",
-  healthrecords: "health",
-  wellbeing: "health",
-  caresupport: "health",
-  medications: "health",
-  appointments: "health",
-  log: "health",
-  logtoday: "health",
-  symptoms: "health",
-  healthdata: "health",
-  labwork: "health",
-  imaging: "health",
-  timeline: "health",
-  reports: "health",
-  monthlycheckin: "health",
-  cycletracking: "health",
-  eating: "health",
-  mentalhealth: "health",
-  comfort: "health",
-  goals: "health",
-  ramadan: "health",
-  ramadandailylog: "health",
-  documents: "health",
-  insights: "health",
-  doctors: "health",
-  pharmacies: "health",
-  caregiverdashboard: "health",
-  managedperson: "health",
-  you: "you",
-  settings: "you",
-  privacy: "you",
-  healthprofile: "you",
-  healthprofileconditions: "you",
-  allergy: "you",
-  emergency: "you",
-  emergencycard: "you",
-  editprofile: "you",
-  feedback: "you",
-  meetfounder: "you",
-  auth: "you",
-};
-
-const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
-  { title: "Today", keys: ["dashboard"] },
-  { title: "Health", keys: ["health", "medications", "appointments", "feeling", "healthrecords", "wellbeing", "caresupport"] },
-  { title: "How I’m Feeling", keys: ["log", "symptoms", "monthlycheckin"] },
-  { title: "Health Records", keys: ["healthdata", "labwork", "imaging", "timeline", "reports", "documents"] },
-  { title: "Wellbeing", keys: ["eating", "mentalhealth", "comfort", "goals", "cycletracking", "ramadan"] },
-  { title: "Care & Support", keys: ["doctors", "pharmacies", "caregiverdashboard", "managedperson"] },
-  { title: "Emergency", keys: ["emergency", "emergencycard"] },
-  { title: "You", keys: ["you", "privacy", "settings"] },
-];
-
-const ESSENTIAL_SICK_KEYS = ["dashboard", "sickmode", "medications", "symptoms", "feeling", "health", "you", "settings"];
 const SIMPLE_ADD_ACTIONS = [
   { key: "medication" as const, label: "Add medication", icon: "medical-outline" as const, offsetX: -88, offsetY: -26 },
   { key: "appointment" as const, label: "Add appointment", icon: "calendar-outline" as const, offsetX: -70, offsetY: -92 },
@@ -164,6 +97,8 @@ type QuickAddTarget = "medication" | "appointment" | "symptom" | "calendar" | "l
 interface SidebarLayoutProps {
   activeScreen: string;
   onNavigate: (screen: string) => void;
+  onBack?: () => void;
+  canGoBack?: boolean;
   onSimpleAddSelect?: (target: QuickAddTarget) => void;
   children: React.ReactNode;
   sickMode?: boolean;
@@ -178,6 +113,8 @@ interface SidebarLayoutProps {
 export default function SidebarLayout({
   activeScreen,
   onNavigate,
+  onBack,
+  canGoBack = false,
   onSimpleAddSelect,
   children,
   sickMode,
@@ -217,23 +154,18 @@ export default function SidebarLayout({
       },
     })
   ).current;
-  const { signOut } = useAuth();
   const { colors: C, themeId } = useTheme();
-  const { role } = useRole();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
   const [developerModeActive, setDeveloperModeActive] = useState(false);
   const synapseHQ = useSynapseHQPanel(setDeveloperModeActive);
   const openSynapseHQ = __DEV__ ? synapseHQ.open : undefined;
   const [settingsName, setSettingsName] = useState<string | undefined>(undefined);
   const [profileImageUri, setProfileImageUri] = useState<string | undefined>(undefined);
-  const [enabledSections, setEnabledSections] = useState<string[] | undefined>(undefined);
   const [badgeCounts, setBadgeCounts] = useState<NavBadgeCounts>({});
   const menuButtonRef = useRef<View>(null);
   const emergencyCardRef = useRef<View>(null);
-  const caregiverDashboardRef = useRef<View>(null);
   const recordsGroupRef = useRef<View>(null);
-  const labWorkRef = useRef<View>(null);
-  const imagingRef = useRef<View>(null);
+  const caregiverDashboardRef = useRef<View>(null);
   const simpleNavRef = useRef<View>(null);
   const simpleAddFabRef = useRef<View>(null);
   const showUniversalAdd = activeScreen !== "medications" && activeScreen !== "cycletracking";
@@ -249,11 +181,12 @@ export default function SidebarLayout({
 
   useEffect(() => {
     if (!registerTarget || !unregisterTarget || !moreOpen) return;
+    // Emergency / Records hubs stand in for former leaf walkthrough targets in the drawer.
     registerTarget("emergencycard-menu", () => measureInWindow(emergencyCardRef));
     registerTarget("caregiverdashboard-menu", () => measureInWindow(caregiverDashboardRef));
     registerTarget("records-menu", () => measureInWindow(recordsGroupRef));
-    registerTarget("labwork-menu", () => measureInWindow(labWorkRef));
-    registerTarget("imaging-menu", () => measureInWindow(imagingRef));
+    registerTarget("labwork-menu", () => measureInWindow(recordsGroupRef));
+    registerTarget("imaging-menu", () => measureInWindow(recordsGroupRef));
     return () => {
       unregisterTarget("emergencycard-menu");
       unregisterTarget("caregiverdashboard-menu");
@@ -279,7 +212,6 @@ export default function SidebarLayout({
   const loadSettings = useCallback(async () => {
     const [s, profile] = await Promise.all([settingsStorage.get(), healthProfileStorage.get()]);
     setSettingsName(s?.firstName?.trim() || s?.name);
-    setEnabledSections(s?.enabledSections);
     setProfileImageUri(profile?.profileImageUri);
   }, []);
 
@@ -319,48 +251,19 @@ export default function SidebarLayout({
     };
   }, [moreOpen]);
 
-  const alwaysNavKeys = [
-    "dashboard",
-    "health",
-    "you",
-    "feeling",
-    "healthrecords",
-    "wellbeing",
-    "caresupport",
-    "caregiverdashboard",
-    "managedperson",
-    "medications",
-    "symptoms",
-    "labwork",
-    "imaging",
-    "timeline",
-    "settings",
-    "privacy",
-    "emergency",
-    "emergencycard",
-    "doctors",
-    "pharmacies",
-    "ramadan",
-  ];
-  const enabledKeysSet = new Set(
-    enabledSections !== undefined
-      ? [...alwaysNavKeys, ...enabledSections]
-      : NAV_ITEMS.map((n) => n.key)
-  );
-  const primaryItemsFiltered = PRIMARY_ITEMS.filter((n) => enabledKeysSet.has(n.key));
-  const moreItemsFiltered = MORE_ITEMS.filter((n) => enabledKeysSet.has(n.key));
+  const primaryItemsFiltered = PRIMARY_ITEMS;
   const bottomNavItems = simpleMode ? SIMPLE_NAV_ITEMS : primaryItemsFiltered;
   const showBottomNav = simpleMode || (!isWide && primaryItemsFiltered.length > 0);
-  const shouldShowHeaderRow = !simpleMode && (!isWide || headerRight != null);
-  const highlightedPrimary = PRIMARY_HIGHLIGHT_FOR_SCREEN[activeScreen] ?? activeScreen;
+  const shouldShowHeaderRow = !simpleMode && (!isWide || headerRight != null || canGoBack);
+  const resolvedActive = resolveNavKey(activeScreen);
+  const highlightedPrimary = primaryTabForScreen(resolvedActive);
 
   const displayName = settingsName?.trim() || "You";
+  /** Only actionable medication/appointment badges — never roll up optional check-ins. */
   const getBadgeCount = useCallback((key: string) => {
-    if (key === "health") {
-      return (badgeCounts.medications ?? 0) + (badgeCounts.appointments ?? 0) + (badgeCounts.monthlycheckin ?? 0);
-    }
-    if (key === "feeling") return badgeCounts.monthlycheckin ?? 0;
-    return badgeCounts[key] ?? 0;
+    if (key === "medications") return badgeCounts.medications ?? 0;
+    if (key === "appointments") return badgeCounts.appointments ?? 0;
+    return 0;
   }, [badgeCounts]);
   const getNavAccessibilityLabel = useCallback((item: NavItem) => {
     const count = getBadgeCount(item.key);
@@ -369,17 +272,21 @@ export default function SidebarLayout({
   const isNavItemActive = useCallback(
     (itemKey: string) => {
       if (simpleMode) {
-        if (itemKey === "feeling") {
-          return ["feeling", "log", "logtoday", "symptoms", "monthlycheckin"].includes(activeScreen);
+        if (itemKey === "feelinghub") {
+          return ["feelinghub", "log", "logtoday", "symptoms", "monthlycheckin"].includes(resolvedActive);
         }
-        if (itemKey === "you") {
-          return highlightedPrimary === "you" || activeScreen === "settings";
+        if (itemKey === "accounthub") {
+          return highlightedPrimary === "accounthub" || resolvedActive === "settings";
         }
-        return activeScreen === itemKey;
+        return resolvedActive === itemKey;
       }
-      return itemKey === highlightedPrimary || activeScreen === itemKey;
+      if (itemKey === highlightedPrimary) return true;
+      if (resolvedActive === itemKey) return true;
+      // Highlight hamburger hub when a child of that hub is open
+      const parent = getNavEntry(resolvedActive)?.parent;
+      return parent === itemKey;
     },
-    [activeScreen, highlightedPrimary, simpleMode]
+    [resolvedActive, highlightedPrimary, simpleMode]
   );
   const renderIconBadge = useCallback((count: number) => {
     if (count <= 0) return null;
@@ -514,16 +421,29 @@ export default function SidebarLayout({
       {shouldShowHeaderRow ? (
         <View style={[styles.mobileHeaderRow, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 4 }]}>
           {isWide ? <View style={styles.headerSpacerLeft} /> : !shouldShowWebSidebar ? (
-            <View ref={menuButtonRef} collapsable={false}>
-              <Pressable
-                style={styles.mobileMenuBtn}
-                onPress={() => setMoreOpen(true)}
-                testID="tab-more"
-                accessibilityRole="button"
-                accessibilityLabel="Open menu"
-              >
-                <Ionicons name="menu" size={26} color={C.text} />
-              </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              {canGoBack && onBack ? (
+                <Pressable
+                  style={styles.mobileMenuBtn}
+                  onPress={onBack}
+                  testID="nav-back"
+                  accessibilityRole="button"
+                  accessibilityLabel="Go back"
+                >
+                  <Ionicons name="chevron-back" size={28} color={C.text} />
+                </Pressable>
+              ) : null}
+              <View ref={menuButtonRef} collapsable={false}>
+                <Pressable
+                  style={styles.mobileMenuBtn}
+                  onPress={() => setMoreOpen(true)}
+                  testID="tab-more"
+                  accessibilityRole="button"
+                  accessibilityLabel="Open menu"
+                >
+                  <Ionicons name="menu" size={26} color={C.text} />
+                </Pressable>
+              </View>
             </View>
           ) : <View style={styles.headerSpacerLeft} />}
           {headerRight != null ? headerRight : <View style={styles.mobileHeaderSpacer} />}
@@ -574,7 +494,7 @@ export default function SidebarLayout({
                       key={item.key}
                       style={[styles.mobileNavItem, simpleMode && styles.mobileNavItemSimple, dimmed && { opacity: 0.35 }]}
                       onPress={() => onNavigate(item.key)}
-                      onLongPress={item.key === "settings" || item.key === "you" ? openSynapseHQ : undefined}
+                      onLongPress={item.key === "settings" || item.key === "accounthub" ? openSynapseHQ : undefined}
                       delayLongPress={3500}
                       testID={`tab-${item.key}`}
                       accessibilityRole="button"
@@ -616,7 +536,7 @@ export default function SidebarLayout({
                       key={item.key}
                       style={[styles.mobileNavItem, simpleMode && styles.mobileNavItemSimple, dimmed && { opacity: 0.35 }]}
                       onPress={() => onNavigate(item.key)}
-                      onLongPress={item.key === "settings" || item.key === "you" ? openSynapseHQ : undefined}
+                      onLongPress={item.key === "settings" || item.key === "accounthub" ? openSynapseHQ : undefined}
                       delayLongPress={3500}
                       testID={`tab-${item.key}`}
                       accessibilityRole="button"
@@ -853,99 +773,70 @@ export default function SidebarLayout({
                   <Text style={styles.drawerProfileStatus}>Local profile</Text>
                 </View>
 
-                {DRAWER_GROUPS.map((group, groupIndex) => {
-                  const navItems = group.keys
-                    .map((key) => NAV_ITEMS.find((n) => n.key === key))
-                    .filter((n): n is NavItem => {
-                      if (n == null) return false;
-                      if (CAREGIVER_ONLY_KEYS.has(n.key) && role !== "caregiver") return false;
-                      return moreItemsFiltered.some((m) => m.key === n.key) || PRIMARY_KEYS.includes(n.key);
-                    });
-                  const items: NavItem[] = navItems;
-                  if (items.length === 0) return null;
-                  const isFirstGroup = groupIndex === 0;
-                  const isRecordsGroup = group.title === "Health Records";
-                  return (
-                    <View
-                      key={group.title}
-                      ref={isRecordsGroup ? recordsGroupRef : undefined}
-                      style={[styles.drawerGroup, isFirstGroup && styles.drawerGroupFirst]}
-                      collapsable={false}
-                    >
-                      <Text style={styles.drawerGroupTitle}>{group.title}</Text>
-                      {items.map((item) => {
-                        const isLogout = item.key === "logout";
-                        const active = !isLogout && (activeScreen === item.key || isNavItemActive(item.key));
-                        const isEmergencyCard = item.key === "emergencycard";
-                        const isCaregiverDashboard = item.key === "caregiverdashboard";
-                        const isLabWork = item.key === "labwork";
-                        const isImaging = item.key === "imaging";
-                        const dimmed = !isLogout && sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
-                        const accentColor = sickMode ? C.red : C.accent;
-                        const itemColor = active ? accentColor : C.textSecondary;
-                        const badgeCount = getBadgeCount(item.key);
-                        return (
-                          <View
-                            key={item.key}
-                            ref={
-                              isEmergencyCard
-                                ? emergencyCardRef
-                                : isCaregiverDashboard
-                                  ? caregiverDashboardRef
-                                  : isLabWork
-                                    ? labWorkRef
-                                    : isImaging
-                                      ? imagingRef
-                                      : undefined
-                            }
-                            collapsable={false}
-                          >
-                            <Pressable
-                              style={({ pressed }) => [
-                                styles.drawerRow,
-                                active && [styles.drawerRowActive, { borderLeftColor: accentColor }],
-                                dimmed && { opacity: 0.35 },
-                                pressed && styles.drawerRowPressed,
-                              ]}
-                              onPress={() => {
-                                if (isLogout) {
-                                  signOut();
-                                  closeDrawer();
-                                } else {
-                                  onNavigate(item.key);
-                                  closeDrawer();
-                                }
-                              }}
-                              onLongPress={!isLogout && item.key === "settings" ? openSynapseHQ : undefined}
-                              delayLongPress={3500}
-                              testID={isLogout ? "more-logout" : `more-${item.key}`}
-                              accessibilityRole="button"
-                              accessibilityLabel={isLogout ? item.label : getNavAccessibilityLabel(item)}
-                              accessibilityState={{ selected: active }}
-                            >
-                              <View style={styles.drawerRowIconWrap}>
-                                <Ionicons
-                                  name={item.icon}
-                                  size={20}
-                                  color={itemColor}
-                                  style={styles.drawerRowIcon}
-                                />
-                                {renderIconBadge(badgeCount)}
-                              </View>
-                              <Text
-                                style={[styles.drawerRowLabel, { color: itemColor }, active && { color: accentColor, fontWeight: "600" }]}
-                                numberOfLines={1}
-                              >
-                                {item.label}
-                              </Text>
-                              <Ionicons name="chevron-forward" size={16} color={itemColor} />
-                            </Pressable>
+                <View
+                  ref={recordsGroupRef}
+                  style={[styles.drawerGroup, styles.drawerGroupFirst]}
+                  collapsable={false}
+                >
+                  {HAMBURGER_ITEMS.map((item) => {
+                    const active = isNavItemActive(item.key);
+                    const isEmergencyHub = item.key === "emergencyhub";
+                    const isCareHub = item.key === "carehub";
+                    const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
+                    const accentColor = sickMode ? C.red : C.accent;
+                    const itemColor = active ? accentColor : C.textSecondary;
+                    const badgeCount = getBadgeCount(item.key);
+                    return (
+                      <View
+                        key={item.key}
+                        ref={
+                          isEmergencyHub
+                            ? emergencyCardRef
+                            : isCareHub
+                              ? caregiverDashboardRef
+                              : undefined
+                        }
+                        collapsable={false}
+                      >
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.drawerRow,
+                            active && [styles.drawerRowActive, { borderLeftColor: accentColor }],
+                            dimmed && { opacity: 0.35 },
+                            pressed && styles.drawerRowPressed,
+                          ]}
+                          onPress={() => {
+                            onNavigate(item.key);
+                            closeDrawer();
+                          }}
+                          onLongPress={item.key === "accounthub" ? openSynapseHQ : undefined}
+                          delayLongPress={3500}
+                          testID={`more-${item.key}`}
+                          accessibilityRole="button"
+                          accessibilityLabel={getNavAccessibilityLabel(item)}
+                          accessibilityState={{ selected: active }}
+                        >
+                          <View style={styles.drawerRowIconWrap}>
+                            <Ionicons
+                              name={item.icon}
+                              size={20}
+                              color={itemColor}
+                              style={styles.drawerRowIcon}
+                            />
+                            {renderIconBadge(badgeCount)}
                           </View>
-                        );
-                      })}
-                    </View>
-                  );
-                })}
+                          <Text
+                            style={[styles.drawerRowLabel, { color: itemColor }, active && { color: accentColor, fontWeight: "600" }]}
+                            numberOfLines={2}
+                          >
+                            {item.label}
+                          </Text>
+                          <Ionicons name="chevron-forward" size={16} color={itemColor} />
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                </View>
 
                 <View style={styles.drawerFooter}>
                   <View style={styles.drawerFooterDivider} />
@@ -1010,60 +901,55 @@ export default function SidebarLayout({
               showsVerticalScrollIndicator={false}
               bounces={false}
             >
-              {DRAWER_GROUPS.map((group) => {
-                const navItems = group.keys
-                  .map((key) => NAV_ITEMS.find((n) => n.key === key))
-                  .filter((n): n is NavItem => {
-                    if (n == null) return false;
-                    if (CAREGIVER_ONLY_KEYS.has(n.key) && role !== "caregiver") return false;
-                    return true;
-                  });
-                if (navItems.length === 0) return null;
-
-                return (
-                  <View key={group.title} style={{ marginBottom: 12 }}>
-                    <Text style={{
-                      fontSize: 11,
-                      fontWeight: "600",
-                      color: C.textTertiary,
-                      paddingHorizontal: 8,
-                      marginBottom: 6,
-                      letterSpacing: 0.5,
-                    }}>
-                      {group.title}
-                    </Text>
-                    {navItems.map((item) => {
-                      const active = activeScreen === item.key || isNavItemActive(item.key);
-                      const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
-                      return (
-                        <Pressable
-                          key={item.key}
-                          onPress={() => onNavigate(item.key)}
-                          style={({ pressed }) => ({
-                            paddingVertical: 8,
-                            paddingHorizontal: 10,
-                            borderRadius: 12,
-                            marginBottom: 4,
-                            backgroundColor: active
-                              ? themeId === "dark" ? "rgba(199,58,74,0.18)" : "rgba(255,255,255,0.36)"
-                              : pressed ? themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.08)"
-                              : "transparent",
-                            opacity: dimmed ? 0.4 : 1,
-                            borderLeftWidth: active ? 3 : 0,
-                            borderLeftColor: active ? (sickMode ? C.red : C.accent) : "transparent",
-                          })}
+              <View style={{ marginBottom: 12 }}>
+                {HAMBURGER_ITEMS.map((item) => {
+                  const active = isNavItemActive(item.key);
+                  const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
+                  return (
+                    <Pressable
+                      key={item.key}
+                      onPress={() => onNavigate(item.key)}
+                      accessibilityRole="button"
+                      accessibilityLabel={item.label}
+                      style={({ pressed }) => ({
+                        paddingVertical: 10,
+                        paddingHorizontal: 10,
+                        borderRadius: 12,
+                        marginBottom: 4,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 10,
+                        backgroundColor: active
+                          ? themeId === "dark" ? "rgba(199,58,74,0.18)" : "rgba(255,255,255,0.36)"
+                          : pressed ? themeId === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.08)"
+                          : "transparent",
+                        opacity: dimmed ? 0.4 : 1,
+                        borderLeftWidth: active ? 3 : 0,
+                        borderLeftColor: active ? (sickMode ? C.red : C.accent) : "transparent",
+                      })}
+                    >
+                      <Ionicons
+                        name={active ? item.iconActive : item.icon}
+                        size={20}
+                        color={active ? (sickMode ? C.red : C.accent) : C.textSecondary}
+                      />
+                      {!localWebSidebarCollapsed ? (
+                        <Text
+                          style={{
+                            flex: 1,
+                            fontSize: 13,
+                            fontWeight: active ? "600" : "500",
+                            color: active ? (sickMode ? C.red : C.accent) : C.textSecondary,
+                          }}
+                          numberOfLines={2}
                         >
-                          <Ionicons
-                            name={active ? item.iconActive : item.icon}
-                            size={20}
-                            color={active ? (sickMode ? C.red : C.accent) : C.textSecondary}
-                          />
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                );
-              })}
+                          {item.label}
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
             </ScrollView>
           )}
         </View>

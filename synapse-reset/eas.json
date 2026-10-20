@@ -2,10 +2,15 @@
   "cli": { "version": ">= 18.0.5", "appVersionSource": "local" },
   "build": {
     "development": { "distribution": "internal" },
-    "preview": { "distribution": "internal", "environment": "preview" },
+    "preview": {
+      "distribution": "internal",
+      "environment": "preview",
+      "channel": "preview"
+    },
     "production": {
       "ios": { "resourceClass": "m-medium" },
-      "environment": "production"
+      "environment": "production",
+      "channel": "production"
     }
   },
   "submit": { "production": {} }

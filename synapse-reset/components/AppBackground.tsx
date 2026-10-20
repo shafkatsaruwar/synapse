@@ -1,14 +1,23 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useTheme } from "@/contexts/ThemeContext";
+import { isDarkAppearance, isEvergreenTheme, useTheme } from "@/contexts/ThemeContext";
 
 interface AppBackgroundProps {
   children: React.ReactNode;
 }
 
 export default function AppBackground({ children }: AppBackgroundProps) {
-  const { themeId } = useTheme();
+  const { themeId, colors } = useTheme();
+
+  // Soft Evergreen: flat cool off-white / charcoal — no beige glass overlays.
+  if (isEvergreenTheme(themeId)) {
+    return (
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
+        {children}
+      </View>
+    );
+  }
 
   if (themeId === "light") {
     return (
@@ -39,10 +48,7 @@ export default function AppBackground({ children }: AppBackgroundProps) {
     );
   }
 
-  const backgroundColor =
-    themeId === "dark"
-      ? "#0D0B0C"
-      : "#F5ECE2";
+  const backgroundColor = isDarkAppearance(themeId) ? "#0D0B0C" : "#F5ECE2";
 
   return (
     <View style={styles.root}>
@@ -79,58 +85,51 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   backgroundLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  prismLayer: {
     position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
+    width: "140%",
+    height: "70%",
+  },
+  prismTop: {
+    top: -80,
+    left: -60,
+  },
+  prismMiddle: {
+    top: "28%",
+    left: -40,
   },
   bloom: {
     position: "absolute",
     width: 280,
     height: 280,
     borderRadius: 140,
-    opacity: 0.42,
-  },
-  prismLayer: {
-    position: "absolute",
-    width: 520,
-    height: 520,
-    borderRadius: 260,
-  },
-  prismTop: {
-    top: -180,
-    right: -180,
-    transform: [{ rotate: "18deg" }],
-  },
-  prismMiddle: {
-    top: 250,
-    left: -220,
-    transform: [{ rotate: "-14deg" }],
+    opacity: 0.35,
   },
   bloomTop: {
-    top: -90,
-    right: -80,
-    backgroundColor: "rgba(255,255,255,0.62)",
+    top: -60,
+    right: -40,
+    backgroundColor: "rgba(255,255,255,0.55)",
   },
   bloomBottom: {
-    bottom: -110,
+    bottom: 80,
     left: -80,
-    backgroundColor: "rgba(156,204,180,0.26)",
+    backgroundColor: "rgba(222,201,190,0.4)",
   },
   bloomMint: {
-    top: 260,
-    left: -120,
-    backgroundColor: "rgba(255,255,255,0.34)",
-  },
-  bloomCalm: {
-    bottom: -80,
-    right: -90,
-    backgroundColor: "rgba(198,218,199,0.32)",
+    bottom: "18%",
+    right: -60,
+    backgroundColor: "rgba(166,203,184,0.28)",
   },
   bloomDarkTop: {
-    top: -100,
-    right: -80,
-    backgroundColor: "rgba(217,74,92,0.16)",
+    top: -40,
+    right: -20,
+    backgroundColor: "rgba(217,74,92,0.12)",
+  },
+  bloomCalm: {
+    top: 40,
+    right: -40,
+    backgroundColor: "rgba(255,255,255,0.35)",
   },
 });

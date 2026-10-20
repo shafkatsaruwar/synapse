@@ -38,17 +38,23 @@ export interface Theme {
   sidebarHover: string;
 }
 
-export type ThemeId = "calm" | "light" | "dark";
-/** User preference: system = follow device appearance; otherwise use that theme. */
-export type ThemePreference = "system" | ThemeId;
+/** Effective theme used for styling. */
+export type ThemeId = "calm" | "light" | "dark" | "evergreen" | "evergreenDark";
+/**
+ * User preference in Settings.
+ * "evergreen" follows device light/dark with Soft Evergreen palettes.
+ * Existing saved preferences are never overwritten on upgrade.
+ */
+export type ThemePreference = "system" | "calm" | "light" | "dark" | "evergreen";
 
 const THEME_STORAGE_KEY = "app_theme";
-const DEFAULT_PREFERENCE: ThemePreference = "system";
+/** Soft Evergreen for first launch only (no saved preference). */
+const DEFAULT_PREFERENCE: ThemePreference = "evergreen";
+
+const SAVED_PREFERENCES = new Set<string>(["system", "calm", "light", "dark", "evergreen"]);
 
 interface ThemeContextValue {
-  /** Effective theme used for styling (calm | light | dark). */
   themeId: ThemeId;
-  /** User preference: "system" or a fixed theme. Used for Settings selection. */
   preference: ThemePreference;
   setThemeId: (id: ThemePreference) => Promise<void>;
   colors: Theme;
@@ -57,12 +63,15 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function getThemeColors(id: ThemeId): Theme {
-  // Lazy import to avoid circular deps with theme files importing Theme type
   switch (id) {
     case "light":
       return require("@/themes/light").default;
     case "dark":
       return require("@/themes/dark").default;
+    case "evergreen":
+      return require("@/themes/evergreen").default;
+    case "evergreenDark":
+      return require("@/themes/evergreen-dark").default;
     default:
       return require("@/themes/calm").default;
   }
@@ -71,6 +80,9 @@ function getThemeColors(id: ThemeId): Theme {
 function preferenceToThemeId(preference: ThemePreference, colorScheme: string | null): ThemeId {
   if (preference === "system") {
     return colorScheme === "dark" ? "dark" : "light";
+  }
+  if (preference === "evergreen") {
+    return colorScheme === "dark" ? "evergreenDark" : "evergreen";
   }
   return preference;
 }
@@ -85,11 +97,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const colors = useMemo(() => getThemeColors(themeId), [themeId]);
 
   useEffect(() => {
-    AsyncStorage.getItem(THEME_STORAGE_KEY).then((saved) => {
-      if (saved === "system" || saved === "calm" || saved === "light" || saved === "dark") {
-        setPreference(saved as ThemePreference);
-      }
-    }).catch(() => {});
+    AsyncStorage.getItem(THEME_STORAGE_KEY)
+      .then((saved) => {
+        if (saved && SAVED_PREFERENCES.has(saved)) {
+          setPreference(saved as ThemePreference);
+          return;
+        }
+        // First launch: persist Soft Evergreen as the chosen default.
+        setPreference("evergreen");
+        return AsyncStorage.setItem(THEME_STORAGE_KEY, "evergreen");
+      })
+      .catch(() => {});
   }, []);
 
   const setThemeId = useCallback(async (id: ThemePreference) => {
@@ -109,14 +127,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) {
-    // Fallback: return calm theme so components work outside provider
-    const calm = require("@/themes/calm").default as Theme;
+    const evergreen = require("@/themes/evergreen").default as Theme;
     return {
-      themeId: "calm",
-      preference: "system",
+      themeId: "evergreen",
+      preference: "evergreen",
       setThemeId: async () => {},
-      colors: calm,
+      colors: evergreen,
     };
   }
   return ctx;
+}
+
+export function isEvergreenTheme(themeId: ThemeId): boolean {
+  return themeId === "evergreen" || themeId === "evergreenDark";
+}
+
+export function isDarkAppearance(themeId: ThemeId): boolean {
+  return themeId === "dark" || themeId === "evergreenDark";
 }

@@ -19,7 +19,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { featureFlags } from "@/constants/feature-flags";
-import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import { isDarkAppearance, isEvergreenTheme, useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useModeAwareScreen } from "@/contexts/AppModeContext";
 import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import GlassView from "@/components/GlassView";
@@ -544,6 +544,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const [loaded, setLoaded] = useState(false);
   const [showRecoverySetup, setShowRecoverySetup] = useState(false);
   const [recoveryFocusInput, setRecoveryFocusInput] = useState("");
+  const [showMoreToday, setShowMoreToday] = useState(false);
 
   const loadData = useCallback(async () => {
     const [logsData, meds, ml, apts, fl, sett, profileInfo, symptomsData, vitalsData, hydrationData] = await Promise.all([
@@ -776,7 +777,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         tertiary: null,
         detail: null,
         ctaLabel: "Log how I’m feeling",
-        ctaTarget: "feeling",
+        ctaTarget: "feelinghub",
       };
   const recoverySummary = useMemo(() => buildRecoveryInsights({
     logs: allLogs,
@@ -928,7 +929,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   };
 
   const renderHealthSnapshotCard = () => (
-    <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={[styles.healthSnapshotGlass, themeId === "light" && styles.healthSnapshotLight]}>
+    <GlassView variant="hero" tint={isDarkAppearance(themeId) ? "dark" : "light"} style={[styles.healthSnapshotGlass, themeId === "light" && styles.healthSnapshotLight, isEvergreenTheme(themeId) && styles.healthSnapshotEvergreen]}>
       <View style={styles.healthSnapshotInner}>
         <View style={styles.healthSnapshotHeader}>
           <View style={{ flex: 1 }}>
@@ -1236,7 +1237,9 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       <Ionicons name="medical-outline" size={22} color={C.red} />
     </Pressable>
   );
+  /** Legacy Light theme still uses the beige glass gradient wrapper. Soft Evergreen is flat. */
   const isLightTheme = themeId === "light";
+  const glassTint = isDarkAppearance(themeId) ? "dark" : "light";
 
   if (!loaded) {
     return (
@@ -1317,254 +1320,279 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     return simpleContent;
   }
 
-  const todayEssentialsRows: { key: string; title: string; body: string; target: string; icon: React.ComponentProps<typeof Ionicons>["name"] }[] = [];
-  if (dueMedication) {
-    todayEssentialsRows.push({
-      key: "due-med",
-      title: dueMedication.name,
-      body: formatDueMedicationStatus(currentMinutes, dueMedication.dueMinutes),
-      target: "medications",
-      icon: "medical-outline",
-    });
-  } else if (nextMedication) {
-    todayEssentialsRows.push({
-      key: "next-med",
-      title: nextMedication.name,
-      body: nextMedication.lines[0] ?? "Upcoming dose",
-      target: "medications",
-      icon: "medical-outline",
-    });
-  }
-  if (todayAppointment) {
-    todayEssentialsRows.push({
-      key: "today-apt",
-      title: todayAppointment.doctorName || "Appointment today",
-      body: [formatTime12h(todayAppointment.time), todayAppointment.specialty].filter(Boolean).join(" · "),
-      target: "appointments",
-      icon: "calendar-outline",
-    });
-  } else if (nextApt) {
-    todayEssentialsRows.push({
-      key: "next-apt",
-      title: nextApt.doctorName || "Upcoming visit",
-      body: formatAppointmentPreview(nextApt, today),
-      target: "appointments",
-      icon: "calendar-outline",
-    });
-  }
-  if (!todayLog) {
-    todayEssentialsRows.push({
-      key: "checkin",
-      title: "Daily check-in",
-      body: "Log how you’re feeling whenever you’re ready.",
-      target: "feeling",
-      icon: "heart-outline",
-    });
-  }
+  const medicationStatusLine = (() => {
+    if (!medications.length) return "No medications yet. Add one when you’re ready.";
+    if (totalDoses > 0 && takenDoses >= totalDoses) return "All doses logged for today.";
+    if (dueMedication) {
+      return formatDueMedicationStatus(currentMinutes, dueMedication.dueMinutes);
+    }
+    if (totalDoses > 0) return `${takenDoses} of ${totalDoses} doses logged today.`;
+    return "Open medications to review your list.";
+  })();
 
-  const quickActions: { key: string; label: string; target: string; icon: React.ComponentProps<typeof Ionicons>["name"] }[] = [
-    { key: "qa-med", label: "Log medication", target: "medications", icon: "medical-outline" },
-    { key: "qa-feel", label: "Log how I’m feeling", target: "feeling", icon: "heart-outline" },
-    { key: "qa-apt", label: "Add appointment", target: "appointments", icon: "calendar-outline" },
-  ];
+  const nextDoseLine = nextMedication
+    ? `${nextMedication.name}${nextMedication.lines[0] ? ` · ${nextMedication.lines[0]}` : ""}`
+    : null;
+
+  const appointmentBody = todayAppointment
+    ? [todayAppointment.doctorName || "Appointment today", formatTime12h(todayAppointment.time), todayAppointment.specialty]
+        .filter(Boolean)
+        .join(" · ")
+    : nextApt
+      ? formatAppointmentPreview(nextApt, today)
+      : "No upcoming visits. Tap to add one.";
+
+  const feelingBody = todayLog
+    ? "Checked in today. Tap to open How I’m Feeling."
+    : "Log how you’re feeling whenever you’re ready.";
 
   const cardStackPadding = isWide ? 0 : 16;
+  const stackGap = isWide ? width < 900 : width < 420;
+  const dualColumn = !stackGap;
+
+  const solidCard = (extra?: object) => [
+    styles.quietCard,
+    isEvergreenTheme(themeId) && styles.quietCardEvergreen,
+    extra,
+  ];
+
   const inner = (
     <View style={{ marginHorizontal: cardStackPadding, gap: 16 }}>
       <View style={styles.welcome} accessibilityRole="header">
-        <Text style={styles.greetingText}>
-          {greeting}
-        </Text>
         <Text style={styles.dateText}>
-          {greetingSupport}
+          {dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
         </Text>
-        <Text style={[styles.dateText, { marginTop: 4 }]}>
-          {dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-        </Text>
+        <Text style={styles.greetingText}>{greeting}</Text>
+        <Text style={styles.dateText}>{greetingSupport}</Text>
       </View>
 
-      <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.feelingCardGlass, themeId === "light" && styles.feelingCardLight]}>
-        <View style={{ padding: 16, gap: 12 }}>
-          <Text style={styles.feelingTitle}>Today’s essentials</Text>
-          {todayEssentialsRows.length === 0 ? (
-            <Text style={styles.feelingSubtitle}>
-              Nothing urgent right now. Add a medication or appointment whenever you’re ready.
-            </Text>
-          ) : (
-            todayEssentialsRows.map((row) => (
-              <Pressable
-                key={row.key}
-                style={styles.feelingCardInner}
-                onPress={() => onNavigate(row.target)}
-                accessibilityRole="button"
-                accessibilityLabel={row.title}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
-                  <Ionicons name={row.icon} size={20} color={C.tint} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.feelingTitle}>{row.title}</Text>
-                    <Text style={styles.feelingSubtitle}>{row.body}</Text>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={C.tint} />
-              </Pressable>
-            ))
-          )}
+      {/* Medications — prominent full-width */}
+      <Pressable
+        ref={refMed}
+        collapsable={false}
+        style={({ pressed }) => [...solidCard(styles.medHeroCard), { opacity: pressed ? 0.92 : 1 }]}
+        onPress={() => {
+          Haptics.selectionAsync().catch(() => {});
+          onNavigate("medications");
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="Medications"
+        accessibilityHint="Opens your medications"
+      >
+        <View style={styles.quietCardHeader}>
+          <View style={[styles.quietIconWrap, { backgroundColor: C.tintLight }]}>
+            <Ionicons name="medical-outline" size={22} color={C.tint} />
+          </View>
+          <Text style={styles.quietCardTitle}>Medications</Text>
+          <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
         </View>
-      </GlassView>
+        <Text style={styles.quietCardBody}>{medicationStatusLine}</Text>
+        {nextDoseLine ? (
+          <Text style={styles.quietCardMeta} numberOfLines={2}>
+            Next: {nextDoseLine}
+          </Text>
+        ) : null}
+        <Text style={styles.quietCardCta}>
+          {medications.length ? "View or log medication" : "Add a medication"}
+        </Text>
+      </Pressable>
 
-      <View style={{ gap: 10 }}>
-        <Text style={[styles.feelingTitle, { paddingHorizontal: 4 }]}>Quick actions</Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-          {quickActions.map((action) => (
-            <Pressable
-              key={action.key}
-              style={({ pressed }) => [
-                {
-                  flexGrow: 1,
-                  minWidth: "45%",
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  paddingVertical: 12,
-                  paddingHorizontal: 14,
-                  borderRadius: 14,
-                  backgroundColor: C.surface,
-                  borderWidth: StyleSheet.hairlineWidth,
-                  borderColor: C.border,
-                  opacity: pressed ? 0.88 : 1,
-                },
-              ]}
-              onPress={() => {
-                Haptics.selectionAsync().catch(() => {});
-                onNavigate(action.target);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={action.label}
-            >
-              <Ionicons name={action.icon} size={18} color={C.tint} />
-              <Text style={{ flex: 1, fontWeight: "600", fontSize: 14, color: C.text }}>{action.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
-      {/* Temporarily hidden: legacy DashboardHero (“Let’s log this day” + med/appointment cards).
-          Today’s essentials + Quick actions cover that job. Flip to true to restore. */}
-      {false && ramadanDay && (
-        <View style={styles.ramadanSection}>
-          <DashboardHero
-            ramadanDayLabel={isRamadanMode ? `Ramadan ${ramadanDay.hijriDay}${ordinalSuffix(ramadanDay.hijriDay)}, 1447 AH` : undefined}
-            subtitle={goodDayMessage}
-            leftTimeLabel={leftLabel}
-            rightTimeLabel={rightLabel}
-            leftTime={leftTime}
-            rightTime={rightTime}
-            nextMedication={nextMedication ? { name: nextMedication.name, lines: nextMedication.lines, owner: nextMedication.owner } : null}
-            nextApt={nextApt ?? null}
-            getOwnerMeta={getOwnerMeta}
-            onNavigate={onNavigate}
-            dailyLogRef={refDailyLog}
-            medicationCardRef={refMed}
-            appointmentCardRef={refApt}
-          />
-
-          {settings.ramadanMode && (
-            <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.feelingCardGlass, themeId === "light" && styles.feelingCardLight]}>
-            <Pressable
-              style={styles.feelingCardInner}
-              onPress={() => onNavigate("ramadandailylog")}
-              accessibilityRole="button"
-              accessibilityLabel="Ramadan Daily Log"
-              accessibilityHint="Opens the Ramadan daily log screen"
-            >
-              <View>
-                <Text style={styles.feelingTitle}>Ramadan Daily Log</Text>
-                <Text style={styles.feelingSubtitle}>Log your fast, water, energy, mood & motivation.</Text>
+      {/* Your Health — Appointments + How I’m Feeling */}
+      <View>
+        <Text style={styles.quietSectionLabel}>Your Health</Text>
+        <View style={{ flexDirection: dualColumn ? "row" : "column", gap: 12 }}>
+          <Pressable
+            ref={refApt}
+            collapsable={false}
+            style={({ pressed }) => [
+              ...solidCard(styles.halfCard),
+              dualColumn && { flex: 1 },
+              { opacity: pressed ? 0.92 : 1 },
+            ]}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              onNavigate("appointments");
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Appointments"
+          >
+            <View style={styles.quietCardHeader}>
+              <View style={[styles.quietIconWrap, { backgroundColor: C.cyanLight }]}>
+                <Ionicons name="calendar-outline" size={20} color={C.cyan} />
               </View>
-              <Ionicons name="chevron-forward" size={18} color={C.tint} />
-            </Pressable>
-          </GlassView>
-          )}
-
-          {settings.ramadanMode && (
-            <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.ramadanQuoteCardGlass, themeId === "light" && styles.ramadanQuoteCardLight]}>
-              <View style={styles.ramadanQuoteRow}>
-                <Ionicons name="sparkles" size={16} color={C.pink} />
-                <Text style={styles.ramadanQuoteText}>{ramadanQuote}</Text>
-              </View>
-            </GlassView>
-          )}
-        </View>
-      )}
-
-      {/* Keep Ramadan Mode entry points when the legacy hero is hidden */}
-      {!!ramadanDay && settings.ramadanMode && (
-        <View style={styles.ramadanSection}>
-          <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.feelingCardGlass, themeId === "light" && styles.feelingCardLight]}>
-            <Pressable
-              style={styles.feelingCardInner}
-              onPress={() => onNavigate("ramadandailylog")}
-              accessibilityRole="button"
-              accessibilityLabel="Ramadan Daily Log"
-              accessibilityHint="Opens the Ramadan daily log screen"
-            >
-              <View>
-                <Text style={styles.feelingTitle}>Ramadan Daily Log</Text>
-                <Text style={styles.feelingSubtitle}>Log your fast, water, energy, mood & motivation.</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={C.tint} />
-            </Pressable>
-          </GlassView>
-          <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.ramadanQuoteCardGlass, themeId === "light" && styles.ramadanQuoteCardLight]}>
-            <View style={styles.ramadanQuoteRow}>
-              <Ionicons name="sparkles" size={16} color={C.pink} />
-              <Text style={styles.ramadanQuoteText}>{ramadanQuote}</Text>
+              <Text style={styles.quietCardTitleSm}>Appointments</Text>
             </View>
-          </GlassView>
+            <Text style={styles.quietCardBody} numberOfLines={3}>
+              {appointmentBody}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            ref={refDailyLog}
+            collapsable={false}
+            style={({ pressed }) => [
+              ...solidCard(styles.halfCard),
+              dualColumn && { flex: 1 },
+              { opacity: pressed ? 0.92 : 1 },
+            ]}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              onNavigate("feelinghub");
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="How I’m Feeling"
+          >
+            <View style={styles.quietCardHeader}>
+              <View style={[styles.quietIconWrap, { backgroundColor: C.tintLight }]}>
+                <Ionicons name="heart-outline" size={20} color={C.tint} />
+              </View>
+              <Text style={styles.quietCardTitleSm}>How I’m Feeling</Text>
+            </View>
+            <Text style={styles.quietCardBody} numberOfLines={3}>
+              {feelingBody}
+            </Text>
+          </Pressable>
         </View>
-      )}
-
-      {renderHealthSnapshotCard()}
-
-      <View style={[styles.grid, isWide && styles.gridWide]}>
-        {featureFlags.documentScannerEnabled && (
-          <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.cardGlass, isWide && styles.cardWide]}>
-            <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("documents")} accessibilityLabel="Document Scanner" accessibilityRole="button" accessibilityHint="Upload lab reports and prescriptions for AI extraction">
-              <View style={[styles.cardHeader, { marginBottom: 0 }]}>
-                <View style={[styles.cardIcon, { backgroundColor: C.pinkLight }]}>
-                  <Ionicons name="scan" size={16} color={C.pink} />
-                </View>
-                <Text style={styles.cardLabel}>Document Scanner</Text>
-              </View>
-              <Text style={styles.reportDesc}>Upload lab reports and prescriptions for AI extraction</Text>
-              <View style={styles.reportBtn}>
-                <Ionicons name="arrow-forward" size={16} color={C.tint} />
-                <Text style={styles.reportBtnText}>Scan Documents</Text>
-              </View>
-            </Pressable>
-          </GlassView>
-        )}
-
-        {featureFlags.documentScannerEnabled && (
-          <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.cardGlass, isWide && styles.cardWide]}>
-            <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("insights")} accessibilityLabel="AI Health Insights" accessibilityRole="button" accessibilityHint="Get personalized analysis of your health patterns">
-              <View style={[styles.cardHeader, { marginBottom: 0 }]}>
-                <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
-                  <Ionicons name="sparkles" size={16} color={C.accent} />
-                </View>
-                <Text style={styles.cardLabel}>AI Health Insights</Text>
-              </View>
-              <Text style={styles.reportDesc}>Get personalized analysis of your health patterns</Text>
-              <View style={styles.reportBtn}>
-                <Ionicons name="arrow-forward" size={16} color={C.tint} />
-                <Text style={styles.reportBtnText}>View Insights</Text>
-              </View>
-            </Pressable>
-          </GlassView>
-        )}
       </View>
 
+      {/* Emergency Information */}
+      <Pressable
+        style={({ pressed }) => [...solidCard(styles.emergencyCard), { opacity: pressed ? 0.92 : 1 }]}
+        onPress={() => {
+          Haptics.selectionAsync().catch(() => {});
+          onNavigate("emergencyhub");
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="Emergency Information"
+        accessibilityHint="Open emergency card and protocol"
+      >
+        <View style={styles.quietCardHeader}>
+          <View style={[styles.quietIconWrap, { backgroundColor: C.redLight }]}>
+            <Ionicons name="shield-outline" size={22} color={C.red} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.quietCardTitle}>Emergency Information</Text>
+            <Text style={styles.quietCardBody}>Card and protocol — available immediately.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+        </View>
+      </Pressable>
+
+      {/* Sick Mode access — keep visible */}
+      <Pressable
+        style={({ pressed }) => [
+          ...solidCard(),
+          {
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+            opacity: pressed ? 0.92 : 1,
+            borderColor: isSickMode ? C.red : C.border,
+          },
+        ]}
+        onPress={() => {
+          Haptics.selectionAsync().catch(() => {});
+          onNavigate(isSickMode ? "sickmode" : "settings");
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={isSickMode ? "Sick Mode is on" : "Sick Mode"}
+      >
+        <View style={[styles.quietIconWrap, { backgroundColor: C.redLight }]}>
+          <Ionicons name="medkit-outline" size={20} color={C.red} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.quietCardTitleSm}>{isSickMode ? "Sick Mode is on" : "Sick Mode"}</Text>
+          <Text style={styles.quietCardBody}>
+            {isSickMode ? "Open Sick Mode tools" : "Turn on from Account when you need stress dosing support"}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+      </Pressable>
+
+      {/* Secondary: progressive disclosure */}
+      <Pressable
+        onPress={() => {
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          setShowMoreToday((v) => !v);
+        }}
+        style={styles.moreToggle}
+        accessibilityRole="button"
+        accessibilityLabel={showMoreToday ? "Hide more today" : "Show more today"}
+      >
+        <Text style={styles.moreToggleText}>{showMoreToday ? "Hide more" : "More today"}</Text>
+        <Ionicons name={showMoreToday ? "chevron-up" : "chevron-down"} size={18} color={C.tint} />
+      </Pressable>
+
+      {showMoreToday ? (
+        <View style={{ gap: 12 }}>
+          <Pressable
+            style={({ pressed }) => [...solidCard(), { opacity: pressed ? 0.92 : 1 }]}
+            onPress={() => onNavigate("recordshub")}
+            accessibilityRole="button"
+            accessibilityLabel="Health Records"
+          >
+            <View style={styles.quietCardHeader}>
+              <Text style={styles.quietCardTitleSm}>Health Records</Text>
+              <Text style={styles.quietCardCta}>See all</Text>
+            </View>
+            <Text style={styles.quietCardBody}>Vitals, labs, imaging, timeline, and reports.</Text>
+          </Pressable>
+
+          {!!ramadanDay && settings.ramadanMode ? (
+            <View style={styles.ramadanSection}>
+              <GlassView intensity={50} tint={glassTint} style={[styles.feelingCardGlass, themeId === "light" && styles.feelingCardLight]}>
+                <Pressable
+                  style={styles.feelingCardInner}
+                  onPress={() => onNavigate("ramadandailylog")}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ramadan Daily Log"
+                >
+                  <View>
+                    <Text style={styles.feelingTitle}>Ramadan Daily Log</Text>
+                    <Text style={styles.feelingSubtitle}>Log your fast, water, energy, mood & motivation.</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={C.tint} />
+                </Pressable>
+              </GlassView>
+              <GlassView intensity={50} tint={glassTint} style={[styles.ramadanQuoteCardGlass, themeId === "light" && styles.ramadanQuoteCardLight]}>
+                <View style={styles.ramadanQuoteRow}>
+                  <Ionicons name="sparkles" size={16} color={C.pink} />
+                  <Text style={styles.ramadanQuoteText}>{ramadanQuote}</Text>
+                </View>
+              </GlassView>
+            </View>
+          ) : null}
+
+          {renderHealthSnapshotCard()}
+
+          {featureFlags.documentScannerEnabled ? (
+            <View style={[styles.grid, isWide && styles.gridWide]}>
+              <GlassView intensity={50} tint={glassTint} style={[styles.cardGlass, isWide && styles.cardWide]}>
+                <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("documents")} accessibilityLabel="Document Scanner" accessibilityRole="button">
+                  <View style={[styles.cardHeader, { marginBottom: 0 }]}>
+                    <View style={[styles.cardIcon, { backgroundColor: C.pinkLight }]}>
+                      <Ionicons name="scan" size={16} color={C.pink} />
+                    </View>
+                    <Text style={styles.cardLabel}>Document Scanner</Text>
+                  </View>
+                  <Text style={styles.reportDesc}>Upload lab reports and prescriptions for AI extraction</Text>
+                </Pressable>
+              </GlassView>
+              <GlassView intensity={50} tint={glassTint} style={[styles.cardGlass, isWide && styles.cardWide]}>
+                <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("insights")} accessibilityLabel="AI Health Insights" accessibilityRole="button">
+                  <View style={[styles.cardHeader, { marginBottom: 0 }]}>
+                    <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
+                      <Ionicons name="sparkles" size={16} color={C.accent} />
+                    </View>
+                    <Text style={styles.cardLabel}>AI Health Insights</Text>
+                  </View>
+                  <Text style={styles.reportDesc}>Get personalized analysis of your health patterns</Text>
+                </Pressable>
+              </GlassView>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 
@@ -1621,7 +1649,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               onChangeText={setRecoveryFocusInput}
               placeholder="Surgery, illness, flare-up, injury..."
               placeholderTextColor={C.textTertiary}
-              keyboardAppearance={themeId === "dark" ? "dark" : "default"}
+              keyboardAppearance={isDarkAppearance(themeId) ? "dark" : "default"}
               style={[styles.recoveryModalInput, { color: C.text }]}
             />
             <Text style={styles.recoveryModalHint}>You can change this later. Recovery tracking stays focused and local to your device.</Text>
@@ -2073,8 +2101,103 @@ function makeStyles(C: Theme, textScale: number, themeId: string) {
       lineHeight: size(23),
       color: C.textSecondary,
     },
-    welcome: { marginBottom: 4 },
-    greetingText: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
+    welcome: { marginBottom: 8, gap: 4 },
+    greetingText: { fontWeight: "700", fontSize: 30, color: C.text, letterSpacing: -0.6, marginBottom: 2 },
+    quietSectionLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: C.textSecondary,
+      letterSpacing: 0.3,
+      marginBottom: 10,
+      paddingHorizontal: 2,
+      textTransform: "uppercase",
+    },
+    quietCard: {
+      backgroundColor: C.surface,
+      borderRadius: 18,
+      padding: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+      gap: 8,
+    },
+    quietCardEvergreen: {
+      shadowColor: "#20252A",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04,
+      shadowRadius: 4,
+      elevation: 1,
+    },
+    medHeroCard: {
+      paddingVertical: 18,
+      gap: 10,
+    },
+    halfCard: {
+      minHeight: 132,
+    },
+    emergencyCard: {
+      paddingVertical: 16,
+    },
+    quietCardHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    quietIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    quietCardTitle: {
+      flex: 1,
+      fontSize: 20,
+      fontWeight: "700",
+      color: C.text,
+      letterSpacing: -0.3,
+    },
+    quietCardTitleSm: {
+      flex: 1,
+      fontSize: 16,
+      fontWeight: "700",
+      color: C.text,
+      letterSpacing: -0.2,
+    },
+    quietCardBody: {
+      fontSize: 15,
+      lineHeight: 21,
+      color: C.textSecondary,
+    },
+    quietCardMeta: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: C.text,
+      fontWeight: "500",
+    },
+    quietCardCta: {
+      marginTop: 4,
+      fontSize: 14,
+      fontWeight: "600",
+      color: C.tint,
+    },
+    moreToggle: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      paddingVertical: 10,
+    },
+    moreToggleText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: C.tint,
+    },
+    healthSnapshotEvergreen: {
+      backgroundColor: C.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+      overflow: "hidden",
+    },
     dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
     hijriDate: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 20 },
     ramadanSection: { marginTop: 8, marginBottom: 16 },
