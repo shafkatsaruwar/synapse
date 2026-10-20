@@ -33,7 +33,6 @@ export const HUB_IDS = [
   "recordshub",
   "wellbeinghub",
   "carehub",
-  "emergencyhub",
   "accounthub",
 ] as const;
 
@@ -116,7 +115,6 @@ export const HEALTH_RECORDS_HUB: HubDefinition = hubFromRegistry("recordshub", "
 export const WELLBEING_HUB: HubDefinition = hubFromRegistry("wellbeinghub", "self")!;
 export const CARE_SUPPORT_HUB: HubDefinition = hubFromRegistry("carehub", "self")!;
 export const YOU_HUB: HubDefinition = hubFromRegistry("accounthub", "self")!;
-export const EMERGENCY_HUB: HubDefinition = hubFromRegistry("emergencyhub", "self")!;
 
 interface FeatureHubScreenProps {
   hubId: string;
@@ -143,8 +141,6 @@ export default function FeatureHubScreen({
     return hubFromRegistry(resolvedId, role) ?? HEALTH_HUB;
   }, [resolvedId, role]);
 
-  const isEmergency = resolvedId === "emergencyhub";
-
   return (
     <View style={[styles.container, { paddingTop: Platform.OS === "web" ? 24 : 8 }]}>
       <ScrollView
@@ -153,20 +149,11 @@ export default function FeatureHubScreen({
       >
         <Text style={styles.title}>{hub.title}</Text>
         <Text style={styles.subtitle}>{hub.subtitle}</Text>
-        {isEmergency ? (
-          <Text style={styles.emergencyNote}>
-            Both actions below open immediately—no extra delay.
-          </Text>
-        ) : null}
         <View style={styles.list}>
           {hub.items.map((item) => (
             <Pressable
               key={item.key}
-              style={({ pressed }) => [
-                styles.row,
-                isEmergency && styles.emergencyRow,
-                pressed && styles.rowPressed,
-              ]}
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               onPress={() => {
                 Haptics.selectionAsync().catch(() => {});
                 onNavigate(item.target);
@@ -175,8 +162,8 @@ export default function FeatureHubScreen({
               accessibilityLabel={item.label}
               accessibilityHint={item.description}
             >
-              <View style={[styles.iconWrap, isEmergency && styles.emergencyIconWrap]}>
-                <Ionicons name={item.icon} size={22} color={isEmergency ? C.red : C.tint} />
+              <View style={styles.iconWrap}>
+                <Ionicons name={item.icon} size={22} color={C.tint} />
               </View>
               <View style={styles.rowText}>
                 <Text style={styles.rowLabel}>{item.label}</Text>
@@ -207,12 +194,6 @@ function makeStyles(C: Theme) {
       color: C.textSecondary,
       marginBottom: 12,
     },
-    emergencyNote: {
-      fontSize: 13,
-      lineHeight: 18,
-      color: C.textTertiary,
-      marginBottom: 16,
-    },
     list: { gap: 10 },
     row: {
       flexDirection: "row",
@@ -225,9 +206,6 @@ function makeStyles(C: Theme) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: C.border,
     },
-    emergencyRow: {
-      paddingVertical: 16,
-    },
     rowPressed: { opacity: 0.85 },
     iconWrap: {
       width: 42,
@@ -236,9 +214,6 @@ function makeStyles(C: Theme) {
       backgroundColor: C.tintLight ?? C.surface,
       alignItems: "center",
       justifyContent: "center",
-    },
-    emergencyIconWrap: {
-      backgroundColor: (C.red ?? "#C73A4A") + "22",
     },
     rowText: { flex: 1, gap: 2 },
     rowLabel: { fontSize: 16, fontWeight: "600", color: C.text },

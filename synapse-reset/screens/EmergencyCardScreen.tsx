@@ -47,6 +47,16 @@ interface EmergencyCardScreenProps {
   onNavigate?: (screen: string) => void;
 }
 
+function hasCardBasics(data: EmergencyCardData): boolean {
+  return Boolean(
+    data.fullName.trim() ||
+      data.dateOfBirth.trim() ||
+      data.emergencyContactName.trim() ||
+      data.emergencyContactPhone.trim() ||
+      data.optionalNotes.trim()
+  );
+}
+
 export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -76,6 +86,8 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
   const [exporting, setExporting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [isEditing, setIsEditing] = useState(true);
 
   const load = useCallback(async () => {
     const [stored, allergy, medList, medicationList, doctorList, profileInfo, doctorId] = await Promise.all([
@@ -94,6 +106,8 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
     setDoctors(doctorList);
     setProfile(profileInfo);
     setPrimaryDoctorId(doctorId);
+    setIsEditing(!hasCardBasics(stored));
+    setLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -137,6 +151,7 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
     setData(syncedData);
     await saveEmergencyCard(syncedData);
     setSaved(true);
+    setIsEditing(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [data, medicationNames, primaryDoctor]);
 
@@ -176,7 +191,6 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
       Alert.alert("Not available", "Saving to your photo library is not supported on web.");
       return;
     }
-    // Ask for add-only photo permission when the user explicitly chooses to save the card.
     const { status } = await MediaLibrary.requestPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission needed", "Allow photo library access so Synapse can save your emergency card to your library.");
@@ -234,8 +248,14 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
     </ViewShot>
   );
 
-  const topPad = Platform.OS === "web" ? 40 : 14;
-  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 24;
+  const topPad = Platform.OS === "web" ? 40 : 8;
+  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 100;
+
+  if (!loaded) {
+    return <View style={styles.container} />;
+  }
+
+  const showCardView = !isEditing && hasCardBasics(data);
 
   return (
     <>
@@ -246,124 +266,166 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Emergency Card</Text>
-          <Text style={styles.subtitle}>Create a card to show or share in an emergency</Text>
+          <Text style={styles.title}>Emergency</Text>
+          <Text style={styles.subtitle}>
+            {showCardView
+              ? "Your card is ready when you need it."
+              : "Add your details so first responders have what they need."}
+          </Text>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your details</Text>
-          <Field label="Full Name" value={data.fullName} onChange={(v) => update({ fullName: v })} placeholder="Full name" />
-          <Field label="Date of Birth" value={data.dateOfBirth} onChange={(v) => update({ dateOfBirth: v })} placeholder="e.g. Jan 15, 1990" />
-          <Field
-            label="Current Medications"
-            value={medListItems.map((item) => item.name).join(", ")}
-            onChange={() => {}}
-            placeholder="Add medications in the Medications list"
-            multiline
-            editable={false}
-          />
-          <Text style={styles.syncHint}>Pulled automatically from your Medications list.</Text>
-          {!hasAllergyInfoFromProfile && onNavigate && (
+        {showCardView ? (
+          <>
+            <View style={styles.cardWithEdit}>
+              {previewCard}
+              <Pressable
+                style={({ pressed }) => [styles.pencilBtn, pressed && { opacity: 0.85 }]}
+                onPress={() => {
+                  Haptics.selectionAsync().catch(() => {});
+                  setIsEditing(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Edit emergency card"
+              >
+                <Ionicons name="pencil" size={18} color={C.tint} />
+              </Pressable>
+            </View>
+
             <Pressable
-              style={styles.allergyPrompt}
-              onPress={() => { Haptics.selectionAsync(); onNavigate("allergy"); }}
+              style={styles.fullscreenBtn}
+              onPress={() => setFullscreen(true)}
               accessibilityRole="button"
-                accessibilityLabel="Add allergy information in My Profile"
+              accessibilityLabel="Show fullscreen emergency card"
             >
-              <Ionicons name="information-circle-outline" size={18} color={C.tint} />
-              <Text style={styles.allergyPromptText}>Add allergy information in My Profile to include it on your Emergency Card.</Text>
-              <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+              <Ionicons name="expand-outline" size={20} color={C.tint} />
+              <Text style={styles.fullscreenBtnText}>Show fullscreen emergency card</Text>
             </Pressable>
-          )}
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Emergency contact</Text>
-          <Field label="Name" value={data.emergencyContactName} onChange={(v) => update({ emergencyContactName: v })} placeholder="Contact name" />
-          <Field label="Phone" value={data.emergencyContactPhone} onChange={(v) => update({ emergencyContactPhone: v })} placeholder="Phone number" keyboardType="phone-pad" />
-        </View>
+            <View style={styles.actions}>
+              <Pressable
+                style={[styles.exportBtn, exporting && styles.exportBtnDisabled]}
+                onPress={handleExport}
+                disabled={exporting}
+              >
+                <Ionicons name="share-outline" size={20} color="#fff" />
+                <Text style={styles.exportBtnText}>
+                  {exporting ? "Preparing…" : "Export Emergency Card"}
+                </Text>
+              </Pressable>
+              {Platform.OS !== "web" && (
+                <Pressable
+                  style={[styles.saveToPhoneBtn, saving && styles.exportBtnDisabled]}
+                  onPress={handleSaveToPhone}
+                  disabled={saving}
+                >
+                  <Ionicons name="images-outline" size={20} color={C.tint} />
+                  <Text style={styles.saveToPhoneBtnText}>
+                    {saving ? "Saving…" : "Save to Phone"}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Your details</Text>
+              <Field label="Full Name" value={data.fullName} onChange={(v) => update({ fullName: v })} placeholder="Full name" />
+              <Field label="Date of Birth" value={data.dateOfBirth} onChange={(v) => update({ dateOfBirth: v })} placeholder="e.g. Jan 15, 1990" />
+              <Field
+                label="Current Medications"
+                value={medListItems.map((item) => item.name).join(", ")}
+                onChange={() => {}}
+                placeholder="Add medications in the Medications list"
+                multiline
+                editable={false}
+              />
+              <Text style={styles.syncHint}>Pulled automatically from your Medications list.</Text>
+              {!hasAllergyInfoFromProfile && onNavigate && (
+                <Pressable
+                  style={styles.allergyPrompt}
+                  onPress={() => { Haptics.selectionAsync(); onNavigate("allergy"); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add allergy information in My Profile"
+                >
+                  <Ionicons name="information-circle-outline" size={18} color={C.tint} />
+                  <Text style={styles.allergyPromptText}>Add allergy information in My Profile to include it on your Emergency Card.</Text>
+                  <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+                </Pressable>
+              )}
+            </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Primary doctor</Text>
-          <Field
-            label="Name"
-            value={primaryDoctor?.name ?? ""}
-            onChange={() => {}}
-            placeholder="Add a doctor in Account"
-            editable={false}
-          />
-          <Text style={styles.syncHint}>Pulled automatically from your Doctors list. The person icon marks your primary doctor.</Text>
-          <Field
-            label="Phone"
-            value={primaryDoctor?.phone ?? ""}
-            onChange={() => {}}
-            placeholder="Add a phone number in Doctors"
-            keyboardType="phone-pad"
-            editable={false}
-          />
-          <Field
-            label="Hospital"
-            value={primaryDoctor?.hospital ?? ""}
-            onChange={() => {}}
-            placeholder="Add a hospital in Doctors"
-            editable={false}
-          />
-          <Field
-            label="Address"
-            value={primaryDoctor?.address ?? ""}
-            onChange={() => {}}
-            placeholder="Add an address in Doctors"
-            multiline
-            editable={false}
-          />
-        </View>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Emergency contact</Text>
+              <Field label="Name" value={data.emergencyContactName} onChange={(v) => update({ emergencyContactName: v })} placeholder="Contact name" />
+              <Field label="Phone" value={data.emergencyContactPhone} onChange={(v) => update({ emergencyContactPhone: v })} placeholder="Phone number" keyboardType="phone-pad" />
+            </View>
 
-        <View style={styles.section}>
-          <Field label="Optional notes" value={data.optionalNotes} onChange={(v) => update({ optionalNotes: v })} placeholder="Other important info" multiline />
-        </View>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Primary doctor</Text>
+              <Field
+                label="Name"
+                value={primaryDoctor?.name ?? ""}
+                onChange={() => {}}
+                placeholder="Add a doctor in Account"
+                editable={false}
+              />
+              <Text style={styles.syncHint}>Pulled automatically from your Doctors list. The person icon marks your primary doctor.</Text>
+              <Field
+                label="Phone"
+                value={primaryDoctor?.phone ?? ""}
+                onChange={() => {}}
+                placeholder="Add a phone number in Doctors"
+                keyboardType="phone-pad"
+                editable={false}
+              />
+              <Field
+                label="Hospital"
+                value={primaryDoctor?.hospital ?? ""}
+                onChange={() => {}}
+                placeholder="Add a hospital in Doctors"
+                editable={false}
+              />
+              <Field
+                label="Address"
+                value={primaryDoctor?.address ?? ""}
+                onChange={() => {}}
+                placeholder="Add an address in Doctors"
+                multiline
+                editable={false}
+              />
+            </View>
 
-        {!saved && (
-          <Pressable style={styles.saveBtn} onPress={handleSave}>
-            <Text style={styles.saveBtnText}>Save details</Text>
-          </Pressable>
-        )}
+            <View style={styles.section}>
+              <Field label="Optional notes" value={data.optionalNotes} onChange={(v) => update({ optionalNotes: v })} placeholder="Other important info" multiline />
+            </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preview</Text>
-          {previewCard}
-          <Pressable
-            style={styles.fullscreenBtn}
-            onPress={() => setFullscreen(true)}
-          >
-            <Ionicons name="expand-outline" size={20} color={C.tint} />
-            <Text style={styles.fullscreenBtnText}>Show fullscreen emergency card</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.actions}>
-          <Pressable
-            style={[styles.exportBtn, exporting && styles.exportBtnDisabled]}
-            onPress={handleExport}
-            disabled={exporting}
-          >
-            <Ionicons name="share-outline" size={20} color="#fff" />
-            <Text style={styles.exportBtnText}>
-              {exporting ? "Preparing…" : "Export Emergency Card"}
-            </Text>
-          </Pressable>
-          {Platform.OS !== "web" && (
             <Pressable
-              style={[styles.saveToPhoneBtn, saving && styles.exportBtnDisabled]}
-              onPress={handleSaveToPhone}
-              disabled={saving}
+              style={[styles.saveBtn, !hasCardBasics(data) && !saved ? null : null]}
+              onPress={handleSave}
+              accessibilityRole="button"
+              accessibilityLabel="Save emergency card"
             >
-              <Ionicons name="images-outline" size={20} color={C.tint} />
-              <Text style={styles.saveToPhoneBtnText}>
-                {saving ? "Saving…" : "Save to Phone"}
-              </Text>
+              <Text style={styles.saveBtnText}>{hasCardBasics(data) ? "Save & show card" : "Save details"}</Text>
             </Pressable>
-          )}
-        </View>
+
+            {hasCardBasics(data) ? (
+              <Pressable
+                style={styles.cancelEditBtn}
+                onPress={() => {
+                  Haptics.selectionAsync().catch(() => {});
+                  setIsEditing(false);
+                  setSaved(true);
+                  void load();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel editing"
+              >
+                <Text style={styles.cancelEditText}>Cancel</Text>
+              </Pressable>
+            ) : null}
+          </>
+        )}
       </ScrollView>
 
       <Modal visible={fullscreen} transparent animationType="fade">
@@ -459,9 +521,9 @@ function makeStyles(C: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 24 },
-    header: { marginBottom: 24 },
+    header: { marginBottom: 20 },
     title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
-    subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginTop: 4 },
+    subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginTop: 4, lineHeight: 20 },
     section: { marginBottom: 24 },
     sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 12 },
     field: { marginBottom: 14 },
@@ -478,12 +540,6 @@ function makeStyles(C: Theme) {
       borderColor: C.border,
     },
     inputMultiline: { minHeight: 80, textAlignVertical: "top" },
-    toggleRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginTop: 8,
-    },
     allergyPrompt: {
       flexDirection: "row",
       alignItems: "center",
@@ -507,9 +563,43 @@ function makeStyles(C: Theme) {
       borderRadius: 12,
       paddingVertical: 14,
       alignItems: "center",
-      marginBottom: 24,
+      marginBottom: 12,
     },
     saveBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
+    cancelEditBtn: {
+      alignItems: "center",
+      paddingVertical: 12,
+      marginBottom: 24,
+    },
+    cancelEditText: {
+      fontWeight: "600",
+      fontSize: 15,
+      color: C.textSecondary,
+    },
+    cardWithEdit: {
+      position: "relative",
+      alignSelf: "center",
+      marginBottom: 4,
+    },
+    pencilBtn: {
+      position: "absolute",
+      top: 8,
+      right: 8,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: C.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
+      elevation: 3,
+      zIndex: 2,
+    },
     cardPreviewWrap: {
       alignSelf: "center",
       padding: 16,
