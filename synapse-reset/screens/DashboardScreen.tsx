@@ -2052,13 +2052,21 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
       backgroundColor: C.surface,
       borderRadius: 22,
       padding: 16,
-      // Soft Apple-inspired elevation — readable on #F7F8FA without redesigning layout.
+      // Soft Evergreen elevation (includes 1px border) — matches SoftCard.
       ...softCardElevation(isDarkAppearance(themeId) ? "dark" : "light"),
+    },
+    // Optional lighter Soft Evergreen accent for View-based call sites.
+    quietCardEvergreen: {
+      shadowColor: "#20252A",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
+      elevation: 1,
     },
     medHeroCard: {
       paddingVertical: 4,
       paddingHorizontal: 4,
-      // Do not use overflow:"hidden" here — it clips the soft card shadow on iOS.
+      // Avoid overflow:"hidden" — it clips soft card shadows on iOS.
     },
     medHeroTop: {
       flexDirection: "row",
@@ -2233,6 +2241,128 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
       alignItems: "center",
       gap: 12,
       paddingVertical: 14,
+    },
+    statusGlanceRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingVertical: 4,
+    },
+    weekMetricTileQuiet: {
+      flex: 1,
+      minWidth: "30%",
+      backgroundColor: isDarkAppearance(themeId) ? C.surfaceElevated : "#F7F8FA",
+      borderRadius: 14,
+      padding: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+      gap: 4,
+    },
+    weekInsightQuiet: {
+      marginTop: 4,
+      padding: 12,
+      borderRadius: 14,
+      backgroundColor: isDarkAppearance(themeId) ? C.surfaceElevated : "#F7F8FA",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+    },
+    healthStatusCard: {
+      backgroundColor: C.surface,
+      borderRadius: 22,
+      padding: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+      gap: 14,
+    },
+    healthStatusCardSick: {
+      borderColor: C.red,
+      backgroundColor: isDarkAppearance(themeId) ? C.surface : "#FFF8F7",
+    },
+    healthStatusHeader: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 12,
+    },
+    healthStatusTitle: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: C.text,
+      letterSpacing: -0.3,
+    },
+    healthStatusLabel: {
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: C.textTertiary,
+      marginBottom: 6,
+    },
+    healthStatusSection: {
+      gap: 8,
+    },
+    healthStatusActionRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    healthStatusPrimaryBtn: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      backgroundColor: C.red,
+      paddingVertical: 12,
+      borderRadius: 14,
+    },
+    healthStatusPrimaryBtnText: {
+      color: "#fff",
+      fontWeight: "700",
+      fontSize: 14,
+    },
+    healthStatusSecondaryBtn: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 12,
+      borderRadius: 14,
+      backgroundColor: C.tintLight,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+    },
+    healthStatusSecondaryBtnText: {
+      color: C.tint,
+      fontWeight: "600",
+      fontSize: 14,
+    },
+    sickModeBadge: {
+      backgroundColor: C.red,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 999,
+    },
+    sickModeBadgeText: {
+      color: "#fff",
+      fontSize: 11,
+      fontWeight: "700",
+    },
+    sickModeAccessRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 14,
+    },
+    sickModeMedicalBadge: {
+      position: "absolute",
+      left: -4,
+      bottom: -4,
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: C.red,
+      alignItems: "center",
+      justifyContent: "center",
+      // Solid red — no white/surface ring around the medical badge.
+      borderWidth: 0,
     },
     statusGlanceRow: {
       flexDirection: "row",

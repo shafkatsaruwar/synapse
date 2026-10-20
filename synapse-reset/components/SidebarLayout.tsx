@@ -1412,7 +1412,9 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       // Keep chrome tight under the status bar / Dynamic Island — avoid a tall empty band.
       paddingBottom: 2,
       borderBottomWidth: 0,
-      backgroundColor: C.background,
+      // Transparent so Dynamic Island chrome stays tight; Soft Evergreen fill
+      // comes from mobileContainer underneath (edge-to-edge, no second color).
+      backgroundColor: "transparent",
       // Keep menu tappable above the Quick Add absoluteFill layer.
       zIndex: 60,
       elevation: 60,
