@@ -1349,11 +1349,7 @@ export default function MainScreen() {
         return (
           <DailyLogScreen
             key={refreshKey}
-<<<<<<< HEAD
             onBack={() => backToParentOr("feelinghub")}
-=======
-            onBack={() => handleNavigate("feeling")}
->>>>>>> origin/main
           />
         );
       case "logtoday":
@@ -1361,11 +1357,7 @@ export default function MainScreen() {
           <DailyLogScreen
             key={refreshKey}
             openTodayOnLaunch
-<<<<<<< HEAD
             onBack={() => backToParentOr("feelinghub")}
-=======
-            onBack={() => handleNavigate("feeling")}
->>>>>>> origin/main
           />
         );
       case "healthdata":
