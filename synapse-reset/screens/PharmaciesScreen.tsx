@@ -107,9 +107,7 @@ export default function PharmaciesScreen({ onBack }: PharmaciesScreenProps) {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: topPad }]}>
-        <Pressable onPress={onBack} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back to Account">
-          <Ionicons name="arrow-back" size={24} color={C.text} />
-        </Pressable>
+        <View style={styles.backBtn} />
         <Text style={styles.title}>Pharmacies</Text>
         <Pressable style={styles.addBtn} onPress={openAddModal} accessibilityRole="button" accessibilityLabel="Add pharmacy">
           <Ionicons name="add" size={24} color="#fff" />

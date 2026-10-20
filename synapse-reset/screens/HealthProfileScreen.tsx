@@ -179,12 +179,7 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
         contentContainerStyle={[styles.content, { paddingTop: topPad, paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Pressable onPress={onBack} style={styles.backRow} accessibilityRole="button" accessibilityLabel="Back to Settings">
-          <Ionicons name="arrow-back" size={22} color={C.text} />
-          <Text style={styles.backText}>Settings</Text>
-        </Pressable>
-
-        <Text style={styles.title}>My Profile</Text>
+        <Text style={styles.title}>Health Profile</Text>
         <Text style={styles.subtitle}>Name, age, conditions, allergies, vaccines, surgeries, and emergency info</Text>
 
         <View style={styles.ageCard}>

@@ -4,8 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { measureInWindow, useWalkthroughTargets } from "@/contexts/WalkthroughContext";
-import { settingsStorage, sickModeStorage, enableRecoveryTracking } from "@/lib/storage";
-import { syncRecoveryTrackingCheckIn } from "@/lib/notification-manager";
+import { settingsStorage } from "@/lib/storage";
 
 interface SickModeHeaderButtonProps {
   onActivate: () => void;
@@ -13,7 +12,7 @@ interface SickModeHeaderButtonProps {
   refreshKey?: number;
 }
 
-export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKey }: SickModeHeaderButtonProps) {
+export default function SickModeHeaderButton({ onNavigate, refreshKey }: SickModeHeaderButtonProps) {
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const [isActive, setIsActive] = useState(false);
@@ -42,14 +41,9 @@ export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKe
       onNavigate("sickmode");
       return;
     }
-    const s = await settingsStorage.get();
-    await settingsStorage.save({ ...s, sickMode: true });
-    await enableRecoveryTracking();
-    const sd = await sickModeStorage.get();
-    await sickModeStorage.save({ ...sd, active: true, startedAt: new Date().toISOString() });
-    await syncRecoveryTrackingCheckIn();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    onActivate();
+    // Open Health Status first — do not silently flip Sick Mode on from the header.
+    Haptics.selectionAsync().catch(() => {});
+    onNavigate("healthstatus");
   };
 
   return (
@@ -62,12 +56,12 @@ export default function SickModeHeaderButton({ onActivate, onNavigate, refreshKe
       ]}
       onPress={handlePress}
       accessibilityRole="button"
-      accessibilityLabel={isActive ? "Sick Mode active, open recovery" : "Activate Sick Mode"}
-      accessibilityHint={isActive ? "Opens sick mode screen" : "Activates recovery protocol"}
+      accessibilityLabel={isActive ? "Sick Mode active, open recovery" : "Open Health Status"}
+      accessibilityHint={isActive ? "Opens sick mode screen" : "Opens Health Status to manage recovery"}
     >
       <Ionicons name="shield-outline" size={16} color={isActive ? "#fff" : C.tint} />
       <Text style={[styles.pillText, isActive && styles.pillTextActive]}>
-        {isActive ? "Sick Mode Active" : "Activate Sick Mode"}
+        {isActive ? "Sick Mode Active" : "Health Status"}
       </Text>
     </Pressable>
   );

@@ -1427,7 +1427,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
     setShowTempModal(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (val >= 100 && !settings.sickMode) {
-      Alert.alert("High Temperature", "Your temperature is ≥ 100°F. Consider activating Sick Mode in Settings.");
+      Alert.alert("High Temperature", "Your temperature is ≥ 100°F. Consider opening Health Status to start Sick Mode.");
     }
   };
 
@@ -2544,7 +2544,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
                 <Text style={[styles.pickerPlaceholder, (formMedListPharmacyId || formMedListLegacyPharmacyName) && { color: C.text }]}>
                   {pharmacies.find((p) => p.id === formMedListPharmacyId)?.name
                     || formMedListLegacyPharmacyName
-                    || (pharmacies.length === 0 ? "No pharmacies found. Add pharmacies in Account." : "Select pharmacy")}
+                    || (pharmacies.length === 0 ? "No pharmacies found. Add pharmacies in Care & Support." : "Select pharmacy")}
                 </Text>
                 <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />
               </Pressable>
@@ -3230,7 +3230,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
                         <Text style={[styles.pickerPlaceholder, (formPharmacyId || formLegacyPharmacyName) && { color: C.text }]}>
                           {pharmacies.find((p) => p.id === formPharmacyId)?.name
                             || formLegacyPharmacyName
-                            || (pharmacies.length === 0 ? "No pharmacies found. Add pharmacies in Account." : "Select pharmacy")}
+                            || (pharmacies.length === 0 ? "No pharmacies found. Add pharmacies in Care & Support." : "Select pharmacy")}
                         </Text>
                         <Ionicons name="chevron-down" size={18} color={C.textTertiary} style={{ position: "absolute", right: 12, top: 14 }} />
                       </Pressable>

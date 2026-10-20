@@ -132,11 +132,6 @@ export default function AuthScreen({ onBack, onSuccess }: AuthScreenProps) {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={20}>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: topPad, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <Pressable onPress={onBack} style={styles.backRow} accessibilityRole="button" accessibilityLabel="Back to Settings">
-          <Ionicons name="arrow-back" size={22} color={C.text} />
-          <Text style={styles.backText}>Settings</Text>
-        </Pressable>
-
         {needsConfig && (
           <View style={[styles.card, { marginBottom: 16 }]}>
             <Text style={styles.title}>Configure sign-in</Text>

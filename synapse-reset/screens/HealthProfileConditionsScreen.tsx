@@ -118,16 +118,6 @@ export default function HealthProfileConditionsScreen({ onBack }: Props) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Pressable
-          style={styles.backBtn}
-          onPress={onBack}
-          accessibilityRole="button"
-          accessibilityLabel="Back to Settings"
-        >
-          <Ionicons name="chevron-back" size={20} color={C.tint} />
-          <Text style={styles.backText}>Settings</Text>
-        </Pressable>
-
         <Text style={styles.title}>Conditions</Text>
         <Text style={styles.subtitle}>Conditions you manage</Text>
 
