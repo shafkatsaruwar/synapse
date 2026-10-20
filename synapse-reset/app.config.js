@@ -32,7 +32,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
-      buildNumber: "9",
+      buildNumber: "10",
       entitlements: {
         "com.apple.developer.icloud-container-identifiers": ["iCloud.com.mohammedsaruwar.synapse"],
         "com.apple.developer.icloud-services": ["CloudKit"],
