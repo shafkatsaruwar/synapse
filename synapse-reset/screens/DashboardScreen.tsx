@@ -1449,7 +1449,9 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         </View>
       </View>
 
-      {ramadanDay && (
+      {/* Temporarily hidden: legacy DashboardHero (“Let’s log this day” + med/appointment cards).
+          Today’s essentials + Quick actions cover that job. Flip to true to restore. */}
+      {false && ramadanDay && (
         <View style={styles.ramadanSection}>
           <DashboardHero
             ramadanDayLabel={isRamadanMode ? `Ramadan ${ramadanDay.hijriDay}${ordinalSuffix(ramadanDay.hijriDay)}, 1447 AH` : undefined}
@@ -1493,6 +1495,33 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               </View>
             </GlassView>
           )}
+        </View>
+      )}
+
+      {/* Keep Ramadan Mode entry points when the legacy hero is hidden */}
+      {!!ramadanDay && settings.ramadanMode && (
+        <View style={styles.ramadanSection}>
+          <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.feelingCardGlass, themeId === "light" && styles.feelingCardLight]}>
+            <Pressable
+              style={styles.feelingCardInner}
+              onPress={() => onNavigate("ramadandailylog")}
+              accessibilityRole="button"
+              accessibilityLabel="Ramadan Daily Log"
+              accessibilityHint="Opens the Ramadan daily log screen"
+            >
+              <View>
+                <Text style={styles.feelingTitle}>Ramadan Daily Log</Text>
+                <Text style={styles.feelingSubtitle}>Log your fast, water, energy, mood & motivation.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.tint} />
+            </Pressable>
+          </GlassView>
+          <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.ramadanQuoteCardGlass, themeId === "light" && styles.ramadanQuoteCardLight]}>
+            <View style={styles.ramadanQuoteRow}>
+              <Ionicons name="sparkles" size={16} color={C.pink} />
+              <Text style={styles.ramadanQuoteText}>{ramadanQuote}</Text>
+            </View>
+          </GlassView>
         </View>
       )}
 
