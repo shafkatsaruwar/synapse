@@ -223,8 +223,8 @@ export function getHamburgerItems(options?: { role?: string }): NavRegistryEntry
   return HAMBURGER_KEYS.map((key) => BY_KEY.get(key)!).filter(Boolean);
 }
 
-/** Bottom tab destinations for Full Mode — Today / Health / You. */
-export const FULL_BOTTOM_TAB_KEYS = ["dashboard", "health", "accounthub"] as const;
+/** Bottom tab destinations for Full Mode — Today / Health / Emergency / You. */
+export const FULL_BOTTOM_TAB_KEYS = ["dashboard", "health", "emergencyhub", "accounthub"] as const;
 
 /** Bottom tab destinations for Simple Mode. */
 export const SIMPLE_BOTTOM_TAB_KEYS = ["dashboard", "medications", "appointments", "feelinghub", "accounthub"] as const;
@@ -245,7 +245,6 @@ export function primaryTabForScreen(screen: string): string {
   if ((FULL_BOTTOM_TAB_KEYS as readonly string[]).includes(resolved)) return resolved;
   if (resolved === "sickmode" || resolved === "healthstatus") return "dashboard";
   const parent = getParentHub(resolved);
-  if (resolved === "emergencyhub") return "dashboard";
   if (parent === "accounthub") return "accounthub";
   if (HEALTH_TAB_SCREENS.has(resolved)) return "health";
   if (

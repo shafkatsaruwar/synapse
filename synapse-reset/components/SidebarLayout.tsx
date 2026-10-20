@@ -60,9 +60,10 @@ const SIMPLE_NAV_ITEMS: NavItem[] = SIMPLE_BOTTOM_TAB_KEYS.map((key) => {
   return entryToNavItem(key);
 });
 
-/** Full Mode bottom tabs — Today / Health / You. */
+/** Full Mode bottom tabs — Today / Health / Emergency / You. */
 const PRIMARY_ITEMS: NavItem[] = FULL_BOTTOM_TAB_KEYS.map((key) => {
   if (key === "accounthub") return entryToNavItem(key, "You");
+  if (key === "emergencyhub") return entryToNavItem(key, "Emergency");
   return entryToNavItem(key);
 });
 
