@@ -1252,102 +1252,17 @@ export default function SettingsScreen({
               })}
             </View>
             {activeRole === "caregiver" || (profile.userRole ?? "self") === "caregiver" ? (
-              <View style={styles.simplePersonCard}>
-                <View style={styles.simplePersonHeader}>
-                  <View style={styles.simplePersonAvatar}>
-                    <Ionicons name="person-outline" size={20} color={C.tint} />
-                  </View>
-                  <View style={styles.simplePersonText}>
-                    <Text style={[styles.simplePersonEyebrow, { fontSize: Math.max(11, simpleBodySize - 3) }]}>
-                      Care recipient
-                    </Text>
-                    <Text style={[styles.simplePersonName, { fontSize: simpleSectionTitleSize }]}>
-                      {caredForNameLabel}
-                    </Text>
-                    <Text style={[styles.simplePersonMeta, { fontSize: Math.max(12, simpleBodySize - 2) }]}>
-                      {caredForAgeLabel}
-                    </Text>
-                  </View>
-                  {!roleDetailsEditing ? (
-                    <Pressable
-                      style={styles.roleEditButton}
-                      onPress={() => {
-                        Haptics.selectionAsync();
-                        setRoleDetailsEditing(true);
-                      }}
-                    >
-                      <Ionicons name="pencil-outline" size={15} color={C.tint} />
-                      <Text style={styles.roleEditButtonText}>Edit</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-                {roleDetailsEditing ? (
-                  <>
-                    <View style={styles.simplePersonFieldRow}>
-                      <View style={styles.simplePersonFieldName}>
-                        <Text style={styles.roleInlineLabel}>Name</Text>
-                        <TextInput
-                          style={[styles.simpleSettingsInput, { fontSize: simpleBodySize }]}
-                          value={profile.caredForName ?? ""}
-                          onChangeText={(text) => setProfile((prev) => ({ ...prev, caredForName: text }))}
-                          placeholder="Name"
-                          placeholderTextColor={C.textTertiary}
-                        />
-                      </View>
-                      <View style={styles.simplePersonFieldAge}>
-                        <Text style={styles.roleInlineLabel}>Age</Text>
-                        <TextInput
-                          style={[styles.simpleSettingsInput, { fontSize: simpleBodySize }]}
-                          value={profile.caredForAge != null ? String(profile.caredForAge) : ""}
-                          onChangeText={(text) =>
-                            setProfile((prev) => ({
-                              ...prev,
-                              caredForAge: text.trim() ? Math.max(0, parseInt(text, 10) || 0) : undefined,
-                            }))
-                          }
-                          placeholder="Age"
-                          placeholderTextColor={C.textTertiary}
-                          keyboardType="number-pad"
-                        />
-                      </View>
-                    </View>
-                    <View style={styles.rolePersonActionRow}>
-                      <Pressable
-                        style={styles.roleCancelButton}
-                        onPress={() => {
-                          Haptics.selectionAsync();
-                          setProfile((prev) => ({
-                            ...prev,
-                            caredForName: caregiverProfile?.name || prev.caredForName,
-                            caredForAge: caregiverProfile?.age || prev.caredForAge,
-                          }));
-                          setRoleDetailsEditing(false);
-                        }}
-                        accessibilityRole="button"
-                        accessibilityLabel="Cancel editing care recipient"
-                      >
-                        <Text style={[styles.roleCancelButtonText, { fontSize: Math.max(13, simpleActionSize - 1) }]}>Cancel</Text>
-                      </Pressable>
-                      <Pressable style={[styles.personSaveButton, { flex: 1, marginTop: 0 }]} onPress={saveSimpleRoleDetails}>
-                        <Text style={[styles.personSaveButtonText, { fontSize: simpleActionSize }]}>Save person</Text>
-                      </Pressable>
-                    </View>
-                  </>
-                ) : null}
-                <Pressable
-                  style={styles.roleRemoveButton}
-                  onPress={handleRemoveCaregiverMode}
-                  accessibilityRole="button"
-                  accessibilityLabel="Remove care recipient"
-                >
-                  <Ionicons name="trash-outline" size={16} color={C.red} />
-                  <Text style={[styles.roleRemoveButtonText, { fontSize: Math.max(13, simpleActionSize - 1) }]}>
-                    Remove care recipient
-                  </Text>
-                </Pressable>
-              </View>
+              <Pressable
+                style={[styles.simpleSettingsPrimaryButton, { marginTop: 14 }]}
+                onPress={() => onNavigate?.("carehub")}
+                accessibilityRole="button"
+                accessibilityLabel="Open Care and Support"
+              >
+                <Text style={[styles.simpleSettingsPrimaryButtonText, { fontSize: simpleActionSize }]}>
+                  Open Care & Support
+                </Text>
+              </Pressable>
             ) : null}
-            {renderCaregiverLinkingSection(true)}
           </GlassView>
 
           <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
@@ -1520,7 +1435,9 @@ export default function SettingsScreen({
 
         <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
           <Text style={styles.sectionTitle}>Role</Text>
-          <Text style={[styles.desc, { marginBottom: 12 }]}>Tell Synapse who this setup is for so the app can stay context-aware.</Text>
+          <Text style={[styles.desc, { marginBottom: 12 }]}>
+            Who this setup is for. Care recipient details and linking live under Care & Support.
+          </Text>
           <View style={styles.roleRow}>
             {(["self", "caregiver", "backup"] as UserRole[]).map((roleOption) => {
               const active = activeRole === roleOption || (profile.userRole ?? "self") === roleOption;
@@ -1536,140 +1453,16 @@ export default function SettingsScreen({
               );
             })}
           </View>
-
           {activeRole === "caregiver" || (profile.userRole ?? "self") === "caregiver" ? (
-            <View style={styles.rolePersonCard}>
-              <View style={styles.rolePersonHeader}>
-                <View style={styles.rolePersonAvatar}>
-                  <Ionicons name="person-outline" size={22} color={C.tint} />
-                </View>
-                <View style={styles.rolePersonText}>
-                  <Text style={styles.rolePersonEyebrow}>Care recipient</Text>
-                  <Text style={styles.rolePersonName}>{caredForNameLabel}</Text>
-                  <Text style={styles.rolePersonMeta}>{caredForAgeLabel}</Text>
-                </View>
-              </View>
-
-              <View style={styles.rolePersonFieldRow}>
-                <View style={styles.rolePersonFieldName}>
-                  <Text style={styles.roleInlineLabel}>Name</Text>
-                  <TextInput
-                    style={styles.roleInlineInput}
-                    value={profile.caredForName ?? ""}
-                    onChangeText={(text) => {
-                      setRoleDetailsEditing(true);
-                      setProfile((prev) => ({ ...prev, caredForName: text }));
-                    }}
-                    placeholder="Name"
-                    placeholderTextColor={C.textTertiary}
-                  />
-                </View>
-                <View style={styles.rolePersonFieldAge}>
-                  <Text style={styles.roleInlineLabel}>Age</Text>
-                  <TextInput
-                    style={styles.roleInlineInput}
-                    value={profile.caredForAge != null ? String(profile.caredForAge) : ""}
-                    onChangeText={(text) => {
-                      setRoleDetailsEditing(true);
-                      setProfile((prev) => ({
-                        ...prev,
-                        caredForAge: text.trim() ? Math.max(0, parseInt(text, 10) || 0) : undefined,
-                      }));
-                    }}
-                    placeholder="Age"
-                    placeholderTextColor={C.textTertiary}
-                    keyboardType="number-pad"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.rolePersonActionRow}>
-                <Pressable
-                  style={styles.roleCancelButton}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    setProfile((prev) => ({
-                      ...prev,
-                      caredForName: caregiverProfile?.name || "",
-                      caredForAge: caregiverProfile?.age || undefined,
-                    }));
-                    setRoleDetailsEditing(false);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Cancel editing care recipient"
-                >
-                  <Text style={styles.roleCancelButtonText}>Cancel</Text>
-                </Pressable>
-                <Pressable style={[styles.personSaveButton, { flex: 1, marginTop: 0 }]} onPress={saveCareRecipientDetails}>
-                  <Text style={styles.personSaveButtonText}>Save person</Text>
-                </Pressable>
-              </View>
-
-              <Pressable
-                style={styles.roleRemoveButton}
-                onPress={handleRemoveCaregiverMode}
-                accessibilityRole="button"
-                accessibilityLabel="Remove care recipient"
-                testID="account-remove-care-recipient"
-              >
-                <Ionicons name="trash-outline" size={16} color={C.red} />
-                <Text style={styles.roleRemoveButtonText}>Remove care recipient</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {(profile.userRole ?? "self") === "backup" ? (
-            <View style={{ marginTop: 14, gap: 12 }}>
-              <View>
-                <Text style={styles.label}>Emergency protocols</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={profile.backupEmergencyProtocols ?? ""}
-                  onChangeText={(text) => setProfile((prev) => ({ ...prev, backupEmergencyProtocols: text }))}
-                  placeholder="What should a backup person know in an emergency?"
-                  placeholderTextColor={C.textTertiary}
-                  multiline
-                />
-              </View>
-              <View>
-                <Text style={styles.label}>Critical medications</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={(profile.backupCriticalMedications ?? []).map((item) => item.name).join("\n")}
-                  onChangeText={(text) =>
-                    setProfile((prev) => ({
-                      ...prev,
-                      backupCriticalMedications: text
-                        .split("\n")
-                        .map((line) => line.trim())
-                        .filter(Boolean)
-                        .map((name, index) => ({ id: `critical-${index}-${name}`, name })),
-                    }))
-                  }
-                  placeholder="One per line, like emergency injection or rescue inhaler"
-                  placeholderTextColor={C.textTertiary}
-                  multiline
-                />
-              </View>
-            </View>
-          ) : null}
-
-          {(profile.userRole ?? "self") === "backup" ? (
             <Pressable
-              style={[styles.primaryBtn, { marginTop: 14 }]}
-              onPress={() =>
-                saveBackupRoleDetails({
-                  caredForName: profile.caredForName?.trim() || undefined,
-                  caredForAge: profile.userRole === "caregiver" && profile.caredForAge != null ? profile.caredForAge : undefined,
-                  backupEmergencyProtocols: profile.backupEmergencyProtocols?.trim() || undefined,
-                  backupCriticalMedications: (profile.backupCriticalMedications ?? []).filter((item) => item.name.trim()),
-                })
-              }
+              style={[styles.secondaryBtn, { marginTop: 14 }]}
+              onPress={() => onNavigate?.("carehub")}
+              accessibilityRole="button"
+              accessibilityLabel="Open Care and Support"
             >
-              <Text style={styles.primaryBtnText}>Save role details</Text>
+              <Text style={styles.secondaryBtnText}>Open Care & Support</Text>
             </Pressable>
           ) : null}
-          {renderCaregiverLinkingSection(false)}
         </GlassView>
 
         <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={styles.groupCard}>

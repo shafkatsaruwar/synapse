@@ -184,10 +184,10 @@ export default function HealthStatusScreen({ onNavigate, onRefreshKey }: HealthS
           style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.9 }]}
           onPress={openSickMode}
           accessibilityRole="button"
-          accessibilityLabel={isSickMode ? "Open Sick Mode" : "Preview Sick Mode"}
+          accessibilityLabel={isSickMode ? "Open Sick Mode" : "Enter Sick Mode"}
         >
           <Text style={styles.primaryBtnText}>
-            {isSickMode ? "Open Sick Mode" : "Preview Sick Mode"}
+            {isSickMode ? "Open Sick Mode" : "Enter Sick Mode"}
           </Text>
         </Pressable>
       </View>

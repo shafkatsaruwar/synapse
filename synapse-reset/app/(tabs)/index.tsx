@@ -104,7 +104,7 @@ const WHATS_NEW_BULLETS = [
   "Widgets now show more useful medication times and appointment details",
 ] as const;
 const WHATS_NEW_FOOTER =
-  "Try the new flows from the plus button, Appointments, Medications, or Account whenever you want a refresher.";
+  "Try the new flows from the plus button, Appointments, Medications, or You whenever you want a refresher.";
 
 const SIMPLE_TOUR_GAP = 14;
 const SIMPLE_TOUR_ARROW_SIZE = 11;
@@ -1233,7 +1233,7 @@ export default function MainScreen() {
                 setCaregiverAgeDraft("");
                 setCaregiverRelationDraft("");
                 await clearCaregiverMode();
-                setActiveScreen("settings");
+                setActiveScreen("accounthub");
                 setRefreshKey((k) => k + 1);
               }}
               style={({ pressed }) => [styles.feedbackPromptSecondary, pressed && styles.whatsNewButtonPressed]}
@@ -1352,7 +1352,7 @@ export default function MainScreen() {
         return (
           <ManagedPersonScreen
             onBack={() => backToParentOr("carehub")}
-            onRemoved={() => handleNavigate("settings")}
+            onRemoved={() => handleNavigate("carehub")}
           />
         );
       case "log":
@@ -1437,7 +1437,7 @@ export default function MainScreen() {
             key={`${feedbackEntrySource}-${feedbackInitialSentiment ?? "choice"}`}
             onBack={() => {
               setFeedbackInitialSentiment(null);
-              setActiveScreen(feedbackEntrySource === "prompt" ? "dashboard" : "settings");
+              setActiveScreen(feedbackEntrySource === "prompt" ? "dashboard" : "accounthub");
               setRefreshKey((k) => k + 1);
             }}
             initialSentiment={feedbackInitialSentiment}

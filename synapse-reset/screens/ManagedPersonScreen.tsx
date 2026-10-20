@@ -77,9 +77,6 @@ export default function ManagedPersonScreen({ onBack, onRemoved }: ManagedPerson
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: topPad, paddingBottom: isWide ? 40 : insets.bottom + 118 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={onBack}>
-            <Ionicons name="chevron-back" size={22} color={C.text} />
-          </Pressable>
           <View style={styles.headerText}>
             <Text style={styles.eyebrow}>Caregiver</Text>
             <Text style={styles.title}>Managed Person</Text>

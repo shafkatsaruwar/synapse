@@ -124,14 +124,6 @@ export default function RamadanDailyLogScreen({ onBack }: RamadanDailyLogScreenP
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
       <View style={styles.header}>
-        <Pressable
-          onPress={onBack}
-          style={styles.backBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Back to dashboard"
-        >
-          <Ionicons name="arrow-back" size={24} color={C.text} />
-        </Pressable>
         <Text style={styles.title}>Ramadan Daily Log</Text>
       </View>
 

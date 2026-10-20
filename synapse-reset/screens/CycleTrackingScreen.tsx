@@ -291,11 +291,6 @@ export default function CycleTrackingScreen({ onBack }: CycleTrackingScreenProps
         contentContainerStyle={[styles.content, { paddingTop: Platform.OS === "web" ? 40 : 14, paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Pressable onPress={onBack} style={styles.backRow} accessibilityRole="button" accessibilityLabel="Back to Settings">
-          <Ionicons name="arrow-back" size={22} color={C.text} />
-          <Text style={styles.backText}>Settings</Text>
-        </Pressable>
-
         <Text style={styles.title}>Cycle tracking</Text>
         <Text style={styles.subtitle}>Pattern-aware logging for flow, symptoms, energy, and context.</Text>
 

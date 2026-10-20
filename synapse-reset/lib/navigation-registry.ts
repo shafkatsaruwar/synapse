@@ -134,6 +134,7 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
   { key: "goals", type: "screen", label: "Goals", icon: "flag-outline", iconActive: "flag", parent: "wellbeinghub", description: "Gentle goals you set for yourself" },
   { key: "cycletracking", type: "screen", label: "Cycle Tracking", icon: "water-outline", iconActive: "water", parent: "wellbeinghub", description: "Optional cycle awareness" },
   { key: "ramadan", type: "screen", label: "Ramadan Mode", icon: "moon-outline", iconActive: "moon", parent: "wellbeinghub", description: "Fasting-aware daily support" },
+  // Opened from Ramadan Mode — not listed as a Wellbeing hub row.
   { key: "ramadandailylog", type: "screen", label: "Ramadan Daily Log", icon: "moon-outline", iconActive: "moon", parent: "wellbeinghub" },
 
   // —— Care & Support children ——
@@ -151,6 +152,7 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
   { key: "editprofile", type: "screen", label: "Backup & Restore", icon: "cloud-outline", iconActive: "cloud", parent: "accounthub", description: "Optional iCloud backup, assistant sync, and local export" },
   { key: "feedback", type: "screen", label: "Help & Feedback", icon: "chatbubble-ellipses-outline", iconActive: "chatbubble-ellipses", parent: "accounthub", description: "Share feedback or get help" },
   { key: "meetfounder", type: "screen", label: "Meet the Founder", icon: "heart-outline", iconActive: "heart", parent: "accounthub" },
+  // Opened from Backup & Restore — not listed as a You hub row.
   { key: "auth", type: "screen", label: "Sign In", icon: "log-in-outline", iconActive: "log-in", parent: "accounthub" },
 
   // —— Other retained screens (not hamburger children) ——
@@ -205,6 +207,13 @@ export function getParentHub(key: string): string | undefined {
   return getNavEntry(key)?.parent;
 }
 
+/** Screens that keep a parent hub for back-stack, but should not appear as hub rows. */
+const HUB_LIST_EXCLUDED = new Set([
+  "logtoday", // alias of log
+  "ramadandailylog", // opened from Ramadan Mode
+  "auth", // opened from Backup & Restore
+]);
+
 export function getHubChildren(
   hubKey: string,
   options?: { role?: string; includeFlagged?: boolean }
@@ -212,7 +221,7 @@ export function getHubChildren(
   const role = options?.role ?? "self";
   return NAV_REGISTRY.filter((entry) => {
     if (entry.parent !== hubKey) return false;
-    if (entry.key === "logtoday") return false; // alias of log for UI lists
+    if (HUB_LIST_EXCLUDED.has(entry.key)) return false;
     if (entry.requiresFlag && !featureFlags[entry.requiresFlag]) return false;
     if (entry.role && entry.role !== "any" && entry.role !== role) return false;
     return true;

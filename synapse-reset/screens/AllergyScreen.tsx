@@ -71,12 +71,7 @@ export default function AllergyScreen({ onBack }: AllergyScreenProps) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Pressable onPress={onBack} style={styles.backRow} accessibilityRole="button" accessibilityLabel="Back to My Profile">
-          <Ionicons name="arrow-back" size={22} color={C.text} />
-          <Text style={styles.backText}>My Profile</Text>
-        </Pressable>
-
-        <Text style={styles.title}>Allergy & Emergency Info</Text>
+        <Text style={styles.title}>Allergies</Text>
         <Text style={styles.subtitle}>Important information for emergencies</Text>
 
         <View style={styles.card}>

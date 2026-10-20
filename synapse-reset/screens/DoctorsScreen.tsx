@@ -147,9 +147,7 @@ export default function DoctorsScreen({ onBack }: DoctorsScreenProps) {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: Platform.OS === "web" ? 16 : 14 }]}>
-        <Pressable onPress={onBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back">
-          <Ionicons name="chevron-back" size={24} color={C.text} />
-        </Pressable>
+        <View style={styles.backBtn} />
         <Text style={styles.title} numberOfLines={1}>Doctors – {activeOwnerLabel}</Text>
         <Pressable
           style={styles.addBtn}
