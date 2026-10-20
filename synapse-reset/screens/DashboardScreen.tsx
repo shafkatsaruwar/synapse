@@ -1320,35 +1320,31 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     return simpleContent;
   }
 
-  const medicationStatusLine = (() => {
-    if (!medications.length) return "No medications yet. Add one when you’re ready.";
-    if (totalDoses > 0 && takenDoses >= totalDoses) return "All doses logged for today.";
-    if (dueMedication) {
-      return formatDueMedicationStatus(currentMinutes, dueMedication.dueMinutes);
-    }
-    if (totalDoses > 0) return `${takenDoses} of ${totalDoses} doses logged today.`;
-    return "Open medications to review your list.";
-  })();
+  const upNextTitle = dueMedication?.name
+    || nextMedication?.name
+    || (medications.length ? "Your next scheduled dose" : "Add your medications");
+  const upNextSubtitle = dueMedication
+    ? (dueMedication.subtitle || formatDueMedicationStatus(currentMinutes, dueMedication.dueMinutes))
+    : nextMedication?.lines[0]
+      ? nextMedication.lines[0]
+      : medications.length
+        ? "Review your medication schedule"
+        : "Set up a schedule when you’re ready";
 
-  const nextDoseLine = nextMedication
-    ? `${nextMedication.name}${nextMedication.lines[0] ? ` · ${nextMedication.lines[0]}` : ""}`
-    : null;
-
-  const appointmentBody = todayAppointment
-    ? [todayAppointment.doctorName || "Appointment today", formatTime12h(todayAppointment.time), todayAppointment.specialty]
+  const appointmentSubtitle = todayAppointment
+    ? [formatTime12h(todayAppointment.time), todayAppointment.doctorName || todayAppointment.specialty]
         .filter(Boolean)
         .join(" · ")
     : nextApt
       ? formatAppointmentPreview(nextApt, today)
-      : "No upcoming visits. Tap to add one.";
+      : "Plan your next visit";
 
-  const feelingBody = todayLog
-    ? "Checked in today. Tap to open How I’m Feeling."
-    : "Log how you’re feeling whenever you’re ready.";
+  const feelingSubtitle = todayLog
+    ? "Checked in today"
+    : "A moment to check in";
 
   const cardStackPadding = isWide ? 0 : 16;
-  const stackGap = isWide ? width < 900 : width < 420;
-  const dualColumn = !stackGap;
+  const dualColumn = width >= 360;
 
   const solidCard = (extra?: object) => [
     styles.quietCard,
@@ -1357,49 +1353,89 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   ];
 
   const inner = (
-    <View style={{ marginHorizontal: cardStackPadding, gap: 16 }}>
-      <View style={styles.welcome} accessibilityRole="header">
-        <Text style={styles.dateText}>
-          {dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-        </Text>
-        <Text style={styles.greetingText}>{greeting}</Text>
-        <Text style={styles.dateText}>{greetingSupport}</Text>
+    <View style={{ marginHorizontal: cardStackPadding, gap: 18 }}>
+      <View style={styles.welcomeRow} accessibilityRole="header">
+        <View style={styles.welcome}>
+          <Text style={styles.dateOverline}>
+            {dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+          </Text>
+          <Text style={styles.greetingText}>{greeting}</Text>
+          <Text style={styles.greetingSupport}>{greetingSupport}</Text>
+        </View>
+        <Pressable
+          style={({ pressed }) => [styles.profileFab, pressed && { opacity: 0.85 }]}
+          onPress={() => {
+            Haptics.selectionAsync().catch(() => {});
+            onNavigate("accounthub");
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="You & Settings"
+        >
+          <Ionicons name="person-outline" size={22} color={C.textSecondary} />
+        </Pressable>
       </View>
 
-      {/* Medications — prominent full-width */}
-      <Pressable
-        ref={refMed}
-        collapsable={false}
-        style={({ pressed }) => [...solidCard(styles.medHeroCard), { opacity: pressed ? 0.92 : 1 }]}
-        onPress={() => {
-          Haptics.selectionAsync().catch(() => {});
-          onNavigate("medications");
-        }}
-        accessibilityRole="button"
-        accessibilityLabel="Medications"
-        accessibilityHint="Opens your medications"
-      >
-        <View style={styles.quietCardHeader}>
+      {/* Medications — reference card with UP NEXT + View */}
+      <View ref={refMed} collapsable={false} style={solidCard(styles.medHeroCard)}>
+        <Pressable
+          style={({ pressed }) => [styles.medHeroTop, pressed && { opacity: 0.88 }]}
+          onPress={() => {
+            Haptics.selectionAsync().catch(() => {});
+            onNavigate("medications");
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Medications"
+          accessibilityHint="Opens your medications"
+        >
           <View style={[styles.quietIconWrap, { backgroundColor: C.tintLight }]}>
             <Ionicons name="medical-outline" size={22} color={C.tint} />
           </View>
-          <Text style={styles.quietCardTitle}>Medications</Text>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={styles.quietCardTitle}>Medications</Text>
+            <Text style={styles.quietCardBody}>Your daily schedule</Text>
+          </View>
           <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
-        </View>
-        <Text style={styles.quietCardBody}>{medicationStatusLine}</Text>
-        {nextDoseLine ? (
-          <Text style={styles.quietCardMeta} numberOfLines={2}>
-            Next: {nextDoseLine}
-          </Text>
-        ) : null}
-        <Text style={styles.quietCardCta}>
-          {medications.length ? "View or log medication" : "Add a medication"}
-        </Text>
-      </Pressable>
+        </Pressable>
 
-      {/* Your Health — Appointments + How I’m Feeling */}
-      <View>
-        <Text style={styles.quietSectionLabel}>Your Health</Text>
+        <View style={styles.medDivider} />
+
+        <View style={styles.medUpNextRow}>
+          <View style={{ flex: 1, gap: 4, paddingRight: 12 }}>
+            <Text style={styles.upNextLabel}>UP NEXT</Text>
+            <Text style={styles.upNextTitle} numberOfLines={2}>{upNextTitle}</Text>
+            <Text style={styles.quietCardBody} numberOfLines={2}>{upNextSubtitle}</Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.viewPill, pressed && { opacity: 0.88 }]}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              onNavigate("medications");
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="View medications"
+          >
+            <Text style={styles.viewPillText}>View</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Your health */}
+      <View style={{ gap: 12 }}>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.quietSectionTitle}>Your health</Text>
+          <Pressable
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              onNavigate("recordshub");
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="See all health records"
+          >
+            <Text style={styles.seeAllLink}>See all</Text>
+          </Pressable>
+        </View>
+
         <View style={{ flexDirection: dualColumn ? "row" : "column", gap: 12 }}>
           <Pressable
             ref={refApt}
@@ -1407,7 +1443,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             style={({ pressed }) => [
               ...solidCard(styles.halfCard),
               dualColumn && { flex: 1 },
-              { opacity: pressed ? 0.92 : 1 },
+              pressed && { opacity: 0.9 },
             ]}
             onPress={() => {
               Haptics.selectionAsync().catch(() => {});
@@ -1416,15 +1452,11 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             accessibilityRole="button"
             accessibilityLabel="Appointments"
           >
-            <View style={styles.quietCardHeader}>
-              <View style={[styles.quietIconWrap, { backgroundColor: C.cyanLight }]}>
-                <Ionicons name="calendar-outline" size={20} color={C.cyan} />
-              </View>
-              <Text style={styles.quietCardTitleSm}>Appointments</Text>
+            <View style={[styles.quietIconWrap, { backgroundColor: C.cyanLight }]}>
+              <Ionicons name="calendar-outline" size={22} color={C.cyan} />
             </View>
-            <Text style={styles.quietCardBody} numberOfLines={3}>
-              {appointmentBody}
-            </Text>
+            <Text style={styles.halfCardTitle}>Appointments</Text>
+            <Text style={styles.quietCardBody} numberOfLines={2}>{appointmentSubtitle}</Text>
           </Pressable>
 
           <Pressable
@@ -1433,7 +1465,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             style={({ pressed }) => [
               ...solidCard(styles.halfCard),
               dualColumn && { flex: 1 },
-              { opacity: pressed ? 0.92 : 1 },
+              pressed && { opacity: 0.9 },
             ]}
             onPress={() => {
               Haptics.selectionAsync().catch(() => {});
@@ -1442,74 +1474,37 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             accessibilityRole="button"
             accessibilityLabel="How I’m Feeling"
           >
-            <View style={styles.quietCardHeader}>
-              <View style={[styles.quietIconWrap, { backgroundColor: C.tintLight }]}>
-                <Ionicons name="heart-outline" size={20} color={C.tint} />
-              </View>
-              <Text style={styles.quietCardTitleSm}>How I’m Feeling</Text>
+            <View style={[styles.quietIconWrap, { backgroundColor: C.tintLight }]}>
+              <Ionicons name="heart-outline" size={22} color={C.tint} />
             </View>
-            <Text style={styles.quietCardBody} numberOfLines={3}>
-              {feelingBody}
-            </Text>
+            <Text style={styles.halfCardTitle}>How I’m Feeling</Text>
+            <Text style={styles.quietCardBody} numberOfLines={2}>{feelingSubtitle}</Text>
           </Pressable>
         </View>
       </View>
 
-      {/* Emergency Information */}
+      {/* Emergency information */}
       <Pressable
-        style={({ pressed }) => [...solidCard(styles.emergencyCard), { opacity: pressed ? 0.92 : 1 }]}
+        style={({ pressed }) => [...solidCard(styles.emergencyCard), pressed && { opacity: 0.9 }]}
         onPress={() => {
           Haptics.selectionAsync().catch(() => {});
           onNavigate("emergencyhub");
         }}
         accessibilityRole="button"
-        accessibilityLabel="Emergency Information"
+        accessibilityLabel="Emergency information"
         accessibilityHint="Open emergency card and protocol"
       >
-        <View style={styles.quietCardHeader}>
-          <View style={[styles.quietIconWrap, { backgroundColor: C.redLight }]}>
-            <Ionicons name="shield-outline" size={22} color={C.red} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.quietCardTitle}>Emergency Information</Text>
-            <Text style={styles.quietCardBody}>Card and protocol — available immediately.</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+        <View style={[styles.quietIconWrap, { backgroundColor: "#F3E8E6" }]}>
+          <Ionicons name="shield-outline" size={22} color={isDarkAppearance(themeId) ? C.tint : "#6B5E5A"} />
         </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={styles.quietCardTitle}>Emergency information</Text>
+          <Text style={styles.quietCardBody}>Important details, ready when needed</Text>
+        </View>
+        <Ionicons name="open-outline" size={18} color={C.textTertiary} />
       </Pressable>
 
-      {/* Sick Mode access — keep visible */}
-      <Pressable
-        style={({ pressed }) => [
-          ...solidCard(),
-          {
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 12,
-            opacity: pressed ? 0.92 : 1,
-            borderColor: isSickMode ? C.red : C.border,
-          },
-        ]}
-        onPress={() => {
-          Haptics.selectionAsync().catch(() => {});
-          onNavigate(isSickMode ? "sickmode" : "settings");
-        }}
-        accessibilityRole="button"
-        accessibilityLabel={isSickMode ? "Sick Mode is on" : "Sick Mode"}
-      >
-        <View style={[styles.quietIconWrap, { backgroundColor: C.redLight }]}>
-          <Ionicons name="medkit-outline" size={20} color={C.red} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.quietCardTitleSm}>{isSickMode ? "Sick Mode is on" : "Sick Mode"}</Text>
-          <Text style={styles.quietCardBody}>
-            {isSickMode ? "Open Sick Mode tools" : "Turn on from Account when you need stress dosing support"}
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
-      </Pressable>
-
-      {/* Secondary: progressive disclosure */}
+      {/* Secondary: Sick Mode + snapshot stay behind progressive disclosure */}
       <Pressable
         onPress={() => {
           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -1526,16 +1521,33 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       {showMoreToday ? (
         <View style={{ gap: 12 }}>
           <Pressable
-            style={({ pressed }) => [...solidCard(), { opacity: pressed ? 0.92 : 1 }]}
-            onPress={() => onNavigate("recordshub")}
+            style={({ pressed }) => [
+              ...solidCard(),
+              {
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                opacity: pressed ? 0.92 : 1,
+                borderColor: isSickMode ? C.red : C.border,
+              },
+            ]}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              onNavigate(isSickMode ? "sickmode" : "settings");
+            }}
             accessibilityRole="button"
-            accessibilityLabel="Health Records"
+            accessibilityLabel={isSickMode ? "Sick Mode is on" : "Sick Mode"}
           >
-            <View style={styles.quietCardHeader}>
-              <Text style={styles.quietCardTitleSm}>Health Records</Text>
-              <Text style={styles.quietCardCta}>See all</Text>
+            <View style={[styles.quietIconWrap, { backgroundColor: C.redLight }]}>
+              <Ionicons name="medkit-outline" size={20} color={C.red} />
             </View>
-            <Text style={styles.quietCardBody}>Vitals, labs, imaging, timeline, and reports.</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.halfCardTitle}>{isSickMode ? "Sick Mode is on" : "Sick Mode"}</Text>
+              <Text style={styles.quietCardBody}>
+                {isSickMode ? "Open Sick Mode tools" : "Stress dosing support when you need it"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
           </Pressable>
 
           {!!ramadanDay && settings.ramadanMode ? (
@@ -1859,7 +1871,7 @@ function makeHeroStyles(C: Theme) {
   });
 }
 
-function makeStyles(C: Theme, textScale: number, themeId: string) {
+function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/ThemeContext").ThemeId) {
   const size = (base: number) => Math.round(base * textScale * 100) / 100;
   const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
@@ -2101,41 +2113,143 @@ function makeStyles(C: Theme, textScale: number, themeId: string) {
       lineHeight: size(23),
       color: C.textSecondary,
     },
-    welcome: { marginBottom: 8, gap: 4 },
-    greetingText: { fontWeight: "700", fontSize: 30, color: C.text, letterSpacing: -0.6, marginBottom: 2 },
-    quietSectionLabel: {
-      fontSize: 13,
-      fontWeight: "600",
+    welcomeRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 12,
+      marginBottom: 4,
+    },
+    welcome: { flex: 1, gap: 4 },
+    dateOverline: {
+      fontSize: 14,
+      fontWeight: "500",
       color: C.textSecondary,
-      letterSpacing: 0.3,
-      marginBottom: 10,
+      marginBottom: 2,
+    },
+    greetingText: {
+      fontWeight: "700",
+      fontSize: 32,
+      color: C.text,
+      letterSpacing: -0.7,
+      lineHeight: 38,
+    },
+    greetingSupport: {
+      fontSize: 16,
+      fontWeight: "400",
+      color: C.textSecondary,
+      lineHeight: 22,
+      marginTop: 2,
+    },
+    profileFab: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+      backgroundColor: C.surface,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 4,
+    },
+    quietSectionTitle: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: C.text,
+      letterSpacing: -0.3,
+    },
+    sectionHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       paddingHorizontal: 2,
-      textTransform: "uppercase",
+    },
+    seeAllLink: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: C.tint,
     },
     quietCard: {
       backgroundColor: C.surface,
-      borderRadius: 18,
+      borderRadius: 22,
       padding: 16,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: C.border,
-      gap: 8,
     },
     quietCardEvergreen: {
       shadowColor: "#20252A",
       shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.04,
-      shadowRadius: 4,
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
       elevation: 1,
     },
     medHeroCard: {
-      paddingVertical: 18,
-      gap: 10,
+      paddingVertical: 4,
+      paddingHorizontal: 4,
+      overflow: "hidden",
+    },
+    medHeroTop: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 14,
+    },
+    medDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: C.border,
+      marginHorizontal: 12,
+    },
+    medUpNextRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 12,
+      paddingVertical: 14,
+      gap: 8,
+    },
+    upNextLabel: {
+      fontSize: 11,
+      fontWeight: "700",
+      letterSpacing: 0.8,
+      color: C.textTertiary,
+      marginBottom: 2,
+    },
+    upNextTitle: {
+      fontSize: 17,
+      fontWeight: "700",
+      color: C.text,
+      letterSpacing: -0.2,
+    },
+    viewPill: {
+      backgroundColor: isDarkAppearance(themeId) ? C.tint : "#3D4A47",
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: 999,
+      minWidth: 72,
+      alignItems: "center",
+    },
+    viewPillText: {
+      color: "#FFFFFF",
+      fontSize: 15,
+      fontWeight: "600",
     },
     halfCard: {
-      minHeight: 132,
+      minHeight: 148,
+      gap: 10,
+      paddingVertical: 18,
+      paddingHorizontal: 16,
+    },
+    halfCardTitle: {
+      fontSize: 17,
+      fontWeight: "700",
+      color: C.text,
+      letterSpacing: -0.2,
     },
     emergencyCard: {
-      paddingVertical: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 18,
+      paddingHorizontal: 16,
     },
     quietCardHeader: {
       flexDirection: "row",
@@ -2143,42 +2257,22 @@ function makeStyles(C: Theme, textScale: number, themeId: string) {
       gap: 12,
     },
     quietIconWrap: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
+      width: 44,
+      height: 44,
+      borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
     },
     quietCardTitle: {
-      flex: 1,
-      fontSize: 20,
-      fontWeight: "700",
-      color: C.text,
-      letterSpacing: -0.3,
-    },
-    quietCardTitleSm: {
-      flex: 1,
-      fontSize: 16,
+      fontSize: 17,
       fontWeight: "700",
       color: C.text,
       letterSpacing: -0.2,
     },
     quietCardBody: {
-      fontSize: 15,
-      lineHeight: 21,
-      color: C.textSecondary,
-    },
-    quietCardMeta: {
       fontSize: 14,
       lineHeight: 20,
-      color: C.text,
-      fontWeight: "500",
-    },
-    quietCardCta: {
-      marginTop: 4,
-      fontSize: 14,
-      fontWeight: "600",
-      color: C.tint,
+      color: C.textSecondary,
     },
     moreToggle: {
       flexDirection: "row",
