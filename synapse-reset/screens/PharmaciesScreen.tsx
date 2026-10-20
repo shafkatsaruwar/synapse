@@ -15,7 +15,7 @@ interface PharmaciesScreenProps {
   onBack: () => void;
 }
 
-export default function PharmaciesScreen({ onBack }: PharmaciesScreenProps) {
+export default function PharmaciesScreen(_props: PharmaciesScreenProps) {
   const insets = useSafeAreaInsets();
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -107,9 +107,6 @@ export default function PharmaciesScreen({ onBack }: PharmaciesScreenProps) {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: topPad }]}>
-        <Pressable onPress={onBack} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back to Account">
-          <Ionicons name="arrow-back" size={24} color={C.text} />
-        </Pressable>
         <Text style={styles.title}>Pharmacies</Text>
         <Pressable style={styles.addBtn} onPress={openAddModal} accessibilityRole="button" accessibilityLabel="Add pharmacy">
           <Ionicons name="add" size={24} color="#fff" />
@@ -243,7 +240,6 @@ function makeStyles(C: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingBottom: 16 },
-    backBtn: { marginRight: 12, padding: 4 },
     title: { flex: 1, fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
     addBtn: { width: 48, height: 48, borderRadius: 16, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", ...raised("md", C.tint) },
     scroll: { flex: 1 },
