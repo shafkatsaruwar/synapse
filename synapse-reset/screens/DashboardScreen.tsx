@@ -2052,13 +2052,21 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
       backgroundColor: C.surface,
       borderRadius: 22,
       padding: 16,
-      // Soft Apple-inspired elevation — readable on #F7F8FA without redesigning layout.
+      // Soft Evergreen elevation (includes 1px border) — matches SoftCard.
       ...softCardElevation(isDarkAppearance(themeId) ? "dark" : "light"),
+    },
+    // Optional lighter Soft Evergreen accent for View-based call sites.
+    quietCardEvergreen: {
+      shadowColor: "#20252A",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
+      elevation: 1,
     },
     medHeroCard: {
       paddingVertical: 4,
       paddingHorizontal: 4,
-      // Do not use overflow:"hidden" here — it clips the soft card shadow on iOS.
+      // Avoid overflow:"hidden" — it clips soft card shadows on iOS.
     },
     medHeroTop: {
       flexDirection: "row",
