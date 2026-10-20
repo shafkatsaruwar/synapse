@@ -158,6 +158,7 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
   { key: "auth", type: "screen", label: "Sign In", icon: "log-in-outline", iconActive: "log-in", parent: "accounthub" },
 
   // —— Other retained screens (not hamburger children) ——
+  { key: "healthstatus", type: "screen", label: "Health Status", icon: "pulse-outline", iconActive: "pulse" },
   { key: "sickmode", type: "screen", label: "Sick Mode", icon: "medkit-outline", iconActive: "medkit" },
 ];
 
@@ -243,7 +244,7 @@ const HEALTH_TAB_SCREENS = new Set([
 export function primaryTabForScreen(screen: string): string {
   const resolved = resolveNavKey(screen);
   if ((FULL_BOTTOM_TAB_KEYS as readonly string[]).includes(resolved)) return resolved;
-  if (resolved === "sickmode") return "dashboard";
+  if (resolved === "sickmode" || resolved === "healthstatus") return "dashboard";
   const parent = getParentHub(resolved);
   if (parent === "accounthub" || parent === "emergencyhub") return "accounthub";
   if (HEALTH_TAB_SCREENS.has(resolved)) return "health";

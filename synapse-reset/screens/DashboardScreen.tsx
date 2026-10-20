@@ -932,22 +932,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     );
   };
 
-  const activateSickModeFromDashboard = useCallback(async () => {
-    if (isSickMode) {
-      onNavigate("sickmode");
-      return;
-    }
-    const s = await settingsStorage.get();
-    await settingsStorage.save({ ...s, sickMode: true });
-    await enableRecoveryTracking();
-    const sd = await sickModeStorage.get();
-    await sickModeStorage.save({ ...sd, active: true, startedAt: new Date().toISOString() });
-    await syncRecoveryTrackingCheckIn();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    setSettings({ ...s, sickMode: true });
-    onNavigate("sickmode");
-  }, [isSickMode, onNavigate]);
-
   /** Unified Health Status — Soft Evergreen; transforms when Sick Mode is on. */
   const renderHealthStatusCard = () => (
     <View
@@ -1570,10 +1554,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         <Ionicons name="open-outline" size={18} color={C.textTertiary} />
       </Pressable>
 
-      {/* Health Status — unified snapshot + sick-mode transform */}
-      {renderHealthStatusCard()}
-
-      {/* Always-visible Sick Mode entry (even when Health Status isn’t expanded elsewhere) */}
+      {/* Sick Mode entry → Health Status (Sick Mode lives inside that screen) */}
       <Pressable
         style={({ pressed }) => [
           ...solidCard(styles.sickModeAccessRow),
@@ -1582,23 +1563,22 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         ]}
         onPress={() => {
           Haptics.selectionAsync().catch(() => {});
-          void activateSickModeFromDashboard();
+          onNavigate("healthstatus");
         }}
         accessibilityRole="button"
-        accessibilityLabel={isSickMode ? "Open Sick Mode" : "Activate Sick Mode"}
-        accessibilityHint={
-          isSickMode
-            ? "Opens sick-day tools without changing medical protocol logic"
-            : "Starts Sick Mode recovery protocol"
-        }
+        accessibilityLabel={isSickMode ? "Open Health Status" : "Sick Mode"}
+        accessibilityHint="Opens Health Status, where you can enter Sick Mode"
       >
-        <View style={[styles.quietIconWrap, { backgroundColor: isSickMode ? C.redLight : C.tintLight }]}>
+        <View style={[styles.quietIconWrap, { backgroundColor: isSickMode ? C.redLight : "#F8E8E8" }]}>
           <Ionicons name="medkit-outline" size={20} color={isSickMode ? C.red : C.tint} />
+          <View style={styles.sickModeMedicalBadge} pointerEvents="none">
+            <Ionicons name="medical" size={9} color="#fff" />
+          </View>
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={styles.halfCardTitle}>{isSickMode ? "Sick Mode is on" : "Sick Mode"}</Text>
           <Text style={styles.quietCardBody}>
-            {isSickMode ? "Open check-ins, stress dosing, and comfort tools" : "Quick access when you need recovery support"}
+            {isSickMode ? "Open Health Status and recovery tools" : "Quick access when you need recovery support"}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
@@ -2329,6 +2309,7 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
       borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
+      position: "relative",
     },
     quietCardTitle: {
       fontSize: 17,
@@ -2443,6 +2424,19 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
       alignItems: "center",
       gap: 12,
       paddingVertical: 14,
+    },
+    sickModeMedicalBadge: {
+      position: "absolute",
+      left: -4,
+      bottom: -4,
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: C.red,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1.5,
+      borderColor: C.surface,
     },
     statusGlanceRow: {
       flexDirection: "row",
