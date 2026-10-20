@@ -23,6 +23,8 @@ import { useModeAwareScreen } from "@/contexts/AppModeContext";
 import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import GlassView from "@/components/GlassView";
 import { raised } from "@/constants/raised";
+import { softCardElevation } from "@/constants/soft-card";
+import SoftCard from "@/components/SoftCard";
 import {
   healthLogStorage,
   medicationStorage,
@@ -928,12 +930,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   /** Unified Health Status — Soft Evergreen; transforms when Sick Mode is on. */
   const renderHealthStatusCard = () => (
-    <View
-      style={[
-        styles.healthStatusCard,
-        isEvergreenTheme(themeId) && styles.quietCardEvergreen,
-        isSickMode && styles.healthStatusCardSick,
-      ]}
+    <SoftCard
+      style={[styles.healthStatusCard, isSickMode && styles.healthStatusCardSick]}
     >
       <View style={styles.healthStatusHeader}>
         <View style={{ flex: 1, gap: 2 }}>
@@ -1146,7 +1144,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           </View>
         </View>
       )}
-    </View>
+    </SoftCard>
   );
 
   const renderMedicationsCard = () => (
@@ -1371,11 +1369,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const cardStackPadding = isWide ? 0 : 16;
   const dualColumn = width >= 360;
 
-  const solidCard = (extra?: object) => [
-    styles.quietCard,
-    isEvergreenTheme(themeId) && styles.quietCardEvergreen,
-    extra,
-  ];
+  const solidCard = (extra?: object) => [styles.quietCard, extra];
 
   const inner = (
     <View style={{ marginHorizontal: cardStackPadding, gap: 18 }}>
@@ -2071,20 +2065,13 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
       backgroundColor: C.surface,
       borderRadius: 22,
       padding: 16,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: C.border,
-    },
-    quietCardEvergreen: {
-      shadowColor: "#20252A",
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.05,
-      shadowRadius: 6,
-      elevation: 1,
+      // Soft Apple-inspired elevation — readable on #F7F8FA without redesigning layout.
+      ...softCardElevation(isDarkAppearance(themeId) ? "dark" : "light"),
     },
     medHeroCard: {
       paddingVertical: 4,
       paddingHorizontal: 4,
-      overflow: "hidden",
+      // Do not use overflow:"hidden" here — it clips the soft card shadow on iOS.
     },
     medHeroTop: {
       flexDirection: "row",
@@ -2176,16 +2163,11 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
     },
     healthSnapshotEvergreen: {
       backgroundColor: C.surface,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: C.border,
-      overflow: "hidden",
+      ...softCardElevation(isDarkAppearance(themeId) ? "dark" : "light"),
     },
     healthStatusCard: {
-      backgroundColor: C.surface,
-      borderRadius: 22,
+      // SoftCard supplies fill / border / shadow; keep padding + gap only.
       padding: 16,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: C.border,
       gap: 14,
     },
     healthStatusCardSick: {
