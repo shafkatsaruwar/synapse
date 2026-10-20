@@ -104,12 +104,13 @@ const RADIAL_BUTTON_CENTER = RADIAL_BUTTON_SIZE / 2;
 /** Label column width; wrap is centered on the origin with marginLeft = -width/2. */
 const RADIAL_WRAP_WIDTH = 76;
 /**
- * Symmetrical arc above the + (150°). Appointment is straight up (π/2);
+ * Symmetrical arc above the + (100°). Appointment is straight up (π/2);
  * Scan↔More and Medication↔Log Symptom are equal angular mirrors.
+ * Narrower than a wide fan so outer discs + labels clear the nav pill.
  */
-const RADIAL_ARC_SPAN = (Math.PI * 150) / 180;
-/** Approximate bottom-nav pill height (padding + centered + control). */
-const BOTTOM_NAV_PILL_HEIGHT = 72;
+const RADIAL_ARC_SPAN = (Math.PI * 100) / 180;
+/** Keep outer discs + labels above the nav pill (half-pill ≈ 36 + label stack). */
+const RADIAL_MIN_OUTER_LIFT = 100;
 
 const RADIAL_ADD_ACTION_META = [
   { key: "scan" as const, label: "Scan", icon: "scan-outline" as const },
@@ -214,6 +215,11 @@ export default function SidebarLayout({
   const caregiverDashboardRef = useRef<View>(null);
   const simpleNavRef = useRef<View>(null);
   const simpleAddFabRef = useRef<View>(null);
+  /** Red +/× control in the centered Quick Add tab — radial origin source. */
+  const quickAddCenterRef = useRef<View>(null);
+  /** AbsoluteFill overlay used to convert window coords → local radial coords. */
+  const radialOverlayRootRef = useRef<View>(null);
+  const [radialOrigin, setRadialOrigin] = useState<{ x: number; y: number } | null>(null);
   const showUniversalAdd = activeScreen !== "medications" && activeScreen !== "cycletracking";
   const walkthrough = useWalkthroughTargets();
   const registerTarget = walkthrough?.registerTarget;
@@ -388,6 +394,27 @@ export default function SidebarLayout({
     }).start(() => setMoreOpen(false));
   }, [drawerSlide]);
 
+  const measureRadialOrigin = useCallback(async (): Promise<{ x: number; y: number }> => {
+    const [button, overlay] = await Promise.all([
+      measureInWindow(quickAddCenterRef),
+      measureInWindow(radialOverlayRootRef),
+    ]);
+    if (button && overlay && button.width > 0 && button.height > 0) {
+      return {
+        x: button.x + button.width / 2 - overlay.x,
+        y: button.y + button.height / 2 - overlay.y,
+      };
+    }
+    // Fallback only if measure fails — still use the overlay's coordinate space.
+    const overlayX = overlay?.x ?? 0;
+    const overlayY = overlay?.y ?? 0;
+    const approxNavBottom = Platform.OS === "web" ? 20 : insets.bottom + 16;
+    return {
+      x: width / 2 - overlayX,
+      y: height - (approxNavBottom + 36) - overlayY,
+    };
+  }, [height, insets.bottom, width]);
+
   const closeRadialMenu = useCallback((afterClose?: () => void) => {
     if (!radialMenuOpen || simpleAddAnimatingRef.current) {
       afterClose?.();
@@ -418,6 +445,7 @@ export default function SidebarLayout({
     ]).start(() => {
       simpleAddAnimatingRef.current = false;
       setRadialMenuOpen(false);
+      setRadialOrigin(null);
       afterClose?.();
     });
   }, [radialActionProgress, radialBackdropOpacity, radialMenuOpen, simpleAddFabSpin]);
@@ -426,36 +454,46 @@ export default function SidebarLayout({
     if (radialMenuOpen || simpleAddAnimatingRef.current) return;
     setQuickAddHubOpen(false);
     simpleAddAnimatingRef.current = true;
-    setRadialMenuOpen(true);
-    radialActionProgress.forEach((value) => value.setValue(0));
-    radialBackdropOpacity.setValue(0);
-    Animated.parallel([
-      Animated.spring(simpleAddFabSpin, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 120,
-        friction: 12,
-      }),
-      Animated.timing(radialBackdropOpacity, {
-        toValue: 1,
-        duration: 180,
-        useNativeDriver: true,
-      }),
-      Animated.stagger(
-        36,
-        radialActionProgress.map((value) =>
-          Animated.spring(value, {
-            toValue: 1,
-            useNativeDriver: true,
-            tension: 108,
-            friction: 11,
-          })
-        )
-      ),
-    ]).start(() => {
-      simpleAddAnimatingRef.current = false;
-    });
-  }, [radialActionProgress, radialBackdropOpacity, radialMenuOpen, simpleAddFabSpin]);
+    void (async () => {
+      const origin = await measureRadialOrigin();
+      setRadialOrigin(origin);
+      setRadialMenuOpen(true);
+      radialActionProgress.forEach((value) => value.setValue(0));
+      radialBackdropOpacity.setValue(0);
+      Animated.parallel([
+        Animated.spring(simpleAddFabSpin, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 120,
+          friction: 12,
+        }),
+        Animated.timing(radialBackdropOpacity, {
+          toValue: 1,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+        Animated.stagger(
+          36,
+          radialActionProgress.map((value) =>
+            Animated.spring(value, {
+              toValue: 1,
+              useNativeDriver: true,
+              tension: 108,
+              friction: 11,
+            })
+          )
+        ),
+      ]).start(() => {
+        simpleAddAnimatingRef.current = false;
+      });
+    })();
+  }, [
+    measureRadialOrigin,
+    radialActionProgress,
+    radialBackdropOpacity,
+    radialMenuOpen,
+    simpleAddFabSpin,
+  ]);
 
   const closeQuickAddHub = useCallback(() => {
     setQuickAddHubOpen(false);
@@ -498,6 +536,7 @@ export default function SidebarLayout({
     ]).start(() => {
       simpleAddAnimatingRef.current = false;
       setRadialMenuOpen(false);
+      setRadialOrigin(null);
       openQuickAddHub();
     });
   }, [openQuickAddHub, radialActionProgress, radialBackdropOpacity]);
@@ -572,17 +611,31 @@ export default function SidebarLayout({
   const currentSidebarWidth = localWebSidebarCollapsed ? collapsedSidebarWidth : sidebarWidth;
   const navBarBottom = Platform.OS === "web" ? 20 : insets.bottom + 16;
   /**
-   * Geometric origin = center of the nav + control.
-   * Nav wrap sits `navBarBottom` above the safe-area floor; + is vertically centered in the pill.
+   * Radius from + center so outer Scan/More clear the nav and stay on-screen.
+   * Vertical lift of the outer pair is r * cos(span/2); require that ≥ RADIAL_MIN_OUTER_LIFT.
    */
-  const radialOriginBottom = navBarBottom + BOTTOM_NAV_PILL_HEIGHT / 2;
-  /** Radius scales with width so outer actions stay on-screen with even spacing. */
   const radialRadius = useMemo(() => {
     const halfWidth = width / 2;
-    const maxRadius = halfWidth - RADIAL_BUTTON_CENTER - RADIAL_WRAP_WIDTH / 2;
-    return Math.round(Math.min(130, Math.max(112, maxRadius)));
+    const maxByWidth = halfWidth - RADIAL_WRAP_WIDTH / 2 - 10;
+    const outerVerticalFactor = Math.cos(RADIAL_ARC_SPAN / 2);
+    const minByClearance = RADIAL_MIN_OUTER_LIFT / Math.max(outerVerticalFactor, 0.35);
+    const radius = Math.min(maxByWidth, Math.max(128, minByClearance));
+    return Math.round(Math.min(148, Math.max(120, radius)));
   }, [width]);
   const radialAddActions = useMemo(() => buildRadialAddActions(radialRadius), [radialRadius]);
+
+  // Keep the radial origin locked to the measured + center across rotation / layout.
+  useEffect(() => {
+    if (!radialMenuOpen) return;
+    let cancelled = false;
+    void (async () => {
+      const origin = await measureRadialOrigin();
+      if (!cancelled) setRadialOrigin(origin);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [measureRadialOrigin, radialMenuOpen, width, height]);
   /** Floating FAB only when the centered Quick Add tab is not available (Simple Mode or wide layouts). */
   const showFloatingSimpleFab = showUniversalAdd && (simpleMode || !showBottomNav);
 
@@ -606,7 +659,11 @@ export default function SidebarLayout({
             accessibilityState={{ expanded: open }}
           >
             <View style={styles.quickAddNavButtonWrap}>
-              <View style={[styles.quickAddNavButton, open && styles.quickAddNavButtonOpen]}>
+              <View
+                ref={quickAddCenterRef}
+                collapsable={false}
+                style={[styles.quickAddNavButton, open && styles.quickAddNavButtonOpen]}
+              >
                 <Animated.View
                   style={{
                     transform: [
@@ -739,6 +796,27 @@ export default function SidebarLayout({
         {children}
       </View>
 
+      {/*
+        Full-screen dim sits UNDER the bottom nav (z50 < nav z60) so the frosted
+        pill stays tappable and the dim extends seamlessly beneath it — no hard band.
+      */}
+      {radialMenuOpen ? (
+        <Animated.View
+          pointerEvents="auto"
+          style={[
+            styles.radialAddBackdrop,
+            { opacity: radialBackdropOpacity },
+          ]}
+        >
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => closeRadialMenu()}
+            accessibilityRole="button"
+            accessibilityLabel="Close quick add"
+          />
+        </Animated.View>
+      ) : null}
+
       {showBottomNav && (
         <View
           ref={simpleMode ? simpleNavRef : undefined}
@@ -781,39 +859,24 @@ export default function SidebarLayout({
       )}
 
       <View
+        ref={radialOverlayRootRef}
+        collapsable={false}
         pointerEvents="box-none"
         style={[
           StyleSheet.absoluteFill,
           styles.simpleAddOverlayRoot,
-          // Sit above the tab bar while open so Scan / More are not covered by the pill.
+          // Actions + hub sit above the tab bar; backdrop is a sibling below the nav.
           radialMenuOpen && styles.simpleAddOverlayRootRaised,
         ]}
       >
-        {radialMenuOpen ? (
-          <Animated.View
-            pointerEvents="auto"
-            style={[
-              styles.radialAddBackdrop,
-              { opacity: radialBackdropOpacity },
-            ]}
-          >
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={() => closeRadialMenu()}
-              accessibilityRole="button"
-              accessibilityLabel="Close quick add"
-            />
-          </Animated.View>
-        ) : null}
-
-        {radialMenuOpen ? (
+        {radialMenuOpen && radialOrigin ? (
           <View
             pointerEvents="box-none"
             style={[
               styles.radialAddLayer,
               {
-                // Origin coincides with the center of the nav + button.
-                bottom: radialOriginBottom,
+                left: radialOrigin.x,
+                top: radialOrigin.y,
               },
             ]}
           >
@@ -1496,25 +1559,27 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     },
     radialAddBackdrop: {
       ...StyleSheet.absoluteFillObject,
-      // Leave the bottom tab bar clear so the dimmer never intercepts tab taps.
-      bottom: Platform.OS === "web" ? 108 : 96,
+      // Full-screen uniform dim; zIndex keeps it under the frosted nav (not cut off above it).
+      zIndex: 50,
+      elevation: 50,
       // Subtle Zelle-style dim — content stays visible underneath the floating discs.
       backgroundColor: themeId === "dark" || themeId === "evergreenDark" ? "rgba(0,0,0,0.28)" : "rgba(17,24,39,0.14)",
     },
     radialAddLayer: {
+      // Point origin — left/top set to the measured + center; actions translate from here.
       position: "absolute",
-      left: 0,
-      right: 0,
+      width: 0,
       height: 0,
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 48,
+      zIndex: 70,
+      elevation: 70,
     },
     radialAddActionWrap: {
       position: "absolute",
       width: RADIAL_WRAP_WIDTH,
       alignItems: "center",
       // Anchor the wrap so the disc center (not the label block) sits on the origin.
+      left: 0,
+      top: 0,
       marginLeft: -(RADIAL_WRAP_WIDTH / 2),
       marginTop: -RADIAL_BUTTON_CENTER,
     },
