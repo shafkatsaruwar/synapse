@@ -4,7 +4,6 @@ import {
   doctorNoteStorage,
   medicationLogStorage,
   medicationStorage,
-  monthlyCheckInStorage,
   type Appointment,
 } from "@/lib/storage";
 
@@ -14,7 +13,6 @@ interface PendingWorkCounts {
   medications: number;
   dueAppointments: number;
   doctorNotes: number;
-  monthlyCheckIn: number;
 }
 
 function isDueAppointment(appointment: Appointment, today: string): boolean {
@@ -26,13 +24,11 @@ function isDueAppointment(appointment: Appointment, today: string): boolean {
 
 async function getPendingWorkCounts(): Promise<PendingWorkCounts> {
   const today = getToday();
-  const monthKey = today.slice(0, 7);
-  const [medications, medicationLogs, appointments, doctorNotes, monthlyCheckIns] = await Promise.all([
+  const [medications, medicationLogs, appointments, doctorNotes] = await Promise.all([
     medicationStorage.getAll(),
     medicationLogStorage.getByDate(today),
     appointmentStorage.getAll(),
     doctorNoteStorage.getAll(),
-    monthlyCheckInStorage.getAll(),
   ]);
 
   const medicationCount = medications
@@ -47,27 +43,29 @@ async function getPendingWorkCounts(): Promise<PendingWorkCounts> {
 
   const appointmentCount = appointments.filter((appointment) => isDueAppointment(appointment, today)).length;
   const doctorNoteCount = doctorNotes.filter((note) => !!note?.text && !note.talkedAbout).length;
-  const monthlyCheckInDone = monthlyCheckIns.some((checkIn) => checkIn.date.slice(0, 7) === monthKey);
 
   return {
     medications: medicationCount,
     dueAppointments: appointmentCount,
     doctorNotes: doctorNoteCount,
-    monthlyCheckIn: monthlyCheckInDone ? 0 : 1,
   };
 }
 
+/**
+ * Badges for navigation chrome.
+ * Only actionable medication / appointment work — no optional monthly check-in,
+ * and no duplicate roll-ups onto category hubs.
+ */
 export async function getNavBadgeCounts(): Promise<NavBadgeCounts> {
   const counts = await getPendingWorkCounts();
   return {
     medications: counts.medications,
-    appointments: counts.dueAppointments + counts.doctorNotes,
-    doctors: counts.doctorNotes,
-    monthlycheckin: counts.monthlyCheckIn,
+    appointments: counts.dueAppointments,
   };
 }
 
+/** Home-screen / app-icon style aggregate of actionable pending work. */
 export async function getHomeScreenBadgeCount(): Promise<number> {
   const counts = await getPendingWorkCounts();
-  return counts.medications + counts.dueAppointments + counts.doctorNotes + counts.monthlyCheckIn;
+  return counts.medications + counts.dueAppointments;
 }
