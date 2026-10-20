@@ -1549,9 +1549,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       >
         <View style={[styles.quietIconWrap, { backgroundColor: isSickMode ? C.redLight : "#F8E8E8" }]}>
           <Ionicons name="medkit-outline" size={20} color={isSickMode ? C.red : C.tint} />
-          <View style={styles.sickModeMedicalBadge} pointerEvents="none">
-            <Ionicons name="medical" size={9} color="#fff" />
-          </View>
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={styles.halfCardTitle}>{isSickMode ? "Sick Mode is on" : "Sick Mode"}</Text>
@@ -2402,19 +2399,6 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
       alignItems: "center",
       gap: 12,
       paddingVertical: 14,
-    },
-    sickModeMedicalBadge: {
-      position: "absolute",
-      left: -4,
-      bottom: -4,
-      width: 16,
-      height: 16,
-      borderRadius: 8,
-      backgroundColor: C.red,
-      alignItems: "center",
-      justifyContent: "center",
-      // Solid red — no white/surface ring around the medical badge.
-      borderWidth: 0,
     },
     statusGlanceRow: {
       flexDirection: "row",
