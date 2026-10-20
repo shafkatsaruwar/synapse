@@ -44,9 +44,27 @@ type Props = {
    * silently creating a medication. Caller must require user confirmation before save.
    */
   onMedicationDraft?: (fields: { name: string; dosage?: string; unit?: string }) => void;
+  /**
+   * When provided for appointment scans, populate a review draft instead of
+   * silently creating an appointment.
+   */
+  onAppointmentDraft?: (fields: {
+    doctorName: string;
+    date?: string;
+    time?: string;
+    location?: string;
+    notes?: string;
+  }) => void;
 };
 
-export default function VisualScanImportModal({ visible, initialType = "medication", onClose, onSaved, onMedicationDraft }: Props) {
+export default function VisualScanImportModal({
+  visible,
+  initialType = "medication",
+  onClose,
+  onSaved,
+  onMedicationDraft,
+  onAppointmentDraft,
+}: Props) {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
   const [scanType, setScanType] = useState<VisualScanType>(initialType);
@@ -275,6 +293,17 @@ export default function VisualScanImportModal({ visible, initialType = "medicati
 
     if (scanType === "appointment") {
       if (!aptDoctor.trim()) return Alert.alert("Appointment name needed", "Add a doctor or appointment name before saving.");
+      if (onAppointmentDraft) {
+        onAppointmentDraft({
+          doctorName: aptDoctor.trim(),
+          date: aptDate.trim() || undefined,
+          time: aptTime.trim() || undefined,
+          location: aptLocation.trim() || undefined,
+          notes: aptNotes.trim() || undefined,
+        });
+        close();
+        return;
+      }
       const saved = await appointmentStorage.save({
         doctorName: aptDoctor.trim(),
         specialty: "",
