@@ -1475,8 +1475,9 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     radialAddBackdrop: {
       ...StyleSheet.absoluteFillObject,
       // Leave the bottom tab bar clear so the dimmer never intercepts tab taps.
+      // Transparent — tap-outside still closes; no haze over the dashboard.
       bottom: Platform.OS === "web" ? 108 : 96,
-      backgroundColor: themeId === "dark" ? "rgba(0,0,0,0.28)" : "rgba(17,24,39,0.18)",
+      backgroundColor: "transparent",
     },
     radialAddLayer: {
       position: "absolute",
