@@ -19,7 +19,7 @@ module.exports = {
   expo: {
     name: "Synapse",
     slug: "synapse",
-    version: "1.14",
+    version: "1.15",
     orientation: "default",
     icon: "./assets/icon.png",
     scheme: ["synapse", "myapp"],
