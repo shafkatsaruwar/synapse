@@ -1458,8 +1458,8 @@ export default function MainScreen() {
       case "auth":
         return (
           <AuthScreen
-            onBack={() => handleNavigate("settings")}
-            onSuccess={() => handleNavigate("settings")}
+            onBack={() => backToParentOr("editprofile")}
+            onSuccess={() => handleNavigate("editprofile")}
           />
         );
       default:

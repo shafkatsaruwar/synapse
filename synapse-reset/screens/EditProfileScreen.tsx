@@ -1,20 +1,21 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   StyleSheet,
   Text,
   View,
   Pressable,
-  Modal,
-  ActivityIndicator,
   ScrollView,
   Alert,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { conditionStorage, settingsStorage } from "@/lib/storage";
-import { modalOverlay, modalSurface } from "@/lib/modal-colors";
+import { useAuth } from "@/contexts/AuthContext";
+import GlassView from "@/components/GlassView";
+import { getCloudKitBackupStatus, restoreFromICloud, saveToICloud } from "@/lib/cloudkit-backup";
+import { getBackupStatus, backupNow, type BackupStatus } from "@/lib/backup";
 
 interface EditProfileScreenProps {
   onBack: () => void;
@@ -22,223 +23,374 @@ interface EditProfileScreenProps {
   onRestoreComplete?: () => void;
 }
 
-export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplete }: EditProfileScreenProps) {
+type CloudKitStatus = Awaited<ReturnType<typeof getCloudKitBackupStatus>>;
+
+function formatBackupTime(value?: string | null) {
+  if (!value) return "Not synced yet";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not synced yet";
+  return `Last synced ${date.toLocaleString()}`;
+}
+
+function cloudKitUnavailableMessage(status?: string | null) {
+  switch (status) {
+    case "native_bridge_missing":
+      return "CloudKit needs a native iOS build. Expo Go cannot access Synapse’s iCloud container.";
+    case "unsupported_platform":
+      return "iCloud backup is only available on iOS.";
+    case "no_account":
+      return "Sign in to iCloud on this device, then try again.";
+    case "restricted":
+      return "iCloud is restricted on this device. Check Screen Time or MDM settings.";
+    case "temporarily_unavailable":
+      return "iCloud is temporarily unavailable. Try again in a moment.";
+    case "save_in_progress":
+    case "restore_in_progress":
+      return "A backup operation is already in progress. Try again in a moment.";
+    case "no_backup_found":
+      return "Synapse could not find a private iCloud backup for this Apple ID yet.";
+    default:
+      return "CloudKit is not available right now. Synapse will keep your data local until iCloud is ready.";
+  }
+}
+
+/**
+ * You hub → Backup & Restore.
+ * CloudKit / assistant sync live here — not under Preferences.
+ */
+export default function EditProfileScreen({ onNavigate, onRestoreComplete }: EditProfileScreenProps) {
   const insets = useSafeAreaInsets();
-  const { colors: C } = useTheme();
+  const { colors: C, themeId } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
+  const { user, signOut } = useAuth();
+  const authUserId = (user as { id?: string } | null)?.id ?? null;
 
-  const [conditionsCount, setConditionsCount] = useState(0);
-  const [displayName, setDisplayName] = useState("");
+  const [cloudStatus, setCloudStatus] = useState<CloudKitStatus | null>(null);
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const [assistantBackup, setAssistantBackup] = useState<BackupStatus | null>(null);
+  const [assistantBusy, setAssistantBusy] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const [conds, settings] = await Promise.all([conditionStorage.getAll(), settingsStorage.get()]);
-      setConditionsCount(conds.length);
-      setDisplayName(settings.name?.trim() || "");
-    })();
+  const refreshCloudStatus = useCallback(() => {
+    getCloudKitBackupStatus().then(setCloudStatus).catch(() => {});
   }, []);
 
-  const fullName = displayName || "—";
+  const refreshAssistantBackup = useCallback(() => {
+    if (!authUserId) {
+      setAssistantBackup(null);
+      return;
+    }
+    getBackupStatus(authUserId).then(setAssistantBackup).catch(() => setAssistantBackup(null));
+  }, [authUserId]);
 
-  const initials = (() => {
-    const words = fullName.trim().split(/\s+/).filter(Boolean);
-    if (words.length >= 2)
-      return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-    if (words[0]?.length >= 2) return (words[0][0] + words[0][1]).toUpperCase();
-    return (words[0]?.[0] ?? "?").toUpperCase().repeat(2);
-  })();
+  useEffect(() => {
+    refreshCloudStatus();
+  }, [refreshCloudStatus]);
+
+  useEffect(() => {
+    refreshAssistantBackup();
+  }, [refreshAssistantBackup]);
+
+  const handleBackupNow = async () => {
+    Haptics.selectionAsync().catch(() => {});
+    if (cloudStatus && !cloudStatus.available) {
+      Alert.alert("CloudKit unavailable", cloudKitUnavailableMessage(cloudStatus.accountStatus));
+      return;
+    }
+    setCloudBusy(true);
+    try {
+      const result = await saveToICloud();
+      refreshCloudStatus();
+      if (result.skipped) {
+        Alert.alert("iCloud backup unavailable", cloudKitUnavailableMessage(result.skipReason || cloudStatus?.accountStatus));
+      } else if (result.error) {
+        Alert.alert("iCloud backup failed", result.error.message);
+      } else {
+        Alert.alert("Backed up", "Your latest Synapse backup is saved privately in iCloud.");
+      }
+    } catch (error) {
+      Alert.alert("Backup failed", error instanceof Error ? error.message : "Could not save a backup right now.");
+    } finally {
+      setCloudBusy(false);
+    }
+  };
+
+  const handleRestoreCloudKit = () => {
+    Haptics.selectionAsync().catch(() => {});
+    if (cloudStatus && !cloudStatus.available) {
+      Alert.alert("CloudKit unavailable", cloudKitUnavailableMessage(cloudStatus.accountStatus));
+      return;
+    }
+    Alert.alert(
+      "Restore from iCloud?",
+      "Synapse will find your latest private iCloud backup and restore it on this device.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Restore",
+          style: "default",
+          onPress: async () => {
+            setCloudBusy(true);
+            try {
+              const result = await restoreFromICloud({ uploadLocalIfNewer: false, forceRestoreLatest: true });
+              onRestoreComplete?.();
+              refreshCloudStatus();
+              if (result.restored) {
+                Alert.alert("Restored", "Your latest iCloud backup has been restored.");
+              } else if (result.error) {
+                Alert.alert("iCloud restore failed", result.error.message);
+              } else {
+                Alert.alert("No backup found", cloudKitUnavailableMessage("no_backup_found"));
+              }
+            } catch (error) {
+              Alert.alert("Restore failed", error instanceof Error ? error.message : "Could not restore right now.");
+            } finally {
+              setCloudBusy(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleAssistantSync = async () => {
+    if (!authUserId) {
+      onNavigate?.("auth");
+      return;
+    }
+    Haptics.selectionAsync().catch(() => {});
+    setAssistantBusy(true);
+    try {
+      const { error } = await backupNow(authUserId);
+      refreshAssistantBackup();
+      if (error) {
+        Alert.alert("Assistant sync failed", "Could not update the signed-in cloud copy. Try again after checking sign-in.");
+      } else {
+        Alert.alert("Synced", "Your signed-in cloud copy is updated for the assistant. iCloud backup on this device is unchanged.");
+      }
+    } catch {
+      Alert.alert("Assistant sync failed", "Could not update the signed-in cloud copy.");
+    } finally {
+      setAssistantBusy(false);
+    }
+  };
+
+  const handleAssistantSignOut = async () => {
+    try {
+      await signOut();
+      setAssistantBackup(null);
+    } catch {
+      Alert.alert("Sign out failed", "Could not sign out right now.");
+    }
+  };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable
-          style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.7 : 1 }]}
-          onPress={onBack}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Ionicons name="chevron-back" size={24} color={C.tint} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Edit Profile</Text>
-        <View style={styles.backBtn} />
-      </View>
-
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: Platform.OS === "web" ? 40 : 14, paddingBottom: insets.bottom + 100 },
+        ]}
         showsVerticalScrollIndicator={false}
-        bounces={true}
       >
-        {/* Profile Card */}
-        <View style={styles.card}>
-          <View style={styles.profileRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initials}</Text>
-            </View>
-            <View style={styles.profileInfo}>
-              <Text style={styles.fullName}>{fullName}</Text>
-              <Text style={styles.email}>Stored on this device only</Text>
-            </View>
+        <Text style={styles.title} accessibilityRole="header">
+          Backup & Restore
+        </Text>
+        <Text style={styles.subtitle}>
+          Optional iCloud backup, assistant sync, and local export. Profile editing lives under Health Profile.
+        </Text>
+
+        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
+          <Text style={styles.sectionTitle}>CloudKit Backup</Text>
+          <Text style={styles.desc}>
+            Private CloudKit backup for medications, appointments, logs, labs, imaging, and health notes.
+          </Text>
+          <View style={styles.syncedBadge}>
+            <Ionicons
+              name={cloudStatus?.available ? "cloud-done-outline" : "cloud-offline-outline"}
+              size={15}
+              color={cloudStatus?.available ? C.green : C.textTertiary}
+            />
+            <Text style={[styles.syncedText, !cloudStatus?.available && { color: C.textTertiary }]}>
+              {cloudStatus?.available
+                ? formatBackupTime(cloudStatus.lastSyncedAt ?? cloudStatus.cloudLastUpdatedAt)
+                : cloudStatus?.accountStatus === "native_bridge_missing"
+                  ? "iCloud backup needs a native iOS build"
+                  : cloudStatus?.accountStatus === "unsupported_platform"
+                    ? "iCloud backup is iOS-only"
+                    : cloudStatus?.lastError
+                      ? `iCloud error: ${cloudStatus.lastError}`
+                      : "Not synced yet"}
+            </Text>
           </View>
-        </View>
+          <View style={styles.backupActions}>
+            <Pressable
+              style={[styles.secondaryBtn, cloudBusy && { opacity: 0.55 }]}
+              onPress={handleBackupNow}
+              disabled={cloudBusy}
+              accessibilityRole="button"
+              accessibilityLabel="Backup now"
+            >
+              <Text style={styles.secondaryBtnText}>{cloudBusy ? "Working..." : "Backup Now"}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.outlineBtn, cloudBusy && { opacity: 0.55 }]}
+              onPress={handleRestoreCloudKit}
+              disabled={cloudBusy}
+              accessibilityRole="button"
+              accessibilityLabel="Restore from iCloud"
+            >
+              <Text style={styles.outlineBtnText}>Restore</Text>
+            </Pressable>
+          </View>
+        </GlassView>
 
-        {/* Conditions & Allergy */}
-        <View style={styles.card}>
-          <Pressable
-            style={styles.navRow}
-            onPress={() => { Haptics.selectionAsync(); onNavigate?.("healthprofileconditions"); }}
-            accessibilityRole="button"
-            accessibilityLabel={`Conditions, ${conditionsCount} added`}
-          >
-            <View style={[styles.profileIcon, { backgroundColor: C.tintLight }]}>
-              <Ionicons name="clipboard-outline" size={16} color={C.tint} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>Conditions</Text>
-              <Text style={styles.rowDesc}>
-                {conditionsCount > 0 ? `${conditionsCount} condition${conditionsCount !== 1 ? "s" : ""} added` : "None added yet"}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
-          </Pressable>
+        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
+          <Text style={styles.sectionTitle}>Assistant access</Text>
+          <Text style={styles.desc}>
+            Optional signed-in cloud copy so a personal Cursor assistant can read your own health data over MCP. This is
+            separate from private iCloud backup. Not medical advice.
+          </Text>
+          <View style={styles.syncedBadge}>
+            <Ionicons
+              name={authUserId ? "sparkles-outline" : "lock-closed-outline"}
+              size={15}
+              color={authUserId ? C.green : C.textTertiary}
+            />
+            <Text style={[styles.syncedText, !authUserId && { color: C.textTertiary }]}>
+              {authUserId ? formatBackupTime(assistantBackup?.lastSyncedAt) : "Sign in to enable assistant sync"}
+            </Text>
+          </View>
+          <View style={styles.backupActions}>
+            {authUserId ? (
+              <>
+                <Pressable
+                  style={[styles.secondaryBtn, assistantBusy && { opacity: 0.55 }]}
+                  onPress={handleAssistantSync}
+                  disabled={assistantBusy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sync health data for assistant"
+                >
+                  <Text style={styles.secondaryBtnText}>{assistantBusy ? "Working..." : "Sync now"}</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.outlineBtn, assistantBusy && { opacity: 0.55 }]}
+                  onPress={handleAssistantSignOut}
+                  disabled={assistantBusy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sign out of assistant access"
+                >
+                  <Text style={styles.outlineBtnText}>Sign out</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                style={styles.secondaryBtn}
+                onPress={() => onNavigate?.("auth")}
+                accessibilityRole="button"
+                accessibilityLabel="Sign in for assistant access"
+              >
+                <Text style={styles.secondaryBtnText}>Sign in</Text>
+              </Pressable>
+            )}
+          </View>
+        </GlassView>
 
-          <View style={styles.divider} />
-
-          <Pressable
-            style={styles.navRow}
-            onPress={() => { Haptics.selectionAsync(); onNavigate?.("allergy"); }}
-            accessibilityRole="button"
-            accessibilityLabel="Allergy and emergency info"
-          >
-            <View style={[styles.profileIcon, { backgroundColor: C.orangeLight }]}>
-              <Ionicons name="warning-outline" size={16} color={C.orange} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>Allergy & Emergency Info</Text>
-              <Text style={styles.rowDesc}>Allergies, EpiPen, emergency details</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
-          </Pressable>
-        </View>
-
-        {/* Cloud backup and account system have been removed – app is fully local now. */}
+        <Pressable
+          style={({ pressed }) => [styles.linkRow, { opacity: pressed ? 0.85 : 1 }]}
+          onPress={() => {
+            Haptics.selectionAsync().catch(() => {});
+            onNavigate?.("privacy");
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Open Privacy for local export"
+        >
+          <View style={styles.linkIcon}>
+            <Ionicons name="download-outline" size={18} color={C.tint} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Local export</Text>
+            <Text style={styles.linkDesc}>Export or restore a file from Privacy</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+        </Pressable>
       </ScrollView>
-
-      {/* Cloud restore modal removed (no cloud backup). */}
     </View>
   );
 }
 
 function makeStyles(C: Theme) {
-  const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: "transparent" },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    backgroundColor: "transparent",
-  },
-  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontWeight: "700", fontSize: 17, color: C.text },
-  scrollView: { flex: 1 },
-  scrollContent: { padding: 24, paddingBottom: 60 },
-  card: {
-    backgroundColor: C.surface,
-    borderRadius: 14,
-    padding: 20,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  profileRow: { flexDirection: "row", alignItems: "center", gap: 16 },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: C.tint,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { fontWeight: "600", fontSize: 22, color: "#fff" },
-  profileInfo: { flex: 1, minWidth: 0 },
-  fullName: { fontWeight: "700", fontSize: 18, color: C.text },
-  email: { fontWeight: "400", fontSize: 13, color: C.textTertiary, marginTop: 2 },
-  navRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 16 },
-  profileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  rowTitle: { fontWeight: "600", fontSize: 15, color: C.text },
-  rowDesc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginTop: 2 },
-  divider: { height: 1, backgroundColor: C.border, marginLeft: 16, marginRight: 16 },
-  cardTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 4 },
-  lastSynced: { fontWeight: "400", fontSize: 13, color: C.textTertiary, marginBottom: 14 },
-  backupActions: { flexDirection: "row", gap: 10 },
-  secondaryBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: C.tintLight,
-    alignItems: "center",
-  },
-  secondaryBtnText: { fontWeight: "600", fontSize: 14, color: C.tint },
-  outlineBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.border,
-    alignItems: "center",
-  },
-  outlineBtnText: { fontWeight: "600", fontSize: 14, color: C.text },
-  fullWidthBtn: {
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  secondaryBtnFull: { backgroundColor: C.tintLight },
-  outlineBtnFull: { borderWidth: 1, borderColor: C.border },
-  overlay: {
-    flex: 1,
-    backgroundColor: modalOverlay(),
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-  },
-  modal: {
-    backgroundColor: solidModalSurface,
-    borderRadius: 22,
-    padding: 28,
-    width: "100%",
-    maxWidth: 320,
-    borderWidth: 1,
-    borderColor: C.border,
-    alignItems: "center",
-  },
-  modalEmoji: { fontSize: 56, marginBottom: 16 },
-  modalTitle: { fontWeight: "700", fontSize: 20, color: C.text, marginBottom: 8, textAlign: "center" },
-  modalDesc: {
-    fontWeight: "400",
-    fontSize: 15,
-    color: C.textSecondary,
-    textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  modalActions: { flexDirection: "row", gap: 10, width: "100%" },
-  cancelBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: C.surfaceElevated,
-    alignItems: "center",
-  },
-  cancelText: { fontWeight: "600", fontSize: 14, color: C.textSecondary },
-  confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
-  confirmText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-});
+    container: { flex: 1, backgroundColor: "transparent" },
+    scrollView: { flex: 1 },
+    scrollContent: { paddingHorizontal: 24, gap: 12 },
+    title: {
+      fontWeight: "700",
+      fontSize: 28,
+      color: C.text,
+      letterSpacing: -0.5,
+      marginBottom: 6,
+    },
+    subtitle: {
+      fontWeight: "400",
+      fontSize: 15,
+      lineHeight: 22,
+      color: C.textSecondary,
+      marginBottom: 12,
+    },
+    card: {
+      borderRadius: 22,
+      padding: 16,
+      gap: 4,
+    },
+    sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 4 },
+    desc: { fontWeight: "400", fontSize: 12, color: C.textTertiary, marginBottom: 14, lineHeight: 18 },
+    syncedBadge: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+    syncedText: { flex: 1, fontWeight: "600", fontSize: 13, color: C.green },
+    backupActions: { flexDirection: "row", gap: 10 },
+    secondaryBtn: {
+      flex: 1,
+      minHeight: 44,
+      borderRadius: 14,
+      backgroundColor: C.tintLight,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 12,
+    },
+    secondaryBtnText: { color: C.tint, fontWeight: "700", fontSize: 14 },
+    outlineBtn: {
+      flex: 1,
+      minHeight: 44,
+      borderRadius: 14,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+      backgroundColor: C.surface,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 12,
+    },
+    outlineBtnText: { color: C.textSecondary, fontWeight: "600", fontSize: 14 },
+    linkRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      backgroundColor: C.surface,
+      borderRadius: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+      marginTop: 4,
+    },
+    linkIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: C.tintLight,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    linkTitle: { fontSize: 16, fontWeight: "600", color: C.text },
+    linkDesc: { fontSize: 13, lineHeight: 18, color: C.textSecondary, marginTop: 2 },
+  });
 }

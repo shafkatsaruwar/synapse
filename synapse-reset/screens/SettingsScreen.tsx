@@ -919,13 +919,10 @@ export default function SettingsScreen({
       : {}),
   } as const;
 
-  const accountShortcutCards = [
-    shortcutCardMap.healthprofile,
-    shortcutCardMap.doctors,
-    shortcutCardMap.pharmacies,
+  /** Preference-only shortcuts — profile, backup, and care live on the You hub. */
+  const preferenceShortcutCards = [
     shortcutCardMap.appearance,
     shortcutCardMap.notifications,
-    shortcutCardMap.feedback,
     shortcutCardMap.sections,
     shortcutCardMap.founder,
     ...(shortcutCardMap.whatsnew ? [shortcutCardMap.whatsnew] : []),
@@ -1230,42 +1227,7 @@ export default function SettingsScreen({
           showsVerticalScrollIndicator={false}
           bounces={true}
         >
-          <Text style={[styles.title, { fontSize: simpleHeaderTitleSize, marginBottom: 18 }]}>Account</Text>
-
-          <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
-            <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Profile</Text>
-            <View style={styles.simpleProfileRow}>
-              <Pressable
-                style={styles.simpleProfileAvatar}
-                onPress={handlePickProfileImage}
-                accessibilityRole="button"
-                accessibilityLabel={profile.profileImageUri ? "Change photo" : "Add photo"}
-              >
-                {profile.profileImageUri ? (
-                  <Image source={{ uri: profile.profileImageUri }} style={styles.simpleProfileAvatarImage} />
-                ) : (
-                  <Text style={styles.simpleProfileAvatarText}>
-                    {(settings.name?.trim()?.[0] ?? "Y").toUpperCase()}
-                  </Text>
-                )}
-              </Pressable>
-              <View style={styles.simpleProfileTextWrap}>
-                <Text style={[styles.simpleProfileName, { fontSize: simpleSectionTitleSize }]}>
-                  {settings.name?.trim() || "You"}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.simpleSettingsButtonRow}>
-              <Pressable style={styles.simpleSettingsSecondaryButton} onPress={openNameModal}>
-                <Text style={[styles.simpleSettingsSecondaryButtonText, { fontSize: simpleActionSize }]}>Edit name</Text>
-              </Pressable>
-              <Pressable style={styles.simpleSettingsPrimaryButton} onPress={handlePickProfileImage}>
-                <Text style={[styles.simpleSettingsPrimaryButtonText, { fontSize: simpleActionSize }]}>
-                  {profile.profileImageUri ? "Change photo" : "Add photo"}
-                </Text>
-              </Pressable>
-            </View>
-          </GlassView>
+          <Text style={[styles.title, { fontSize: simpleHeaderTitleSize, marginBottom: 18 }]}>Preferences</Text>
 
           <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
             <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Role</Text>
@@ -1500,157 +1462,8 @@ export default function SettingsScreen({
         showsVerticalScrollIndicator={false}
         bounces={true}
       >
-        <Text style={styles.title}>Account</Text>
-
-        {/* ——— Local Profile Header ——— */}
-        <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={styles.cardGlass}>
-          <Pressable
-            style={({ pressed }) => [styles.cardPressable, { opacity: pressed ? 0.9 : 1 }]}
-            onPress={openNameModal}
-            accessibilityRole="button"
-            accessibilityLabel="Edit your name"
-          >
-          <View style={styles.profileHeader}>
-            <Pressable
-              style={styles.profileAvatar}
-              onPress={(event) => {
-                event.stopPropagation();
-                handlePickProfileImage();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Choose profile picture"
-            >
-              {profile.profileImageUri ? (
-                <Image source={{ uri: profile.profileImageUri }} style={styles.profileAvatarImage} />
-              ) : (
-                <Text style={styles.profileAvatarText}>
-                  {(settings.name?.trim()?.[0] ?? "Y").toUpperCase()}
-                </Text>
-              )}
-            </Pressable>
-            <View style={styles.profileInfo}>
-              <Text style={styles.profileGreeting}>Hello,</Text>
-              <View style={styles.profileNameRow}>
-                <Text style={styles.profileFullName}>
-                  {settings.name?.trim() || "You"}
-                </Text>
-                <Ionicons name="pencil-outline" size={16} color={C.textTertiary} />
-              </View>
-              <Text style={styles.editHint}>Tap to edit</Text>
-            </View>
-          </View>
-          <Text style={styles.localHint}>
-            Data is stored locally on this device. Use Export All Data anytime if you want a manual backup file.
-          </Text>
-          <Pressable
-            style={styles.photoLink}
-            onPress={(event) => {
-              event.stopPropagation();
-              handlePickProfileImage();
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={profile.profileImageUri ? "Change profile picture" : "Add profile picture"}
-          >
-            <Ionicons name="image-outline" size={15} color={C.tint} />
-            <Text style={styles.photoLinkText}>
-              {profile.profileImageUri ? "Change profile picture" : "Add profile picture"}
-            </Text>
-          </Pressable>
-          </Pressable>
-        </GlassView>
-
-        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
-          <Text style={styles.sectionTitle}>CloudKit Backup</Text>
-          <Text style={styles.desc}>
-            Private CloudKit backup for medications, appointments, logs, labs, imaging, and health notes.
-          </Text>
-          <View style={styles.syncedBadge}>
-            <Ionicons
-              name={cloudStatus?.available ? "cloud-done-outline" : "cloud-offline-outline"}
-              size={15}
-              color={cloudStatus?.available ? C.green : C.textTertiary}
-            />
-            <Text style={[styles.syncedText, !cloudStatus?.available && { color: C.textTertiary }]}>
-              {cloudStatus?.available
-                ? formatBackupTime(cloudStatus.lastSyncedAt ?? cloudStatus.cloudLastUpdatedAt)
-                : cloudStatus?.accountStatus === "native_bridge_missing"
-                  ? "iCloud backup needs a native iOS build"
-                  : cloudStatus?.accountStatus === "unsupported_platform"
-                    ? "iCloud backup is iOS-only"
-                    : cloudStatus?.lastError
-                      ? `iCloud error: ${cloudStatus.lastError}`
-                      : "iCloud will sync when available"}
-            </Text>
-          </View>
-          <View style={styles.backupActions}>
-            <Pressable
-              style={[styles.secondaryBtn, cloudBusy && { opacity: 0.55 }]}
-              onPress={handleBackupNow}
-              disabled={cloudBusy}
-            >
-              <Text style={styles.secondaryBtnText}>{cloudBusy ? "Working..." : "Backup Now"}</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.outlineBtn, cloudBusy && { opacity: 0.55 }]}
-              onPress={handleRestoreCloudKit}
-              disabled={cloudBusy}
-            >
-              <Text style={styles.outlineBtnText}>Restore</Text>
-            </Pressable>
-          </View>
-        </GlassView>
-
-        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
-          <Text style={styles.sectionTitle}>Assistant access</Text>
-          <Text style={styles.desc}>
-            Optional signed-in cloud copy so a personal Cursor assistant can read your own health data over MCP. This is separate from private iCloud backup. Not medical advice.
-          </Text>
-          <View style={styles.syncedBadge}>
-            <Ionicons
-              name={authUserId ? "sparkles-outline" : "lock-closed-outline"}
-              size={15}
-              color={authUserId ? C.green : C.textTertiary}
-            />
-            <Text style={[styles.syncedText, !authUserId && { color: C.textTertiary }]}>
-              {authUserId
-                ? formatBackupTime(assistantBackup?.lastSyncedAt)
-                : "Sign in to enable assistant sync"}
-            </Text>
-          </View>
-          <View style={styles.backupActions}>
-            {authUserId ? (
-              <>
-                <Pressable
-                  style={[styles.secondaryBtn, assistantBusy && { opacity: 0.55 }]}
-                  onPress={handleAssistantSync}
-                  disabled={assistantBusy}
-                  accessibilityRole="button"
-                  accessibilityLabel="Sync health data for assistant"
-                >
-                  <Text style={styles.secondaryBtnText}>{assistantBusy ? "Working..." : "Sync now"}</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.outlineBtn, assistantBusy && { opacity: 0.55 }]}
-                  onPress={handleAssistantSignOut}
-                  disabled={assistantBusy}
-                  accessibilityRole="button"
-                  accessibilityLabel="Sign out of assistant access"
-                >
-                  <Text style={styles.outlineBtnText}>Sign out</Text>
-                </Pressable>
-              </>
-            ) : (
-              <Pressable
-                style={styles.secondaryBtn}
-                onPress={() => onNavigate?.("auth")}
-                accessibilityRole="button"
-                accessibilityLabel="Sign in for assistant access"
-              >
-                <Text style={styles.secondaryBtnText}>Sign in</Text>
-              </Pressable>
-            )}
-          </View>
-        </GlassView>
+        <Text style={styles.title}>Preferences</Text>
+        <Text style={styles.prefSubtitle}>Appearance, mode, notifications, and related options.</Text>
 
         <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
           <Text style={styles.sectionTitle}>Apple Health</Text>
@@ -1861,11 +1674,11 @@ export default function SettingsScreen({
 
         <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={styles.groupCard}>
           <View style={styles.groupHeader}>
-            <Text style={styles.groupTitle}>Health Hub</Text>
-            <Text style={styles.groupSubtitle}>Quick ways into the stuff people actually use.</Text>
+            <Text style={styles.groupTitle}>Quick settings</Text>
+            <Text style={styles.groupSubtitle}>Themes, reminders, and menu options.</Text>
           </View>
           <View style={styles.tileGrid}>
-            {accountShortcutCards.map((item) => (
+            {preferenceShortcutCards.map((item) => (
               <Pressable
                 key={item.key}
                 style={({ pressed }) => [styles.tileCard, { opacity: pressed ? 0.82 : 1 }]}
@@ -2177,7 +1990,8 @@ function makeStyles(C: Theme, themeId: string) {
     container: { flex: 1, backgroundColor: "transparent" },
     scrollView: { flex: 1 },
     scrollViewContent: { flexGrow: 1 },
-    title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 24 },
+    title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 8 },
+    prefSubtitle: { fontWeight: "400", fontSize: 15, lineHeight: 22, color: C.textSecondary, marginBottom: 20 },
     simpleSettingsContent: { gap: 12 },
     simpleSettingsCard: { borderRadius: 28, padding: 20, gap: 14, overflow: "hidden", ...raised("md") },
     simpleSettingsSectionTitle: { fontWeight: "800", color: C.text, letterSpacing: -0.4 },

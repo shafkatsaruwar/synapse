@@ -268,7 +268,7 @@ export default function PrivacyScreen() {
       <View style={styles.infoCard}>
         <Ionicons name="information-circle-outline" size={16} color={C.textTertiary} />
         <Text style={styles.infoText}>
-          Local data stays on this device unless you use optional cloud backup, caregiver linking, AI, email, or export. Review Settings for iCloud and account options. For the security posture of this project, see SECURITY.md in the repository.
+          Local data stays on this device unless you use optional cloud backup, caregiver linking, AI, email, or export. Review Backup & Restore for iCloud and assistant sync. For the security posture of this project, see SECURITY.md in the repository.
         </Text>
       </View>
     </ScrollView>
