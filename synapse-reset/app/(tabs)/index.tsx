@@ -1272,9 +1272,20 @@ export default function MainScreen() {
           />
         );
       case "log":
-        return <DailyLogScreen key={refreshKey} />;
+        return (
+          <DailyLogScreen
+            key={refreshKey}
+            onBack={() => handleNavigate("feeling")}
+          />
+        );
       case "logtoday":
-        return <DailyLogScreen key={refreshKey} openTodayOnLaunch />;
+        return (
+          <DailyLogScreen
+            key={refreshKey}
+            openTodayOnLaunch
+            onBack={() => handleNavigate("feeling")}
+          />
+        );
       case "healthdata":
         return <HealthDataScreen />;
       case "medications":
