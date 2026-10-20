@@ -49,6 +49,7 @@ import {
   type Vital,
   type HydrationEntry,
   disableRecoveryTracking,
+  enableRecoveryTracking,
 } from "@/lib/storage";
 import { getToday, formatDate, formatTime12h, formatTimestamp } from "@/lib/date-utils";
 import { getTodayRamadan } from "@/constants/ramadan-timetable";
@@ -928,182 +929,243 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     );
   };
 
-  const renderHealthSnapshotCard = () => (
-    <GlassView variant="hero" tint={isDarkAppearance(themeId) ? "dark" : "light"} style={[styles.healthSnapshotGlass, themeId === "light" && styles.healthSnapshotLight, isEvergreenTheme(themeId) && styles.healthSnapshotEvergreen]}>
-      <View style={styles.healthSnapshotInner}>
-        <View style={styles.healthSnapshotHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.healthSnapshotTitle}>Health Snapshot</Text>
-            <Text style={styles.healthSnapshotSubtitle}>Recovery, today, and this week in one view.</Text>
-          </View>
-          <View style={styles.weekIconBadge}>
-            <Ionicons name="sparkles-outline" size={17} color={C.tint} />
-          </View>
-        </View>
+  const activateSickModeFromDashboard = useCallback(async () => {
+    if (isSickMode) {
+      onNavigate("sickmode");
+      return;
+    }
+    const s = await settingsStorage.get();
+    await settingsStorage.save({ ...s, sickMode: true });
+    await enableRecoveryTracking();
+    const sd = await sickModeStorage.get();
+    await sickModeStorage.save({ ...sd, active: true, startedAt: new Date().toISOString() });
+    await syncRecoveryTrackingCheckIn();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    setSettings({ ...s, sickMode: true });
+    onNavigate("sickmode");
+  }, [isSickMode, onNavigate]);
 
-        <View style={styles.snapshotSection}>
-          <View style={styles.snapshotSectionHeader}>
-            <Text style={styles.snapshotSectionLabel}>Recovery</Text>
-            {hasRecoveryTracking ? (
-              <View style={[styles.recoveryStatusPill, { backgroundColor: recoveryStatusTone + "1F", borderColor: recoveryStatusTone + "44" }]}>
-                <Text style={styles.recoveryStatusText}>{recoverySummary.statusLabel}</Text>
-              </View>
-            ) : null}
+  /** Unified Health Status — Soft Evergreen; transforms when Sick Mode is on. */
+  const renderHealthStatusCard = () => (
+    <View
+      style={[
+        styles.healthStatusCard,
+        isEvergreenTheme(themeId) && styles.quietCardEvergreen,
+        isSickMode && styles.healthStatusCardSick,
+      ]}
+    >
+      <View style={styles.healthStatusHeader}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={styles.healthStatusTitle}>Health Status</Text>
+          <Text style={styles.quietCardBody}>
+            {isSickMode
+              ? "Recovery focus is on — sick-day tools are ready."
+              : "Recovery, today, and this week in one place."}
+          </Text>
+        </View>
+        {isSickMode ? (
+          <View style={styles.sickModeBadge}>
+            <Text style={styles.sickModeBadgeText}>Sick Mode</Text>
           </View>
-          {hasRecoveryTracking ? (
-            <>
-              <Text style={styles.snapshotPrimaryText}>
-                {profile.recoveryFocus?.trim()
-                  ? `Recovering from ${profile.recoveryFocus.trim()}. ${recoverySummary.summaryText}`
-                  : recoverySummary.summaryText}
-              </Text>
-              <Pressable
-                style={({ pressed }) => [styles.snapshotInsightPill, { opacity: pressed ? 0.9 : 1 }]}
-                onPress={() => onNavigate("reports")}
-                accessibilityRole="button"
-                accessibilityLabel="Open recovery reports"
-              >
-                <Ionicons name="sparkles-outline" size={15} color={C.tint} />
-                <Text style={styles.snapshotInsightText}>{recoverySummary.insights[0]}</Text>
-              </Pressable>
-              <View style={styles.recoveryActionRow}>
-                <Pressable
-                  style={({ pressed }) => [styles.recoverySecondaryButton, { opacity: pressed ? 0.88 : 1 }]}
-                  onPress={openRecoverySetup}
-                  accessibilityRole="button"
-                  accessibilityLabel="Edit what you're recovering from"
-                >
-                  <Text style={styles.recoverySecondaryButtonText}>Edit focus</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.recoveryEndButton, { opacity: pressed ? 0.88 : 1 }]}
-                  onPress={handleEndRecovery}
-                  accessibilityRole="button"
-                  accessibilityLabel={settings.sickMode ? "I'm better" : "End recovery tracking"}
-                >
-                  <Text style={styles.recoveryEndButtonText}>{settings.sickMode ? "I’m better" : "End recovery"}</Text>
-                </Pressable>
-              </View>
-            </>
-          ) : (
+        ) : hasRecoveryTracking ? (
+          <View style={[styles.recoveryStatusPill, { backgroundColor: recoveryStatusTone + "1F", borderColor: recoveryStatusTone + "44" }]}>
+            <Text style={styles.recoveryStatusText}>{recoverySummary.statusLabel}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {isSickMode ? (
+        <View style={{ gap: 12 }}>
+          <View style={styles.healthStatusSection}>
+            <Text style={styles.healthStatusLabel}>Recovery focus</Text>
+            <Text style={styles.snapshotPrimaryText}>
+              {profile.recoveryFocus?.trim()
+                ? `Recovering from ${profile.recoveryFocus.trim()}. ${recoverySummary.summaryText}`
+                : recoverySummary.summaryText || "Stress dosing protocol is active."}
+            </Text>
+            {latestSymptomText !== "No recent symptoms" ? (
+              <Text style={styles.snapshotSecondaryText}>Latest symptom: {latestSymptomText}</Text>
+            ) : null}
+            <Text style={styles.snapshotSecondaryText}>Vitals today: {todayVitalsText}</Text>
+          </View>
+
+          <View style={styles.healthStatusActionRow}>
             <Pressable
-              style={({ pressed }) => [styles.recoverySetupCompact, { opacity: pressed ? 0.9 : 1 }]}
+              style={({ pressed }) => [styles.healthStatusPrimaryBtn, pressed && { opacity: 0.9 }]}
+              onPress={() => onNavigate("sickmode")}
+              accessibilityRole="button"
+              accessibilityLabel="Open Sick Mode tools"
+            >
+              <Ionicons name="medkit-outline" size={18} color="#fff" />
+              <Text style={styles.healthStatusPrimaryBtnText}>Sick-day tools</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.healthStatusSecondaryBtn, pressed && { opacity: 0.9 }]}
+              onPress={() => onNavigate("symptoms")}
+              accessibilityRole="button"
+              accessibilityLabel="Log a symptom"
+            >
+              <Text style={styles.healthStatusSecondaryBtnText}>Log symptom</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.healthStatusActionRow}>
+            <Pressable
+              style={({ pressed }) => [styles.healthStatusSecondaryBtn, { flex: 1 }, pressed && { opacity: 0.9 }]}
               onPress={openRecoverySetup}
               accessibilityRole="button"
-              accessibilityLabel="Set up recovery tracking"
+              accessibilityLabel="Edit recovery focus"
             >
-              <View style={styles.recoverySetupIcon}>
-                <Ionicons name="bandage-outline" size={18} color={C.tint} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.snapshotPrimaryText}>Ouch, what’s going on?</Text>
-                <Text style={styles.snapshotSecondaryText}>Tell Synapse what you’re recovering from.</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
+              <Text style={styles.healthStatusSecondaryBtnText}>Edit focus</Text>
             </Pressable>
-          )}
+            <Pressable
+              style={({ pressed }) => [styles.recoveryEndButton, { flex: 1 }, pressed && { opacity: 0.9 }]}
+              onPress={handleEndRecovery}
+              accessibilityRole="button"
+              accessibilityLabel="I'm better"
+            >
+              <Text style={styles.recoveryEndButtonText}>I’m better</Text>
+            </Pressable>
+          </View>
         </View>
+      ) : (
+        <View style={{ gap: 14 }}>
+          <View style={styles.healthStatusSection}>
+            <Text style={styles.healthStatusLabel}>Recovery</Text>
+            {hasRecoveryTracking ? (
+              <>
+                <Text style={styles.snapshotPrimaryText}>
+                  {profile.recoveryFocus?.trim()
+                    ? `Recovering from ${profile.recoveryFocus.trim()}. ${recoverySummary.summaryText}`
+                    : recoverySummary.summaryText}
+                </Text>
+                {recoverySummary.insights[0] ? (
+                  <Pressable
+                    style={({ pressed }) => [styles.snapshotInsightPill, pressed && { opacity: 0.9 }]}
+                    onPress={() => onNavigate("reports")}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open recovery reports"
+                  >
+                    <Ionicons name="sparkles-outline" size={15} color={C.tint} />
+                    <Text style={styles.snapshotInsightText}>{recoverySummary.insights[0]}</Text>
+                  </Pressable>
+                ) : null}
+                <View style={styles.recoveryActionRow}>
+                  <Pressable
+                    style={({ pressed }) => [styles.recoverySecondaryButton, pressed && { opacity: 0.88 }]}
+                    onPress={openRecoverySetup}
+                    accessibilityRole="button"
+                    accessibilityLabel="Edit what you're recovering from"
+                  >
+                    <Text style={styles.recoverySecondaryButtonText}>Edit focus</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [styles.recoveryEndButton, pressed && { opacity: 0.88 }]}
+                    onPress={handleEndRecovery}
+                    accessibilityRole="button"
+                    accessibilityLabel="End recovery tracking"
+                  >
+                    <Text style={styles.recoveryEndButtonText}>End recovery</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <Pressable
+                style={({ pressed }) => [styles.recoverySetupCompact, pressed && { opacity: 0.9 }]}
+                onPress={openRecoverySetup}
+                accessibilityRole="button"
+                accessibilityLabel="Set up recovery tracking"
+              >
+                <View style={styles.recoverySetupIcon}>
+                  <Ionicons name="bandage-outline" size={18} color={C.tint} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.snapshotPrimaryText}>Start recovery tracking</Text>
+                  <Text style={styles.snapshotSecondaryText}>Optional — only if something needs watching.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
+              </Pressable>
+            )}
+          </View>
 
-        <View style={styles.snapshotDivider} />
+          <View style={styles.medDivider} />
 
-        <View style={styles.snapshotSection}>
-          <Text style={styles.snapshotSectionLabel}>Today</Text>
-          <View style={styles.glancePanel}>
-            <View pointerEvents="none" style={styles.glancePanelEdgeTop} />
-            <View pointerEvents="none" style={styles.glancePanelEdgeBottom} />
-            <View pointerEvents="none" style={styles.glancePanelHighlight} />
-            <View style={styles.glanceRow}>
-              <View pointerEvents="none" style={styles.glanceRowBevel} />
-              <View style={styles.glanceIconBubble}>
-                <Ionicons name="medical-outline" size={16} color={C.tint} />
-              </View>
+          <View style={styles.healthStatusSection}>
+            <Text style={styles.healthStatusLabel}>Today</Text>
+            <View style={styles.statusGlanceRow}>
+              <Ionicons name="medical-outline" size={16} color={C.tint} />
               <Text style={styles.glanceLine}>{todayAtAGlance.medicationLine}</Text>
             </View>
             {todayAtAGlance.symptomsLine ? (
-              <View style={styles.glanceRow}>
-                <View pointerEvents="none" style={styles.glanceRowBevel} />
-                <View style={styles.glanceIconBubble}>
-                  <Ionicons name="pulse-outline" size={16} color={C.orange} />
-                </View>
+              <View style={styles.statusGlanceRow}>
+                <Ionicons name="pulse-outline" size={16} color={C.orange} />
                 <Text style={styles.glanceLine}>{todayAtAGlance.symptomsLine}</Text>
               </View>
             ) : null}
-            <View style={[styles.glanceRow, styles.glanceInsightRow]}>
-              <View pointerEvents="none" style={styles.glanceRowBevel} />
-              <View style={styles.glanceInsightBubble}>
-                <Ionicons name="sparkles-outline" size={16} color={C.purple} />
-              </View>
-              <Text style={styles.glanceInsight}>{todayAtAGlance.insightLine}</Text>
+            <View style={styles.statusGlanceRow}>
+              <Ionicons name="water-outline" size={16} color={C.cyan} />
+              <Text style={styles.glanceLine}>
+                Hydration avg {formatHydrationVolume(weeklySummary.averageHydrationMl)} this week
+              </Text>
             </View>
           </View>
-        </View>
 
-        <View style={styles.snapshotDivider} />
+          <View style={styles.medDivider} />
 
-        <View style={styles.snapshotSection}>
-          <View style={styles.snapshotSectionHeader}>
-            <Text style={styles.snapshotSectionLabel}>This week</Text>
-            <Text style={styles.snapshotSectionMeta}>Meds, hydration, visits</Text>
+          <View style={styles.healthStatusSection}>
+            <Text style={styles.healthStatusLabel}>This week</Text>
+            <View style={styles.weekMetricGrid}>
+              <Pressable
+                style={({ pressed }) => [styles.weekMetricTileQuiet, pressed && { opacity: 0.9 }]}
+                onPress={() => onNavigate("medications")}
+                accessibilityRole="button"
+                accessibilityLabel="Open medications"
+              >
+                <Text style={styles.weekMetricLabel}>Meds</Text>
+                <Text style={styles.weekMetricValue}>
+                  {weeklySummary.adherencePercent == null ? "—" : `${weeklySummary.adherencePercent}%`}
+                </Text>
+                <Text style={styles.weekMetricMeta}>{weeklySummary.totalTaken}/{weeklySummary.totalScheduled}</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.weekMetricTileQuiet, pressed && { opacity: 0.9 }]}
+                onPress={() => onNavigate("eating")}
+                accessibilityRole="button"
+                accessibilityLabel="Open hydration"
+              >
+                <Text style={styles.weekMetricLabel}>Hydration</Text>
+                <Text style={styles.weekMetricValue}>{formatHydrationVolume(weeklySummary.averageHydrationMl)}</Text>
+                <Text style={styles.weekMetricMeta}>
+                  {weeklySummary.hydrationLoggedDays > 0 ? `${weeklySummary.hydrationLoggedDays}d logged` : "no logs"}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.weekMetricTileQuiet, pressed && { opacity: 0.9 }]}
+                onPress={() => onNavigate("appointments")}
+                accessibilityRole="button"
+                accessibilityLabel="Open appointments"
+              >
+                <Text style={styles.weekMetricLabel}>Visits</Text>
+                <Text style={styles.weekMetricValue}>{weeklySummary.appointmentCount}</Text>
+                <Text style={styles.weekMetricMeta}>
+                  {weeklySummary.nextUpcomingAppointment
+                    ? formatDate(weeklySummary.nextUpcomingAppointment.date)
+                    : "none soon"}
+                </Text>
+              </Pressable>
+            </View>
+            <Pressable
+              style={({ pressed }) => [styles.weekInsightQuiet, pressed && { opacity: 0.9 }]}
+              onPress={() => onNavigate("reports")}
+              accessibilityRole="button"
+              accessibilityLabel="Open reports"
+            >
+              <Text style={styles.weekInsightText}>{weeklySummary.insight}</Text>
+            </Pressable>
           </View>
-          <View style={styles.weekMetricGrid}>
-            <Pressable
-              style={({ pressed }) => [styles.weekMetricTile, pressed && styles.snapshotPressed]}
-              onPress={() => onNavigate("medications")}
-              accessibilityRole="button"
-              accessibilityLabel="Open medications"
-            >
-              <Text style={styles.weekMetricLabel}>Med adherence</Text>
-              <Text style={styles.weekMetricValue}>
-                {weeklySummary.adherencePercent == null ? "—" : `${weeklySummary.adherencePercent}%`}
-              </Text>
-              <Text style={styles.weekMetricMeta}>{weeklySummary.totalTaken}/{weeklySummary.totalScheduled} doses</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.weekMetricTile, pressed && styles.snapshotPressed]}
-              onPress={() => onNavigate("eating")}
-              accessibilityRole="button"
-              accessibilityLabel="Open hydration"
-            >
-              <Text style={styles.weekMetricLabel}>Hydration</Text>
-              <Text style={styles.weekMetricValue}>
-                {formatHydrationVolume(weeklySummary.averageHydrationMl)}
-              </Text>
-              <Text style={styles.weekMetricMeta}>
-                {weeklySummary.hydrationLoggedDays > 0
-                  ? `avg on ${weeklySummary.hydrationLoggedDays} day${weeklySummary.hydrationLoggedDays === 1 ? "" : "s"}`
-                  : "no logs yet"}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.weekMetricTile, pressed && styles.snapshotPressed]}
-              onPress={() => onNavigate("appointments")}
-              accessibilityRole="button"
-              accessibilityLabel="Open appointments"
-            >
-              <Text style={styles.weekMetricLabel}>Appointments</Text>
-              <Text style={styles.weekMetricValue}>{weeklySummary.appointmentCount}</Text>
-              <Text style={styles.weekMetricMeta}>
-                {weeklySummary.nextUpcomingAppointment
-                  ? `${formatDate(weeklySummary.nextUpcomingAppointment.date)}`
-                  : "none upcoming"}
-              </Text>
-            </Pressable>
-          </View>
-
-          <Pressable
-            style={({ pressed }) => [styles.weekInsightBox, pressed && styles.snapshotPressed]}
-            onPress={() => onNavigate("reports")}
-            accessibilityRole="button"
-            accessibilityLabel="Open reports"
-          >
-            <Text style={styles.weekInsightText}>{weeklySummary.insight}</Text>
-            {weeklySummary.topSymptom ? (
-              <Text style={styles.weekInsightMeta}>Most frequent symptom: {weeklySummary.topSymptom}</Text>
-            ) : null}
-          </Pressable>
         </View>
-      </View>
-    </GlassView>
+      )}
+    </View>
   );
 
   const renderMedicationsCard = () => (
@@ -1311,7 +1373,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               </Pressable>
             </View>
 
-            {renderHealthSnapshotCard()}
+            {renderHealthStatusCard()}
           </View>
         </ScrollView>
         {fab}
@@ -1504,7 +1566,40 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         <Ionicons name="open-outline" size={18} color={C.textTertiary} />
       </Pressable>
 
-      {/* Secondary: Sick Mode + snapshot stay behind progressive disclosure */}
+      {/* Health Status — unified snapshot + sick-mode transform */}
+      {renderHealthStatusCard()}
+
+      {/* Always-visible Sick Mode entry (even when Health Status isn’t expanded elsewhere) */}
+      <Pressable
+        style={({ pressed }) => [
+          ...solidCard(styles.sickModeAccessRow),
+          isSickMode && { borderColor: C.red },
+          pressed && { opacity: 0.9 },
+        ]}
+        onPress={() => {
+          Haptics.selectionAsync().catch(() => {});
+          void activateSickModeFromDashboard();
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={isSickMode ? "Open Sick Mode" : "Activate Sick Mode"}
+        accessibilityHint={
+          isSickMode
+            ? "Opens sick-day tools without changing medical protocol logic"
+            : "Starts Sick Mode recovery protocol"
+        }
+      >
+        <View style={[styles.quietIconWrap, { backgroundColor: isSickMode ? C.redLight : C.tintLight }]}>
+          <Ionicons name="medkit-outline" size={20} color={isSickMode ? C.red : C.tint} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={styles.halfCardTitle}>{isSickMode ? "Sick Mode is on" : "Sick Mode"}</Text>
+          <Text style={styles.quietCardBody}>
+            {isSickMode ? "Open check-ins, stress dosing, and comfort tools" : "Quick access when you need recovery support"}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+      </Pressable>
+
       <Pressable
         onPress={() => {
           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -1520,36 +1615,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
       {showMoreToday ? (
         <View style={{ gap: 12 }}>
-          <Pressable
-            style={({ pressed }) => [
-              ...solidCard(),
-              {
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-                opacity: pressed ? 0.92 : 1,
-                borderColor: isSickMode ? C.red : C.border,
-              },
-            ]}
-            onPress={() => {
-              Haptics.selectionAsync().catch(() => {});
-              onNavigate(isSickMode ? "sickmode" : "settings");
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={isSickMode ? "Sick Mode is on" : "Sick Mode"}
-          >
-            <View style={[styles.quietIconWrap, { backgroundColor: C.redLight }]}>
-              <Ionicons name="medkit-outline" size={20} color={C.red} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.halfCardTitle}>{isSickMode ? "Sick Mode is on" : "Sick Mode"}</Text>
-              <Text style={styles.quietCardBody}>
-                {isSickMode ? "Open Sick Mode tools" : "Stress dosing support when you need it"}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
-          </Pressable>
-
           {!!ramadanDay && settings.ramadanMode ? (
             <View style={styles.ramadanSection}>
               <GlassView intensity={50} tint={glassTint} style={[styles.feelingCardGlass, themeId === "light" && styles.feelingCardLight]}>
@@ -1574,8 +1639,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
               </GlassView>
             </View>
           ) : null}
-
-          {renderHealthSnapshotCard()}
 
           {featureFlags.documentScannerEnabled ? (
             <View style={[styles.grid, isWide && styles.gridWide]}>
@@ -2291,6 +2354,115 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: C.border,
       overflow: "hidden",
+    },
+    healthStatusCard: {
+      backgroundColor: C.surface,
+      borderRadius: 22,
+      padding: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+      gap: 14,
+    },
+    healthStatusCardSick: {
+      borderColor: C.red,
+      backgroundColor: isDarkAppearance(themeId) ? C.surface : "#FFF8F7",
+    },
+    healthStatusHeader: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 12,
+    },
+    healthStatusTitle: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: C.text,
+      letterSpacing: -0.3,
+    },
+    healthStatusLabel: {
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: C.textTertiary,
+      marginBottom: 6,
+    },
+    healthStatusSection: {
+      gap: 8,
+    },
+    healthStatusActionRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    healthStatusPrimaryBtn: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      backgroundColor: C.red,
+      paddingVertical: 12,
+      borderRadius: 14,
+    },
+    healthStatusPrimaryBtnText: {
+      color: "#fff",
+      fontWeight: "700",
+      fontSize: 14,
+    },
+    healthStatusSecondaryBtn: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 12,
+      borderRadius: 14,
+      backgroundColor: C.tintLight,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+    },
+    healthStatusSecondaryBtnText: {
+      color: C.tint,
+      fontWeight: "600",
+      fontSize: 14,
+    },
+    sickModeBadge: {
+      backgroundColor: C.red,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 999,
+    },
+    sickModeBadgeText: {
+      color: "#fff",
+      fontSize: 11,
+      fontWeight: "700",
+    },
+    sickModeAccessRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 14,
+    },
+    statusGlanceRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingVertical: 4,
+    },
+    weekMetricTileQuiet: {
+      flex: 1,
+      minWidth: "30%",
+      backgroundColor: isDarkAppearance(themeId) ? C.surfaceElevated : "#F7F8FA",
+      borderRadius: 14,
+      padding: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+      gap: 4,
+    },
+    weekInsightQuiet: {
+      marginTop: 4,
+      padding: 12,
+      borderRadius: 14,
+      backgroundColor: isDarkAppearance(themeId) ? C.surfaceElevated : "#F7F8FA",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
     },
     dateText: { fontWeight: "400", fontSize: 14, color: C.textSecondary },
     hijriDate: { fontWeight: "600", fontSize: 14, color: C.text, marginBottom: 20 },
