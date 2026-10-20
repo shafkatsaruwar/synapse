@@ -199,9 +199,11 @@ function StepSlider({
 
 interface DailyLogScreenProps {
   openTodayOnLaunch?: boolean;
+  /** Optional back action (e.g. return to How I’m Feeling hub). */
+  onBack?: () => void;
 }
 
-export default function DailyLogScreen({ openTodayOnLaunch = false }: DailyLogScreenProps) {
+export default function DailyLogScreen({ openTodayOnLaunch = false, onBack }: DailyLogScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -411,6 +413,18 @@ export default function DailyLogScreen({ openTodayOnLaunch = false }: DailyLogSc
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {onBack ? (
+          <Pressable
+            onPress={onBack}
+            style={styles.backRow}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            hitSlop={12}
+          >
+            <Ionicons name="chevron-back" size={22} color={C.tint} />
+            <Text style={styles.backText}>Back</Text>
+          </Pressable>
+        ) : null}
         <Text style={styles.title} accessibilityRole="header">Daily Check-in</Text>
 
         <View style={styles.monthNav}>
@@ -605,6 +619,20 @@ function makeStyles(C: Theme) {
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
+  backRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    alignSelf: "flex-start",
+    marginBottom: 8,
+    minHeight: 44,
+    paddingRight: 8,
+  },
+  backText: {
+    fontWeight: "600",
+    fontSize: 16,
+    color: C.tint,
+  },
   title: {
     fontWeight: "700",
     fontSize: 28,
