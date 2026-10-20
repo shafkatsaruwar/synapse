@@ -1340,17 +1340,11 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
   const todayApts = useMemo(() => appointments.filter((a) => a.date === today && (a.status === undefined || a.status === "completed")), [appointments, today]);
   const currentMonthPrefix = today.slice(0, 7);
   const upcoming = useMemo(() => {
-    const now = Date.now();
+    // Active appointments from today forward stay in Upcoming through end of day
+    // (including later-than-now starts and earlier-today visits not yet completed/cancelled).
     return appointments
       .filter((a) => a.status === undefined)
-      .filter((a) => {
-        if (a.date > today) return true;
-        if (a.date < today) return false;
-        // today: still upcoming if start time is in the future
-        if (!a.time?.trim()) return true;
-        const start = new Date(`${a.date}T${a.time}:00`).getTime();
-        return Number.isFinite(start) && start >= now;
-      })
+      .filter((a) => a.date >= today)
       .sort((a, b) => {
         const aT = new Date(`${a.date}T${(a.time || "00:00").trim()}:00`).getTime();
         const bT = new Date(`${b.date}T${(b.time || "00:00").trim()}:00`).getTime();
