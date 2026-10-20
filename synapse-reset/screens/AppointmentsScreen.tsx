@@ -27,6 +27,13 @@ import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { getAppointmentTravelEstimate } from "@/lib/appointment-travel";
 import AppleCalendarImportModal from "@/screens/AppleCalendarImportModal";
 import VisualScanImportModal from "@/screens/VisualScanImportModal";
+import AddAppointmentGuidedFlow from "@/components/appointments/AddAppointmentGuidedFlow";
+import { featureFlags } from "@/constants/feature-flags";
+import {
+  draftFromImport,
+  type AddAppointmentDraft,
+  type AppointmentGuidedStepId,
+} from "@/lib/appointment-draft";
 import {
   explainAppointment,
   isFoundationModelsAvailable,
@@ -748,6 +755,10 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
   const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", backupCriticalMedications: [] });
   const [notes, setNotes] = useState<DoctorNote[]>([]);
   const [showAptModal, setShowAptModal] = useState(false);
+  const [showGuidedAdd, setShowGuidedAdd] = useState(false);
+  const [guidedInitialDraft, setGuidedInitialDraft] = useState<AddAppointmentDraft | null>(null);
+  const [guidedInitialStep, setGuidedInitialStep] = useState<AppointmentGuidedStepId | undefined>(undefined);
+  const [guidedInitialOwner, setGuidedInitialOwner] = useState<RecordOwner | undefined>(undefined);
   const [showCalendarImportModal, setShowCalendarImportModal] = useState(false);
   const [showVisualScanModal, setShowVisualScanModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -849,10 +860,19 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
     setEditingApt(null);
   }, [today]);
 
+  const openGuidedAddAppointment = useCallback((ownerOverride?: RecordOwner) => {
+    setEditingApt(null);
+    setShowAptModal(false);
+    setShowSimpleAptModal(false);
+    setGuidedInitialDraft(null);
+    setGuidedInitialStep(undefined);
+    setGuidedInitialOwner(ownerOverride);
+    setShowGuidedAdd(true);
+  }, []);
+
   const openSimpleAddAppointment = useCallback(() => {
-    resetSimpleAppointmentForm();
-    setShowSimpleAptModal(true);
-  }, [resetSimpleAppointmentForm]);
+    openGuidedAddAppointment();
+  }, [openGuidedAddAppointment]);
 
   const handleCalendarImported = useCallback(async (appointmentDate?: string) => {
     setShowCalendarImportModal(false);
@@ -861,28 +881,15 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
   }, [loadData, today]);
 
   useEffect(() => {
-    if (!modeUI.isSimpleMode || !simpleOpenAddToken) return;
-    openSimpleAddAppointment();
-  }, [modeUI.isSimpleMode, openSimpleAddAppointment, simpleOpenAddToken]);
+    if (!simpleOpenAddToken) return;
+    openGuidedAddAppointment();
+  }, [openGuidedAddAppointment, simpleOpenAddToken]);
 
   useEffect(() => {
     if (!openCalendarImportToken) return;
     setTab("calendar");
     setShowCalendarImportModal(true);
   }, [openCalendarImportToken]);
-
-  const openSimpleEditAppointment = useCallback((appointment: Appointment) => {
-    setEditingApt(appointment);
-    setSimpleStep(4);
-    setSimpleEntryOwner(appointment.entryOwner ?? "self");
-    setSimpleDoctorName(appointment.doctorName || "");
-    setSimpleDate(appointment.date || today);
-    setSimpleTime(appointment.time || "09:00");
-    setShowSimpleDatePicker(false);
-    setShowSimpleTimePicker(false);
-    setShowSimpleAptModal(true);
-    setSimpleViewingApt(null);
-  }, [today]);
 
   useEffect(() => {
     if (!selectedDoctorId) return;
@@ -1108,46 +1115,59 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
     const owner = apt.entryOwner ?? "self";
     setAptEntryOwner(owner);
     let doctorId: string | null = apt.doctor_id ?? null;
+    // Match an existing doctor when possible; never invent a new doctor profile from free text.
     if (!doctorId && apt.doctorName) {
-      const doc = await doctorsStorage.addOrGet({ name: apt.doctorName, specialty: apt.specialty ?? undefined }, owner);
-      doctorId = doc.id;
-      setDoctors((prev) => [...prev.filter((d) => d.id !== doc.id), doc].sort((a, b) => a.name.localeCompare(b.name)));
+      const match = doctors.find(
+        (d) => d.name.trim().toLowerCase() === apt.doctorName.trim().toLowerCase() && (d.entryOwner ?? "self") === owner,
+      );
+      doctorId = match?.id ?? null;
     }
     setSelectedDoctorId(doctorId);
     setShowDoctorPicker(false);
     resetInlineDoctorForm();
+    setNewDoctorName(doctorId ? "" : (apt.doctorName || ""));
     setAptDate(apt.date);
-    setAptTime(apt.time || "09:00");
+    setAptTime(apt.time?.trim() ? apt.time : "");
     setAptNotes(apt.notes ?? "");
     setRepeatOption("none");
     setShowTimePicker(false);
     setShowDatePicker(false);
     setShowAptModal(true);
-  }, []);
+  }, [doctors]);
 
   const openDetailEdit = useCallback((appointment: Appointment) => {
     setSimpleViewingApt(null);
     setActionAppointment(null);
-    if (modeUI.isSimpleMode) {
-      openSimpleEditAppointment(appointment);
-      return;
-    }
+    // Edit is direct in both Simple and Full — creation wizard is add-only.
     void handleEditApt(appointment);
-  }, [handleEditApt, modeUI.isSimpleMode, openSimpleEditAppointment]);
+  }, [handleEditApt]);
 
   const handleUpdateApt = async () => {
     if (!editingApt) return;
     const doc = selectedDoctorId ? appointmentDoctors.find((d) => d.id === selectedDoctorId) : null;
-    if (!doc || !aptDate.trim()) return;
+    const freeTextName = newDoctorName.trim() || editingApt.doctorName;
+    if ((!doc && !freeTextName) || !aptDate.trim() || !aptTime.trim()) return;
     const updates: Partial<Appointment> = {
-      doctor_id: selectedDoctorId ?? undefined,
-      doctorName: doc.name,
-      specialty: doc.specialty ?? "",
+      doctor_id: doc?.id,
+      doctorName: doc?.name ?? freeTextName,
+      specialty: doc?.specialty ?? editingApt.specialty ?? "",
       date: aptDate.trim(),
-      time: aptTime.trim() || "09:00",
-      location: doc.hospital ?? "",
+      time: aptTime.trim(),
+      // Keep appointment-specific location; only fall back to doctor hospital when empty.
+      location: editingApt.location?.trim() || doc?.hospital || "",
       notes: aptNotes.trim(),
       entryOwner: aptEntryOwner,
+      arrivalInstructions: editingApt.arrivalInstructions,
+      endTime: editingApt.endTime,
+      source: editingApt.source,
+      is_recurring: editingApt.is_recurring,
+      repeat_interval: editingApt.repeat_interval,
+      repeat_unit: editingApt.repeat_unit,
+      repeat_end_date: editingApt.repeat_end_date,
+      parent_recurring_id: editingApt.parent_recurring_id,
+      status: editingApt.status,
+      monthlyReviewOccurred: editingApt.monthlyReviewOccurred,
+      monthlyReviewOccurredAt: editingApt.monthlyReviewOccurredAt,
     };
     if (editMode === "one") {
       await appointmentStorage.update(editingApt.id, updates);
@@ -1417,6 +1437,14 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
         >
           <View style={styles.simpleAppointmentsHeader}>
             <Text style={styles.title}>Appointments</Text>
+            <Pressable
+              style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]}
+              onPress={() => openGuidedAddAppointment()}
+              accessibilityRole="button"
+              accessibilityLabel="Add appointment"
+            >
+              <Ionicons name="add" size={22} color="#fff" />
+            </Pressable>
           </View>
 
           <View style={[styles.simpleAppointmentsCard, simpleNextAppointment?.date === today && styles.simpleAppointmentsCardToday]}>
@@ -1458,15 +1486,17 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
             <Text style={styles.simpleAppointmentsAddCardText}>Import from Apple Calendar</Text>
           </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [styles.simpleAppointmentsAddCard, pressed && styles.simpleAppointmentsSecondaryButtonPressed]}
-            onPress={() => setShowVisualScanModal(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Scan appointment card"
-          >
-            <Ionicons name="scan-outline" size={20} color={C.text} />
-            <Text style={styles.simpleAppointmentsAddCardText}>Scan appointment card</Text>
-          </Pressable>
+          {featureFlags.documentScannerEnabled ? (
+            <Pressable
+              style={({ pressed }) => [styles.simpleAppointmentsAddCard, pressed && styles.simpleAppointmentsSecondaryButtonPressed]}
+              onPress={() => setShowVisualScanModal(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Scan appointment card"
+            >
+              <Ionicons name="scan-outline" size={20} color={C.text} />
+              <Text style={styles.simpleAppointmentsAddCardText}>Scan appointment card</Text>
+            </Pressable>
+          ) : null}
 
           {simpleMoreUpcomingAppointments.length > 0 ? (
             <View style={styles.simpleAppointmentsListSection}>
@@ -1659,6 +1689,50 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
           onMarkDone={handleSimpleMarkDone}
         />
 
+        <AddAppointmentGuidedFlow
+          visible={showGuidedAdd}
+          initialOwner={guidedInitialOwner}
+          initialDraft={guidedInitialDraft}
+          initialStep={guidedInitialStep}
+          isCaregiver={isCaregiver}
+          caredForName={profile.caredForName?.trim()}
+          doctors={doctors}
+          scanEnabled={featureFlags.documentScannerEnabled}
+          calendarImportEnabled
+          onRequestScan={() => {
+            setShowGuidedAdd(false);
+            setShowVisualScanModal(true);
+          }}
+          onRequestCalendarImport={() => {
+            setShowGuidedAdd(false);
+            setShowCalendarImportModal(true);
+          }}
+          onClose={() => {
+            setShowGuidedAdd(false);
+            setGuidedInitialDraft(null);
+            setGuidedInitialStep(undefined);
+          }}
+          onSaved={(apt, options) => {
+            void loadData();
+            if (apt.date) setSelectedDate(apt.date);
+            if (options.addAnother) {
+              setGuidedInitialDraft(null);
+              setGuidedInitialStep(undefined);
+              setShowGuidedAdd(true);
+              return;
+            }
+            setShowGuidedAdd(false);
+            setGuidedInitialDraft(null);
+            setGuidedInitialStep(undefined);
+            if (options.openDetails) {
+              void handleEditApt(apt);
+              return;
+            }
+            onSimpleSaveComplete?.();
+          }}
+          onDoctorsChanged={setDoctors}
+        />
+
         <AppleCalendarImportModal
           visible={showCalendarImportModal}
           onClose={() => setShowCalendarImportModal(false)}
@@ -1669,6 +1743,22 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
           visible={showVisualScanModal}
           initialType="appointment"
           onClose={() => setShowVisualScanModal(false)}
+          onAppointmentDraft={(fields) => {
+            setShowVisualScanModal(false);
+            setGuidedInitialDraft(
+              draftFromImport({
+                doctorName: fields.doctorName,
+                date: fields.date,
+                time: fields.time,
+                location: fields.location,
+                notes: fields.notes,
+                entryOwner: guidedInitialOwner ?? "self",
+                source: "scan",
+              }),
+            );
+            setGuidedInitialStep("review");
+            setShowGuidedAdd(true);
+          }}
           onSaved={(_, id) => {
             setShowVisualScanModal(false);
             void loadData();
@@ -1693,15 +1783,17 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
         <View style={styles.header}>
           <Text style={styles.title}>Appointments</Text>
           <View style={styles.headerActions}>
-            <Pressable
-              style={({ pressed }) => [styles.importBtn, { opacity: pressed ? 0.8 : 1 }]}
-              onPress={() => setShowVisualScanModal(true)}
-              accessibilityRole="button"
-              accessibilityLabel={tab === "calendar" ? "Scan appointment card" : "Scan lab results"}
-              hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
-            >
-              <Ionicons name="scan-outline" size={19} color={C.text} />
-            </Pressable>
+            {featureFlags.documentScannerEnabled || tab !== "calendar" ? (
+              <Pressable
+                style={({ pressed }) => [styles.importBtn, { opacity: pressed ? 0.8 : 1 }]}
+                onPress={() => setShowVisualScanModal(true)}
+                accessibilityRole="button"
+                accessibilityLabel={tab === "calendar" ? "Scan appointment card" : "Scan lab results"}
+                hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+              >
+                <Ionicons name="scan-outline" size={19} color={C.text} />
+              </Pressable>
+            ) : null}
             {tab === "calendar" ? (
               <Pressable
                 style={({ pressed }) => [styles.importBtn, { opacity: pressed ? 0.8 : 1 }]}
@@ -1716,10 +1808,8 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
             <Pressable
               style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]}
               onPress={() => {
-                resetAptForm();
                 if (tab === "calendar") {
-                  setAptTime("09:00");
-                  setShowAptModal(true);
+                  openGuidedAddAppointment();
                 } else {
                   openNoteModal();
                 }
@@ -2150,17 +2240,64 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
 
               <View style={styles.modalActions}>
                 <Pressable style={styles.cancelBtn} onPress={() => { setShowAptModal(false); resetAptForm(); }}><Text style={styles.cancelText}>Cancel</Text></Pressable>
-                {editingApt ? (
-                  <Pressable style={[styles.confirmBtn, (!selectedDoctorId || !aptDate.trim()) && { opacity: 0.5 }]} onPress={handleUpdateApt} disabled={!selectedDoctorId || !aptDate.trim()}><Text style={styles.confirmText}>Save</Text></Pressable>
-                ) : (
-                  <Pressable style={[styles.confirmBtn, (!selectedDoctorId || !aptDate.trim()) && { opacity: 0.5 }]} onPress={handleAddApt} disabled={!selectedDoctorId || !aptDate.trim()}><Text style={styles.confirmText}>Add</Text></Pressable>
-                )}
+                <Pressable
+                  style={[
+                    styles.confirmBtn,
+                    ((!selectedDoctorId && !newDoctorName.trim() && !editingApt?.doctorName) || !aptDate.trim() || !aptTime.trim()) && { opacity: 0.5 },
+                  ]}
+                  onPress={handleUpdateApt}
+                  disabled={(!selectedDoctorId && !newDoctorName.trim() && !editingApt?.doctorName) || !aptDate.trim() || !aptTime.trim()}
+                >
+                  <Text style={styles.confirmText}>Save</Text>
+                </Pressable>
               </View>
               </ScrollView>
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>
       </Modal>
+
+      <AddAppointmentGuidedFlow
+        visible={showGuidedAdd}
+        initialOwner={guidedInitialOwner}
+        initialDraft={guidedInitialDraft}
+        initialStep={guidedInitialStep}
+        isCaregiver={isCaregiver}
+        caredForName={profile.caredForName?.trim()}
+        doctors={doctors}
+        scanEnabled={featureFlags.documentScannerEnabled}
+        calendarImportEnabled
+        onRequestScan={() => {
+          setShowGuidedAdd(false);
+          setShowVisualScanModal(true);
+        }}
+        onRequestCalendarImport={() => {
+          setShowGuidedAdd(false);
+          setShowCalendarImportModal(true);
+        }}
+        onClose={() => {
+          setShowGuidedAdd(false);
+          setGuidedInitialDraft(null);
+          setGuidedInitialStep(undefined);
+        }}
+        onSaved={(apt, options) => {
+          void loadData();
+          if (apt.date) setSelectedDate(apt.date);
+          if (options.addAnother) {
+            setGuidedInitialDraft(null);
+            setGuidedInitialStep(undefined);
+            setShowGuidedAdd(true);
+            return;
+          }
+          setShowGuidedAdd(false);
+          setGuidedInitialDraft(null);
+          setGuidedInitialStep(undefined);
+          if (options.openDetails) {
+            void handleEditApt(apt);
+          }
+        }}
+        onDoctorsChanged={setDoctors}
+      />
 
       <AppleCalendarImportModal
         visible={showCalendarImportModal}
@@ -2172,6 +2309,22 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
         visible={showVisualScanModal}
         initialType={tab === "calendar" ? "appointment" : "lab"}
         onClose={() => setShowVisualScanModal(false)}
+        onAppointmentDraft={(fields) => {
+          setShowVisualScanModal(false);
+          setGuidedInitialDraft(
+            draftFromImport({
+              doctorName: fields.doctorName,
+              date: fields.date,
+              time: fields.time,
+              location: fields.location,
+              notes: fields.notes,
+              entryOwner: guidedInitialOwner ?? "self",
+              source: "scan",
+            }),
+          );
+          setGuidedInitialStep("review");
+          setShowGuidedAdd(true);
+        }}
         onSaved={() => {
           setShowVisualScanModal(false);
           void loadData();
