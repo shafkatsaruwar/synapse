@@ -423,7 +423,7 @@ export default function SidebarLayout({
   const mainContent = (
     <View style={styles.mobileContainer} {...swipePanResponder.panHandlers}>
       {shouldShowHeaderRow ? (
-        <View style={[styles.mobileHeaderRow, { paddingTop: Platform.OS === "web" ? 12 : insets.top + 4 }]}>
+        <View style={[styles.mobileHeaderRow, { paddingTop: Platform.OS === "web" ? 12 : insets.top }]}>
           {isWide ? <View style={styles.headerSpacerLeft} /> : !shouldShowWebSidebar ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
               {canGoBack && onBack ? (
@@ -1050,17 +1050,17 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       justifyContent: "space-between",
       alignItems: "center",
       paddingHorizontal: 8,
-      paddingBottom: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: C.border,
-      backgroundColor: themeId === "light" ? "transparent" : C.background,
+      // Keep chrome tight under the status bar / Dynamic Island — avoid a tall empty band.
+      paddingBottom: 2,
+      borderBottomWidth: 0,
+      backgroundColor: "transparent",
       // Keep menu tappable above the Quick Add absoluteFill layer.
       zIndex: 60,
       elevation: 60,
     },
     mobileMenuBtn: {
-      padding: 6,
-      marginLeft: -6,
+      padding: 4,
+      marginLeft: -4,
     },
     mobileHeaderSpacer: { width: 1, minWidth: 1 },
     headerSpacerLeft: { flex: 1 },

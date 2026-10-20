@@ -1277,7 +1277,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   );
 
   const contentPadding = {
-    paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 12),
+    // Full mode: SidebarLayout owns the top safe-area inset — keep this small.
+    paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 4),
     paddingBottom: isWide ? 40 : (Platform.OS === "web" ? 118 : insets.bottom + 100),
   };
   const simpleContentPadding = {
