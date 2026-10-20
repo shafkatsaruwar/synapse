@@ -1356,20 +1356,9 @@ export default function MainScreen() {
           />
         );
       case "log":
-        return (
-          <DailyLogScreen
-            key={refreshKey}
-            onBack={() => backToParentOr("feelinghub")}
-          />
-        );
+        return <DailyLogScreen key={refreshKey} />;
       case "logtoday":
-        return (
-          <DailyLogScreen
-            key={refreshKey}
-            openTodayOnLaunch
-            onBack={() => backToParentOr("feelinghub")}
-          />
-        );
+        return <DailyLogScreen key={refreshKey} openTodayOnLaunch />;
       case "healthdata":
         return <HealthDataScreen />;
       case "medications":
@@ -1469,8 +1458,8 @@ export default function MainScreen() {
       case "auth":
         return (
           <AuthScreen
-            onBack={() => handleNavigate("settings")}
-            onSuccess={() => handleNavigate("settings")}
+            onBack={() => backToParentOr("editprofile")}
+            onSuccess={() => handleNavigate("editprofile")}
           />
         );
       default:
