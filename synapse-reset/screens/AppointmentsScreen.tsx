@@ -25,6 +25,7 @@ import {
 import { getToday, formatDate, formatTime12h } from "@/lib/date-utils";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { getAppointmentTravelEstimate } from "@/lib/appointment-travel";
+import { detectAppointmentOverlaps, type AppointmentOverlapHint } from "@/lib/appointment-overlap";
 import AppleCalendarImportModal from "@/screens/AppleCalendarImportModal";
 import VisualScanImportModal from "@/screens/VisualScanImportModal";
 import AddAppointmentGuidedFlow from "@/components/appointments/AddAppointmentGuidedFlow";
@@ -271,6 +272,7 @@ function AppointmentDetailModal({
   styles,
   ownerLabel,
   travelText,
+  overlapHint,
   onClose,
   onEdit,
   onReschedule,
@@ -286,6 +288,7 @@ function AppointmentDetailModal({
   today: string;
   ownerLabel: string;
   travelText?: string | null;
+  overlapHint?: AppointmentOverlapHint | null;
   onClose: () => void;
   onEdit: (appointment: Appointment) => void;
   onReschedule: (appointment: Appointment) => void;
@@ -340,8 +343,15 @@ function AppointmentDetailModal({
 
   const openDirections = async () => {
     if (!address.trim()) return;
-    await Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(address.trim())}`).catch(() => {
-      Alert.alert("Directions", address.trim());
+    const query = encodeURIComponent(address.trim());
+    // Prefer turn-by-turn directions; fall back to place search.
+    const url = Platform.OS === "ios"
+      ? `http://maps.apple.com/?daddr=${query}&dirflg=d`
+      : `https://www.google.com/maps/dir/?api=1&destination=${query}`;
+    await Linking.openURL(url).catch(async () => {
+      await Linking.openURL(`https://maps.apple.com/?q=${query}`).catch(() => {
+        Alert.alert("Directions", address.trim());
+      });
     });
   };
 
@@ -452,12 +462,36 @@ function AppointmentDetailModal({
               </View>
               <View style={styles.detailInfoRow}>
                 <Ionicons name="time-outline" size={18} color={C.textSecondary} />
-                <Text style={styles.detailInfoText}>{formatTime12h(appointment.time || "09:00")}</Text>
+                <Text style={styles.detailInfoText}>
+                  {appointment.time?.trim()
+                    ? `${formatTime12h(appointment.time)}${appointment.endTime?.trim() ? ` – ${formatTime12h(appointment.endTime)}` : ""}`
+                    : "Time not set"}
+                </Text>
               </View>
               {!!travelText && (
+                <Pressable style={styles.detailInfoRow} onPress={openDirections} accessibilityRole="button" accessibilityLabel="Open directions">
+                  <Ionicons name="car-outline" size={18} color={C.tint} />
+                  <Text style={[styles.detailInfoText, { color: C.tint }]}>{travelText}</Text>
+                </Pressable>
+              )}
+              {!!overlapHint && (
                 <View style={styles.detailInfoRow}>
-                  <Ionicons name="car-outline" size={18} color={C.textSecondary} />
-                  <Text style={styles.detailInfoText}>{travelText}</Text>
+                  <Ionicons name="alert-circle-outline" size={18} color={C.orange} />
+                  <Text style={[styles.detailInfoText, { color: C.orange }]}>{overlapHint.message}</Text>
+                </View>
+              )}
+              {!!appointment.arrivalInstructions?.trim() && (
+                <View style={styles.detailInfoRow}>
+                  <Ionicons name="walk-outline" size={18} color={C.textSecondary} />
+                  <Text style={styles.detailInfoText}>{appointment.arrivalInstructions.trim()}</Text>
+                </View>
+              )}
+              {!!appointment.status && (
+                <View style={styles.detailInfoRow}>
+                  <Ionicons name="flag-outline" size={18} color={C.textSecondary} />
+                  <Text style={styles.detailInfoText}>
+                    {appointment.status === "completed" ? "Completed" : appointment.status === "cancelled" ? "Cancelled" : "Rescheduled"}
+                  </Text>
                 </View>
               )}
             </View>
@@ -613,6 +647,7 @@ function AppointmentListCard({
   ownerLabel,
   travelText,
   recurrenceLabel,
+  overlapHint,
   showCompleteButton = false,
   showMonthInBadge = false,
   showTimeMeta = false,
@@ -628,6 +663,7 @@ function AppointmentListCard({
   ownerLabel: string;
   travelText?: string;
   recurrenceLabel?: string | null;
+  overlapHint?: AppointmentOverlapHint | null;
   showCompleteButton?: boolean;
   showMonthInBadge?: boolean;
   showTimeMeta?: boolean;
@@ -639,7 +675,15 @@ function AppointmentListCard({
   const appointmentDay = new Date(`${appointment.date}T00:00:00`);
   const isCompleted = appointment.status === "completed";
   const title = appointment.doctorName || "Appointment";
-  const detail = appointment.location || appointment.specialty;
+  const timeLabel = appointment.time?.trim() ? formatTime12h(appointment.time) : null;
+  const statusLabel =
+    appointment.status === "completed"
+      ? "Completed"
+      : appointment.status === "cancelled"
+        ? "Cancelled"
+        : appointment.status === "rescheduled"
+          ? "Rescheduled"
+          : null;
 
   return (
     <Pressable
@@ -651,7 +695,7 @@ function AppointmentListCard({
       onPress={onPress}
       onLongPress={onLongPress}
       accessibilityRole="button"
-      accessibilityLabel={`${title}${appointment.specialty ? `, ${appointment.specialty}` : ""}, ${formatDate(appointment.date)}`}
+      accessibilityLabel={`${title}${timeLabel ? `, ${timeLabel}` : ""}${appointment.location ? `, ${appointment.location}` : ""}, ${formatDate(appointment.date)}`}
       accessibilityHint={onLongPress ? "Tap to view details, long press for appointment options" : undefined}
     >
       {showCompleteButton ? (
@@ -681,24 +725,35 @@ function AppointmentListCard({
       <View style={styles.aptCardContent}>
         <Text style={styles.aptDoctor} numberOfLines={1} ellipsizeMode="tail">{title}</Text>
         {isCaregiver ? <Text style={styles.ownerMeta}>{ownerLabel}</Text> : null}
-        {!!detail && <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{detail}</Text>}
+        <View style={styles.aptMeta}>
+          {timeLabel ? (
+            <>
+              <Ionicons name="time-outline" size={12} color={C.textSecondary} />
+              <Text style={styles.aptMetaText}>{timeLabel}</Text>
+            </>
+          ) : null}
+          {!!appointment.location && (
+            <>
+              <Ionicons name="location-outline" size={12} color={C.textSecondary} />
+              <Text style={styles.aptMetaLocation} numberOfLines={1} ellipsizeMode="tail">{appointment.location}</Text>
+            </>
+          )}
+          {!appointment.location && !!appointment.specialty ? (
+            <Text style={styles.aptSpec} numberOfLines={1} ellipsizeMode="tail">{appointment.specialty}</Text>
+          ) : null}
+        </View>
         {!!recurrenceLabel && <Text style={styles.aptRecurrence}>{recurrenceLabel}</Text>}
-        {showTimeMeta ? (
-          <View style={styles.aptMeta}>
-            <Ionicons name="time-outline" size={12} color={C.textSecondary} />
-            <Text style={styles.aptMetaText}>{formatTime12h(appointment.time)}</Text>
-            {!!appointment.location && (
-              <>
-                <Ionicons name="location-outline" size={12} color={C.textSecondary} />
-                <Text style={styles.aptMetaLocation} numberOfLines={1} ellipsizeMode="tail">{appointment.location}</Text>
-              </>
-            )}
-          </View>
-        ) : null}
+        {!!statusLabel && <Text style={styles.aptStatusLabel}>{statusLabel}</Text>}
         {!!travelText && (
           <View style={styles.aptTravelRow}>
             <Ionicons name="car-outline" size={12} color={C.textSecondary} />
             <Text style={styles.aptTravelText} numberOfLines={1} ellipsizeMode="tail">{travelText}</Text>
+          </View>
+        )}
+        {!!overlapHint && (
+          <View style={styles.aptOverlapRow}>
+            <Ionicons name="alert-circle-outline" size={12} color={C.orange} />
+            <Text style={styles.aptOverlapText} numberOfLines={2}>{overlapHint.message}</Text>
           </View>
         )}
       </View>
@@ -765,7 +820,8 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
   const [editingApt, setEditingApt] = useState<Appointment | null>(null);
   const [editMode, setEditMode] = useState<"one" | "all">("one");
   const [selectedDate, setSelectedDate] = useState(today);
-  const [tab, setTab] = useState<"calendar" | "notes">("calendar");
+  const [tab, setTab] = useState<"calendar" | "upcoming" | "notes">("calendar");
+  const [showPastAppointments, setShowPastAppointments] = useState(false);
 
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
   const [showDoctorPicker, setShowDoctorPicker] = useState(false);
@@ -1283,7 +1339,36 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
   const selectedApts = useMemo(() => appointments.filter((a) => a.date === selectedDate), [appointments, selectedDate]);
   const todayApts = useMemo(() => appointments.filter((a) => a.date === today && (a.status === undefined || a.status === "completed")), [appointments, today]);
   const currentMonthPrefix = today.slice(0, 7);
-  const upcoming = useMemo(() => appointments.filter((a) => a.date > today && a.status === undefined && a.date.startsWith(currentMonthPrefix)), [appointments, currentMonthPrefix, today]);
+  const upcoming = useMemo(() => {
+    const now = Date.now();
+    return appointments
+      .filter((a) => a.status === undefined)
+      .filter((a) => {
+        if (a.date > today) return true;
+        if (a.date < today) return false;
+        // today: still upcoming if start time is in the future
+        if (!a.time?.trim()) return true;
+        const start = new Date(`${a.date}T${a.time}:00`).getTime();
+        return Number.isFinite(start) && start >= now;
+      })
+      .sort((a, b) => {
+        const aT = new Date(`${a.date}T${(a.time || "00:00").trim()}:00`).getTime();
+        const bT = new Date(`${b.date}T${(b.time || "00:00").trim()}:00`).getTime();
+        return (Number.isFinite(aT) ? aT : 0) - (Number.isFinite(bT) ? bT : 0);
+      });
+  }, [appointments, today]);
+  const pastAppointments = useMemo(() => {
+    const upcomingIds = new Set(upcoming.map((a) => a.id));
+    return appointments
+      .filter((a) => !upcomingIds.has(a.id))
+      .filter((a) => a.date < today || a.status === "completed" || a.status === "cancelled" || a.status === "rescheduled")
+      .sort((a, b) => {
+        const aT = new Date(`${a.date}T${(a.time || "00:00").trim()}:00`).getTime();
+        const bT = new Date(`${b.date}T${(b.time || "00:00").trim()}:00`).getTime();
+        return (Number.isFinite(bT) ? bT : 0) - (Number.isFinite(aT) ? aT : 0);
+      });
+  }, [appointments, today, upcoming]);
+  const overlapHints = useMemo(() => detectAppointmentOverlaps(appointments), [appointments]);
   const getRecurringParentId = useCallback((appointment: Appointment) => {
     return appointment.parent_recurring_id ?? (appointment.is_recurring ? appointment.id : null);
   }, []);
@@ -1318,7 +1403,8 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
 
   useEffect(() => {
     let cancelled = false;
-    const visibleAppointments = [...todayApts, ...selectedApts, ...upcoming.slice(0, 5)]
+    const travelSource = tab === "upcoming" ? upcoming : [...todayApts, ...selectedApts, ...upcoming.slice(0, 3)];
+    const visibleAppointments = travelSource
       .filter((appointment, index, list) => list.findIndex((item) => item.id === appointment.id) === index)
       .filter((appointment) => !!(appointment.location?.trim() || findDoctorForAppointment(appointment)?.address?.trim() || findDoctorForAppointment(appointment)?.hospital?.trim()));
 
@@ -1338,7 +1424,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
     return () => {
       cancelled = true;
     };
-  }, [findDoctorForAppointment, selectedApts, todayApts, upcoming]);
+  }, [findDoctorForAppointment, selectedApts, tab, todayApts, upcoming]);
 
   const markAppointmentStatus = useCallback(async (apt: Appointment, status: "completed" | "rescheduled" | "cancelled") => {
     await appointmentStorage.update(apt.id, { status });
@@ -1681,6 +1767,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
           today={today}
           ownerLabel={simpleViewingApt ? getOwnerLabel(simpleViewingApt.entryOwner) : "You"}
           travelText={simpleViewingApt ? appointmentTravelText[simpleViewingApt.id] : null}
+          overlapHint={simpleViewingApt ? overlapHints.get(simpleViewingApt.id) : null}
           onClose={() => setSimpleViewingApt(null)}
           onEdit={openDetailEdit}
           onReschedule={openRescheduleFor}
@@ -1783,18 +1870,18 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
         <View style={styles.header}>
           <Text style={styles.title}>Appointments</Text>
           <View style={styles.headerActions}>
-            {featureFlags.documentScannerEnabled || tab !== "calendar" ? (
+            {tab === "notes" || featureFlags.documentScannerEnabled ? (
               <Pressable
                 style={({ pressed }) => [styles.importBtn, { opacity: pressed ? 0.8 : 1 }]}
                 onPress={() => setShowVisualScanModal(true)}
                 accessibilityRole="button"
-                accessibilityLabel={tab === "calendar" ? "Scan appointment card" : "Scan lab results"}
+                accessibilityLabel={tab === "notes" ? "Scan lab results" : "Scan appointment card"}
                 hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
               >
                 <Ionicons name="scan-outline" size={19} color={C.text} />
               </Pressable>
             ) : null}
-            {tab === "calendar" ? (
+            {tab === "calendar" || tab === "upcoming" ? (
               <Pressable
                 style={({ pressed }) => [styles.importBtn, { opacity: pressed ? 0.8 : 1 }]}
                 onPress={() => setShowCalendarImportModal(true)}
@@ -1808,14 +1895,14 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
             <Pressable
               style={({ pressed }) => [styles.addBtn, { opacity: pressed ? 0.8 : 1 }]}
               onPress={() => {
-                if (tab === "calendar") {
-                  openGuidedAddAppointment();
-                } else {
+                if (tab === "notes") {
                   openNoteModal();
+                } else {
+                  openGuidedAddAppointment();
                 }
               }}
               accessibilityRole="button"
-              accessibilityLabel={tab === "calendar" ? "Add appointment" : "Add doctor note"}
+              accessibilityLabel={tab === "notes" ? "Add doctor note" : "Add appointment"}
               hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
             >
               <Ionicons name="add" size={20} color="#fff" />
@@ -1827,8 +1914,11 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
           <Pressable style={[styles.tabBtn, tab === "calendar" && styles.tabBtnActive]} onPress={() => setTab("calendar")} accessibilityRole="button" accessibilityLabel="Calendar" accessibilityState={{ selected: tab === "calendar" }}>
             <Text style={[styles.tabText, tab === "calendar" && styles.tabTextActive]}>Calendar</Text>
           </Pressable>
+          <Pressable style={[styles.tabBtn, tab === "upcoming" && styles.tabBtnActive]} onPress={() => setTab("upcoming")} accessibilityRole="button" accessibilityLabel="Upcoming" accessibilityState={{ selected: tab === "upcoming" }}>
+            <Text style={[styles.tabText, tab === "upcoming" && styles.tabTextActive]}>Upcoming</Text>
+          </Pressable>
           <Pressable style={[styles.tabBtn, tab === "notes" && styles.tabBtnActive]} onPress={() => setTab("notes")} accessibilityRole="button" accessibilityLabel="Doctor Notes" accessibilityState={{ selected: tab === "notes" }}>
-            <Text style={[styles.tabText, tab === "notes" && styles.tabTextActive]}>Doctor Notes</Text>
+            <Text style={[styles.tabText, tab === "notes" && styles.tabTextActive]}>Notes</Text>
             {doctorNotesBadgeCount > 0 ? (
               <View style={styles.tabBadge}>
                 <Text style={styles.tabBadgeText}>{doctorNotesBadgeLabel}</Text>
@@ -1867,6 +1957,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
                       isCaregiver={isCaregiver}
                       ownerLabel={getOwnerLabel(apt.entryOwner)}
                       travelText={appointmentTravelText[apt.id]}
+                      overlapHint={overlapHints.get(apt.id)}
                       showCompleteButton
                       showTimeMeta
                       onPress={() => openAppointmentDetail(apt)}
@@ -1890,6 +1981,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
                       isCaregiver={isCaregiver}
                       ownerLabel={getOwnerLabel(apt.entryOwner)}
                       travelText={appointmentTravelText[apt.id]}
+                      overlapHint={overlapHints.get(apt.id)}
                       recurrenceLabel={getRecurrenceLabel(apt, appointments)}
                       showTimeMeta
                       onPress={() => openAppointmentDetail(apt)}
@@ -1904,28 +1996,96 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
               ) : null}
 
               {upcoming.length > 0 && (
-                <View style={{ marginTop: 20 }}>
-                  <Text style={styles.sectionLabel}>Upcoming</Text>
-                  {upcoming.slice(0, 5).map((apt) => (
-                    <AppointmentListCard
-                      key={apt.id}
-                      appointment={apt}
-                      colors={C}
-                      styles={styles}
-                      isCaregiver={isCaregiver}
-                      ownerLabel={getOwnerLabel(apt.entryOwner)}
-                      travelText={appointmentTravelText[apt.id]}
-                      recurrenceLabel={getRecurrenceLabel(apt, appointments)}
-                      showMonthInBadge
-                      onPress={() => openAppointmentDetail(apt)}
-                      onLongPress={() => openAppointmentActions(apt)}
-                      onOptions={() => openAppointmentActions(apt)}
-                    />
-                  ))}
-                </View>
+                <Pressable
+                  style={styles.upcomingTeaser}
+                  onPress={() => setTab("upcoming")}
+                  accessibilityRole="button"
+                  accessibilityLabel={`See all ${upcoming.length} upcoming appointments`}
+                >
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.upcomingTeaserTitle}>Upcoming</Text>
+                    <Text style={styles.upcomingTeaserMeta} numberOfLines={1}>
+                      {upcoming[0].doctorName || "Appointment"}
+                      {upcoming[0].time?.trim() ? ` · ${formatTime12h(upcoming[0].time)}` : ""}
+                      {upcoming.length > 1 ? ` · +${upcoming.length - 1} more` : ""}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
+                </Pressable>
               )}
             </View>
           </View>
+        ) : tab === "upcoming" ? (
+          <>
+            {upcoming.length === 0 ? (
+              <View style={styles.empty}>
+                <Ionicons name="calendar-outline" size={40} color={C.textTertiary} />
+                <Text style={styles.emptyTitle}>No upcoming appointments</Text>
+                <Text style={styles.emptyDesc}>Tap + to schedule your next visit</Text>
+              </View>
+            ) : (
+              <View>
+                <Text style={styles.sectionLabel}>
+                  {upcoming.length} upcoming
+                </Text>
+                {upcoming.map((apt) => (
+                  <AppointmentListCard
+                    key={apt.id}
+                    appointment={apt}
+                    colors={C}
+                    styles={styles}
+                    isCaregiver={isCaregiver}
+                    ownerLabel={getOwnerLabel(apt.entryOwner)}
+                    travelText={appointmentTravelText[apt.id]}
+                    overlapHint={overlapHints.get(apt.id)}
+                    recurrenceLabel={getRecurrenceLabel(apt, appointments)}
+                    showMonthInBadge
+                    onPress={() => openAppointmentDetail(apt)}
+                    onLongPress={() => openAppointmentActions(apt)}
+                    onOptions={() => openAppointmentActions(apt)}
+                  />
+                ))}
+              </View>
+            )}
+
+            {pastAppointments.length > 0 && (
+              <View style={{ marginTop: 20 }}>
+                <Pressable
+                  style={styles.pastToggle}
+                  onPress={() => setShowPastAppointments((prev) => !prev)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: showPastAppointments }}
+                  accessibilityLabel={showPastAppointments ? "Hide past appointments" : "Show past appointments"}
+                >
+                  <Text style={styles.sectionLabel}>
+                    Past & cancelled ({pastAppointments.length})
+                  </Text>
+                  <Ionicons
+                    name={showPastAppointments ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color={C.textSecondary}
+                  />
+                </Pressable>
+                {showPastAppointments
+                  ? pastAppointments.slice(0, 20).map((apt) => (
+                      <AppointmentListCard
+                        key={apt.id}
+                        appointment={apt}
+                        colors={C}
+                        styles={styles}
+                        isCaregiver={isCaregiver}
+                        ownerLabel={getOwnerLabel(apt.entryOwner)}
+                        recurrenceLabel={getRecurrenceLabel(apt, appointments)}
+                        showMonthInBadge
+                        onPress={() => openAppointmentDetail(apt)}
+                        onLongPress={() => openAppointmentActions(apt)}
+                        onOptions={() => openAppointmentActions(apt)}
+                      />
+                    ))
+                  : null}
+              </View>
+            )}
+          </>
         ) : (
           <>
             {notes.length === 0 && (
@@ -2307,7 +2467,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
 
       <VisualScanImportModal
         visible={showVisualScanModal}
-        initialType={tab === "calendar" ? "appointment" : "lab"}
+        initialType={tab === "notes" ? "lab" : "appointment"}
         onClose={() => setShowVisualScanModal(false)}
         onAppointmentDraft={(fields) => {
           setShowVisualScanModal(false);
@@ -2412,6 +2572,7 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
         today={today}
         ownerLabel={simpleViewingApt ? getOwnerLabel(simpleViewingApt.entryOwner) : "You"}
         travelText={simpleViewingApt ? appointmentTravelText[simpleViewingApt.id] : null}
+        overlapHint={simpleViewingApt ? overlapHints.get(simpleViewingApt.id) : null}
         onClose={() => setSimpleViewingApt(null)}
         onEdit={openDetailEdit}
         onReschedule={openRescheduleFor}
@@ -2690,11 +2851,30 @@ function makeStyles(C: Theme, textScale: number) {
   ownerMeta: { fontWeight: "700", fontSize: 10, color: C.purple, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 3 },
   aptSpec: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginTop: 1 },
   aptRecurrence: { fontWeight: "400", fontSize: 11, color: C.textTertiary, marginTop: 2, fontStyle: "italic" },
+  aptStatusLabel: { fontWeight: "700", fontSize: 10, color: C.textSecondary, marginTop: 3, textTransform: "uppercase", letterSpacing: 0.4 },
   aptMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, flex: 1, minWidth: 0 },
   aptMetaText: { fontWeight: "400", fontSize: 11, color: C.textSecondary, marginRight: 8 },
   aptMetaLocation: { fontWeight: "400", fontSize: 11, color: C.textSecondary, flex: 1, minWidth: 0 },
   aptTravelRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4, minWidth: 0 },
   aptTravelText: { flex: 1, minWidth: 0, fontWeight: "600", fontSize: 11, color: C.textSecondary },
+  aptOverlapRow: { flexDirection: "row", alignItems: "flex-start", gap: 4, marginTop: 4, minWidth: 0 },
+  aptOverlapText: { flex: 1, minWidth: 0, fontWeight: "600", fontSize: 11, color: C.orange, lineHeight: 15 },
+  upcomingTeaser: {
+    marginTop: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    ...raised("sm"),
+  },
+  upcomingTeaserTitle: { fontWeight: "700", fontSize: 13, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 },
+  upcomingTeaserMeta: { fontWeight: "600", fontSize: 14, color: C.text },
+  pastToggle: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   noAptForDate: { backgroundColor: C.surface, borderRadius: 16, padding: 20, alignItems: "center", borderWidth: 1, borderColor: C.border, ...raised("sm") },
   noAptText: { fontWeight: "400", fontSize: 13, color: C.textTertiary },
   empty: { alignItems: "center", paddingVertical: 60, gap: 8 },
