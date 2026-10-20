@@ -651,7 +651,7 @@ export default function SidebarLayout({
       )}
 
       {showUniversalAdd ? (
-      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, styles.simpleAddOverlayRoot]}>
         {simpleAddOpen ? (
           <Pressable
             style={styles.simpleAddBackdrop}
@@ -1164,6 +1164,9 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       borderBottomWidth: 1,
       borderBottomColor: C.border,
       backgroundColor: themeId === "light" ? "transparent" : C.background,
+      // Keep menu tappable above the Quick Add absoluteFill layer.
+      zIndex: 60,
+      elevation: 60,
     },
     mobileMenuBtn: {
       padding: 6,
@@ -1180,6 +1183,10 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       position: "absolute",
       left: 0,
       right: 0,
+      // Must sit above the Quick Add absoluteFill wrapper; otherwise bottom tabs
+      // (and often the menu) stop receiving taps on screens like Daily Check-in.
+      zIndex: 60,
+      elevation: 60,
     },
     mobileNav: {
       flexDirection: "row",
@@ -1257,6 +1264,11 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     mobileNavLabelActive: {
       color: C.accent,
     },
+    simpleAddOverlayRoot: {
+      // Below header + bottom tabs (zIndex 60) so navigation stays usable.
+      zIndex: 40,
+      elevation: 40,
+    },
     simpleAddFab: {
       width: 64,
       height: 64,
@@ -1280,6 +1292,8 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     },
     simpleAddBackdrop: {
       ...StyleSheet.absoluteFillObject,
+      // Leave the bottom tab bar clear so the dimmer never intercepts tab taps.
+      bottom: Platform.OS === "web" ? 108 : 96,
       backgroundColor: themeId === "dark" ? "rgba(0,0,0,0.12)" : "rgba(17,24,39,0.04)",
     },
     quickAddHub: {
