@@ -86,6 +86,13 @@ export interface Medication {
   reminderWeekday?: number;
   reminderIntervalValue?: number;
   reminderIntervalUnit?: "days" | "weeks";
+  /**
+   * Whether local notifications should fire for this medication's doses.
+   * Independent of the prescribed schedule (time-of-day + cadence).
+   * Undefined means legacy behavior: reminders are treated as enabled
+   * (existing installs keep current notification scheduling).
+   */
+  remindersEnabled?: boolean;
   /** New: array of independent doses. If present, use this instead of dosage/timeTag/doses count. */
   doses?: MedicationDose[];
   /** @deprecated Use doses[].timeOfDay. Kept for migration. */
