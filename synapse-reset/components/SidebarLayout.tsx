@@ -60,7 +60,7 @@ const SIMPLE_NAV_ITEMS: NavItem[] = SIMPLE_BOTTOM_TAB_KEYS.map((key) => {
   return entryToNavItem(key);
 });
 
-/** Full Mode bottom tabs — Today / Medications / You (no ambiguous Health). */
+/** Full Mode bottom tabs — Today / Health / You. */
 const PRIMARY_ITEMS: NavItem[] = FULL_BOTTOM_TAB_KEYS.map((key) => {
   if (key === "accounthub") return entryToNavItem(key, "You");
   return entryToNavItem(key);
@@ -80,6 +80,7 @@ const ESSENTIAL_SICK_KEYS = [
   "medications",
   "symptoms",
   "feelinghub",
+  "health",
   "emergencyhub",
   "emergency",
   "emergencycard",
@@ -261,6 +262,9 @@ export default function SidebarLayout({
   const displayName = settingsName?.trim() || "You";
   /** Only actionable medication/appointment badges — never roll up optional check-ins. */
   const getBadgeCount = useCallback((key: string) => {
+    if (key === "health") {
+      return (badgeCounts.medications ?? 0) + (badgeCounts.appointments ?? 0);
+    }
     if (key === "medications") return badgeCounts.medications ?? 0;
     if (key === "appointments") return badgeCounts.appointments ?? 0;
     return 0;

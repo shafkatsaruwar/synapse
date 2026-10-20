@@ -1283,12 +1283,13 @@ export default function MainScreen() {
     switch (activeScreen) {
       case "dashboard":
         return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
+      case "health":
+        return <FeatureHubScreen hubId="health" onNavigate={handleNavigate} role={role} />;
       case "feelinghub":
       case "feeling":
         return <FeatureHubScreen hubId="feelinghub" onNavigate={handleNavigate} role={role} />;
       case "recordshub":
       case "healthrecords":
-      case "health":
         return <FeatureHubScreen hubId="recordshub" onNavigate={handleNavigate} role={role} />;
       case "wellbeinghub":
       case "wellbeing":

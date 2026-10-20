@@ -28,6 +28,7 @@ export type HubDefinition = {
 
 /** Canonical hub ids used by the router. */
 export const HUB_IDS = [
+  "health",
   "feelinghub",
   "recordshub",
   "wellbeinghub",
@@ -36,7 +37,62 @@ export const HUB_IDS = [
   "accounthub",
 ] as const;
 
+/**
+ * Bottom-tab Health mega-hub — links to top-level clinical destinations
+ * (not registry parent/child rows).
+ */
+export const HEALTH_HUB: HubDefinition = {
+  id: "health",
+  title: "Health",
+  subtitle: "Everything that helps you manage day to day.",
+  items: [
+    {
+      key: "medications",
+      label: "Medications",
+      description: "Schedules, doses, and reminders",
+      icon: "medical-outline",
+      target: "medications",
+    },
+    {
+      key: "appointments",
+      label: "Appointments",
+      description: "Upcoming visits and prep notes",
+      icon: "calendar-outline",
+      target: "appointments",
+    },
+    {
+      key: "feelinghub",
+      label: "How I’m Feeling",
+      description: "Daily log, symptoms, monthly check-in",
+      icon: "happy-outline",
+      target: "feelinghub",
+    },
+    {
+      key: "recordshub",
+      label: "Health Records",
+      description: "Vitals, labs, imaging, timeline, reports",
+      icon: "folder-outline",
+      target: "recordshub",
+    },
+    {
+      key: "wellbeinghub",
+      label: "Wellbeing",
+      description: "Eating, comfort, goals, and more",
+      icon: "leaf-outline",
+      target: "wellbeinghub",
+    },
+    {
+      key: "carehub",
+      label: "Care & Support",
+      description: "Doctors, pharmacies, and care helpers",
+      icon: "people-outline",
+      target: "carehub",
+    },
+  ],
+};
+
 function hubFromRegistry(hubKey: string, role: string): HubDefinition | null {
+  if (hubKey === "health") return HEALTH_HUB;
   const entry = getNavEntry(hubKey);
   if (!entry || entry.type !== "hub") return null;
   const children = getHubChildren(hubKey, { role });
@@ -84,7 +140,7 @@ export default function FeatureHubScreen({
   const resolvedId = resolveNavKey(hubId);
 
   const hub = useMemo(() => {
-    return hubFromRegistry(resolvedId, role) ?? hubFromRegistry("feelinghub", role)!;
+    return hubFromRegistry(resolvedId, role) ?? HEALTH_HUB;
   }, [resolvedId, role]);
 
   const isEmergency = resolvedId === "emergencyhub";
