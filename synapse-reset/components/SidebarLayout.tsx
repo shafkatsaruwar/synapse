@@ -79,14 +79,14 @@ const NAV_ITEMS: NavItem[] = [
   { key: "doctors", label: "Doctors", icon: "medkit-outline", iconActive: "medkit" },
   { key: "pharmacies", label: "Pharmacies", icon: "storefront-outline", iconActive: "storefront" },
   { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
-  { key: "settings", label: "Preferences", icon: "options-outline", iconActive: "options" },
+  { key: "settings", label: "Account", icon: "person-circle-outline", iconActive: "person-circle" },
   { key: "emergency", label: "Emergency Protocol", icon: "shield-outline", iconActive: "shield" },
   { key: "emergencycard", label: "Emergency Card", icon: "card-outline", iconActive: "card" },
 ];
 
 const CAREGIVER_ONLY_KEYS = new Set(["caregiverdashboard", "managedperson"]);
 
-/** Three principal destinations for Full Mode. */
+/** Three principal destinations for Full Mode bottom tabs. */
 const PRIMARY_KEYS = ["dashboard", "health", "you"];
 const PRIMARY_ITEMS = PRIMARY_KEYS.map((key) => NAV_ITEMS.find((n) => n.key === key)!).filter(Boolean);
 const MORE_ITEMS = NAV_ITEMS.filter((n) => !PRIMARY_KEYS.includes(n.key));
@@ -141,15 +141,17 @@ const PRIMARY_HIGHLIGHT_FOR_SCREEN: Record<string, string> = {
   auth: "you",
 };
 
+/**
+ * Hamburger / More drawer — restored to the 1.15(8) flat structure.
+ * Hub screens (health / feeling / you) stay on bottom tabs, not duplicated here.
+ */
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
-  { title: "Today", keys: ["dashboard"] },
-  { title: "Health", keys: ["health", "medications", "appointments", "feeling", "healthrecords", "wellbeing", "caresupport"] },
-  { title: "How I’m Feeling", keys: ["log", "symptoms", "monthlycheckin"] },
-  { title: "Health Records", keys: ["healthdata", "labwork", "imaging", "timeline", "reports", "documents"] },
-  { title: "Wellbeing", keys: ["eating", "mentalhealth", "comfort", "goals", "cycletracking", "ramadan"] },
-  { title: "Care & Support", keys: ["doctors", "pharmacies", "caregiverdashboard", "managedperson"] },
+  { title: "Caregiver", keys: ["caregiverdashboard", "managedperson"] },
   { title: "Emergency", keys: ["emergency", "emergencycard"] },
-  { title: "You", keys: ["you", "privacy", "settings"] },
+  { title: "Primary", keys: ["log", "medications", "healthdata", "appointments", "symptoms"] },
+  { title: "Diagnostics", keys: ["labwork", "imaging"] },
+  { title: "Health & Insights", keys: ["timeline", "reports", "monthlycheckin", "cycletracking", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
+  { title: "System", keys: ["privacy", "settings"] },
 ];
 
 const ESSENTIAL_SICK_KEYS = ["dashboard", "sickmode", "medications", "symptoms", "feeling", "health", "you", "settings"];
@@ -854,17 +856,19 @@ export default function SidebarLayout({
                 </View>
 
                 {DRAWER_GROUPS.map((group, groupIndex) => {
+                  if (group.title === "Caregiver" && role !== "caregiver") return null;
                   const navItems = group.keys
                     .map((key) => NAV_ITEMS.find((n) => n.key === key))
                     .filter((n): n is NavItem => {
                       if (n == null) return false;
                       if (CAREGIVER_ONLY_KEYS.has(n.key) && role !== "caregiver") return false;
-                      return moreItemsFiltered.some((m) => m.key === n.key) || PRIMARY_KEYS.includes(n.key);
+                      // Match 1.15(8): drawer lists More items only (not bottom-tab primaries).
+                      return moreItemsFiltered.some((m) => m.key === n.key);
                     });
                   const items: NavItem[] = navItems;
                   if (items.length === 0) return null;
                   const isFirstGroup = groupIndex === 0;
-                  const isRecordsGroup = group.title === "Health Records";
+                  const isRecordsGroup = group.title === "Diagnostics";
                   return (
                     <View
                       key={group.title}
@@ -875,7 +879,7 @@ export default function SidebarLayout({
                       <Text style={styles.drawerGroupTitle}>{group.title}</Text>
                       {items.map((item) => {
                         const isLogout = item.key === "logout";
-                        const active = !isLogout && (activeScreen === item.key || isNavItemActive(item.key));
+                        const active = !isLogout && activeScreen === item.key;
                         const isEmergencyCard = item.key === "emergencycard";
                         const isCaregiverDashboard = item.key === "caregiverdashboard";
                         const isLabWork = item.key === "labwork";
@@ -1011,6 +1015,7 @@ export default function SidebarLayout({
               bounces={false}
             >
               {DRAWER_GROUPS.map((group) => {
+                if (group.title === "Caregiver" && role !== "caregiver") return null;
                 const navItems = group.keys
                   .map((key) => NAV_ITEMS.find((n) => n.key === key))
                   .filter((n): n is NavItem => {
@@ -1033,7 +1038,7 @@ export default function SidebarLayout({
                       {group.title}
                     </Text>
                     {navItems.map((item) => {
-                      const active = activeScreen === item.key || isNavItemActive(item.key);
+                      const active = activeScreen === item.key;
                       const dimmed = sickMode && !ESSENTIAL_SICK_KEYS.includes(item.key);
                       return (
                         <Pressable

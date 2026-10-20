@@ -60,20 +60,19 @@ const NAV_ITEMS: NavItem[] = [
   { key: "emergency", label: "Emergency Protocol", icon: "shield-outline", iconActive: "shield" },
   { key: "emergencycard", label: "Emergency Card", icon: "card-outline", iconActive: "card" },
   { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
-  { key: "settings", label: "Preferences", icon: "options-outline", iconActive: "options" },
+  { key: "settings", label: "Account", icon: "person-circle-outline", iconActive: "person-circle" },
 ];
 
 const CAREGIVER_ONLY_KEYS = new Set(["caregiverdashboard", "managedperson"]);
 
+/** Match 1.15(8) hamburger / sidebar structure. */
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
-  { title: "Today", keys: ["dashboard"] },
-  { title: "Health", keys: ["health", "medications", "appointments", "feeling", "healthrecords", "wellbeing", "caresupport"] },
-  { title: "How I’m Feeling", keys: ["log", "symptoms", "monthlycheckin"] },
-  { title: "Health Records", keys: ["healthdata", "labwork", "imaging", "timeline", "reports", "documents"] },
-  { title: "Wellbeing", keys: ["eating", "mentalhealth", "comfort", "goals", "cycletracking", "ramadan"] },
-  { title: "Care & Support", keys: ["doctors", "pharmacies", "caregiverdashboard", "managedperson"] },
+  { title: "Caregiver", keys: ["caregiverdashboard", "managedperson"] },
   { title: "Emergency", keys: ["emergency", "emergencycard"] },
-  { title: "You", keys: ["you", "privacy", "settings"] },
+  { title: "Primary", keys: ["log", "medications", "healthdata", "appointments", "symptoms"] },
+  { title: "Diagnostics", keys: ["labwork", "imaging"] },
+  { title: "Health & Insights", keys: ["timeline", "reports", "monthlycheckin", "cycletracking", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
+  { title: "System", keys: ["privacy", "settings"] },
 ];
 
 interface TabletSidebarProps {
@@ -153,6 +152,7 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
       </Text>
       <ScrollView style={styles.navScroll} contentContainerStyle={styles.navScrollContent} showsVerticalScrollIndicator={false}>
         {DRAWER_GROUPS.map((group, groupIndex) => {
+          if (group.title === "Caregiver" && role !== "caregiver") return null;
           const items = group.keys
             .map((key) => NAV_ITEMS.find((n) => n.key === key))
             .filter((n): n is NavItem => {
