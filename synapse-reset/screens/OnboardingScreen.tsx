@@ -8,7 +8,6 @@ import {
   Platform,
   useWindowDimensions,
   Animated,
-  Image,
   StatusBar,
 } from "react-native";
 import TextInput from "@/components/DoneTextInput";
@@ -19,8 +18,7 @@ import { settingsStorage, healthProfileStorage, ALL_SECTION_KEYS, type AppMode }
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useAppMode } from "@/contexts/AppModeContext";
 import { recordMilestone } from "@/lib/product-milestones";
-
-const onboardingBrain = require("../assets/images/brain-logo.png");
+import SynapseLogo from "@/components/SynapseLogo";
 
 type OnboardingStepId = "welcome" | "name" | "firstAction";
 
@@ -141,8 +139,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.onboardingPanel}>
-          <View style={styles.introBrainWrap}>
-            <Image source={onboardingBrain} style={styles.introBrainImage} resizeMode="contain" />
+          <View style={styles.introLogoWrap}>
+            <SynapseLogo size={168} accessibilityLabel="Synapse logo" />
           </View>
           <Text style={styles.welcomeTitle}>Synapse</Text>
           <Text style={styles.headline}>Your health, a little easier to manage.</Text>
@@ -376,15 +374,11 @@ function makeStyles(C: Theme) {
         android: { elevation: 8 },
       }),
     },
-    introBrainWrap: {
-      width: 280,
+    introLogoWrap: {
+      width: 200,
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 8,
-    },
-    introBrainImage: {
-      width: 280,
-      height: 200,
+      marginBottom: 12,
     },
     welcomeTitle: {
       fontWeight: "700",

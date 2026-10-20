@@ -35,12 +35,32 @@ module.exports = {
     splash: {
       image: "./assets/splash-icon.png",
       resizeMode: "contain",
-      backgroundColor: "#FDF1E5",
+      backgroundColor: "#F4F9FF",
+      dark: {
+        image: "./assets/splash-icon-dark.png",
+        resizeMode: "contain",
+        backgroundColor: "#081C3C",
+      },
     },
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
       buildNumber: "12",
+      // iOS 18+ system appearance icons (light / dark). Needs a new native build to show on home screen.
+      icon: {
+        light: "./assets/icon-light.png",
+        dark: "./assets/icon-dark.png",
+      },
+      splash: {
+        image: "./assets/splash-icon.png",
+        resizeMode: "contain",
+        backgroundColor: "#F4F9FF",
+        dark: {
+          image: "./assets/splash-icon-dark.png",
+          resizeMode: "contain",
+          backgroundColor: "#081C3C",
+        },
+      },
       entitlements: {
         "com.apple.developer.icloud-container-identifiers": ["iCloud.com.mohammedsaruwar.synapse"],
         "com.apple.developer.icloud-services": ["CloudKit"],
@@ -84,7 +104,7 @@ module.exports = {
     android: {
       package: "com.mohammedsaruwar.synapse",
       adaptiveIcon: {
-        backgroundColor: "#E6F4FE",
+        backgroundColor: "#F4F9FF",
         foregroundImage: "./assets/android-icon-foreground.png",
         backgroundImage: "./assets/android-icon-background.png",
         monochromeImage: "./assets/android-icon-monochrome.png",

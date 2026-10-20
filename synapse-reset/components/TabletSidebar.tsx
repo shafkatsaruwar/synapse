@@ -8,6 +8,7 @@ import { useAppMode } from "@/contexts/AppModeContext";
 import { useIsTablet } from "@/lib/device";
 import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughContext";
 import { useSynapseHQPanel } from "@/components/SynapseHQPanel";
+import SynapseLogo from "@/components/SynapseLogo";
 import { getNavBadgeCounts, type NavBadgeCounts } from "@/lib/nav-badge-counts";
 import {
   getHamburgerItems,
@@ -115,9 +116,12 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
         <View style={[StyleSheet.absoluteFill, { backgroundColor: "transparent" }]} />
       )}
       <View style={[styles.sidebar, { paddingTop: insets.top + 32 }]}>
-      <Text style={styles.logo} numberOfLines={1}>
-        Synapse
-      </Text>
+      <View style={styles.logoRow}>
+        <SynapseLogo size={36} />
+        <Text style={styles.logo} numberOfLines={1}>
+          Synapse
+        </Text>
+      </View>
       <ScrollView style={styles.navScroll} contentContainerStyle={styles.navScrollContent} showsVerticalScrollIndicator={false}>
         <View style={[styles.group, styles.groupFirst]}>
           {HAMBURGER_ITEMS.map((item) => {
@@ -171,12 +175,18 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       paddingHorizontal: 12,
       paddingBottom: 24,
     },
+    logoRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 20,
+      paddingHorizontal: 8,
+    },
     logo: {
       fontSize: 22,
       fontWeight: "700",
       color: C.text,
-      marginBottom: 20,
-      paddingHorizontal: 8,
+      flexShrink: 1,
     },
     navScroll: { flex: 1 },
     navScrollContent: { paddingBottom: 24 },
