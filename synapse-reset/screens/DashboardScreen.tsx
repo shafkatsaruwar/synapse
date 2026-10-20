@@ -1269,23 +1269,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     paddingBottom: contentPadding.paddingBottom,
   };
   const simpleModeBottomBleed = Platform.OS === "web" ? 108 : insets.bottom + 96;
-  const fabBottom = Platform.OS === "web"
-    ? (modeUI.isSimpleMode ? 132 : 148)
-    : modeUI.isSimpleMode ? insets.bottom + 108 : insets.bottom + 154;
-  const fab = modeUI.isSimpleMode ? null : (
-    <Pressable
-      style={({ pressed }) => [styles.fab, { bottom: fabBottom, opacity: pressed ? 0.85 : 1 }]}
-      onPress={() => {
-        Haptics.selectionAsync();
-        onNavigate("emergencycard");
-      }}
-      accessibilityRole="button"
-      accessibilityLabel="Emergency Card"
-      accessibilityHint="Open critical medical information"
-    >
-      <Ionicons name="medical-outline" size={22} color={C.red} />
-    </Pressable>
-  );
   /** Legacy Light theme still uses the beige glass gradient wrapper. Soft Evergreen is flat. */
   const isLightTheme = themeId === "light";
   const glassTint = isDarkAppearance(themeId) ? "dark" : "light";
@@ -1363,7 +1346,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             {renderHealthStatusCard()}
           </View>
         </ScrollView>
-        {fab}
       </View>
     );
     return simpleContent;
@@ -1634,7 +1616,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     const content = (
       <View style={[styles.container, styles.content, contentPadding, { alignSelf: "stretch", backgroundColor: isLightTheme ? "transparent" : C.background, paddingHorizontal: 16 }]}>
         {inner}
-        {fab}
       </View>
     );
 
@@ -1713,7 +1694,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           </View>
         </View>
       </Modal>
-      {fab}
     </View>
   );
 
@@ -2852,23 +2832,5 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
     reportDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginTop: 4, marginBottom: 14 },
     reportBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
     reportBtnText: { fontWeight: "600", fontSize: 13, color: C.tint },
-    fab: {
-      position: "absolute",
-      left: 20,
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: themeId === "dark" ? "rgba(255,59,48,0.16)" : C.surface,
-      borderWidth: 1.5,
-      borderColor: C.red,
-      alignItems: "center",
-      justifyContent: "center",
-      shadowColor: C.red,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.16,
-      shadowRadius: 8,
-      elevation: 4,
-      zIndex: 28,
-    },
   });
 }
