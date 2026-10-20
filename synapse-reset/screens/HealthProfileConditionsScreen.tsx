@@ -15,7 +15,7 @@ interface Props {
   onBack?: () => void;
 }
 
-export default function HealthProfileConditionsScreen({ onBack }: Props) {
+export default function HealthProfileConditionsScreen(_props: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -118,16 +118,6 @@ export default function HealthProfileConditionsScreen({ onBack }: Props) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Pressable
-          style={styles.backBtn}
-          onPress={onBack}
-          accessibilityRole="button"
-          accessibilityLabel="Back to Settings"
-        >
-          <Ionicons name="chevron-back" size={20} color={C.tint} />
-          <Text style={styles.backText}>Settings</Text>
-        </Pressable>
-
         <Text style={styles.title}>Conditions</Text>
         <Text style={styles.subtitle}>Conditions you manage</Text>
 
@@ -346,8 +336,6 @@ export default function HealthProfileConditionsScreen({ onBack }: Props) {
 const makeStyles = (C: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 24 },
-  backBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 16, minHeight: 44 },
-  backText: { fontWeight: "500", fontSize: 15, color: C.tint },
   title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 4 },
   subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginBottom: 24 },
 
