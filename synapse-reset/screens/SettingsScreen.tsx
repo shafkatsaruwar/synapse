@@ -896,7 +896,7 @@ export default function SettingsScreen({
           tour: {
             key: "tour",
             title: "App Tour",
-            description: "Replay the walkthrough",
+            description: "Replay the optional guided walkthrough anytime",
             icon: "compass-outline" as const,
             tintColor: C.tint,
             tintBg: C.tintLight,

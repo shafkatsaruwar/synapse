@@ -988,6 +988,11 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
       savedMedication = normalizeMedication({ ...editingMed, ...data, id: editingMed.id });
     } else {
       savedMedication = normalizeMedication(await medicationStorage.save(data));
+      try {
+        const { recordMilestone } = await import("@/lib/product-milestones");
+        await recordMilestone("first_medication_configured");
+        await recordMilestone("first_useful_action");
+      } catch {}
     }
     const shouldLogNewPrnMedication = isPrn && !editingMed;
     if (shouldLogNewPrnMedication) {

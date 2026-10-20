@@ -24,7 +24,13 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: "dashboard", label: "Dashboard", icon: "grid-outline", iconActive: "grid" },
+  { key: "dashboard", label: "Today", icon: "home-outline", iconActive: "home" },
+  { key: "health", label: "Health", icon: "fitness-outline", iconActive: "fitness" },
+  { key: "you", label: "You", icon: "person-circle-outline", iconActive: "person-circle" },
+  { key: "feeling", label: "How I’m Feeling", icon: "heart-outline", iconActive: "heart" },
+  { key: "healthrecords", label: "Health Records", icon: "folder-outline", iconActive: "folder" },
+  { key: "wellbeing", label: "Wellbeing", icon: "leaf-outline", iconActive: "leaf" },
+  { key: "caresupport", label: "Care & Support", icon: "people-outline", iconActive: "people" },
   { key: "caregiverdashboard", label: "Caregiver Dashboard", icon: "people-outline", iconActive: "people" },
   { key: "managedperson", label: "Managed Person", icon: "accessibility-outline", iconActive: "accessibility" },
   { key: "log", label: "Daily Log", icon: "heart-outline", iconActive: "heart" },
@@ -48,20 +54,26 @@ const NAV_ITEMS: NavItem[] = [
   { key: "goals", label: "Goals", icon: "flag-outline", iconActive: "flag" },
   { key: "appointments", label: "Appointments", icon: "calendar-outline", iconActive: "calendar" },
   { key: "reports", label: "Reports", icon: "bar-chart-outline", iconActive: "bar-chart" },
+  { key: "ramadan", label: "Ramadan Mode", icon: "moon-outline", iconActive: "moon" },
+  { key: "doctors", label: "Doctors", icon: "medkit-outline", iconActive: "medkit" },
+  { key: "pharmacies", label: "Pharmacies", icon: "storefront-outline", iconActive: "storefront" },
   { key: "emergency", label: "Emergency Protocol", icon: "shield-outline", iconActive: "shield" },
   { key: "emergencycard", label: "Emergency Card", icon: "card-outline", iconActive: "card" },
   { key: "privacy", label: "Privacy", icon: "shield-outline", iconActive: "shield" },
-  { key: "settings", label: "Account", icon: "person-circle-outline", iconActive: "person-circle" },
+  { key: "settings", label: "Preferences", icon: "options-outline", iconActive: "options" },
 ];
 
+const CAREGIVER_ONLY_KEYS = new Set(["caregiverdashboard", "managedperson"]);
+
 const DRAWER_GROUPS: { title: string; keys: string[] }[] = [
-  { title: "Main", keys: ["dashboard"] },
-  { title: "Caregiver", keys: ["caregiverdashboard", "managedperson"] },
+  { title: "Today", keys: ["dashboard"] },
+  { title: "Health", keys: ["health", "medications", "appointments", "feeling", "healthrecords", "wellbeing", "caresupport"] },
+  { title: "How I’m Feeling", keys: ["log", "symptoms", "monthlycheckin"] },
+  { title: "Health Records", keys: ["healthdata", "labwork", "imaging", "timeline", "reports", "documents"] },
+  { title: "Wellbeing", keys: ["eating", "mentalhealth", "comfort", "goals", "cycletracking", "ramadan"] },
+  { title: "Care & Support", keys: ["doctors", "pharmacies", "caregiverdashboard", "managedperson"] },
   { title: "Emergency", keys: ["emergency", "emergencycard"] },
-  { title: "Primary", keys: ["log", "medications", "healthdata", "appointments", "symptoms"] },
-  { title: "Diagnostics", keys: ["labwork", "imaging"] },
-  { title: "Health & Insights", keys: ["timeline", "reports", "monthlycheckin", "cycletracking", "comfort", "eating", "mentalhealth", "goals", "documents", "insights"] },
-  { title: "System", keys: ["privacy", "settings"] },
+  { title: "You", keys: ["you", "privacy", "settings"] },
 ];
 
 interface TabletSidebarProps {
@@ -141,10 +153,13 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
       </Text>
       <ScrollView style={styles.navScroll} contentContainerStyle={styles.navScrollContent} showsVerticalScrollIndicator={false}>
         {DRAWER_GROUPS.map((group, groupIndex) => {
-          if (group.title === "Caregiver" && role !== "caregiver") return null;
           const items = group.keys
             .map((key) => NAV_ITEMS.find((n) => n.key === key))
-            .filter((n): n is NavItem => n != null);
+            .filter((n): n is NavItem => {
+              if (n == null) return false;
+              if (CAREGIVER_ONLY_KEYS.has(n.key) && role !== "caregiver") return false;
+              return true;
+            });
           if (items.length === 0) return null;
           return (
             <View key={group.title} style={[styles.group, groupIndex === 0 && styles.groupFirst]}>

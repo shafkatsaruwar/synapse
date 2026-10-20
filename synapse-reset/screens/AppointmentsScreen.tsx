@@ -979,6 +979,11 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
       await appointmentStorage.update(editingApt.id, payload);
     } else {
       await appointmentStorage.save(payload);
+      try {
+        const { recordMilestone } = await import("@/lib/product-milestones");
+        await recordMilestone("first_appointment_added");
+        await recordMilestone("first_useful_action");
+      } catch {}
     }
     await syncWidgetSnapshot().catch(() => {});
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -1046,6 +1051,11 @@ export default function AppointmentsScreen({ simpleOpenAddToken, openCalendarImp
     }
 
     await appointmentStorage.save(base);
+    try {
+      const { recordMilestone } = await import("@/lib/product-milestones");
+      await recordMilestone("first_appointment_added");
+      await recordMilestone("first_useful_action");
+    } catch {}
     await syncWidgetSnapshot().catch(() => {});
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     resetAptForm();

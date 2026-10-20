@@ -604,27 +604,26 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const nextApt = upcomingAppointments[0] ?? null;
 
   const dateObj = new Date();
-  const settingsFirstName = settings.firstName?.trim() || (settings.name?.trim() ? settings.name.trim().split(/\s+/)[0] : "");
-  const displayFirstName = settingsFirstName || "";
+  const rawFirst =
+    settings.firstName?.trim() ||
+    (settings.name?.trim() ? settings.name.trim().split(/\s+/)[0] : "");
+  // Never greet with awkward placeholders like "You".
+  const displayFirstName =
+    rawFirst && rawFirst.toLowerCase() !== "you" ? rawFirst : "";
   const hour = dateObj.getHours();
-  let greeting: string;
-  if (hour < 12) {
-    greeting = displayFirstName
-      ? `Good morning, ${displayFirstName}. Let’s start the day well.`
-      : "Good morning. Let’s start the day well.";
-  } else if (hour < 17) {
-    greeting = displayFirstName
-      ? `Good afternoon, ${displayFirstName}. Here’s your health snapshot.`
-      : "Good afternoon. Here’s your health snapshot.";
-  } else if (hour < 22) {
-    greeting = displayFirstName
-      ? `Good evening, ${displayFirstName}. Time for a quick check-in.`
-      : "Good evening. Time for a quick check-in.";
-  } else {
-    greeting = displayFirstName
-      ? `Good night, ${displayFirstName}. How was today for your health?`
-      : "Good night. How was today for your health?";
-  }
+  const timeGreeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : hour < 22 ? "Good evening" : "Good night";
+  const greeting = displayFirstName
+    ? `${timeGreeting}, ${displayFirstName}.`
+    : `${timeGreeting}.`;
+  const greetingSupport =
+    hour < 12
+      ? "Here’s what matters today."
+      : hour < 17
+        ? "Here’s where things stand."
+        : hour < 22
+          ? "A quick look at today."
+          : "Rest well—your info will be here when you need it.";
 
   const ramadanDay = getTodayRamadan(today);
   const ordinalSuffix = (n: number) => {
@@ -772,12 +771,12 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       }
       : {
         title: "You're all good",
-        primary: "No medications or appointments today",
+        primary: "No medications or appointments due right now",
         secondary: null,
         tertiary: null,
         detail: null,
-        ctaLabel: "Log how you feel",
-        ctaTarget: "symptoms",
+        ctaLabel: "Log how I’m feeling",
+        ctaTarget: "feeling",
       };
   const recoverySummary = useMemo(() => buildRecoveryInsights({
     logs: allLogs,
@@ -1318,6 +1317,57 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     return simpleContent;
   }
 
+  const todayEssentialsRows: { key: string; title: string; body: string; target: string; icon: React.ComponentProps<typeof Ionicons>["name"] }[] = [];
+  if (dueMedication) {
+    todayEssentialsRows.push({
+      key: "due-med",
+      title: dueMedication.name,
+      body: formatDueMedicationStatus(currentMinutes, dueMedication.dueMinutes),
+      target: "medications",
+      icon: "medical-outline",
+    });
+  } else if (nextMedication) {
+    todayEssentialsRows.push({
+      key: "next-med",
+      title: nextMedication.name,
+      body: nextMedication.lines[0] ?? "Upcoming dose",
+      target: "medications",
+      icon: "medical-outline",
+    });
+  }
+  if (todayAppointment) {
+    todayEssentialsRows.push({
+      key: "today-apt",
+      title: todayAppointment.doctorName || "Appointment today",
+      body: [formatTime12h(todayAppointment.time), todayAppointment.specialty].filter(Boolean).join(" · "),
+      target: "appointments",
+      icon: "calendar-outline",
+    });
+  } else if (nextApt) {
+    todayEssentialsRows.push({
+      key: "next-apt",
+      title: nextApt.doctorName || "Upcoming visit",
+      body: formatAppointmentPreview(nextApt, today),
+      target: "appointments",
+      icon: "calendar-outline",
+    });
+  }
+  if (!todayLog) {
+    todayEssentialsRows.push({
+      key: "checkin",
+      title: "Daily check-in",
+      body: "Log how you’re feeling whenever you’re ready.",
+      target: "feeling",
+      icon: "heart-outline",
+    });
+  }
+
+  const quickActions: { key: string; label: string; target: string; icon: React.ComponentProps<typeof Ionicons>["name"] }[] = [
+    { key: "qa-med", label: "Log medication", target: "medications", icon: "medical-outline" },
+    { key: "qa-feel", label: "Log how I’m feeling", target: "feeling", icon: "heart-outline" },
+    { key: "qa-apt", label: "Add appointment", target: "appointments", icon: "calendar-outline" },
+  ];
+
   const cardStackPadding = isWide ? 0 : 16;
   const inner = (
     <View style={{ marginHorizontal: cardStackPadding, gap: 16 }}>
@@ -1326,8 +1376,77 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           {greeting}
         </Text>
         <Text style={styles.dateText}>
+          {greetingSupport}
+        </Text>
+        <Text style={[styles.dateText, { marginTop: 4 }]}>
           {dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
         </Text>
+      </View>
+
+      <GlassView intensity={50} tint={themeId === "dark" ? "dark" : "light"} style={[styles.feelingCardGlass, themeId === "light" && styles.feelingCardLight]}>
+        <View style={{ padding: 16, gap: 12 }}>
+          <Text style={styles.feelingTitle}>Today’s essentials</Text>
+          {todayEssentialsRows.length === 0 ? (
+            <Text style={styles.feelingSubtitle}>
+              Nothing urgent right now. Add a medication or appointment whenever you’re ready.
+            </Text>
+          ) : (
+            todayEssentialsRows.map((row) => (
+              <Pressable
+                key={row.key}
+                style={styles.feelingCardInner}
+                onPress={() => onNavigate(row.target)}
+                accessibilityRole="button"
+                accessibilityLabel={row.title}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+                  <Ionicons name={row.icon} size={20} color={C.tint} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.feelingTitle}>{row.title}</Text>
+                    <Text style={styles.feelingSubtitle}>{row.body}</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={C.tint} />
+              </Pressable>
+            ))
+          )}
+        </View>
+      </GlassView>
+
+      <View style={{ gap: 10 }}>
+        <Text style={[styles.feelingTitle, { paddingHorizontal: 4 }]}>Quick actions</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+          {quickActions.map((action) => (
+            <Pressable
+              key={action.key}
+              style={({ pressed }) => [
+                {
+                  flexGrow: 1,
+                  minWidth: "45%",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  paddingVertical: 12,
+                  paddingHorizontal: 14,
+                  borderRadius: 14,
+                  backgroundColor: C.surface,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: C.border,
+                  opacity: pressed ? 0.88 : 1,
+                },
+              ]}
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+                onNavigate(action.target);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={action.label}
+            >
+              <Ionicons name={action.icon} size={18} color={C.tint} />
+              <Text style={{ flex: 1, fontWeight: "600", fontSize: 14, color: C.text }}>{action.label}</Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       {ramadanDay && (

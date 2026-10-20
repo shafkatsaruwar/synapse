@@ -352,6 +352,11 @@ export default function DailyLogScreen({ openTodayOnLaunch = false }: DailyLogSc
       notes,
       entryOwner: logEntryOwner,
     });
+    try {
+      const { recordMilestone } = await import("@/lib/product-milestones");
+      await recordMilestone("first_checkin_completed");
+      await recordMilestone("first_useful_action");
+    } catch {}
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setRecordedAt(nextRecordedAt);
     setSaved(true);
