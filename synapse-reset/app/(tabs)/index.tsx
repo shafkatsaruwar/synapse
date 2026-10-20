@@ -29,6 +29,7 @@ import DocumentsScreen from "@/screens/DocumentsScreen";
 import InsightsScreen from "@/screens/InsightsScreen";
 import PrivacyScreen from "@/screens/PrivacyScreen";
 import SickModeScreen from "@/screens/SickModeScreen";
+import HealthStatusScreen from "@/screens/HealthStatusScreen";
 import RamadanScreen from "@/screens/RamadanScreen";
 import HealthProfileScreen from "@/screens/HealthProfileScreen";
 import HealthProfileConditionsScreen from "@/screens/HealthProfileConditionsScreen";
@@ -1283,6 +1284,8 @@ export default function MainScreen() {
     switch (activeScreen) {
       case "dashboard":
         return <DashboardScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
+      case "healthstatus":
+        return <HealthStatusScreen onNavigate={handleNavigate} onRefreshKey={refreshKey} />;
       case "health":
         return <FeatureHubScreen hubId="health" onNavigate={handleNavigate} role={role} />;
       case "feelinghub":
