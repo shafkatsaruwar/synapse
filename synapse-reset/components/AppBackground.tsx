@@ -20,30 +20,11 @@ export default function AppBackground({ children }: AppBackgroundProps) {
     );
   }
 
+  // Light: same single flat field as Soft Evergreen — no beige/mint blooms or
+  // prism layers that leave unfilled gutters and a second ground color.
   if (themeId === "light") {
     return (
-      <View style={styles.root}>
-        <LinearGradient
-          colors={["#F5F1EA", "#ECEDE5", "#E0EAE0"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.backgroundLayer}
-        />
-        <LinearGradient
-          colors={["rgba(255,255,255,0.62)", "rgba(255,255,255,0)"]}
-          start={{ x: 0.2, y: 0 }}
-          end={{ x: 0.9, y: 1 }}
-          style={[styles.prismLayer, styles.prismTop]}
-        />
-        <LinearGradient
-          colors={["rgba(222,201,190,0.3)", "rgba(166,203,184,0.12)", "rgba(255,255,255,0)"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.prismLayer, styles.prismMiddle]}
-        />
-        <View style={[styles.bloom, styles.bloomTop]} />
-        <View style={[styles.bloom, styles.bloomBottom]} />
-        <View style={[styles.bloom, styles.bloomMint]} />
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
         {children}
       </View>
     );

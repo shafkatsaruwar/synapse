@@ -740,7 +740,7 @@ export default function SidebarLayout({
                 styles.mobileNav,
                 simpleMode && styles.mobileNavSimple,
                 styles.mobileNavFallback,
-                isEvergreenTheme(themeId) && styles.mobileNavEvergreen,
+                (isEvergreenTheme(themeId) || themeId === "light") && styles.mobileNavEvergreen,
               ]}
             >
               <View style={styles.mobileNavContent}>{bottomNavItems.map(renderBottomNavItem)}</View>
@@ -752,7 +752,7 @@ export default function SidebarLayout({
               style={[
                 styles.mobileNav,
                 simpleMode && styles.mobileNavSimple,
-                isEvergreenTheme(themeId) && styles.mobileNavEvergreen,
+                (isEvergreenTheme(themeId) || themeId === "light") && styles.mobileNavEvergreen,
               ]}
             >
               <View style={styles.mobileNavContent}>{bottomNavItems.map(renderBottomNavItem)}</View>
@@ -1313,12 +1313,13 @@ function makeStyles(C: Theme, themeId: ThemeId) {
     main: {
       flex: 1,
       minWidth: 0,
-      backgroundColor: themeId === "light" ? "transparent" : C.background,
+      backgroundColor: C.background,
     },
     mobileContainer: {
       flex: 1,
       minHeight: 1,
-      backgroundColor: themeId === "light" ? "transparent" : C.background,
+      // Always paint the page ground so left/right gutters are never an empty second color.
+      backgroundColor: C.background,
     },
     mobileHeaderRow: {
       flexDirection: "row",
@@ -1328,7 +1329,7 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       // Keep chrome tight under the status bar / Dynamic Island — avoid a tall empty band.
       paddingBottom: 2,
       borderBottomWidth: 0,
-      backgroundColor: "transparent",
+      backgroundColor: C.background,
       // Keep menu tappable above the Quick Add absoluteFill layer.
       zIndex: 60,
       elevation: 60,
@@ -1343,6 +1344,7 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       flex: 1,
       minHeight: 1,
       paddingHorizontal: 8,
+      backgroundColor: C.background,
     },
     mobileNavWrap: {
       position: "absolute",

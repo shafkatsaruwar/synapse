@@ -1264,12 +1264,12 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     paddingBottom: contentPadding.paddingBottom,
   };
   const simpleModeBottomBleed = Platform.OS === "web" ? 108 : insets.bottom + 96;
-  /** Legacy Light theme still uses the beige glass gradient wrapper. Soft Evergreen is flat. */
-  const isLightTheme = themeId === "light";
+  /** Flat Soft Evergreen–aligned page ground — no transparent gaps over a second layer. */
+  const pageGround = C.background;
 
   if (!loaded) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center", backgroundColor: "transparent" }]}>
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center", backgroundColor: pageGround }]}>
         <ActivityIndicator size="large" color={C.tint} />
         <Text style={[styles.dateText, { marginTop: 12 }]}>Loading…</Text>
       </View>
@@ -1282,7 +1282,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         style={[
           styles.container,
           {
-            backgroundColor: isLightTheme ? "transparent" : C.background,
+            backgroundColor: pageGround,
             marginBottom: -simpleModeBottomBleed,
             paddingBottom: simpleModeBottomBleed,
           },
@@ -1538,30 +1538,15 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   );
 
   if (isWide) {
-    const content = (
-      <View style={[styles.container, styles.content, contentPadding, { alignSelf: "stretch", backgroundColor: isLightTheme ? "transparent" : C.background, paddingHorizontal: 16 }]}>
+    return (
+      <View style={[styles.container, styles.content, contentPadding, { alignSelf: "stretch", backgroundColor: pageGround, paddingHorizontal: 16 }]}>
         {inner}
       </View>
     );
-
-    if (isLightTheme) {
-      return (
-        <LinearGradient
-          colors={["#F5F1EA", "#ECEDE5", "#E0EAE0"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gradientContainer}
-        >
-          {content}
-        </LinearGradient>
-      );
-    }
-
-    return content;
   }
 
   const main = (
-    <View style={[styles.container, { backgroundColor: isLightTheme ? "transparent" : C.background }, Platform.OS === "web" && { flex: 0 }]}>
+    <View style={[styles.container, { backgroundColor: pageGround }, Platform.OS === "web" && { flex: 0 }]}>
       {Platform.OS === "web" ? (
         <View style={{ overflow: "auto", width: "100%", paddingBottom: 1200 }}>
           <View style={[contentPadding, { paddingHorizontal: 0 }]}>
@@ -1621,19 +1606,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
       </Modal>
     </View>
   );
-
-  if (isLightTheme) {
-    return (
-      <LinearGradient
-        colors={["#F5F1EA", "#ECEDE5", "#E0EAE0"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradientContainer}
-      >
-        {main}
-      </LinearGradient>
-    );
-  }
 
   return main;
 }
