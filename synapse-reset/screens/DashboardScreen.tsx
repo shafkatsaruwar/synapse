@@ -544,7 +544,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const [loaded, setLoaded] = useState(false);
   const [showRecoverySetup, setShowRecoverySetup] = useState(false);
   const [recoveryFocusInput, setRecoveryFocusInput] = useState("");
-  const [showMoreToday, setShowMoreToday] = useState(false);
 
   const loadData = useCallback(async () => {
     const [logsData, meds, ml, apts, fl, sett, profileInfo, symptomsData, vitalsData, hydrationData] = await Promise.all([
@@ -1540,75 +1539,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         </View>
         <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
       </Pressable>
-
-      <Pressable
-        onPress={() => {
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-          setShowMoreToday((v) => !v);
-        }}
-        style={styles.moreToggle}
-        accessibilityRole="button"
-        accessibilityLabel={showMoreToday ? "Hide more today" : "Show more today"}
-      >
-        <Text style={styles.moreToggleText}>{showMoreToday ? "Hide more" : "More today"}</Text>
-        <Ionicons name={showMoreToday ? "chevron-up" : "chevron-down"} size={18} color={C.tint} />
-      </Pressable>
-
-      {showMoreToday ? (
-        <View style={{ gap: 12 }}>
-          {!!ramadanDay && settings.ramadanMode ? (
-            <View style={styles.ramadanSection}>
-              <GlassView intensity={50} tint={glassTint} style={[styles.feelingCardGlass, themeId === "light" && styles.feelingCardLight]}>
-                <Pressable
-                  style={styles.feelingCardInner}
-                  onPress={() => onNavigate("ramadandailylog")}
-                  accessibilityRole="button"
-                  accessibilityLabel="Ramadan Daily Log"
-                >
-                  <View>
-                    <Text style={styles.feelingTitle}>Ramadan Daily Log</Text>
-                    <Text style={styles.feelingSubtitle}>Log your fast, water, energy, mood & motivation.</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={C.tint} />
-                </Pressable>
-              </GlassView>
-              <GlassView intensity={50} tint={glassTint} style={[styles.ramadanQuoteCardGlass, themeId === "light" && styles.ramadanQuoteCardLight]}>
-                <View style={styles.ramadanQuoteRow}>
-                  <Ionicons name="sparkles" size={16} color={C.pink} />
-                  <Text style={styles.ramadanQuoteText}>{ramadanQuote}</Text>
-                </View>
-              </GlassView>
-            </View>
-          ) : null}
-
-          {featureFlags.documentScannerEnabled ? (
-            <View style={[styles.grid, isWide && styles.gridWide]}>
-              <GlassView intensity={50} tint={glassTint} style={[styles.cardGlass, isWide && styles.cardWide]}>
-                <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("documents")} accessibilityLabel="Document Scanner" accessibilityRole="button">
-                  <View style={[styles.cardHeader, { marginBottom: 0 }]}>
-                    <View style={[styles.cardIcon, { backgroundColor: C.pinkLight }]}>
-                      <Ionicons name="scan" size={16} color={C.pink} />
-                    </View>
-                    <Text style={styles.cardLabel}>Document Scanner</Text>
-                  </View>
-                  <Text style={styles.reportDesc}>Upload lab reports and prescriptions for AI extraction</Text>
-                </Pressable>
-              </GlassView>
-              <GlassView intensity={50} tint={glassTint} style={[styles.cardGlass, isWide && styles.cardWide]}>
-                <Pressable style={[styles.cardInner, isWide && styles.cardWide]} onPress={() => onNavigate("insights")} accessibilityLabel="AI Health Insights" accessibilityRole="button">
-                  <View style={[styles.cardHeader, { marginBottom: 0 }]}>
-                    <View style={[styles.cardIcon, { backgroundColor: C.accentLight }]}>
-                      <Ionicons name="sparkles" size={16} color={C.accent} />
-                    </View>
-                    <Text style={styles.cardLabel}>AI Health Insights</Text>
-                  </View>
-                  <Text style={styles.reportDesc}>Get personalized analysis of your health patterns</Text>
-                </Pressable>
-              </GlassView>
-            </View>
-          ) : null}
-        </View>
-      ) : null}
     </View>
   );
 
