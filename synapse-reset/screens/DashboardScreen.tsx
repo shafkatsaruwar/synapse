@@ -1541,23 +1541,10 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
   const main = (
     <View style={[styles.container, { backgroundColor: pageGround }, Platform.OS === "web" && { flex: 0 }]}>
-      {Platform.OS === "web" ? (
-        <View style={{ overflow: "auto", width: "100%", paddingBottom: 1200 }}>
-          <View style={[contentPadding, { paddingHorizontal: 0 }]}>
-            {inner}
-          </View>
-        </View>
-      ) : (
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={[contentPadding, styles.scrollViewContent, { paddingHorizontal: 0 }]}
-          showsVerticalScrollIndicator={true}
-          bounces={true}
-          alwaysBounceVertical={true}
-        >
-          {inner}
-        </ScrollView>
-      )}
+      {/* Today (main) is a fixed composition — no vertical scroll on this page only. */}
+      <View style={[styles.scrollView, contentPadding, styles.scrollViewContent, { paddingHorizontal: 0 }]}>
+        {inner}
+      </View>
       <Modal visible={showRecoverySetup} animationType="fade" transparent onRequestClose={() => setShowRecoverySetup(false)}>
         <View style={styles.recoveryModalBackdrop}>
           <View style={styles.recoveryModalCard}>
