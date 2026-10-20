@@ -1,13 +1,12 @@
 import { getToday } from "@/lib/date-utils";
-import { DEFAULT_REMINDER_TIMES } from "@/lib/notification-manager";
 import {
   appointmentStorage,
   doctorNoteStorage,
   medicationLogStorage,
   medicationStorage,
+  normalizeMedication,
   type Appointment,
   type Medication,
-  type MedicationDose,
 } from "@/lib/storage";
 
 export type NavBadgeCounts = Record<string, number>;
@@ -25,9 +24,11 @@ function isDueAppointment(appointment: Appointment, today: string): boolean {
   return appointment.date <= today;
 }
 
-function parseTimeToMinutes(value?: string | null): number | null {
-  if (!value) return null;
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+/** Parse "HH:mm" (and tolerant variants) to minutes since midnight. */
+function reminderTimeToMinutes(hhmm?: string | null): number | null {
+  if (!hhmm) return null;
+  const trimmed = hhmm.trim();
+  const match = /^(\d{1,2}):(\d{2})/.exec(trimmed);
   if (!match) return null;
   const hour = Number(match[1]);
   const minute = Number(match[2]);
@@ -35,38 +36,33 @@ function parseTimeToMinutes(value?: string | null): number | null {
   return hour * 60 + minute;
 }
 
-function fallbackMinutesForTimeOfDay(timeOfDay?: string): number | null {
-  if (!timeOfDay) return null;
-  const def = DEFAULT_REMINDER_TIMES[timeOfDay] ?? DEFAULT_REMINDER_TIMES.Morning;
-  return def.hour * 60 + def.minute;
-}
-
-function doseDueMinutes(dose: MedicationDose): number | null {
-  return parseTimeToMinutes(dose.reminderTime) ?? fallbackMinutesForTimeOfDay(dose.timeOfDay);
-}
-
-/** Count only doses that are due/overdue right now — not later-today doses still ahead. */
-function countDueUntakenDoses(medications: Medication[], medicationLogs: { medicationId: string; doseIndex?: number; taken?: boolean }[], currentMinutes: number): number {
+/**
+ * Count doses that are actually due/overdue right now — same rule as Medications
+ * “missed” status: scheduled reminder time is in the past and not taken.
+ * Future doses later today (e.g. 11:00 while it is 5:15) do NOT count.
+ */
+function countDueUntakenDoses(
+  medications: Medication[],
+  medicationLogs: { medicationId: string; doseIndex?: number; taken?: boolean }[],
+  currentMinutes: number
+): number {
   return medications
     .filter((medication) => medication.active !== false && medication.medicationType !== "prn")
     .reduce((count, medication) => {
-      const doses = Array.isArray(medication.doses) && medication.doses.length > 0 ? medication.doses : [];
-      if (doses.length === 0) {
-        // Legacy single-dose meds without a doses array: treat as due in the morning window.
-        const alreadyTaken = medicationLogs.some(
-          (log) => log.medicationId === medication.id && (log.doseIndex ?? 0) === 0 && log.taken
-        );
-        const morningDue = fallbackMinutesForTimeOfDay("Morning") ?? 8 * 60;
-        return count + (!alreadyTaken && morningDue <= currentMinutes ? 1 : 0);
-      }
+      const normalized = normalizeMedication(medication);
+      const doses = normalized.doses ?? [];
+      if (doses.length === 0) return count;
+
       let dueUntaken = 0;
       doses.forEach((dose, doseIndex) => {
         const alreadyTaken = medicationLogs.some(
           (log) => log.medicationId === medication.id && (log.doseIndex ?? 0) === doseIndex && log.taken
         );
         if (alreadyTaken) return;
-        const dueAt = doseDueMinutes(dose);
-        if (dueAt == null || dueAt > currentMinutes) return;
+        const scheduledMinutes = reminderTimeToMinutes(dose.reminderTime);
+        // No known clock time → do not treat as needing attention yet.
+        if (scheduledMinutes == null) return;
+        if (scheduledMinutes > currentMinutes) return;
         dueUntaken += 1;
       });
       return count + dueUntaken;

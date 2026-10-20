@@ -172,9 +172,9 @@ export default function FeatureHubScreen({
     const apts = badgeCounts.appointments ?? 0;
     if (meds <= 0 && apts <= 0) return null;
     const parts: string[] = [];
-    if (meds > 0) parts.push(`${meds} medication${meds === 1 ? "" : "s"}`);
-    if (apts > 0) parts.push(`${apts} appointment${apts === 1 ? "" : "s"}`);
-    return `${parts.join(" and ")} need attention — open the row${parts.length > 1 ? "s" : ""} below.`;
+    if (meds > 0) parts.push(`${meds} dose${meds === 1 ? "" : "s"} due now`);
+    if (apts > 0) parts.push(`${apts} appointment${apts === 1 ? "" : "s"} due`);
+    return `${parts.join(" and ")} — open the row${meds > 0 && apts > 0 ? "s" : ""} below.`;
   }, [badgeCounts, resolvedId]);
 
   return (
