@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -10,6 +10,7 @@ import {
   resolveNavKey,
   type NavRegistryEntry,
 } from "@/lib/navigation-registry";
+import { getNavBadgeCounts, type NavBadgeCounts } from "@/lib/nav-badge-counts";
 
 export type HubItem = {
   key: string;
@@ -136,10 +137,45 @@ export default function FeatureHubScreen({
   const styles = useMemo(() => makeStyles(C), [C]);
   const role = roleProp ?? (includeCaregiver ? "caregiver" : "self");
   const resolvedId = resolveNavKey(hubId);
+  const [badgeCounts, setBadgeCounts] = useState<NavBadgeCounts>({});
 
   const hub = useMemo(() => {
     return hubFromRegistry(resolvedId, role) ?? HEALTH_HUB;
   }, [resolvedId, role]);
+
+  const loadBadges = useCallback(async () => {
+    try {
+      setBadgeCounts(await getNavBadgeCounts());
+    } catch {
+      setBadgeCounts({});
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBadges();
+    const interval = setInterval(loadBadges, 10000);
+    return () => clearInterval(interval);
+  }, [loadBadges, resolvedId]);
+
+  const getItemBadgeCount = useCallback(
+    (itemKey: string) => {
+      if (itemKey === "medications") return badgeCounts.medications ?? 0;
+      if (itemKey === "appointments") return badgeCounts.appointments ?? 0;
+      return 0;
+    },
+    [badgeCounts]
+  );
+
+  const pendingSummary = useMemo(() => {
+    if (resolvedId !== "health") return null;
+    const meds = badgeCounts.medications ?? 0;
+    const apts = badgeCounts.appointments ?? 0;
+    if (meds <= 0 && apts <= 0) return null;
+    const parts: string[] = [];
+    if (meds > 0) parts.push(`${meds} medication${meds === 1 ? "" : "s"}`);
+    if (apts > 0) parts.push(`${apts} appointment${apts === 1 ? "" : "s"}`);
+    return `${parts.join(" and ")} need attention — open the row${parts.length > 1 ? "s" : ""} below.`;
+  }, [badgeCounts, resolvedId]);
 
   return (
     <View style={[styles.container, { paddingTop: Platform.OS === "web" ? 24 : 8 }]}>
@@ -149,29 +185,46 @@ export default function FeatureHubScreen({
       >
         <Text style={styles.title}>{hub.title}</Text>
         <Text style={styles.subtitle}>{hub.subtitle}</Text>
+        {pendingSummary ? (
+          <Text style={styles.pendingSummary} accessibilityLiveRegion="polite">
+            {pendingSummary}
+          </Text>
+        ) : null}
         <View style={styles.list}>
-          {hub.items.map((item) => (
-            <Pressable
-              key={item.key}
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-              onPress={() => {
-                Haptics.selectionAsync().catch(() => {});
-                onNavigate(item.target);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={item.label}
-              accessibilityHint={item.description}
-            >
-              <View style={styles.iconWrap}>
-                <Ionicons name={item.icon} size={22} color={C.tint} />
-              </View>
-              <View style={styles.rowText}>
-                <Text style={styles.rowLabel}>{item.label}</Text>
-                {item.description ? <Text style={styles.rowDesc}>{item.description}</Text> : null}
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
-            </Pressable>
-          ))}
+          {hub.items.map((item) => {
+            const badgeCount = getItemBadgeCount(item.key);
+            const accessibilityLabel =
+              badgeCount > 0
+                ? `${item.label}, ${badgeCount > 9 ? "9 plus" : badgeCount} pending`
+                : item.label;
+            return (
+              <Pressable
+                key={item.key}
+                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                onPress={() => {
+                  Haptics.selectionAsync().catch(() => {});
+                  onNavigate(item.target);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={accessibilityLabel}
+                accessibilityHint={item.description}
+              >
+                <View style={styles.iconWrap}>
+                  <Ionicons name={item.icon} size={22} color={C.tint} />
+                  {badgeCount > 0 ? (
+                    <View style={styles.rowBadge} accessibilityElementsHidden>
+                      <Text style={styles.rowBadgeText}>{badgeCount > 9 ? "9+" : badgeCount}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <View style={styles.rowText}>
+                  <Text style={styles.rowLabel}>{item.label}</Text>
+                  {item.description ? <Text style={styles.rowDesc}>{item.description}</Text> : null}
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+              </Pressable>
+            );
+          })}
         </View>
       </ScrollView>
     </View>
@@ -194,6 +247,14 @@ function makeStyles(C: Theme) {
       color: C.textSecondary,
       marginBottom: 12,
     },
+    pendingSummary: {
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: "600",
+      color: C.red,
+      marginBottom: 14,
+      marginTop: -4,
+    },
     list: { gap: 10 },
     row: {
       flexDirection: "row",
@@ -208,12 +269,32 @@ function makeStyles(C: Theme) {
     },
     rowPressed: { opacity: 0.85 },
     iconWrap: {
+      position: "relative",
       width: 42,
       height: 42,
       borderRadius: 12,
       backgroundColor: C.tintLight ?? C.surface,
       alignItems: "center",
       justifyContent: "center",
+    },
+    rowBadge: {
+      position: "absolute",
+      top: -6,
+      right: -8,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.red,
+      borderWidth: 0,
+    },
+    rowBadgeText: {
+      fontSize: 10,
+      lineHeight: 12,
+      fontWeight: "800",
+      color: "#FFFFFF",
     },
     rowText: { flex: 1, gap: 2 },
     rowLabel: { fontSize: 16, fontWeight: "600", color: C.text },
