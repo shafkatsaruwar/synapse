@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import {
   medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage, comfortStorage,
+  disableRecoveryTracking,
   type Medication, type MedicationLog, type SickModeData, type ComfortItem,
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
@@ -17,13 +18,22 @@ import { getSickModePalette } from "@/constants/sick-mode-colors";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { cancelRecoveryCheckIn } from "@/lib/notification-manager";
 import { modalOverlay, modalSurface } from "@/lib/modal-colors";
-const HYDRATION_GOAL = 2000;
-const CHECK_IN_INTERVAL_MS = 2 * 60 * 60 * 1000;
+import { raised } from "@/constants/raised";
+import {
+  applyCheckIn,
+  applyTemperatureLog,
+  CHECK_IN_INTERVAL_MS,
+  type FeelingChoice,
+} from "@/lib/sick-mode-checkin";
+
 const COMFORT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+type ToolId = "temperature" | "hydration" | "food" | "rest" | "help" | "history" | null;
 
 interface SickModeScreenProps {
   onDeactivate: () => void;
   onRefreshKey?: number;
+  onNavigate?: (screen: string) => void;
 }
 
 function formatCountdown(ms: number): string {
@@ -31,13 +41,18 @@ function formatCountdown(ms: number): string {
   const totalMinutes = Math.floor(ms / 60000);
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
-  const s = Math.floor((ms % 60000) / 1000);
   if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
+  return `${m}m`;
 }
 
-export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeScreenProps) {
+function formatClock(iso?: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+export default function SickModeScreen({ onDeactivate, onRefreshKey, onNavigate }: SickModeScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -49,14 +64,20 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
   const [medications, setMedications] = useState<Medication[]>([]);
   const [medLogs, setMedLogs] = useState<MedicationLog[]>([]);
   const [sickData, setSickData] = useState<SickModeData | null>(null);
-  const [tempInput, setTempInput] = useState("");
   const [showActivated, setShowActivated] = useState(false);
   const activatedOpacity = useRef(new Animated.Value(1)).current;
 
-  const [checkInCountdown, setCheckInCountdown] = useState<number>(0);
+  const [checkInCountdown, setCheckInCountdown] = useState(0);
   const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [checkInFeeling, setCheckInFeeling] = useState<FeelingChoice | null>(null);
   const [checkInTemp, setCheckInTemp] = useState("");
+  const [checkInNote, setCheckInNote] = useState("");
   const [comfortItems, setComfortItems] = useState<ComfortItem[]>([]);
+  const [expandedCare, setExpandedCare] = useState<string | null>(null);
+  const [activeTool, setActiveTool] = useState<ToolId>(null);
+  const [tempInput, setTempInput] = useState("");
+  const [hydrationInput, setHydrationInput] = useState("250");
+  const [showMoreTools, setShowMoreTools] = useState(false);
   const countdownInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadData = useCallback(async () => {
@@ -67,10 +88,10 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
       comfortStorage.getAll(),
     ]);
     setComfortItems(comfort);
-    setMedications(meds.filter(m => m.active));
+    setMedications(meds.filter((m) => m.active));
     setMedLogs(logs);
 
-    if (sd.startedAt && !sd.checkInTimer) {
+    if (sd.startedAt && !sd.checkInTimer && !sd.recoveryMode) {
       const checkInTime = new Date(new Date(sd.startedAt).getTime() + CHECK_IN_INTERVAL_MS).toISOString();
       const updated = { ...sd, checkInTimer: checkInTime };
       await sickModeStorage.save(updated);
@@ -82,8 +103,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
 
     if (sd.startedAt) {
       const startTime = new Date(sd.startedAt).getTime();
-      const now = Date.now();
-      if (now - startTime < 5000) {
+      if (Date.now() - startTime < 5000) {
         setShowActivated(true);
         setTimeout(() => {
           if (reduceMotion) {
@@ -97,7 +117,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
         }, 3000);
       }
     }
-  }, [today]);
+  }, [today, reduceMotion, activatedOpacity]);
 
   useEffect(() => { loadData(); }, [loadData, onRefreshKey]);
 
@@ -125,429 +145,635 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
     };
   }, [sickData?.checkInTimer, sickData?.recoveryMode]);
 
-  const handleCheckInSubmit = async () => {
-    const val = parseFloat(checkInTemp);
-    if (isNaN(val) || !sickData) return;
-
-    const time = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-    const updatedTemps = [...(sickData.temperatures || []), { time, value: val }];
-
-    if (val < 99) {
-      const updated: SickModeData = {
-        ...sickData,
-        recoveryMode: true,
-        checkInTimer: undefined,
-        lastCheckIn: new Date().toISOString(),
-        temperatures: updatedTemps,
-      };
-      await sickModeStorage.save(updated);
-      setSickData(updated);
-      await syncWidgetSnapshot().catch(() => {});
-      setShowCheckInModal(false);
-      setCheckInTemp("");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        "Sick mode turned down",
-        "Your temperature is under 99°F. Sick mode is now in recovery (not off). Keep up with hydration, food intake, and any fever meds as needed. Tap \"I'm all better\" when you're fully recovered.",
-        [{ text: "OK" }]
-      );
-    } else if (val >= 102) {
-      const updated: SickModeData = {
-        ...sickData,
-        checkInTimer: new Date(Date.now() + CHECK_IN_INTERVAL_MS).toISOString(),
-        lastCheckIn: new Date().toISOString(),
-        temperatures: updatedTemps,
-      };
-      await sickModeStorage.save(updated);
-      setSickData(updated);
-      await syncWidgetSnapshot().catch(() => {});
-      setShowCheckInModal(false);
-      setCheckInTemp("");
-      Alert.alert(
-        "High fever – see a doctor ASAP",
-        "Your temperature is " + val + "°F. Please contact a doctor or seek care as soon as possible.",
-        [{ text: "OK" }]
-      );
-    } else {
-      const updated: SickModeData = {
-        ...sickData,
-        checkInTimer: new Date(Date.now() + CHECK_IN_INTERVAL_MS).toISOString(),
-        lastCheckIn: new Date().toISOString(),
-        temperatures: updatedTemps,
-      };
-      await sickModeStorage.save(updated);
-      setSickData(updated);
-      await syncWidgetSnapshot().catch(() => {});
-      setShowCheckInModal(false);
-      setCheckInTemp("");
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-  };
-
-  const stressMeds = medications.filter(m => m.hasStressDose);
+  const stressMeds = medications.filter((m) => m.hasStressDose);
 
   const getStressDosesTakenToday = (medId: string) =>
-    medLogs.filter(l => l.medicationId === medId && l.taken).length;
+    medLogs.filter((l) => l.medicationId === medId && l.taken).length;
 
-  const handleStressDoseLog = async (med: Medication) => {
-    const takenCount = getStressDosesTakenToday(med.id);
-    await medicationLogStorage.toggle(med.id, today, takenCount);
-    await syncWidgetSnapshot().catch(() => {});
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    loadData();
+  const handleStressDoseLog = (med: Medication) => {
+    const amount = med.stressDoseAmount?.trim() || "saved sick-day dose";
+    Alert.alert(
+      "Record dose taken?",
+      `This logs that you took your saved sick-day dose of ${med.name} (${amount}). It does not change your usual regimen or prescribe a new dose.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Record dose taken",
+          onPress: async () => {
+            const takenCount = getStressDosesTakenToday(med.id);
+            await medicationLogStorage.toggle(med.id, today, takenCount);
+            await syncWidgetSnapshot().catch(() => {});
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            loadData();
+          },
+        },
+      ]
+    );
   };
 
-  const addHydration = async (ml: number) => {
-    if (!sickData) return;
-    const updated = { ...sickData, hydrationMl: sickData.hydrationMl + ml };
+  const persistSick = async (updated: SickModeData) => {
     await sickModeStorage.save(updated);
     setSickData(updated);
     await syncWidgetSnapshot().catch(() => {});
+  };
+
+  const handleCheckInSubmit = async () => {
+    if (!sickData || !checkInFeeling) return;
+
+    const tempVal = parseFloat(checkInTemp);
+    const hasTemp = checkInTemp.trim().length > 0 && !Number.isNaN(tempVal);
+    const { next, highFever, enteredRecovering } = applyCheckIn(sickData, {
+      feeling: checkInFeeling,
+      temperatureF: hasTemp ? tempVal : null,
+      note: checkInNote,
+    });
+
+    await persistSick(next);
+    setShowCheckInModal(false);
+    setCheckInFeeling(null);
+    setCheckInTemp("");
+    setCheckInNote("");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    if (highFever) {
+      Alert.alert(
+        "High fever — seek care",
+        `Your temperature is ${tempVal}°F. Contact a doctor or seek urgent care. This check-in was saved; Sick Mode stays on until you end it.`,
+        [{ text: "OK" }]
+      );
+    } else if (enteredRecovering) {
+      Alert.alert(
+        "Glad you’re improving",
+        "Sick Mode is now in recovering. Check-ins pause. End Sick Mode when you feel ready — your logs stay saved.",
+        [{ text: "OK" }]
+      );
+    } else if (checkInFeeling === "worse") {
+      Alert.alert(
+        "Check-in saved",
+        "We’ll remind you again in about 2 hours. If symptoms are severe or you have adrenal crisis instructions, seek emergency care now.",
+        [{ text: "OK" }]
+      );
+    } else {
+      Alert.alert("Check-in saved", "We’ll remind you again in about 2 hours.", [{ text: "OK" }]);
+    }
+  };
+
+  const skipCheckIn = async () => {
+    if (!sickData) {
+      setShowCheckInModal(false);
+      return;
+    }
+    // Persist next timer so skip doesn’t strand the protocol.
+    const { next } = applyCheckIn(sickData, { feeling: "same" });
+    await persistSick(next);
+    setShowCheckInModal(false);
+    setCheckInFeeling(null);
+    setCheckInTemp("");
+    setCheckInNote("");
+  };
+
+  const addHydration = async (ml: number) => {
+    if (!sickData || ml <= 0) return;
+    await persistSick({ ...sickData, hydrationMl: sickData.hydrationMl + ml });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setActiveTool(null);
   };
 
   const toggleFood = async () => {
     if (!sickData) return;
-    const updated = { ...sickData, foodChecklist: { ...sickData.foodChecklist, lightMeal: !sickData.foodChecklist.lightMeal } };
-    await sickModeStorage.save(updated);
-    setSickData(updated);
-    await syncWidgetSnapshot().catch(() => {});
+    await persistSick({
+      ...sickData,
+      foodChecklist: { ...sickData.foodChecklist, lightMeal: !sickData.foodChecklist.lightMeal },
+    });
     Haptics.selectionAsync();
   };
 
   const toggleRest = async () => {
     if (!sickData) return;
-    const updated = { ...sickData, restChecklist: { ...sickData.restChecklist, lying: !sickData.restChecklist.lying } };
-    await sickModeStorage.save(updated);
-    setSickData(updated);
-    await syncWidgetSnapshot().catch(() => {});
+    await persistSick({
+      ...sickData,
+      restChecklist: { ...sickData.restChecklist, lying: !sickData.restChecklist.lying },
+    });
     Haptics.selectionAsync();
   };
 
   const addTemperature = async () => {
     const val = parseFloat(tempInput);
-    if (isNaN(val) || !sickData) return;
-    const time = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-    const updated = { ...sickData, temperatures: [...(sickData.temperatures || []), { time, value: val }] };
-    await sickModeStorage.save(updated);
-    setSickData(updated);
-    await syncWidgetSnapshot().catch(() => {});
+    if (Number.isNaN(val) || !sickData) return;
+    await persistSick(applyTemperatureLog(sickData, val));
     setTempInput("");
+    setActiveTool(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (val >= 102) {
+      Alert.alert(
+        "High fever — seek care",
+        `Your temperature is ${val}°F. Contact a doctor or seek urgent care.`,
+        [{ text: "OK" }]
+      );
+    }
   };
 
-  const handleImBetter = async () => {
-    const settings = await settingsStorage.get();
-    await settingsStorage.save({ ...settings, sickMode: false });
-    await sickModeStorage.reset();
-    await cancelRecoveryCheckIn();
-    await syncWidgetSnapshot().catch(() => {});
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onDeactivate();
+  const markFeelingBetter = () => {
+    if (!sickData) return;
+    Alert.alert(
+      "Mark as recovering?",
+      "This pauses check-ins and shows a calmer recovering state. It does not end Sick Mode or erase logs.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "I’m improving",
+          onPress: async () => {
+            await persistSick({
+              ...sickData,
+              recoveryMode: true,
+              checkInTimer: undefined,
+              lastCheckIn: new Date().toISOString(),
+            });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ]
+    );
   };
 
-  const completedActions = [
-    sickData && sickData.hydrationMl >= 250,
-    sickData?.foodChecklist.lightMeal,
-    stressMeds.length > 0 && stressMeds.every(m => getStressDosesTakenToday(m.id) > 0),
-    sickData?.restChecklist.lying,
-    sickData && (sickData.temperatures || []).length > 0,
-  ].filter(Boolean).length;
-  const totalActions = stressMeds.length > 0 ? 5 : 4;
-
-  const latestTemp = sickData?.temperatures?.slice(-1)[0];
-  const isRecovery = sickData?.recoveryMode === true;
+  const handleEndSickMode = () => {
+    Alert.alert(
+      "End Sick Mode?",
+      "Active recovery check-ins will stop. Your temperatures, medication logs, and session history stay saved.",
+      [
+        { text: "Keep Sick Mode", style: "cancel" },
+        {
+          text: "End Sick Mode",
+          style: "destructive",
+          onPress: async () => {
+            const settings = await settingsStorage.get();
+            await settingsStorage.save({ ...settings, sickMode: false });
+            await sickModeStorage.reset();
+            await disableRecoveryTracking().catch(() => {});
+            await cancelRecoveryCheckIn();
+            await syncWidgetSnapshot().catch(() => {});
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            onDeactivate();
+          },
+        },
+      ]
+    );
+  };
 
   const styles = useMemo(() => makeStyles(C, S), [C, S]);
 
   if (!sickData) return null;
 
-  const accentColor = isRecovery ? C.green : S.accent;
-  const accentLight = isRecovery ? "rgba(45,125,70,0.12)" : S.accentLight;
-  const accentBorder = isRecovery ? "rgba(45,125,70,0.3)" : S.accentBorder;
-  const bgColor = isRecovery ? (themeId === "dark" ? "#0F2A1F" : "#E0F2E9") : S.background;
+  const isRecovery = sickData.recoveryMode === true;
+  const latestTemp = sickData.temperatures?.slice(-1)[0];
+  const checkInDue = !isRecovery && !!sickData.checkInTimer && checkInCountdown <= 0;
+  const checkInSoon = !isRecovery && checkInCountdown > 0 && checkInCountdown <= CHECK_IN_INTERVAL_MS;
+  const nextCheckInLabel = sickData.checkInTimer ? formatClock(sickData.checkInTimer) : null;
+
+  const nextStep = (() => {
+    if (checkInDue || showCheckInModal) {
+      return {
+        title: "How are you feeling?",
+        body: "You can check in whenever you need to.",
+        actionLabel: "Check in now",
+        onAction: () => setShowCheckInModal(true),
+        meta: nextCheckInLabel ? `Scheduled around ${nextCheckInLabel}` : undefined,
+      };
+    }
+    if (checkInSoon) {
+      return {
+        title: "How are you feeling?",
+        body: "You can check in whenever you need to.",
+        actionLabel: "Check in now",
+        onAction: () => setShowCheckInModal(true),
+        meta: `Next optional reminder in ${formatCountdown(checkInCountdown)}`,
+      };
+    }
+    if (stressMeds.length > 0 && stressMeds.every((m) => getStressDosesTakenToday(m.id) === 0) && !isRecovery) {
+      return {
+        title: "Review your sick-day medication plan",
+        body: "Your saved clinician-provided instructions are available when you need them.",
+        actionLabel: "View medication plan",
+        onAction: () => setExpandedCare("meds"),
+        meta: undefined,
+      };
+    }
+    if (isRecovery) {
+      return {
+        title: "Nothing urgent right now",
+        body: "Rest and ease back at your pace. End Sick Mode when you feel ready.",
+        actionLabel: "I’m still improving",
+        onAction: () => Haptics.selectionAsync(),
+        meta: "Check-ins are paused while recovering",
+        quiet: true,
+      };
+    }
+    return {
+      title: "Nothing you need to do right now",
+      body: "Rest. We’ll remind you when it’s time to check in.",
+      actionLabel: "Check in early",
+      onAction: () => setShowCheckInModal(true),
+      meta: nextCheckInLabel ? `Next check-in around ${nextCheckInLabel}` : undefined,
+      quiet: true,
+    };
+  })();
+
+  const withinComfort = !!(sickData.startedAt && Date.now() - new Date(sickData.startedAt).getTime() < COMFORT_WINDOW_MS);
+
   return (
-    <View style={[styles.container, { backgroundColor: bgColor }]}>
+    <View style={[styles.container, { backgroundColor: C.background }]}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[styles.content, {
-          paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 14),
+          paddingTop: isWide ? 28 : (Platform.OS === "web" ? 40 : 8),
           paddingBottom: isWide ? 60 : (Platform.OS === "web" ? 140 : insets.bottom + 120),
         }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.warningHeader, { backgroundColor: accentLight, borderColor: accentBorder }]}>
-          <View style={[styles.warningIcon, { backgroundColor: accentColor }]}>
-            <Ionicons name={isRecovery ? "leaf" : "warning"} size={22} color="#fff" />
+        {/* Level 1 — Calm status */}
+        <View style={styles.statusHeader}>
+          <View style={styles.statusChip}>
+            <View style={[styles.statusDot, isRecovery && { backgroundColor: C.green }]} />
+            <Text style={styles.statusChipText}>{isRecovery ? "Recovering" : "Sick Mode Active"}</Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.warningTitle, !isRecovery && { color: S.text }]}>{isRecovery ? "Recovery Mode" : "Sick Mode Active"}</Text>
-            <Text style={[styles.warningSubtitle, { color: accentColor }]}>
-              {isRecovery ? "You're on the mend" : "Focus on recovery"}
-            </Text>
-          </View>
-          {latestTemp && (
-            <View style={[styles.latestTemp, latestTemp.value >= 100 && styles.latestTempHigh]}>
-              <Text style={[styles.latestTempText, latestTemp.value >= 100 && { color: S.accent }]}>{latestTemp.value}°F</Text>
-            </View>
-          )}
+          <Text style={styles.heroTitle}>Taking care of you</Text>
+          <Text style={styles.heroSubtitle}>
+            You’re in Sick Mode. Focus on resting and following your care plan.
+          </Text>
+          {latestTemp ? (
+            <Text style={styles.heroMeta}>Last temperature {latestTemp.value}°F · {latestTemp.time}</Text>
+          ) : null}
         </View>
 
-        {showActivated && (
-          <Animated.View style={[styles.activatedMsg, { opacity: activatedOpacity, backgroundColor: S.card }]}>
-            <Ionicons name="shield-checkmark" size={16} color={S.accent} />
-            <Text style={[styles.activatedText, { color: S.accent }]}>Sick Mode activated. Focus on recovery.</Text>
+        {showActivated ? (
+          <Animated.View style={[styles.activatedMsg, { opacity: activatedOpacity }]}>
+            <Ionicons name="shield-checkmark" size={16} color={C.tint} />
+            <Text style={styles.activatedText}>Sick Mode is on. We’ll keep check-ins gentle.</Text>
           </Animated.View>
-        )}
+        ) : null}
 
-        {!isRecovery && sickData.checkInTimer && checkInCountdown > 0 && (
-          <View style={styles.checkInCountdownCard}>
-            <View style={styles.checkInCountdownHeader}>
-              <Ionicons name="timer-outline" size={20} color={C.orange} />
-              <Text style={styles.checkInCountdownLabel}>Next Check-in</Text>
+        {/* Level 2 — Next step */}
+        <View style={styles.nextCard}>
+          <Text style={styles.nextEyebrow}>Up next</Text>
+          <Text style={styles.nextTitle}>{nextStep.title}</Text>
+          <Text style={styles.nextBody}>{nextStep.body}</Text>
+          <Pressable
+            style={[styles.nextPrimaryBtn, nextStep.quiet && styles.nextPrimaryBtnQuiet]}
+            onPress={nextStep.onAction}
+            accessibilityRole="button"
+            accessibilityLabel={nextStep.actionLabel}
+          >
+            <Text style={[styles.nextPrimaryText, nextStep.quiet && styles.nextPrimaryTextQuiet]}>
+              {nextStep.actionLabel}
+            </Text>
+            <Ionicons name="arrow-forward" size={16} color={nextStep.quiet ? C.text : "#fff"} />
+          </Pressable>
+          {nextStep.meta ? (
+            <View style={styles.nextMetaRow}>
+              <Ionicons name="time-outline" size={14} color={C.textTertiary} />
+              <Text style={styles.nextMeta}>{nextStep.meta}</Text>
             </View>
-            <Text style={styles.checkInCountdownTime}>{formatCountdown(checkInCountdown)}</Text>
-            <Text style={styles.checkInCountdownHint}>We&apos;ll ask how you&apos;re feeling</Text>
-          </View>
-        )}
-
-        <View style={styles.progressSection}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>Recovery Progress</Text>
-            <Text style={[styles.progressCount, { color: accentColor }]}>{completedActions}/{totalActions}</Text>
-          </View>
-          <View style={[styles.progressBar, isRecovery && { backgroundColor: C.surfaceElevated }]}>
-            <View style={[styles.progressFill, { width: `${(completedActions / totalActions) * 100}%` }, isRecovery && { backgroundColor: C.green }]} />
-          </View>
+          ) : null}
         </View>
 
-        {isRecovery && (
-          <View style={styles.recoveryRemindersCard}>
-            <Text style={styles.recoveryRemindersTitle}>Keep up with</Text>
-            <View style={styles.recoveryReminderRow}>
-              <Ionicons name="water-outline" size={18} color={C.green} />
-              <Text style={styles.recoveryReminderText}>Hydration</Text>
-            </View>
-            <View style={styles.recoveryReminderRow}>
-              <Ionicons name="nutrition-outline" size={18} color={C.green} />
-              <Text style={styles.recoveryReminderText}>Food intake</Text>
-            </View>
-            <View style={styles.recoveryReminderRow}>
-              <Ionicons name="medical-outline" size={18} color={C.green} />
-              <Text style={styles.recoveryReminderText}>Fever meds if prescribed</Text>
-            </View>
-          </View>
-        )}
-
-        {sickData.startedAt && comfortItems.length > 0 && (Date.now() - new Date(sickData.startedAt).getTime() < COMFORT_WINDOW_MS) && (
-          <View style={styles.comfortCard}>
-            <Text style={styles.comfortCardTitle}>Things that might help</Text>
-            {comfortItems.map((item) => (
-              <View key={item.id} style={styles.comfortRow}>
-                <Ionicons name="heart" size={16} color={C.tint} />
-                <Text style={styles.comfortRowText}>{item.label}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {stressMeds.length > 0 && (
-          <View style={{ marginBottom: 20 }}>
-            <Text style={styles.checklistTitle}>Stress Dosing</Text>
-            <Text style={styles.stressSectionSubtext}>
-              You have stress dosing instructions for {stressMeds.length} medication{stressMeds.length > 1 ? "s" : ""}.
+        {/* Stress dosing — safety critical, prominent when configured */}
+        {stressMeds.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Your saved sick-day medication plan</Text>
+            <Text style={styles.sectionHint}>
+              These are instructions you saved from your clinician. Synapse does not prescribe or change doses.
             </Text>
-            {stressMeds.map(med => {
+            {stressMeds.map((med) => {
               const takenToday = getStressDosesTakenToday(med.id);
               return (
-                <View key={med.id} style={[styles.stressCard, isRecovery && { backgroundColor: "rgba(45,125,70,0.08)", borderColor: "rgba(45,125,70,0.25)" }]}>
+                <View key={med.id} style={styles.stressCard}>
                   <View style={styles.stressHeader}>
-                    <Ionicons name="flash" size={24} color={isRecovery ? C.green : C.orange} />
+                    <Ionicons name="shield-checkmark-outline" size={22} color={C.tint} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.stressTitle}>{med.name}</Text>
                       {med.stressDoseAmount ? (
-                        <Text style={[styles.stressDose, { color: isRecovery ? C.green : C.red }]}>
-                          {med.stressDoseAmount}
-                        </Text>
+                        <Text style={styles.stressDose}>{med.stressDoseAmount}</Text>
                       ) : null}
-                    </View>
-                    <View style={[styles.stressBadge, isRecovery && { backgroundColor: C.green }]}>
-                      <Text style={styles.stressBadgeText}>STRESS</Text>
                     </View>
                   </View>
                   {med.stressDoseFrequency ? (
-                    <View style={styles.stressDetailRow}>
-                      <Ionicons name="time-outline" size={14} color={C.textSecondary} />
-                      <Text style={styles.stressDetailText}>{med.stressDoseFrequency}</Text>
-                    </View>
+                    <Text style={styles.stressDetail}>{med.stressDoseFrequency}</Text>
                   ) : null}
                   {med.stressDoseDurationDays ? (
-                    <View style={styles.stressDetailRow}>
-                      <Ionicons name="calendar-outline" size={14} color={C.textSecondary} />
-                      <Text style={styles.stressDetailText}>For {med.stressDoseDurationDays} day{med.stressDoseDurationDays > 1 ? "s" : ""}</Text>
-                    </View>
+                    <Text style={styles.stressDetail}>
+                      For {med.stressDoseDurationDays} day{med.stressDoseDurationDays > 1 ? "s" : ""}
+                    </Text>
                   ) : null}
                   {med.stressDoseInstructions ? (
-                    <View style={styles.stressDetailRow}>
-                      <Ionicons name="information-circle-outline" size={14} color={C.textSecondary} />
-                      <Text style={styles.stressDetailText}>{med.stressDoseInstructions}</Text>
-                    </View>
+                    <Text style={styles.stressDetail}>{med.stressDoseInstructions}</Text>
                   ) : null}
-                  <Text style={styles.stressDoseCount}>{takenToday} stress dose{takenToday !== 1 ? "s" : ""} logged today</Text>
+                  <Text style={styles.stressLogged}>
+                    {takenToday} dose{takenToday === 1 ? "" : "s"} recorded today
+                  </Text>
                   <Pressable
-                    style={[styles.stressTakeBtn, isRecovery && { backgroundColor: C.green }]}
+                    style={styles.recordDoseBtn}
                     onPress={() => handleStressDoseLog(med)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Mark stress dose taken for ${med.name}, ${takenToday} taken today`}
+                    accessibilityLabel={`Record dose taken for ${med.name}`}
                   >
-                    <Ionicons name="medkit" size={16} color="#fff" style={{ marginRight: 6 }} />
-                    <Text style={styles.stressTakeBtnText}>Dose taken</Text>
+                    <Text style={styles.recordDoseBtnText}>Record dose taken</Text>
                   </Pressable>
                 </View>
               );
             })}
           </View>
+        ) : (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Medication instructions</Text>
+            <View style={styles.careRow}>
+              <Ionicons name="medical-outline" size={20} color={C.textSecondary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.careRowTitle}>No sick-day plan saved</Text>
+                <Text style={styles.careRowBody}>
+                  Follow your clinician’s instructions. You can add sick-day details on a medication’s edit screen.
+                </Text>
+              </View>
+            </View>
+          </View>
         )}
 
-        <View style={styles.tempSection}>
-          <View style={styles.tempHeader}>
-            <Ionicons name="thermometer-outline" size={18} color={isRecovery ? C.green : C.orange} />
-            <Text style={styles.tempTitle}>Temperature</Text>
-          </View>
-          <View style={styles.tempInputRow}>
-            <TextInput
-              style={styles.tempInput}
-              placeholder="Enter °F"
-              placeholderTextColor={C.textTertiary}
-              value={tempInput}
-              onChangeText={setTempInput}
-              keyboardType="decimal-pad"
-              accessibilityLabel="Temperature in Fahrenheit"
-            />
-            <Pressable style={[styles.tempLogBtn, !tempInput.trim() && { opacity: 0.4 }]} onPress={addTemperature} disabled={!tempInput.trim()} accessibilityRole="button" accessibilityLabel="Log temperature">
-              <Text style={styles.tempLogBtnText}>Log</Text>
-            </Pressable>
-          </View>
-          {(sickData.temperatures || []).length > 0 && (
-            <View style={styles.tempHistory}>
-              {(sickData.temperatures || []).slice(-4).reverse().map((t, i) => (
-                <View key={i} style={styles.tempRow}>
-                  <Text style={styles.tempTime}>{t.time}</Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Ionicons name="thermometer-outline" size={14} color={t.value >= 102 ? C.red : t.value >= 100 ? C.orange : C.green} />
-                    <Text style={[styles.tempValue, t.value >= 100 && { color: t.value >= 102 ? C.red : C.orange }]}>
-                      {t.value}°F
-                    </Text>
-                    <Text style={{ fontSize: 11, fontWeight: "500" as const, color: t.value >= 102 ? C.red : t.value >= 100 ? C.orange : C.green }}>
-                      {t.value >= 102 ? "High Fever" : t.value >= 100 ? "Fever" : "Normal"}
-                    </Text>
-                  </View>
-                </View>
-              ))}
+        {/* Level 3 — Care plan summaries */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your care plan</Text>
+
+          <Pressable
+            style={styles.careRow}
+            onPress={() => setExpandedCare(expandedCare === "temp" ? null : "temp")}
+            accessibilityRole="button"
+            accessibilityLabel="Temperature care plan"
+          >
+            <Ionicons name="thermometer-outline" size={20} color={C.textSecondary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.careRowTitle}>Temperature</Text>
+              <Text style={styles.careRowBody}>
+                {latestTemp ? `Last recorded: ${latestTemp.value}°F at ${latestTemp.time}` : "No reading yet"}
+              </Text>
             </View>
-          )}
+            <Ionicons name={expandedCare === "temp" ? "chevron-up" : "chevron-down"} size={18} color={C.textTertiary} />
+          </Pressable>
+          {expandedCare === "temp" ? (
+            <View style={styles.expandPanel}>
+              <View style={styles.inlineLogRow}>
+                <TextInput
+                  style={styles.inlineInput}
+                  placeholder="°F"
+                  placeholderTextColor={C.textTertiary}
+                  value={tempInput}
+                  onChangeText={setTempInput}
+                  keyboardType="decimal-pad"
+                />
+                <Pressable
+                  style={[styles.inlineSave, !tempInput.trim() && { opacity: 0.4 }]}
+                  onPress={addTemperature}
+                  disabled={!tempInput.trim()}
+                >
+                  <Text style={styles.inlineSaveText}>Save</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+
+          <Pressable
+            style={styles.careRow}
+            onPress={() => setExpandedCare(expandedCare === "hydration" ? null : "hydration")}
+            accessibilityRole="button"
+            accessibilityLabel="Hydration care plan"
+          >
+            <Ionicons name="water-outline" size={20} color={C.textSecondary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.careRowTitle}>Hydration</Text>
+              <Text style={styles.careRowBody}>
+                {sickData.hydrationMl > 0
+                  ? `${sickData.hydrationMl} mL logged today`
+                  : "Log fluids when you can — no universal goal required"}
+              </Text>
+            </View>
+            <Ionicons name={expandedCare === "hydration" ? "chevron-up" : "chevron-down"} size={18} color={C.textTertiary} />
+          </Pressable>
+          {expandedCare === "hydration" ? (
+            <View style={styles.expandPanel}>
+              <View style={styles.chipRow}>
+                {[150, 250, 500].map((ml) => (
+                  <Pressable key={ml} style={styles.chip} onPress={() => addHydration(ml)}>
+                    <Text style={styles.chipText}>+{ml} mL</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          <Pressable style={styles.careRow} onPress={toggleFood} accessibilityRole="button" accessibilityLabel="Food">
+            <Ionicons name="restaurant-outline" size={20} color={C.textSecondary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.careRowTitle}>Food</Text>
+              <Text style={styles.careRowBody}>
+                {sickData.foodChecklist.lightMeal ? "Meal logged" : "Log a meal if you’ve eaten"}
+              </Text>
+            </View>
+            <Ionicons
+              name={sickData.foodChecklist.lightMeal ? "checkmark-circle" : "ellipse-outline"}
+              size={22}
+              color={sickData.foodChecklist.lightMeal ? C.green : C.textTertiary}
+            />
+          </Pressable>
+
+          <Pressable style={styles.careRow} onPress={toggleRest} accessibilityRole="button" accessibilityLabel="Rest">
+            <Ionicons name="bed-outline" size={20} color={C.textSecondary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.careRowTitle}>Rest</Text>
+              <Text style={styles.careRowBody}>
+                {sickData.restChecklist.lying ? "Rest noted" : "Take it easy while recovering"}
+              </Text>
+            </View>
+            <Ionicons
+              name={sickData.restChecklist.lying ? "checkmark-circle" : "ellipse-outline"}
+              size={22}
+              color={sickData.restChecklist.lying ? C.green : C.textTertiary}
+            />
+          </Pressable>
         </View>
 
-        <Text style={styles.checklistTitle}>
-          {isRecovery ? "Keep It Up" : "Recovery Checklist"}
-        </Text>
-
-        <Pressable style={styles.actionCard} onPress={() => addHydration(250)} accessibilityRole="button" accessibilityLabel={`${isRecovery ? "Stay hydrated" : "Hydrate"}, ${sickData.hydrationMl} of ${HYDRATION_GOAL} millilitres`}>
-          <Ionicons name="water-outline" size={24} color={isRecovery ? C.cyan : "#4A90D9"} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.actionLabel}>{isRecovery ? "Stay hydrated" : "Hydrate"}</Text>
-            <Text style={styles.actionMeta}>{sickData.hydrationMl} / {HYDRATION_GOAL} mL</Text>
+        {/* Level 4 — Recovery tools */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Things that may help</Text>
+          <View style={styles.toolGrid}>
+            {([
+              { id: "temperature" as const, icon: "thermometer-outline" as const, title: "Temperature", body: "Log a reading" },
+              { id: "hydration" as const, icon: "water-outline" as const, title: "Hydration", body: "Track fluids" },
+              { id: "food" as const, icon: "restaurant-outline" as const, title: "Food", body: "Log a meal" },
+              { id: "rest" as const, icon: "bed-outline" as const, title: "Rest", body: "Record rest" },
+            ]).map((tool) => (
+              <Pressable
+                key={tool.id}
+                style={styles.toolCard}
+                onPress={() => {
+                  if (tool.id === "food") { toggleFood(); return; }
+                  if (tool.id === "rest") { toggleRest(); return; }
+                  setActiveTool(tool.id);
+                  setExpandedCare(tool.id === "temperature" ? "temp" : "hydration");
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={tool.title}
+              >
+                <Ionicons name={tool.icon} size={22} color={C.text} />
+                <Text style={styles.toolTitle}>{tool.title}</Text>
+                <Text style={styles.toolBody}>{tool.body}</Text>
+              </Pressable>
+            ))}
           </View>
-          {sickData.hydrationMl >= 250 ? (
-            <Ionicons name="checkmark-circle" size={24} color={C.green} />
-          ) : (
-            <View style={styles.actionTap}>
-              <Text style={styles.actionTapText}>+250mL</Text>
-            </View>
-          )}
-        </Pressable>
+        </View>
 
-        <Pressable style={styles.actionCard} onPress={toggleFood} accessibilityRole="checkbox" accessibilityState={{ checked: sickData.foodChecklist.lightMeal }} accessibilityLabel={isRecovery ? "Nourish yourself" : "Eat food"}>
-          <Ionicons name="restaurant-outline" size={24} color={isRecovery ? C.cyan : "#E8A838"} />
+        <Pressable
+          style={styles.helpCard}
+          onPress={() => setActiveTool(activeTool === "help" ? null : "help")}
+          accessibilityRole="button"
+          accessibilityLabel="When to get medical help"
+        >
+          <Ionicons name="alert-circle-outline" size={22} color={C.orange} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.actionLabel}>{isRecovery ? "Nourish yourself" : "Eat food"}</Text>
-            <Text style={styles.actionMeta}>{isRecovery ? "A balanced meal helps recovery" : "Log a small meal or snack"}</Text>
-          </View>
-          <Ionicons
-            name={sickData.foodChecklist.lightMeal ? "checkmark-circle" : "ellipse-outline"}
-            size={24}
-            color={sickData.foodChecklist.lightMeal ? C.green : C.textTertiary}
-          />
-        </Pressable>
-
-        <Pressable style={styles.actionCard} onPress={toggleRest} accessibilityRole="checkbox" accessibilityState={{ checked: sickData.restChecklist.lying }} accessibilityLabel={isRecovery ? "Get some rest" : "Rest"}>
-          <Ionicons name="bed-outline" size={24} color={isRecovery ? C.cyan : "#7B68AE"} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.actionLabel}>{isRecovery ? "Get some rest" : "Rest"}</Text>
-            <Text style={styles.actionMeta}>{sickData.restChecklist.lying ? "Resting" : isRecovery ? "Your body still needs rest" : "Start resting"}</Text>
-          </View>
-          <Ionicons
-            name={sickData.restChecklist.lying ? "checkmark-circle" : "ellipse-outline"}
-            size={24}
-            color={sickData.restChecklist.lying ? C.green : C.textTertiary}
-          />
-        </Pressable>
-
-        <Pressable style={styles.actionCard} onPress={() => {}}>
-          <Ionicons name="thermometer-outline" size={24} color={isRecovery ? C.cyan : "#CC6600"} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.actionLabel}>Check temperature</Text>
-            <Text style={styles.actionMeta}>
-              {(sickData.temperatures || []).length > 0
-                ? `Last: ${sickData.temperatures.slice(-1)[0].value}°F`
-                : "Log a reading above"}
+            <Text style={styles.helpTitle}>When to get medical help</Text>
+            <Text style={styles.helpBody}>
+              Open for emergency guidance and when to seek care.
             </Text>
           </View>
-          {(sickData.temperatures || []).length > 0 ? (
-            <Ionicons name="checkmark-circle" size={24} color={C.green} />
-          ) : (
-            <Ionicons name="ellipse-outline" size={24} color={C.textTertiary} />
-          )}
+          <Ionicons name={activeTool === "help" ? "chevron-up" : "chevron-forward"} size={18} color={C.textTertiary} />
+        </Pressable>
+        {activeTool === "help" ? (
+          <View style={styles.helpExpand}>
+            <Text style={styles.helpExpandText}>
+              Seek emergency care now for severe symptoms, inability to keep fluids down, confusion, trouble breathing, or if you have adrenal insufficiency and suspect an adrenal crisis — follow your personal emergency plan and call emergency services.
+            </Text>
+            <Text style={styles.helpExpandText}>
+              Contact your clinician for fever at or above 102°F, worsening symptoms, or if you’re not improving as expected.
+            </Text>
+            <Text style={styles.helpExpandMuted}>
+              This is general guidance, not a diagnosis. It does not replace your clinician’s instructions.
+            </Text>
+            {onNavigate ? (
+              <Pressable style={styles.linkBtn} onPress={() => onNavigate("emergencyhub")}>
+                <Text style={styles.linkBtnText}>Open Emergency card</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
+        <Pressable
+          style={styles.moreToggle}
+          onPress={() => setShowMoreTools((v) => !v)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showMoreTools }}
+        >
+          <Text style={styles.moreToggleText}>More recovery tools</Text>
+          <Ionicons name={showMoreTools ? "chevron-up" : "chevron-down"} size={16} color={C.textSecondary} />
         </Pressable>
 
-        <Pressable style={[styles.betterBtn, isRecovery && { backgroundColor: C.cyan }]} onPress={handleImBetter} accessibilityRole="button" accessibilityLabel={isRecovery ? "I'm all better" : "I'm better"} accessibilityHint="Deactivates sick mode and resets recovery protocol">
-          <Text style={styles.betterBtnText}>{isRecovery ? "I'm all better" : "I'm better"}</Text>
+        {showMoreTools ? (
+          <View style={styles.morePanel}>
+            {(sickData.temperatures || []).length > 0 ? (
+              <View style={styles.historyBlock}>
+                <Text style={styles.historyTitle}>Temperature history</Text>
+                {(sickData.temperatures || []).slice(-6).reverse().map((t, i) => (
+                  <View key={`${t.time}-${i}`} style={styles.historyRow}>
+                    <Text style={styles.historyTime}>{t.time}</Text>
+                    <Text style={styles.historyValue}>{t.value}°F</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {withinComfort && comfortItems.length > 0 ? (
+              <View style={styles.historyBlock}>
+                <Text style={styles.historyTitle}>Comfort suggestions</Text>
+                {comfortItems.map((item) => (
+                  <Text key={item.id} style={styles.comfortLine}>• {item.label}</Text>
+                ))}
+              </View>
+            ) : null}
+            {sickData.startedAt ? (
+              <Text style={styles.sessionMeta}>
+                Session started {new Date(sickData.startedAt).toLocaleString()}
+              </Text>
+            ) : null}
+            {!isRecovery ? (
+              <Pressable style={styles.secondaryAction} onPress={markFeelingBetter}>
+                <Text style={styles.secondaryActionText}>I’m feeling better</Text>
+              </Pressable>
+            ) : null}
+            {onNavigate ? (
+              <Pressable style={styles.secondaryAction} onPress={() => onNavigate("medications")}>
+                <Text style={styles.secondaryActionText}>Open Medications</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
+        <Pressable
+          style={styles.endBtn}
+          onPress={handleEndSickMode}
+          accessibilityRole="button"
+          accessibilityLabel="End Sick Mode"
+        >
+          <Text style={styles.endBtnText}>End Sick Mode</Text>
         </Pressable>
       </ScrollView>
 
-      <Modal
-        visible={showCheckInModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {}}
-      >
+      <Modal visible={showCheckInModal} transparent animationType="fade" onRequestClose={skipCheckIn}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.modalIconRow}>
-              <Ionicons name="medical" size={28} color={C.tint} />
+            <Text style={styles.modalTitle}>How are you feeling?</Text>
+            <Text style={styles.modalSubtitle}>A short check-in — temperature is optional.</Text>
+            <View style={styles.feelingRow}>
+              {([
+                { id: "better" as const, label: "Better" },
+                { id: "same" as const, label: "About the same" },
+                { id: "worse" as const, label: "Worse" },
+              ]).map((opt) => (
+                <Pressable
+                  key={opt.id}
+                  style={[styles.feelingChip, checkInFeeling === opt.id && styles.feelingChipActive]}
+                  onPress={() => setCheckInFeeling(opt.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: checkInFeeling === opt.id }}
+                >
+                  <Text style={[styles.feelingChipText, checkInFeeling === opt.id && styles.feelingChipTextActive]}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
-            <Text style={styles.modalTitle}>How are you?</Text>
-            <Text style={styles.modalSubtitle}>2-hour check-in. Enter your current temperature (°F).</Text>
+            <Text style={styles.modalFieldLabel}>Temperature (°F) — optional</Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="Enter temperature (°F)"
+              placeholder="e.g. 100.2"
               placeholderTextColor={C.textTertiary}
               value={checkInTemp}
               onChangeText={setCheckInTemp}
               keyboardType="decimal-pad"
-              autoFocus
+            />
+            <Text style={styles.modalFieldLabel}>Note — optional</Text>
+            <TextInput
+              style={[styles.modalInput, { minHeight: 64, textAlignVertical: "top" }]}
+              placeholder="Anything you want to remember"
+              placeholderTextColor={C.textTertiary}
+              value={checkInNote}
+              onChangeText={setCheckInNote}
+              multiline
             />
             <Pressable
-              style={[styles.modalSubmitBtn, !checkInTemp.trim() && { opacity: 0.4 }]}
+              style={[styles.modalSubmitBtn, !checkInFeeling && { opacity: 0.4 }]}
               onPress={handleCheckInSubmit}
-              disabled={!checkInTemp.trim()}
+              disabled={!checkInFeeling}
               accessibilityRole="button"
-              accessibilityLabel="Submit temperature check-in"
+              accessibilityLabel="Save check-in"
             >
-              <Text style={styles.modalSubmitBtnText}>Submit</Text>
+              <Text style={styles.modalSubmitBtnText}>Save check-in</Text>
             </Pressable>
-            <Pressable style={styles.modalSkipBtn} onPress={() => setShowCheckInModal(false)} accessibilityRole="button" accessibilityLabel="Skip check-in">
-              <Text style={styles.modalSkipBtnText}>Skip for now</Text>
+            <Pressable style={styles.modalSkipBtn} onPress={skipCheckIn} accessibilityRole="button" accessibilityLabel="Skip check-in">
+              <Text style={styles.modalSkipBtnText}>Remind me later</Text>
             </Pressable>
           </View>
         </View>
@@ -559,148 +785,288 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey }: SickModeS
 function makeStyles(C: Theme, S: import("@/constants/sick-mode-colors").SickModePalette) {
   const solidModalSurface = modalSurface(C);
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: S.background },
-  content: { paddingHorizontal: 24 },
-  warningHeader: {
-    flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20,
-    backgroundColor: S.accentLight, borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: S.accentBorder,
-  },
-  warningIcon: {
-    width: 44, height: 44, borderRadius: 12, backgroundColor: S.accent,
-    alignItems: "center", justifyContent: "center",
-  },
-  warningTitle: { fontWeight: "700", fontSize: 20, color: S.text, letterSpacing: -0.3 },
-  warningSubtitle: { fontWeight: "400", fontSize: 13, color: S.accent, marginTop: 2 },
-  latestTemp: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: C.orangeLight },
-  latestTempHigh: { backgroundColor: C.redLight },
-  latestTempText: { fontWeight: "700", fontSize: 15, color: C.orange },
-  activatedMsg: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: S.card, borderRadius: 10, padding: 12, marginBottom: 16,
-  },
-  activatedText: { fontWeight: "500", fontSize: 13, color: S.accent },
-
-  checkInCountdownCard: {
-    backgroundColor: C.orangeLight, borderRadius: 14, padding: 16, marginBottom: 20,
-    borderWidth: 1, borderColor: "rgba(204,102,0,0.25)", alignItems: "center",
-  },
-  checkInCountdownHeader: {
-    flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8,
-  },
-  checkInCountdownLabel: { fontWeight: "600", fontSize: 13, color: C.orange },
-  checkInCountdownTime: { fontWeight: "700", fontSize: 32, color: C.text, letterSpacing: -1 },
-  checkInCountdownHint: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 4 },
-
-  progressSection: { marginBottom: 20 },
-  progressHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
-  progressLabel: { fontWeight: "600", fontSize: 13, color: C.textSecondary },
-  progressCount: { fontWeight: "700", fontSize: 13, color: C.green },
-  progressBar: { height: 6, borderRadius: 3, backgroundColor: S.progress, overflow: "hidden" },
-  progressFill: { height: "100%", borderRadius: 3, backgroundColor: S.accent },
-  recoveryRemindersCard: {
-    backgroundColor: "rgba(45,125,70,0.1)", borderRadius: 14, padding: 16, marginBottom: 20,
-    borderWidth: 1, borderColor: "rgba(45,125,70,0.25)",
-  },
-  recoveryRemindersTitle: { fontWeight: "600", fontSize: 13, color: C.green, marginBottom: 10 },
-  recoveryReminderRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 },
-  recoveryReminderText: { fontWeight: "500", fontSize: 14, color: C.text },
-  comfortCard: { backgroundColor: C.tintLight, borderRadius: 14, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: C.tint + "40" },
-  comfortCardTitle: { fontWeight: "600", fontSize: 13, color: C.tint, marginBottom: 10 },
-  comfortRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-  comfortRowText: { fontWeight: "500", fontSize: 14, color: C.text },
-  stressCard: {
-    backgroundColor: S.card, borderRadius: 16, padding: 18, marginBottom: 20,
-    borderWidth: 1, borderColor: S.accentBorder,
-  },
-  stressHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
-  stressTitle: { fontWeight: "700", fontSize: 17, color: S.text },
-  stressDose: { fontWeight: "400", fontSize: 12, color: S.accent, marginTop: 2 },
-  stressBadge: { backgroundColor: S.accent, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
-  stressBadgeText: { fontWeight: "700", fontSize: 10, color: "#fff", letterSpacing: 1 },
-  stressSectionSubtext: { fontWeight: "400", fontSize: 13, color: C.textSecondary, marginBottom: 12 },
-  stressDetailRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
-  stressDetailText: { fontWeight: "400", fontSize: 13, color: C.textSecondary, flex: 1 },
-  stressDoseCount: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginBottom: 12, marginTop: 4 },
-  stressTakeBtn: {
-    backgroundColor: S.accent, borderRadius: 12, paddingVertical: 14, alignItems: "center",
-    flexDirection: "row", justifyContent: "center",
-  },
-  stressTakeBtnText: { fontWeight: "600", fontSize: 15, color: "#fff" },
-  stressDoneRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
-  stressDoneText: { fontWeight: "600", fontSize: 14, color: C.green },
-  tempSection: {
-    backgroundColor: S.card, borderRadius: 16, padding: 16, marginBottom: 20,
-    borderWidth: 1, borderColor: S.accentBorder,
-  },
-  tempHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  tempTitle: { fontWeight: "600", fontSize: 15, color: S.text },
-  tempInputRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
-  tempInput: {
-    flex: 1, fontWeight: "400", fontSize: 14, color: S.text,
-    backgroundColor: S.background, borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: S.accentBorder,
-  },
-  tempLogBtn: { paddingHorizontal: 20, borderRadius: 10, backgroundColor: C.tint, justifyContent: "center" },
-  tempLogBtnText: { fontWeight: "600", fontSize: 14, color: "#fff" },
-  tempHistory: { gap: 2 },
-  tempRow: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border,
-  },
-  tempTime: { fontWeight: "400", fontSize: 13, color: C.textSecondary },
-  tempValue: { fontWeight: "600", fontSize: 14, color: C.text },
-  checklistTitle: {
-    fontWeight: "600", fontSize: 13, color: C.textSecondary,
-    textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10,
-  },
-  actionCard: {
-    flexDirection: "row", alignItems: "center", gap: 14,
-    backgroundColor: S.card, borderRadius: 14, padding: 16, marginBottom: 8,
-    borderWidth: 1, borderColor: S.accentBorder,
-  },
-  actionLabel: { fontWeight: "600", fontSize: 15, color: S.text },
-  actionMeta: { fontWeight: "400", fontSize: 12, color: C.textSecondary, marginTop: 2 },
-  actionTap: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: C.tintLight },
-  actionTapText: { fontWeight: "600", fontSize: 13, color: C.tint },
-  countdownBadge: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: C.orangeLight,
-  },
-  countdownText: { fontWeight: "600", fontSize: 12, color: C.orange },
-  betterBtn: {
-    marginTop: 24, backgroundColor: C.green, borderRadius: 14, paddingVertical: 16,
-    alignItems: "center",
-  },
-  betterBtnText: { fontWeight: "700", fontSize: 16, color: "#fff" },
-
-  modalOverlay: {
-    flex: 1, backgroundColor: modalOverlay(),
-    justifyContent: "center", alignItems: "center", padding: 24,
-  },
-  modalContent: {
-    backgroundColor: solidModalSurface, borderRadius: 22, padding: 28, borderWidth: 1, borderColor: C.border,
-    width: "100%", maxWidth: 360, alignItems: "center",
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 20 },
-      android: { elevation: 12 },
-      default: {},
-    }),
-  },
-  modalIconRow: { marginBottom: 16 },
-  modalTitle: { fontWeight: "700", fontSize: 20, color: C.text, textAlign: "center", marginBottom: 6 },
-  modalSubtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary, textAlign: "center", marginBottom: 20 },
-  modalInput: {
-    width: "100%", fontWeight: "500", fontSize: 18, color: C.text, textAlign: "center",
-    backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 14,
-    borderWidth: 1, borderColor: C.border, marginBottom: 16,
-  },
-  modalSubmitBtn: {
-    width: "100%", backgroundColor: C.tint, borderRadius: 12, paddingVertical: 14,
-    alignItems: "center", marginBottom: 10,
-  },
-  modalSubmitBtnText: { fontWeight: "600", fontSize: 16, color: "#fff" },
-  modalSkipBtn: { paddingVertical: 8 },
-  modalSkipBtnText: { fontWeight: "500", fontSize: 14, color: C.textTertiary },
+    container: { flex: 1, backgroundColor: "transparent" },
+    content: { paddingHorizontal: 24 },
+    statusHeader: { marginBottom: 18 },
+    statusChip: {
+      alignSelf: "flex-start",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.border,
+      marginBottom: 12,
+    },
+    statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: S.accent },
+    statusChipText: { fontWeight: "700", fontSize: 12, color: C.textSecondary, letterSpacing: 0.2 },
+    heroTitle: { fontWeight: "800", fontSize: 28, color: C.text, letterSpacing: -0.5, marginBottom: 6 },
+    heroSubtitle: { fontWeight: "500", fontSize: 15, color: C.textSecondary, lineHeight: 22 },
+    heroMeta: { fontWeight: "500", fontSize: 13, color: C.textTertiary, marginTop: 8 },
+    activatedMsg: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: C.surface,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 14,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    activatedText: { flex: 1, fontWeight: "500", fontSize: 13, color: C.textSecondary },
+    nextCard: {
+      backgroundColor: C.surface,
+      borderRadius: 20,
+      padding: 20,
+      marginBottom: 22,
+      borderWidth: 1,
+      borderColor: C.border,
+      ...raised("sm"),
+    },
+    nextEyebrow: {
+      fontWeight: "700",
+      fontSize: 12,
+      color: C.textTertiary,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginBottom: 8,
+    },
+    nextTitle: { fontWeight: "800", fontSize: 22, color: C.text, letterSpacing: -0.3, marginBottom: 6 },
+    nextBody: { fontWeight: "500", fontSize: 15, color: C.textSecondary, lineHeight: 21, marginBottom: 16 },
+    nextPrimaryBtn: {
+      minHeight: 52,
+      borderRadius: 999,
+      backgroundColor: C.text,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingHorizontal: 18,
+    },
+    nextPrimaryBtnQuiet: {
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    nextPrimaryText: { fontWeight: "700", fontSize: 16, color: "#fff" },
+    nextPrimaryTextQuiet: { color: C.text },
+    nextMetaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 14 },
+    nextMeta: { fontWeight: "500", fontSize: 13, color: C.textTertiary },
+    section: { marginBottom: 22 },
+    sectionTitle: { fontWeight: "800", fontSize: 18, color: C.text, marginBottom: 6 },
+    sectionHint: { fontWeight: "500", fontSize: 13, color: C.textSecondary, lineHeight: 18, marginBottom: 12 },
+    careRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      backgroundColor: C.surface,
+      borderRadius: 16,
+      padding: 14,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    careRowTitle: { fontWeight: "700", fontSize: 15, color: C.text },
+    careRowBody: { fontWeight: "500", fontSize: 13, color: C.textSecondary, marginTop: 2, lineHeight: 18 },
+    expandPanel: { marginBottom: 10, marginTop: -2, paddingHorizontal: 4 },
+    inlineLogRow: { flexDirection: "row", gap: 8 },
+    inlineInput: {
+      flex: 1,
+      fontWeight: "500",
+      fontSize: 15,
+      color: C.text,
+      backgroundColor: C.surface,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    inlineSave: {
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      backgroundColor: C.tint,
+      justifyContent: "center",
+    },
+    inlineSaveText: { fontWeight: "700", fontSize: 14, color: "#fff" },
+    chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    chip: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 999,
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    chipText: { fontWeight: "700", fontSize: 13, color: C.text },
+    stressCard: {
+      backgroundColor: C.surface,
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: C.border,
+      ...raised("sm"),
+    },
+    stressHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
+    stressTitle: { fontWeight: "700", fontSize: 17, color: C.text },
+    stressDose: { fontWeight: "600", fontSize: 13, color: C.textSecondary, marginTop: 2 },
+    stressDetail: { fontWeight: "500", fontSize: 13, color: C.textSecondary, marginBottom: 4, lineHeight: 18 },
+    stressLogged: { fontWeight: "500", fontSize: 12, color: C.textTertiary, marginTop: 8, marginBottom: 12 },
+    recordDoseBtn: {
+      minHeight: 48,
+      borderRadius: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    recordDoseBtnText: { fontWeight: "700", fontSize: 15, color: C.text },
+    toolGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    toolCard: {
+      width: "48%",
+      flexGrow: 1,
+      minWidth: "46%",
+      backgroundColor: C.surface,
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: C.border,
+      gap: 4,
+    },
+    toolTitle: { fontWeight: "700", fontSize: 15, color: C.text, marginTop: 6 },
+    toolBody: { fontWeight: "500", fontSize: 12, color: C.textSecondary },
+    helpCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      backgroundColor: C.surface,
+      borderRadius: 16,
+      padding: 14,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    helpTitle: { fontWeight: "700", fontSize: 15, color: C.text },
+    helpBody: { fontWeight: "500", fontSize: 13, color: C.textSecondary, marginTop: 2 },
+    helpExpand: {
+      backgroundColor: C.surfaceElevated,
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 16,
+      gap: 10,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    helpExpandText: { fontWeight: "500", fontSize: 14, color: C.text, lineHeight: 20 },
+    helpExpandMuted: { fontWeight: "500", fontSize: 12, color: C.textTertiary, lineHeight: 18, fontStyle: "italic" },
+    linkBtn: { alignSelf: "flex-start", paddingVertical: 8 },
+    linkBtnText: { fontWeight: "700", fontSize: 14, color: C.tint },
+    moreToggle: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 12,
+      marginBottom: 8,
+    },
+    moreToggleText: { fontWeight: "700", fontSize: 15, color: C.textSecondary },
+    morePanel: { marginBottom: 16, gap: 12 },
+    historyBlock: {
+      backgroundColor: C.surface,
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    historyTitle: { fontWeight: "700", fontSize: 13, color: C.textSecondary, marginBottom: 8 },
+    historyRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 },
+    historyTime: { fontWeight: "500", fontSize: 13, color: C.textSecondary },
+    historyValue: { fontWeight: "700", fontSize: 13, color: C.text },
+    comfortLine: { fontWeight: "500", fontSize: 14, color: C.text, marginBottom: 4 },
+    sessionMeta: { fontWeight: "500", fontSize: 12, color: C.textTertiary },
+    secondaryAction: {
+      minHeight: 44,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.surfaceElevated,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    secondaryActionText: { fontWeight: "700", fontSize: 14, color: C.text },
+    endBtn: {
+      marginTop: 8,
+      marginBottom: 12,
+      minHeight: 48,
+      borderRadius: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "transparent",
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    endBtnText: { fontWeight: "600", fontSize: 15, color: C.textSecondary },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: modalOverlay(),
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 24,
+    },
+    modalContent: {
+      backgroundColor: solidModalSurface,
+      borderRadius: 22,
+      padding: 24,
+      borderWidth: 1,
+      borderColor: C.border,
+      width: "100%",
+      maxWidth: 400,
+    },
+    modalTitle: { fontWeight: "800", fontSize: 22, color: C.text, marginBottom: 6 },
+    modalSubtitle: { fontWeight: "500", fontSize: 14, color: C.textSecondary, marginBottom: 16, lineHeight: 20 },
+    feelingRow: { gap: 8, marginBottom: 16 },
+    feelingChip: {
+      minHeight: 48,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: C.border,
+      backgroundColor: C.surfaceElevated,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 12,
+    },
+    feelingChipActive: { borderColor: C.text, backgroundColor: C.surface },
+    feelingChipText: { fontWeight: "700", fontSize: 15, color: C.textSecondary },
+    feelingChipTextActive: { color: C.text },
+    modalFieldLabel: { fontWeight: "600", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
+    modalInput: {
+      width: "100%",
+      fontWeight: "500",
+      fontSize: 16,
+      color: C.text,
+      backgroundColor: C.surfaceElevated,
+      borderRadius: 12,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: C.border,
+      marginBottom: 12,
+    },
+    modalSubmitBtn: {
+      width: "100%",
+      backgroundColor: C.text,
+      borderRadius: 14,
+      paddingVertical: 14,
+      alignItems: "center",
+      marginBottom: 10,
+      marginTop: 4,
+    },
+    modalSubmitBtnText: { fontWeight: "700", fontSize: 16, color: C.background === "#000000" ? "#fff" : "#fff" },
+    modalSkipBtn: { paddingVertical: 8, alignItems: "center" },
+    modalSkipBtnText: { fontWeight: "500", fontSize: 14, color: C.textTertiary },
   });
 }

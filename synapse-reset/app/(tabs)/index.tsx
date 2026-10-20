@@ -22,7 +22,8 @@ import MentalHealthModeScreen from "@/screens/MentalHealthModeScreen";
 import ComfortScreen from "@/screens/ComfortScreen";
 import GoalsScreen from "@/screens/GoalsScreen";
 import ReportsScreen from "@/screens/ReportsScreen";
-import SettingsScreen from "@/screens/SettingsScreen";
+import CareSharingScreen from "@/screens/CareSharingScreen";
+import IntegrationsScreen from "@/screens/IntegrationsScreen";
 import AuthScreen from "@/screens/AuthScreen";
 import HealthDataScreen from "@/screens/HealthDataScreen";
 import DocumentsScreen from "@/screens/DocumentsScreen";
@@ -39,7 +40,6 @@ import PharmaciesScreen from "@/screens/PharmaciesScreen";
 import CycleTrackingScreen from "@/screens/CycleTrackingScreen";
 import RamadanDailyLogScreen from "@/screens/RamadanDailyLogScreen";
 import OnboardingScreen, { type OnboardingCompleteOptions } from "@/screens/OnboardingScreen";
-import EditProfileScreen from "@/screens/EditProfileScreen";
 import EmergencyCardScreen from "@/screens/EmergencyCardScreen";
 import MeetFounderScreen from "@/screens/MeetFounderScreen";
 import FeedbackScreen from "@/screens/FeedbackScreen";
@@ -47,6 +47,8 @@ import IcsImportPreviewScreen from "@/screens/IcsImportPreviewScreen";
 import CaregiverDashboardScreen from "@/screens/CaregiverDashboardScreen";
 import ManagedPersonScreen from "@/screens/ManagedPersonScreen";
 import FeatureHubScreen from "@/screens/FeatureHubScreen";
+import PreferencesScreen from "@/screens/PreferencesScreen";
+import BackupRestoreScreen from "@/screens/BackupRestoreScreen";
 import ContextualTip from "@/components/ContextualTip";
 import { trackReturnSession } from "@/lib/product-milestones";
 import { TIP_BLOCKED_SCREENS } from "@/lib/contextual-tips-storage";
@@ -385,7 +387,6 @@ export default function MainScreen() {
   const [showSimpleModeTour, setShowSimpleModeTour] = useState(false);
   const [simpleModeTourStep, setSimpleModeTourStep] = useState(0);
   const [pendingSimpleModeTourAfterWhatsNew, setPendingSimpleModeTourAfterWhatsNew] = useState(false);
-  const [openAppearanceModalToken] = useState(0);
   const [showFeedbackPrompt, setShowFeedbackPrompt] = useState(false);
   const [suppressPostOnboardingPrompts, setSuppressPostOnboardingPrompts] = useState(false);
   const [feedbackInitialSentiment, setFeedbackInitialSentiment] = useState<FeedbackSentiment | null>(null);
@@ -1274,10 +1275,10 @@ export default function MainScreen() {
 
   const renderScreen = () => {
     if (sickMode && activeScreen === "dashboard") {
-      return <SickModeScreen onDeactivate={handleDeactivateSickMode} onRefreshKey={refreshKey} />;
+      return <SickModeScreen onDeactivate={handleDeactivateSickMode} onRefreshKey={refreshKey} onNavigate={handleNavigate} />;
     }
     if (activeScreen === "sickmode") {
-      return <SickModeScreen onDeactivate={handleDeactivateSickMode} onRefreshKey={refreshKey} />;
+      return <SickModeScreen onDeactivate={handleDeactivateSickMode} onRefreshKey={refreshKey} onNavigate={handleNavigate} />;
     }
 
     switch (activeScreen) {
@@ -1352,7 +1353,7 @@ export default function MainScreen() {
         return (
           <ManagedPersonScreen
             onBack={() => backToParentOr("carehub")}
-            onRemoved={() => handleNavigate("settings")}
+            onRemoved={() => handleNavigate("caresharing")}
           />
         );
       case "log":
@@ -1423,8 +1424,24 @@ export default function MainScreen() {
         return <CycleTrackingScreen onBack={() => backToParentOr("wellbeinghub")} />;
       case "editprofile":
         return (
-          <EditProfileScreen
-            onBack={() => backToParentOr("accounthub")}
+          <BackupRestoreScreen
+            onNavigate={handleNavigate}
+            onRestoreComplete={() => setRefreshKey((k) => k + 1)}
+          />
+        );
+      case "careteam":
+        return <FeatureHubScreen hubId="carehub" onNavigate={handleNavigate} role={role} />;
+      case "caresharing":
+        return (
+          <CareSharingScreen
+            onResetApp={handleResetApp}
+            onNavigate={handleNavigate}
+            onRestoreComplete={() => setRefreshKey((k) => k + 1)}
+          />
+        );
+      case "integrations":
+        return (
+          <IntegrationsScreen
             onNavigate={handleNavigate}
             onRestoreComplete={() => setRefreshKey((k) => k + 1)}
           />
@@ -1437,7 +1454,7 @@ export default function MainScreen() {
             key={`${feedbackEntrySource}-${feedbackInitialSentiment ?? "choice"}`}
             onBack={() => {
               setFeedbackInitialSentiment(null);
-              setActiveScreen(feedbackEntrySource === "prompt" ? "dashboard" : "settings");
+              setActiveScreen(feedbackEntrySource === "prompt" ? "dashboard" : "accounthub");
               setRefreshKey((k) => k + 1);
             }}
             initialSentiment={feedbackInitialSentiment}
@@ -1445,21 +1462,12 @@ export default function MainScreen() {
           />
         );
       case "settings":
-        return (
-          <SettingsScreen
-            onResetApp={handleResetApp}
-            onNavigate={handleNavigate}
-            onRestoreComplete={() => setRefreshKey((k) => k + 1)}
-            onShowAppTour={() => setShowWalkthrough(true)}
-            onShowWhatsNew={() => setShowWhatsNew(true)}
-            openAppearanceModalToken={openAppearanceModalToken}
-          />
-        );
+        return <PreferencesScreen onNavigate={handleNavigate} onResetApp={handleResetApp} />;
       case "auth":
         return (
           <AuthScreen
-            onBack={() => handleNavigate("settings")}
-            onSuccess={() => handleNavigate("settings")}
+            onBack={() => handleNavigate("caresharing")}
+            onSuccess={() => handleNavigate("caresharing")}
           />
         );
       default:
