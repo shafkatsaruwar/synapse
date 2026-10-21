@@ -84,7 +84,7 @@ function DoseCard({
             accessibilityLabel={`Mark ${dose.medicationName} dose as taken`}
             hitSlop={4}
           >
-            <Text style={styles.takeBtnText}>Taken</Text>
+            <Text style={styles.takeBtnText}>Mark As Taken</Text>
           </Pressable>
         ) : (
           <View style={styles.upcomingChip}>
@@ -278,13 +278,16 @@ function makeStyles(C: Theme) {
     takeBtn: {
       backgroundColor: C.tint,
       borderRadius: 10,
-      paddingHorizontal: 14,
+      paddingHorizontal: 12,
       paddingVertical: 8,
+      maxWidth: "46%",
+      flexShrink: 0,
     },
     takeBtnText: {
       color: "#fff",
       fontWeight: "700",
-      fontSize: 14,
+      fontSize: 13,
+      textAlign: "center",
     },
     takenChip: {
       flexDirection: "row",
