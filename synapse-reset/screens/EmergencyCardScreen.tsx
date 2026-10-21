@@ -346,10 +346,10 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
                   style={styles.allergyPrompt}
                   onPress={() => { Haptics.selectionAsync(); onNavigate("allergy"); }}
                   accessibilityRole="button"
-                  accessibilityLabel="Add allergy information in My Profile"
+                  accessibilityLabel="Add allergy information in Allergy & Emergency Info"
                 >
                   <Ionicons name="information-circle-outline" size={18} color={C.tint} />
-                  <Text style={styles.allergyPromptText}>Add allergy information in My Profile to include it on your Emergency Card.</Text>
+                  <Text style={styles.allergyPromptText}>Add allergy information in Allergy & Emergency Info to include it on your Emergency Card.</Text>
                   <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
                 </Pressable>
               )}
@@ -367,7 +367,7 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
                 label="Name"
                 value={primaryDoctor?.name ?? ""}
                 onChange={() => {}}
-                placeholder="Add a doctor in Account"
+                placeholder="Add a doctor in Care Team"
                 editable={false}
               />
               <Text style={styles.syncHint}>Pulled automatically from your Doctors list. The person icon marks your primary doctor.</Text>
