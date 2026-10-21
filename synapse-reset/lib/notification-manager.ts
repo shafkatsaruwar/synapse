@@ -4,6 +4,7 @@
  */
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import {
   medicationLogStorage,
@@ -15,8 +16,21 @@ import {
   normalizeMedication,
 } from "@/lib/storage";
 
-/** One-shot: clear tray notifications after brand App Icon update so iOS/Android show the new logo. */
-const BRAND_NOTIFICATION_ICON_MIGRATION_KEY = "synapse_brand_notification_icon_v1";
+/**
+ * Clear delivered tray notifications when the native build changes so iOS/Android
+ * stop showing a cached prior App Icon on Notification Center / lock screen.
+ * Value stored is the native build tag (iOS CFBundleVersion / Android versionCode).
+ */
+const BRAND_NOTIFICATION_ICON_CLEARED_BUILD_KEY = "synapse_brand_notification_icon_cleared_build";
+
+function getNativeBuildTag(): string {
+  const iosBuild = Constants.platform?.ios?.buildNumber;
+  const androidCode = Constants.platform?.android?.versionCode;
+  if (iosBuild != null && String(iosBuild).length > 0) return `ios:${iosBuild}`;
+  if (androidCode != null) return `android:${androidCode}`;
+  // Fallback so OTA-only clients still clear once after this migration ships.
+  return "js:synapse_brand_notification_icon_v2";
+}
 import { getToday } from "@/lib/date-utils";
 import { getHomeScreenBadgeCount } from "@/lib/nav-badge-counts";
 import { escalationCopy } from "@/constants/med-enforcement-copy";
@@ -1171,13 +1185,14 @@ function parseTimeHHMM(s: string | undefined): { hour: number; minute: number } 
 export async function syncAllFromSettings(): Promise<void> {
   if (!isNative()) return;
   try {
-    // After App Icon / notification-icon brand updates, delivered tray items can
-    // keep showing the previous logo until dismissed. Clear once, then reschedule.
+    // Delivered tray items can keep a prior App Icon until dismissed. Clear once
+    // per native build (and once for this JS migration fallback).
     try {
-      const migrated = await AsyncStorage.getItem(BRAND_NOTIFICATION_ICON_MIGRATION_KEY);
-      if (migrated !== "1") {
+      const buildTag = getNativeBuildTag();
+      const clearedFor = await AsyncStorage.getItem(BRAND_NOTIFICATION_ICON_CLEARED_BUILD_KEY);
+      if (clearedFor !== buildTag) {
         await Notifications.dismissAllNotificationsAsync();
-        await AsyncStorage.setItem(BRAND_NOTIFICATION_ICON_MIGRATION_KEY, "1");
+        await AsyncStorage.setItem(BRAND_NOTIFICATION_ICON_CLEARED_BUILD_KEY, buildTag);
       }
     } catch {
       // Best-effort; scheduling below still runs.
