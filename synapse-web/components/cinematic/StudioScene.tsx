@@ -15,13 +15,15 @@ import { SynapseScreen } from "@/components/cinematic/SynapseScreen";
 
 function Choreography() {
   const clock = useRef(0);
+  // Priority must stay at or below 0. A positive useFrame priority tells
+  // react-three-fiber to skip its own render, which leaves the canvas blank.
   useFrame((_, delta) => {
     if (!sceneBridge.locked) clock.current += Math.min(delta, 0.05);
     sceneBridge.sample = sampleScene(sceneBridge.progress, {
       time: sceneBridge.locked ? 0.4 : clock.current,
       mobile: sceneBridge.mobile,
     });
-  }, 1);
+  }, -2);
   return null;
 }
 

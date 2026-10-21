@@ -48,7 +48,7 @@ export function SuspensionString({ index }: { index: number }) {
     if (!Array.isArray(material) && "opacity" in material) {
       material.opacity = 0.55 * (1 - detached * 0.35);
     }
-  }, -1);
+  });
 
   return (
     <mesh ref={mesh} visible={false}>
