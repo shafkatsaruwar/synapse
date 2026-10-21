@@ -1,6 +1,6 @@
 # Synapse Web
 
-Marketing site for Synapse Health Companion. It is not the Expo app. The app stays in `synapse-reset/`, and the production Vercel project that serves https://synapse-health.vercel.app should keep building that app.
+Marketing site for Synapse Health Companion. It is not the Expo app. The app stays in `synapse-reset/`. Production at https://synapse-health.vercel.app builds this Next.js app (Vercel root directory `synapse-web`).
 
 ```bash
 cd synapse-web
@@ -20,13 +20,11 @@ It expects the same server environment variables: `API_SHARED_SECRET`, `RESEND_A
 
 Sign-up mail redirects to `/` and password-reset mail can redirect to `/reset-password`. Those pages tell the person to finish in the iPhone app. They do not set a password or store the token.
 
-## Preview
+## Deploy
 
-This app is not wired to the production Vercel project. To preview it hosted, create a **new** Vercel project (do not change the existing one’s root, build, or domain) with:
+Git deploys use `synapse-web/vercel.json` (framework `nextjs`, `npm install`, `npm run build`). The repository root `vercel.json` no longer selects the Expo web export. That file was still applied on git deploys after the project root directory changed, and `cd synapse-reset && npm install` failed the build. The root `api/send-email.ts` file remains in the repo and is not part of this app; the live route is `app/api/send-email`.
 
-- Root directory: `synapse-web`
-- Framework: Next.js
-- Set `NEXT_PUBLIC_SITE_URL` to that preview’s origin so canonical URLs and the sitemap match it.
+Set `NEXT_PUBLIC_SITE_URL` to the production origin so canonical URLs match.
 
 `?phase=INTRO` (or `SCATTERED`, `DISCONNECTION`, `RELEASE`, `FALL`, `STACK`, `ALIGN`, `MERGE`, `REVEAL`) holds the studio on that beat.
 
