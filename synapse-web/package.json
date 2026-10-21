@@ -1,0 +1,29 @@
+{
+  "name": "synapse-web",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Marketing site for Synapse Health Companion. Separate from the Expo app in synapse-reset.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test:scene": "node --experimental-strip-types --test lib/animation/scene-sample.test.ts"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.4.0",
+    "gsap": "^3.13.0",
+    "next": "^15.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@types/three": "^0.180.0",
+    "typescript": "^5.9.2"
+  }
+}
