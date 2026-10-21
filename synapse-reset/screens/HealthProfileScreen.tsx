@@ -9,10 +9,13 @@ import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { conditionStorage, healthProfileStorage, settingsStorage, type HealthProfileInfo, type SurgeryRecord, type VaccineRecord } from "@/lib/storage";
 import { syncAllFromSettings } from "@/lib/notification-manager";
+import { persistProfileImage } from "@/lib/profile-image";
+import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 interface HealthProfileScreenProps {
-  onBack: () => void;
+  /** Chrome already provides back/menu — do not render an in-screen Settings back. */
+  onBack?: () => void;
   onNavigate: (screen: string) => void;
 }
 
@@ -24,7 +27,7 @@ const EMPTY_PROFILE: HealthProfileInfo = {
   surgeries: [],
 };
 
-export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfileScreenProps) {
+export default function HealthProfileScreen({ onNavigate }: HealthProfileScreenProps) {
   const insets = useSafeAreaInsets();
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -65,6 +68,7 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
     setProfile(nextProfile);
     await healthProfileStorage.save(nextProfile);
     await syncAllFromSettings().catch(() => {});
+    syncWidgetSnapshot().catch(() => {});
   };
 
   const handleSaveName = async () => {
@@ -82,6 +86,28 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setAgeSaved(true);
   };
+
+  const handlePickProfileImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Photo access needed", "Please allow photo library access to choose a profile picture.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+      aspect: [1, 1],
+    });
+
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    const persistedUri = await persistProfileImage(result.assets[0].uri, profile.profileImageUri);
+    await persistProfile({ ...profile, profileImageUri: persistedUri });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const profileInitial = (nameText.trim()?.[0] ?? "Y").toUpperCase();
 
   const resetVaccineForm = () => {
     setVaccineName("");
@@ -179,13 +205,47 @@ export default function HealthProfileScreen({ onBack, onNavigate }: HealthProfil
         contentContainerStyle={[styles.content, { paddingTop: topPad, paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Pressable onPress={onBack} style={styles.backRow} accessibilityRole="button" accessibilityLabel="Back to Settings">
-          <Ionicons name="arrow-back" size={22} color={C.text} />
-          <Text style={styles.backText}>Settings</Text>
-        </Pressable>
-
         <Text style={styles.title}>My Profile</Text>
-        <Text style={styles.subtitle}>Name, age, conditions, allergies, vaccines, surgeries, and emergency info</Text>
+        <Text style={styles.subtitle}>Name, photo, age, conditions, allergies, vaccines, surgeries, and emergency info</Text>
+
+        <View style={styles.photoCard}>
+          <Pressable
+            style={styles.profileAvatar}
+            onPress={handlePickProfileImage}
+            accessibilityRole="button"
+            accessibilityLabel={profile.profileImageUri ? "Change profile picture" : "Add profile picture"}
+          >
+            {profile.profileImageUri ? (
+              <Image source={{ uri: profile.profileImageUri }} style={styles.profileAvatarImage} />
+            ) : (
+              <Text style={styles.profileAvatarText}>{profileInitial}</Text>
+            )}
+            <View style={styles.profileAvatarBadge}>
+              <Ionicons name="camera" size={14} color="#fff" />
+            </View>
+          </Pressable>
+          <View style={styles.photoCopy}>
+            <Text style={styles.photoTitle}>{profile.profileImageUri ? "Profile photo" : "Add a photo"}</Text>
+            <Text style={styles.photoDesc}>
+              {profile.profileImageUri
+                ? "Tap to replace the picture used in your menu and profile."
+                : "Optional. Shown in You & Settings and the side menu."}
+            </Text>
+            <Pressable
+              style={styles.photoLink}
+              onPress={handlePickProfileImage}
+              accessibilityRole="button"
+              accessibilityLabel={profile.profileImageUri ? "Change photo" : "Add photo"}
+            >
+              <Ionicons name="image-outline" size={15} color={C.tint} />
+              <Text style={styles.photoLinkText}>
+                {profile.profileImageUri ? "Change photo" : "Add photo"}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.blockSpacer} />
 
         <View style={styles.ageCard}>
           <Text style={styles.ageLabel}>Name</Text>
@@ -446,10 +506,48 @@ function makeStyles(C: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 24 },
-    backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 20 },
-    backText: { fontWeight: "600", fontSize: 15, color: C.text },
     title: { fontWeight: "700", fontSize: 26, color: C.text, letterSpacing: -0.5, marginBottom: 8 },
     subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginBottom: 24 },
+    photoCard: {
+      backgroundColor: C.surface,
+      borderRadius: 14,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: C.border,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 16,
+      ...raised("md", "#55718F"),
+    },
+    profileAvatar: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: C.tintLight,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "visible",
+    },
+    profileAvatarImage: { width: 72, height: 72, borderRadius: 36 },
+    profileAvatarText: { fontWeight: "700", fontSize: 28, color: C.tint },
+    profileAvatarBadge: {
+      position: "absolute",
+      right: -2,
+      bottom: -2,
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: C.tint,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: C.surface,
+    },
+    photoCopy: { flex: 1, gap: 4 },
+    photoTitle: { fontWeight: "600", fontSize: 16, color: C.text },
+    photoDesc: { fontWeight: "400", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
+    photoLink: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, alignSelf: "flex-start" },
+    photoLinkText: { fontWeight: "600", fontSize: 14, color: C.tint },
     card: { backgroundColor: C.surface, borderRadius: 14, padding: 4, borderWidth: 1, borderColor: C.border, ...raised("md", "#55718F") },
     recordAddBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: C.purple, alignItems: "center", justifyContent: "center", flexShrink: 0 },
     profileRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 16 },
