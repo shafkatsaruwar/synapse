@@ -1,17 +1,10 @@
 # Synapse Web 2.0 — audit and plan
 
-This marketing site is a new Next.js app in `synapse-web/`. It does not replace the Expo app and it does not change production hosting.
+This marketing site is a Next.js app in `synapse-web/`. It does not replace the iOS app.
 
 ## What this repository is
 
-This is the Synapse source. The active product is `synapse-reset/` (Expo 54, expo-router, Supabase). Root `vercel.json` builds that app:
-
-- Install: `cd synapse-reset && npm install`
-- Build: `cd synapse-reset && npm run export:web`
-- Output: `synapse-reset/dist`
-- Public URL documented in `synapse-reset/WEB-DEPLOY.md`: https://synapse-health.vercel.app
-
-That deployment is the Expo web export, not a marketing site. This project leaves that pipeline alone. Previewing the marketing site needs a **separate** Vercel project (or a local `npm run dev`) with root directory `synapse-web`. Do not change the production project’s root, build command, or domain.
+This is the Synapse source. The active product is `synapse-reset/` (Expo 54, expo-router, Supabase). https://synapse-health.vercel.app now serves this marketing site. The Vercel project root directory is `synapse-web`, and `synapse-web/vercel.json` sets the Next.js install and build. The old root `vercel.json` pointed every git deploy at `cd synapse-reset && npm install` even after that root directory change, so it was removed. The Expo web export is retired. The root file `api/send-email.ts` is still in the repo for reference; the deployed email route is `synapse-web/app/api/send-email`.
 
 ## What was not changed
 

@@ -5,8 +5,8 @@ Shared identity for the marketing site and a future film. Units, names, and phas
 ## Scale and coordinates
 
 - 1 unit = 10 cm. Y is up. The table is the plane `y = 0`.
-- The phone lies flat, screen up, centered at the origin. Size: width `0.74` (X), thickness `0.078` (Y), depth `1.56` (Z). Top of the body is `y = 0.078`.
-- Screen inset: `0.64 × 1.36`, sitting just above the body, rotation X = `-π/2` so the image faces up.
+- The phone lies flat, screen up, centered at the origin. Footprint: width `0.74` (X), depth `1.56` (Z). Chassis thickness is `0.066`, lifted `0.016` so a rear camera bump can rest on the table. The glass face is the top surface.
+- The body is an extruded rounded rectangle (corner radius about `0.11`), not a uniform rounded box. A uniform radius larger than half the thickness turns the phone into a capsule. The screen is a smaller glass slab. Today is a rounded canvas that fades in with `screenReveal`.
 - Glass panels are boxes in local space: X width, Y height, Z thickness `0.02`. The face is local +Z. Hanging, they are nearly vertical. In the stack, rotation X is about `-π/2`, so the face points up and local height lies along Z.
 - Strings are vertical. Anchor height is `y = 8.4`, above the frame. A string starts a little above the panel’s top center and runs up. It never follows a panel through the phone. Detach shortens the string upward until it is gone.
 - Camera near `0.08`, far `40`. Desktop intro is about `(0.15, 2.08, 6.70)` looking at `(0, 1.45, 0.10)`, fov 30. Mobile uses the `MOBILE_CAM` keys in `lib/animation/scene-sample.ts` and a wider fov.
@@ -16,7 +16,7 @@ Shared identity for the marketing site and a future film. Units, names, and phas
 | Surface | Desktop | Mobile |
 | --- | --- | --- |
 | Table | Standard, `#f3efe8`, roughness 0.96 | Same, fewer segments |
-| Phone body | Standard, `#1b1b1d`, roughness 0.42, slight metal | Same, less bevel |
+| Phone body | Physical metal, `#2e2e32`, roughness 0.26, clearcoat. Glass screen with a reflection streak. Rear bump on the underside. | Standard metal, fewer curve segments |
 | Glass | Physical, transmission 0.86, roughness 0.12, ior 1.45, clearcoat | Standard, transparent, no transmission |
 | Type on glass | Canvas texture, 1024×640, sRGB, basic material in front of the glass | Same textures |
 | Phone screen | Canvas 780×1688, opacity driven by `screenReveal` | Same |
@@ -64,4 +64,4 @@ Fall order: How I’m Feeling, Medications, Appointments, Emergency, Records. St
 ## Texture budgets
 
 - Panel face 1024×640. Today screen 780×1688. Shadow disc 256×256.
-- No video textures. No external HDR. Geometry is a rounded box, five thin boxes, five cylinders, two planes, and shadow discs.
+- No video textures. No external HDR. The phone is extruded slabs (body, glass, camera bump) plus side buttons, a speaker slot, and a contact shadow. Panels are five thin boxes. Strings are five cylinders.
