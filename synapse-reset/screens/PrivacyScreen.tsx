@@ -9,11 +9,12 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { exportAllData, clearAllData, importAllData } from "@/lib/storage";
-import { parseSynapseExport } from "@/lib/backup-import";
+import { exportAllData, clearAllData, importAllDataTransactional } from "@/lib/storage";
+import { formatRestorePreview, parseSynapseExport } from "@/lib/backup-import";
 import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { getBiometricLockEnabled, setBiometricLockEnabled } from "@/lib/biometric-storage";
+import { featureFlags } from "@/constants/feature-flags";
 
 export default function PrivacyScreen() {
   const { colors: C } = useTheme();
@@ -78,8 +79,12 @@ export default function PrivacyScreen() {
       }
 
       Alert.alert(
-        "Restore from file?",
-        "This REPLACES all data currently on this device with the contents of this file. Your existing data will be overwritten and this can’t be undone — consider exporting first.",
+        "Restore From a Backup",
+        [
+          "Restoring a backup may replace the information currently stored in Synapse. Any changes made since the backup was created may be lost.",
+          "",
+          formatRestorePreview(parsed.summary),
+        ].join("\n"),
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -89,7 +94,7 @@ export default function PrivacyScreen() {
               try {
                 setRestoring(true);
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                await importAllData(parsed.payload);
+                await importAllDataTransactional(parsed.payload);
                 await Promise.all([
                   syncAllFromSettings().catch(() => {}),
                   syncWidgetSnapshot().catch(() => {}),
@@ -97,7 +102,12 @@ export default function PrivacyScreen() {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 Alert.alert("Restored", "Your data has been restored from the file. Some screens may need a moment to refresh.");
               } catch (e) {
-                Alert.alert("Restore failed", e instanceof Error ? e.message : "Could not restore from that file.");
+                Alert.alert(
+                  "Restore failed",
+                  e instanceof Error
+                    ? `${e.message} Existing information was kept when possible.`
+                    : "Existing information was kept when possible.",
+                );
               } finally {
                 setRestoring(false);
               }
@@ -166,7 +176,9 @@ export default function PrivacyScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.featureTitle}>Local-First Storage</Text>
             <Text style={styles.featureDesc}>
-              Health logs are stored on this device by default (device storage). Optional features you turn on — such as iCloud backup, Apple Health import, caregiver tools, or signed-in cloud sync — may copy or import data when you use them.
+              {featureFlags.cloudKitBackupEnabled
+                ? "Health logs are stored on this device by default. Optional features you turn on — such as iCloud backup, Apple Health import, caregiver tools, or signed-in cloud sync — may copy or import data when you use them."
+                : "Health logs are stored on this device by default. Manual Backup & Restore (free) lets you save a file you control. Apple Health import and other optional tools only run when you use them. Automatic iCloud backup is currently unavailable."}
             </Text>
           </View>
         </View>
@@ -268,7 +280,9 @@ export default function PrivacyScreen() {
       <View style={styles.infoCard}>
         <Ionicons name="information-circle-outline" size={16} color={C.textTertiary} />
         <Text style={styles.infoText}>
-          Local data stays on this device unless you use optional cloud backup, caregiver linking, AI, email, or export. Review Settings for iCloud and account options. For the security posture of this project, see SECURITY.md in the repository.
+          {featureFlags.cloudKitBackupEnabled
+            ? "Local data stays on this device unless you use optional cloud backup, caregiver linking, AI, email, or export. Review Settings for iCloud and account options. For the security posture of this project, see SECURITY.md in the repository."
+            : "Local data stays on this device unless you export a backup file, use caregiver linking, AI, or email. Prefer Backup & Restore under You for saving and restoring. Automatic iCloud backup is unavailable. For the security posture of this project, see SECURITY.md in the repository."}
         </Text>
       </View>
     </ScrollView>

@@ -11,6 +11,7 @@ import {
   type NavRegistryEntry,
 } from "@/lib/navigation-registry";
 import { getNavBadgeCounts, type NavBadgeCounts } from "@/lib/nav-badge-counts";
+import BackupReminderBanner from "@/components/BackupReminderBanner";
 
 export type HubItem = {
   key: string;
@@ -189,6 +190,9 @@ export default function FeatureHubScreen({
           <Text style={styles.pendingSummary} accessibilityLiveRegion="polite">
             {pendingSummary}
           </Text>
+        ) : null}
+        {resolvedId === "accounthub" ? (
+          <BackupReminderBanner onOpenBackup={() => onNavigate("editprofile")} />
         ) : null}
         <View style={styles.list}>
           {hub.items.map((item) => {

@@ -366,6 +366,23 @@ export default function PreferencesScreen({ onNavigate, onResetApp }: Preference
             <Text style={styles.modalHint}>
               This deletes medications, appointments, logs, and settings on this device. It cannot be undone unless you restore from Backup & Restore.
             </Text>
+            <Text style={[styles.modalHint, { marginBottom: 4 }]}>
+              Your health information is important. Consider saving a backup so you can restore it if you change phones.
+            </Text>
+            {onNavigate ? (
+              <Pressable
+                style={styles.linkRow}
+                onPress={() => {
+                  setShowResetConfirm(false);
+                  onNavigate("editprofile");
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Save a backup before resetting"
+              >
+                <Text style={styles.linkText}>Save a backup first</Text>
+                <Ionicons name="chevron-forward" size={16} color={C.tint} />
+              </Pressable>
+            ) : null}
             <View style={styles.resetActions}>
               <Pressable style={styles.resetCancel} onPress={() => setShowResetConfirm(false)}>
                 <Text style={styles.resetCancelText}>Cancel</Text>
