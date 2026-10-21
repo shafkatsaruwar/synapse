@@ -30,7 +30,6 @@ import { useRole } from "@/contexts/RoleContext";
 import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { raised } from "@/constants/raised";
-import { getBackupStatus, backupNow, type BackupStatus } from "@/lib/backup";
 import {
   connectAppleHealth,
   disconnectAppleHealth,
@@ -50,7 +49,7 @@ import {
 export type SettingsScreenVariant = "care" | "integrations";
 
 interface SettingsScreenProps {
-  /** care = roles/linking; integrations = Apple Health + assistant. Defaults to care. */
+  /** care = roles/linking; integrations = Apple Health. Defaults to care. */
   variant?: SettingsScreenVariant;
   onResetApp?: () => void;
   onNavigate?: (screen: string) => void;
@@ -66,17 +65,6 @@ type CaregiverOnboardingStep =
   | "caregiver-code"
   | "confirmation";
 
-function formatBackupTime(value?: string | null) {
-  if (!value) return "Not synced yet";
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return "Not synced yet";
-  return `Last synced ${date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })}`;
-}
 
 export default function SettingsScreen({
   variant = "care",
@@ -88,7 +76,7 @@ export default function SettingsScreen({
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { appMode } = useAppMode();
   const { role: activeRole, caregiverProfile, setRole, saveCaregiverProfile, clearCaregiverMode } = useRole();
   const { textScale } = useDisplaySettings();
@@ -101,8 +89,6 @@ export default function SettingsScreen({
 
   const [appleHealthStatus, setAppleHealthStatus] = useState<AppleHealthStatus | null>(null);
   const [appleHealthBusy, setAppleHealthBusy] = useState(false);
-  const [assistantBackup, setAssistantBackup] = useState<BackupStatus | null>(null);
-  const [assistantBusy, setAssistantBusy] = useState(false);
   const [caregiverLinkState, setCaregiverLinkState] = useState<CaregiverLinkState | null>(null);
   const [caregiverLinkBusy, setCaregiverLinkBusy] = useState(false);
   const [caregiverCodeCopied, setCaregiverCodeCopied] = useState(false);
@@ -125,14 +111,6 @@ export default function SettingsScreen({
     getAppleHealthStatus().then(setAppleHealthStatus).catch(() => {});
   }, []);
 
-  const refreshAssistantBackup = useCallback(() => {
-    if (!authUserId) {
-      setAssistantBackup(null);
-      return;
-    }
-    getBackupStatus(authUserId).then(setAssistantBackup).catch(() => setAssistantBackup(null));
-  }, [authUserId]);
-
   const refreshCaregiverLinkState = useCallback(() => {
     getCaregiverLinkState(authUserId).then(setCaregiverLinkState).catch(() => setCaregiverLinkState(null));
   }, [authUserId]);
@@ -140,10 +118,6 @@ export default function SettingsScreen({
   useEffect(() => {
     refreshAppleHealthStatus();
   }, [refreshAppleHealthStatus]);
-
-  useEffect(() => {
-    refreshAssistantBackup();
-  }, [refreshAssistantBackup]);
 
   useEffect(() => {
     refreshCaregiverLinkState();
@@ -178,37 +152,6 @@ export default function SettingsScreen({
 
   const saveBackupRoleDetails = async (updates: Partial<HealthProfileInfo>) => {
     await handleSaveProfile({ ...profile, ...updates });
-  };
-
-  const handleAssistantSync = async () => {
-    if (!authUserId) {
-      onNavigate?.("auth");
-      return;
-    }
-    Haptics.selectionAsync();
-    setAssistantBusy(true);
-    try {
-      const { error } = await backupNow(authUserId);
-      refreshAssistantBackup();
-      if (error) {
-        Alert.alert("Assistant sync failed", "Could not update the signed-in cloud copy. Try again after checking sign-in.");
-      } else {
-        Alert.alert("Synced", "Your signed-in cloud copy is updated for the assistant. iCloud backup on this device is unchanged.");
-      }
-    } catch {
-      Alert.alert("Assistant sync failed", "Could not update the signed-in cloud copy.");
-    } finally {
-      setAssistantBusy(false);
-    }
-  };
-
-  const handleAssistantSignOut = async () => {
-    try {
-      await signOut();
-      setAssistantBackup(null);
-    } catch {
-      Alert.alert("Sign out failed", "Could not sign out right now.");
-    }
   };
 
   const handleConnectAppleHealth = async () => {
@@ -803,30 +746,6 @@ export default function SettingsScreen({
               )}
             </View>
           </GlassView>
-          <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
-            <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Assistant access</Text>
-            <Text style={[styles.simpleSettingsPrompt, { fontSize: simpleBodySize }]}>
-              {authUserId ? formatBackupTime(assistantBackup?.lastSyncedAt) : "Sign in to enable optional assistant sync"}
-            </Text>
-            <View style={styles.simpleSettingsButtonRow}>
-              {authUserId ? (
-                <>
-                  <Pressable style={styles.simpleSettingsPrimaryButton} onPress={handleAssistantSync} disabled={assistantBusy}>
-                    <Text style={[styles.simpleSettingsPrimaryButtonText, { fontSize: simpleActionSize }]}>
-                      {assistantBusy ? "Working..." : "Sync now"}
-                    </Text>
-                  </Pressable>
-                  <Pressable style={styles.simpleSettingsSecondaryButton} onPress={handleAssistantSignOut} disabled={assistantBusy}>
-                    <Text style={[styles.simpleSettingsSecondaryButtonText, { fontSize: simpleActionSize }]}>Sign out</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <Pressable style={styles.simpleSettingsPrimaryButton} onPress={() => onNavigate?.("auth")}>
-                  <Text style={[styles.simpleSettingsPrimaryButtonText, { fontSize: simpleActionSize }]}>Sign in</Text>
-                </Pressable>
-              )}
-            </View>
-          </GlassView>
           <Pressable style={styles.simpleSettingsSecondaryButton} onPress={() => onNavigate?.("settings")}>
             <Text style={[styles.simpleSettingsSecondaryButtonText, { fontSize: simpleActionSize }]}>Open Preferences</Text>
           </Pressable>
@@ -983,64 +902,12 @@ export default function SettingsScreen({
         <Text style={styles.title}>{isIntegrations ? "Integrations" : "Care & Sharing"}</Text>
         {isIntegrations ? (
           <Text style={[styles.desc, { marginBottom: 16 }]}>
-            Connect optional services. Local backup files live under Backup & Restore. Appearance and mode live in Preferences.
+            Connect optional on-device services. Local backup files live under Backup & Restore. Appearance and mode live in Preferences.
           </Text>
         ) : null}
 
         {isIntegrations ? (
         <>
-        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
-          <Text style={styles.sectionTitle}>Assistant access</Text>
-          <Text style={styles.desc}>
-            Optional signed-in cloud copy so a personal Cursor assistant can read your own health data over MCP. This is separate from private iCloud backup. Not medical advice.
-          </Text>
-          <View style={styles.syncedBadge}>
-            <Ionicons
-              name={authUserId ? "sparkles-outline" : "lock-closed-outline"}
-              size={15}
-              color={authUserId ? C.green : C.textTertiary}
-            />
-            <Text style={[styles.syncedText, !authUserId && { color: C.textTertiary }]}>
-              {authUserId
-                ? formatBackupTime(assistantBackup?.lastSyncedAt)
-                : "Sign in to enable assistant sync"}
-            </Text>
-          </View>
-          <View style={styles.backupActions}>
-            {authUserId ? (
-              <>
-                <Pressable
-                  style={[styles.secondaryBtn, assistantBusy && { opacity: 0.55 }]}
-                  onPress={handleAssistantSync}
-                  disabled={assistantBusy}
-                  accessibilityRole="button"
-                  accessibilityLabel="Sync health data for assistant"
-                >
-                  <Text style={styles.secondaryBtnText}>{assistantBusy ? "Working..." : "Sync now"}</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.outlineBtn, assistantBusy && { opacity: 0.55 }]}
-                  onPress={handleAssistantSignOut}
-                  disabled={assistantBusy}
-                  accessibilityRole="button"
-                  accessibilityLabel="Sign out of assistant access"
-                >
-                  <Text style={styles.outlineBtnText}>Sign out</Text>
-                </Pressable>
-              </>
-            ) : (
-              <Pressable
-                style={styles.secondaryBtn}
-                onPress={() => onNavigate?.("auth")}
-                accessibilityRole="button"
-                accessibilityLabel="Sign in for assistant access"
-              >
-                <Text style={styles.secondaryBtnText}>Sign in</Text>
-              </Pressable>
-            )}
-          </View>
-        </GlassView>
-
         <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
           <Text style={styles.sectionTitle}>Apple Health</Text>
           <Text style={styles.desc}>

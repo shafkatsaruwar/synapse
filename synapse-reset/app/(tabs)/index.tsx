@@ -24,7 +24,6 @@ import GoalsScreen from "@/screens/GoalsScreen";
 import ReportsScreen from "@/screens/ReportsScreen";
 import CareSharingScreen from "@/screens/CareSharingScreen";
 import IntegrationsScreen from "@/screens/IntegrationsScreen";
-import AuthScreen from "@/screens/AuthScreen";
 import HealthDataScreen from "@/screens/HealthDataScreen";
 import DocumentsScreen from "@/screens/DocumentsScreen";
 import InsightsScreen from "@/screens/InsightsScreen";
@@ -1469,13 +1468,6 @@ export default function MainScreen() {
         );
       case "settings":
         return <PreferencesScreen onNavigate={handleNavigate} onResetApp={handleResetApp} />;
-      case "auth":
-        return (
-          <AuthScreen
-            onBack={() => handleNavigate("caresharing")}
-            onSuccess={() => handleNavigate("caresharing")}
-          />
-        );
       default:
         if (__DEV__) {
           console.warn(`[nav] Unhandled screen key "${activeScreen}" — showing recovery`);
