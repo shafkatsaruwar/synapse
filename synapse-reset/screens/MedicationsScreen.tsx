@@ -26,7 +26,15 @@ import VisualScanImportModal from "@/screens/VisualScanImportModal";
 import MedicationEnforcementCard from "@/components/MedicationEnforcementCard";
 import AddMedicationGuidedFlow from "@/components/medications/AddMedicationGuidedFlow";
 import EditMedicationHub from "@/components/medications/EditMedicationHub";
+import TodaysDosesPanel from "@/components/medications/TodaysDosesPanel";
+import MyMedicationsPanel from "@/components/medications/MyMedicationsPanel";
 import { featureFlags } from "@/constants/feature-flags";
+import {
+  bucketTodayDoses,
+  buildRegimenSummaries,
+  buildTodayDoseInstances,
+  formatDoseAmountLabel,
+} from "@/lib/medication-today";
 import {
   draftFromScan,
   type AddMedicationDraft,
@@ -317,6 +325,8 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
   const [guidedInitialOwner, setGuidedInitialOwner] = useState<RecordOwner | undefined>(undefined);
   const [showEditHub, setShowEditHub] = useState(false);
   const [hubMedication, setHubMedication] = useState<Medication | null>(null);
+  const [medsBrowseTab, setMedsBrowseTab] = useState<"today" | "meds">("today");
+  const [doseUndo, setDoseUndo] = useState<{ medicationId: string; doseIndex: number; label: string } | null>(null);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
   const [nudgeMedId, setNudgeMedId] = useState<string | null>(null);
 
@@ -1151,19 +1161,32 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
     ]);
   };
 
-  const handleDoseToggle = async (medId: string, doseIdx: number) => {
+  const handleDoseToggle = async (medId: string, doseIdx: number, options?: { fromUndo?: boolean }) => {
     try {
       const med = medications.find((m) => m.id === medId);
       const normalizedMed = med ? normalizeMedication(med) : null;
       const scheduledTime = normalizedMed?.doses?.[doseIdx]?.reminderTime;
       const log = medLogs.find((l) => l.medicationId === medId && (l.doseIndex ?? 0) === doseIdx);
-      const nextFeedback = log?.taken ? "selection" : "success";
-      if (log?.taken) {
+      const wasTaken = Boolean(log?.taken);
+      const nextFeedback = wasTaken ? "selection" : "success";
+      if (wasTaken) {
         await medicationLogStorage.toggle(medId, today, doseIdx, { scheduledTime });
         if (med) await updateMedicationSupply(med, doseIdx, "undo");
+        setDoseUndo(null);
       } else {
         await medicationLogStorage.toggle(medId, today, doseIdx, { scheduledTime });
         if (med) await updateMedicationSupply(med, doseIdx, "take");
+        if (!options?.fromUndo) {
+          const dose = normalizedMed?.doses?.[doseIdx];
+          const amount = formatDoseAmountLabel(dose?.amount ?? "", dose?.unit ?? "");
+          setDoseUndo({
+            medicationId: medId,
+            doseIndex: doseIdx,
+            label: `Logged ${med?.name?.trim() || "dose"}${amount ? ` · ${amount}` : ""}`,
+          });
+        } else {
+          setDoseUndo(null);
+        }
       }
       await refreshMedicationStatus();
       if (nextFeedback === "selection") {
@@ -1388,15 +1411,78 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
     tag, meds: scheduledMeds.filter((m) => getMedTags(m).includes(tag)),
   })).filter((g) => g.meds.length > 0);
 
-  const totalDoses = scheduledMeds.reduce((sum, m) => sum + getDoseCount(m), 0);
-  const takenDoses = scheduledMeds.reduce((sum, m) => {
-    const dc = getDoseCount(m);
-    let taken = 0;
-    for (let i = 0; i < dc; i++) {
-      if (isDoseTaken(m.id, i)) taken++;
-    }
-    return sum + taken;
-  }, 0);
+  const todayDoseBuckets = useMemo(
+    () => bucketTodayDoses(buildTodayDoseInstances(medications, medLogs, today)),
+    [medications, medLogs, today],
+  );
+  const regimenSummaries = useMemo(
+    () => buildRegimenSummaries(medications, medLogs, today),
+    [medications, medLogs, today],
+  );
+  const totalDoses = todayDoseBuckets.total;
+  const takenDoses = todayDoseBuckets.takenCount;
+
+  const caredForLabel = profile.caredForName?.trim() || "Care recipient";
+
+  const renderBrowseTabs = () => (
+    <View style={styles.browseTabs} accessibilityRole="tablist">
+      {([
+        { key: "today" as const, label: "Today's Doses" },
+        { key: "meds" as const, label: "My Medications" },
+      ]).map((tab) => {
+        const selected = medsBrowseTab === tab.key;
+        return (
+          <Pressable
+            key={tab.key}
+            style={[styles.browseTab, selected && styles.browseTabActive]}
+            onPress={() => setMedsBrowseTab(tab.key)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            accessibilityLabel={tab.label}
+          >
+            <Text style={[styles.browseTabText, selected && styles.browseTabTextActive]}>{tab.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  const renderBrowseBody = () => (
+    <>
+      {renderBrowseTabs()}
+      {medsBrowseTab === "today" ? (
+        <TodaysDosesPanel
+          buckets={todayDoseBuckets}
+          isCaregiver={isCaregiver}
+          caredForLabel={caredForLabel}
+          onToggleDose={(medicationId, doseIndex) => {
+            void handleDoseToggle(medicationId, doseIndex);
+          }}
+          onOpenMedication={(medicationId) => {
+            const med = medications.find((m) => m.id === medicationId);
+            if (med) openEditModal(med);
+          }}
+          undoToast={doseUndo ? { key: `${doseUndo.medicationId}:${doseUndo.doseIndex}`, label: doseUndo.label } : null}
+          onUndo={() => {
+            if (!doseUndo) return;
+            void handleDoseToggle(doseUndo.medicationId, doseUndo.doseIndex, { fromUndo: true });
+          }}
+          onDismissUndo={() => setDoseUndo(null)}
+        />
+      ) : (
+        <MyMedicationsPanel
+          regimens={regimenSummaries}
+          isCaregiver={isCaregiver}
+          caredForLabel={caredForLabel}
+          onOpenMedication={(med) => openEditModal(med)}
+          onLogPrn={(med) => {
+            void handleQuickPrnLog(med);
+          }}
+          onManageMedication={(med) => openSimpleMedicationActions(med)}
+        />
+      )}
+    </>
+  );
 
   const SICK_SYMPTOMS = ["Nausea", "Vomiting", "Diarrhea", "Dizziness", "Fatigue", "Headache", "Chills", "Body aches", "Fever", "Loss of appetite"];
   const HYDRATION_GOAL = 2000;
@@ -1722,221 +1808,8 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
           showsVerticalScrollIndicator={false}
         >
           <MedicationEnforcementCard onResolved={loadData} />
-          {scheduledMeds.length === 0 && prnMeds.length === 0 ? (
-            <View style={styles.simpleEmptyCard}>
-              <Text style={styles.simpleEmptyTitle}>No medications yet</Text>
-              <Text style={styles.simpleEmptyBody}>Use Add Med to set up your first medication.</Text>
-            </View>
-          ) : (
-            <>
-              <View style={styles.simpleSection}>
-                <Text style={styles.simpleSectionLabel}>Scheduled</Text>
-                <View style={styles.simpleSummaryCard}>
-                  <Text style={styles.simpleSummaryText}>{simpleScheduledSummary}</Text>
-                </View>
-                {scheduledMeds.length === 0 ? (
-                  <View style={styles.simpleEmptyInlineCard}>
-                    <Text style={styles.simpleEmptyInlineText}>No scheduled medications right now.</Text>
-                  </View>
-                ) : (
-                  scheduledMeds.map((med) => {
-                    const normalizedMed = normalizeMedication(med);
-                    const totalForMed = getDoseCount(med);
-                    const takenForMed = Array.from({ length: totalForMed }, (_, i) => isDoseTaken(med.id, i)).filter(Boolean).length;
-                    const dueIndices = Array.from({ length: totalForMed }, (_, i) => i).filter((i) => isDoseDueNow(med, i));
-                    const firstDueIndex = dueIndices[0] ?? null;
-                    const nextUntakenIndex = Array.from({ length: totalForMed }, (_, i) => i).find((i) => !isDoseTaken(med.id, i)) ?? null;
-                    const firstTakenLog = medLogs
-                      .filter((log) => log.medicationId === med.id && log.taken)
-                      .sort((a, b) => (b.recordedAt ?? "").localeCompare(a.recordedAt ?? ""))[0];
-                    const firstDose = normalizedMed.doses?.[0];
-                    const scheduledTimes = Array.from(new Set(normalizedMed.doses?.map((dose) => dose.timeOfDay).filter((time) => TIME_TAGS.includes(time)) ?? []));
-                    const firstDoseText = firstDose?.amount && firstDose?.unit
-                      ? `${firstDose.amount} ${firstDose.unit}${scheduledTimes.length > 0 ? ` · ${scheduledTimes.join(", ")}` : ""}`
-                      : (med as { dosage?: string }).dosage
-                        ? `${(med as { dosage?: string }).dosage}${(med as { unit?: string }).unit ? ` ${(med as { unit?: string }).unit}` : ""}`
-                        : "Dose details";
-                    const nextReminder = firstDueIndex === null
-                      ? normalizedMed.doses?.find((dose, idx) => !isDoseTaken(med.id, idx))?.reminderTime
-                      : normalizedMed.doses?.[firstDueIndex]?.reminderTime;
-                    const loggedTime = formatLoggedTime(firstTakenLog?.recordedAt);
-                    const statusText = takenForMed >= totalForMed
-                      ? `Taken at ${loggedTime || "now"}`
-                      : loggedTime
-                        ? `Last taken at ${loggedTime}`
-                      : firstDueIndex !== null
-                        ? "Not taken yet"
-                        : nextReminder
-                          ? `Next dose: ${formatReminderTimeDisplay(nextReminder)}`
-                          : "Scheduled";
-                    const emoji = getAutoEmoji(med);
-                    const canTakeScheduledDose = nextUntakenIndex !== null;
-                    const prescribingDoctor = getMedicationDoctor(med);
-                    const caregiverStatus = isCaregiver && med.entryOwner === "care_recipient" ? getCaregiverMedStatus(med) : null;
+          {renderBrowseBody()}
 
-                    return (
-                      <Pressable
-                        key={med.id}
-                        style={({ pressed }) => [
-                          styles.simpleMedicationCard,
-                          pressed && styles.simpleMedicationCardPressed,
-                        ]}
-                        onPress={() => openEditModal(med)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Edit ${med.name}`}
-                      >
-                        <View style={styles.simpleMedicationRow}>
-                          <Text style={styles.simpleMedicationEmoji}>{emoji}</Text>
-                          <View style={styles.simpleMedicationTextWrap}>
-                            <Text style={styles.simpleMedicationName}>{med.name}</Text>
-                            <Text style={styles.simpleMedicationDose}>{firstDoseText}</Text>
-                            {prescribingDoctor ? <Text style={styles.simpleMedicationDoctor}>Prescribed by: {prescribingDoctor.name}</Text> : null}
-                          </View>
-                          <Pressable
-                            style={({ pressed }) => [
-                              styles.simpleMedicationMoreButton,
-                              pressed && styles.simpleMedicationMoreButtonPressed,
-                            ]}
-                            onPress={(event) => {
-                              event.stopPropagation();
-                              openSimpleMedicationActions(med);
-                            }}
-                            hitSlop={8}
-                            accessibilityRole="button"
-                            accessibilityLabel={`More options for ${med.name}`}
-                          >
-                            <Ionicons name="ellipsis-horizontal" size={20} color={C.textSecondary} />
-                          </Pressable>
-                        </View>
-                        <View style={styles.simpleMedicationDivider} />
-                        <Text style={styles.simpleMedicationStatus}>{statusText}</Text>
-                        {caregiverStatus ? (
-                          <View style={[styles.caregiverStatusLayer, caregiverStatus.status === "missed" && styles.caregiverStatusLayerMissed]}>
-                            <Text style={styles.caregiverStatusText}>
-                              {caregiverStatus.status === "taken" ? "🟢 Taken" : caregiverStatus.status === "dueSoon" ? "🟡 Due soon" : caregiverStatus.status === "missed" ? "🔴 Missed" : "🟡 Pending"}
-                            </Text>
-                            <Text style={styles.caregiverStatusMeta}>
-                              Last taken: {caregiverStatus.lastTaken ? formatLoggedTime(caregiverStatus.lastTaken) : "Not today"}
-                            </Text>
-                            <Text style={styles.caregiverStatusMeta}>
-                              Next dose: {caregiverStatus.nextDose?.reminderTime ? formatReminderTimeDisplay(caregiverStatus.nextDose.reminderTime) : "None today"}
-                            </Text>
-                            {caregiverStatus.missedCount > 0 ? (
-                              <Text style={styles.caregiverMissedText}>🔴 {caregiverStatus.missedCount} dose{caregiverStatus.missedCount === 1 ? "" : "s"} missed today</Text>
-                            ) : null}
-                          </View>
-                        ) : null}
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.simpleMedicationPrimaryButton,
-                            takenForMed >= totalForMed && styles.simpleMedicationPrimaryButtonDone,
-                            !canTakeScheduledDose && styles.simpleMedicationPrimaryButtonDisabled,
-                            pressed && styles.simpleMedicationPrimaryButtonPressed,
-                          ]}
-                          disabled={!canTakeScheduledDose}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            if (nextUntakenIndex !== null) {
-                              handleDoseToggle(med.id, nextUntakenIndex);
-                            }
-                          }}
-                          accessibilityRole="button"
-                          accessibilityLabel={takenForMed >= totalForMed ? `${med.name} taken` : `Take ${med.name} now`}
-                        >
-                          <Text
-                            style={[
-                              styles.simpleMedicationPrimaryButtonText,
-                              takenForMed >= totalForMed && styles.simpleMedicationPrimaryButtonTextDone,
-                            ]}
-                          >
-                            {takenForMed >= totalForMed ? "Taken ✔" : "Take now"}
-                          </Text>
-                        </Pressable>
-                      </Pressable>
-                    );
-                  })
-                )}
-              </View>
-
-              <View style={styles.simpleSection}>
-                <Text style={styles.simpleSectionLabel}>As Needed</Text>
-                {prnMeds.length === 0 ? (
-                  <View style={styles.simpleEmptyInlineCard}>
-                    <Text style={styles.simpleEmptyInlineText}>No As Needed medications set up yet.</Text>
-                  </View>
-                ) : (
-                  prnMeds.map((med) => {
-                    const prnLogs = getPrnLogsForMed(med.id);
-                    const firstDose = normalizeMedication(med).doses?.[0];
-                    const doseText = firstDose?.amount && firstDose?.unit
-                      ? `${firstDose.amount} ${firstDose.unit}`
-                      : (med as { dosage?: string }).dosage
-                        ? `${(med as { dosage?: string }).dosage}${(med as { unit?: string }).unit ? ` ${(med as { unit?: string }).unit}` : ""}`
-                        : "Dose details";
-                    const emoji = getAutoEmoji(med);
-                    const prescribingDoctor = getMedicationDoctor(med);
-
-                    return (
-                      <Pressable
-                        key={med.id}
-                        style={({ pressed }) => [
-                          styles.simpleMedicationCard,
-                          pressed && styles.simpleMedicationCardPressed,
-                        ]}
-                        onPress={() => openEditModal(med)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Edit ${med.name}`}
-                      >
-                        <View style={styles.simpleMedicationRow}>
-                          <Text style={styles.simpleMedicationEmoji}>{emoji}</Text>
-                          <View style={styles.simpleMedicationTextWrap}>
-                            <Text style={styles.simpleMedicationName}>{med.name}</Text>
-                            <Text style={styles.simpleMedicationDose}>{doseText} · As Needed</Text>
-                            {prescribingDoctor ? <Text style={styles.simpleMedicationDoctor}>Prescribed by: {prescribingDoctor.name}</Text> : null}
-                          </View>
-                          <Pressable
-                            style={({ pressed }) => [
-                              styles.simpleMedicationMoreButton,
-                              pressed && styles.simpleMedicationMoreButtonPressed,
-                            ]}
-                            onPress={(event) => {
-                              event.stopPropagation();
-                              openSimpleMedicationActions(med);
-                            }}
-                            hitSlop={8}
-                            accessibilityRole="button"
-                            accessibilityLabel={`More options for ${med.name}`}
-                          >
-                            <Ionicons name="ellipsis-horizontal" size={20} color={C.textSecondary} />
-                          </Pressable>
-                        </View>
-                        <View style={styles.simpleMedicationDivider} />
-                        <Text style={styles.simpleMedicationStatus}>
-                          {prnLogs.length > 0
-                            ? `Taken ${prnLogs.length} time${prnLogs.length === 1 ? "" : "s"} today`
-                            : "Not taken yet today"}
-                        </Text>
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.simpleMedicationPrimaryButton,
-                            pressed && styles.simpleMedicationPrimaryButtonPressed,
-                          ]}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            handleQuickPrnLog(med);
-                          }}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Log dose for ${med.name}`}
-                        >
-                          <Text style={styles.simpleMedicationPrimaryButtonText}>Take Dose</Text>
-                        </Pressable>
-                      </Pressable>
-                    );
-                  })
-                )}
-              </View>
-            </>
-          )}
         </ScrollView>
 
         {prnToast ? (
@@ -2022,361 +1895,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
         showsVerticalScrollIndicator={false}
       >
         <MedicationEnforcementCard onResolved={loadData} />
-        {grouped.length === 0 && prnMeds.length === 0 ? (
-          <View style={styles.empty}>
-            <Ionicons name="medical-outline" size={40} color={C.textTertiary} />
-            <Text style={styles.emptyTitle}>No medications yet</Text>
-            <Text style={styles.emptyDesc}>Tap Add Med to add your first medication.</Text>
-          </View>
-        ) : (
-          grouped.map(({ tag, meds }) => (
-          <View key={tag} style={{ marginBottom: 20 }}>
-            <View style={[styles.tagBadge, { backgroundColor: TAG_COLORS[tag]?.bg ?? C.surfaceElevated }]}>
-              <Ionicons name={(TAG_COLORS[tag]?.icon ?? "ellipse-outline") as any} size={12} color={TAG_COLORS[tag]?.text ?? C.textSecondary} />
-              <Text style={[styles.tagText, { color: TAG_COLORS[tag]?.text ?? C.textSecondary }]}>{tag}</Text>
-            </View>
-            {meds.map((med) => {
-              const indicesForTag: number[] = [];
-              if (Array.isArray(med.doses) && med.doses.length > 0) {
-                med.doses.forEach((d, idx) => {
-                  if (d.timeOfDay === tag) indicesForTag.push(idx);
-                });
-              } else {
-                const tt = (med as { timeTag?: string | string[] }).timeTag;
-                if (Array.isArray(tt)) {
-                  tt.forEach((t, idx) => {
-                    if (t === tag) indicesForTag.push(idx);
-                  });
-                } else if (typeof tt === "string" && tt === tag) {
-                  indicesForTag.push(0);
-                }
-              }
-
-              if (indicesForTag.length === 0) return null;
-
-              const doseCountForTag = indicesForTag.length;
-              const takenForTag = indicesForTag.filter((i) => isDoseTaken(med.id, i)).length;
-              const allTaken = takenForTag === doseCountForTag;
-              const dueIndicesForTag = indicesForTag.filter((i) => isDoseDueNow(med, i));
-              const hasAnyDueDose = dueIndicesForTag.length > 0;
-              const nextReminderTime = normalizeMedication(med).doses?.[indicesForTag[0]]?.reminderTime;
-              const labels = doseLabels(med);
-              const emoji = getAutoEmoji(med);
-              const totalDosesMed = getDoseCount(med);
-              const takenTotalMed = Array.from({ length: totalDosesMed }, (_, i) => isDoseTaken(med.id, i)).filter(Boolean).length;
-              const currentSupply = getCurrentSupplyAmount(med);
-              const remainingRefills = med.refillsRemaining;
-              const showRefill = currentSupply != null || remainingRefills != null;
-              const prescribingDoctor = getMedicationDoctor(med);
-              const caregiverStatus = isCaregiver && med.entryOwner === "care_recipient" ? getCaregiverMedStatus(med) : null;
-
-              return (
-                <Pressable
-                  key={med.id}
-                  style={[
-                    styles.medCard,
-                    allTaken && styles.medCardTaken,
-                  ]}
-                  onPress={() => openEditModal(med)}
-                >
-                  <View style={styles.medInfo}>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                        <Text style={{ fontSize: 18 }}>{emoji}</Text>
-                        <Text style={[styles.medName, allTaken && styles.medNameTaken]}>{med.name}</Text>
-                        {isCaregiver && (
-                          <View style={styles.ownerBadge}>
-                            <Text style={styles.ownerBadgeText}>{getOwnerLabel(med.entryOwner)}</Text>
-                          </View>
-                        )}
-                      </View>
-                      {Array.isArray(med.doses) && med.doses.length > 0 ? (
-                        med.doses
-                          .map((d, i) => ({ d, i }))
-                          .filter(({ i }) => indicesForTag.includes(i))
-                          .map(({ d, i }) => (
-                            <Text key={d.id || i} style={styles.medDose}>
-                              {d.amount && d.unit ? `${d.amount} ${d.unit} — ${d.timeOfDay}` : d.timeOfDay}
-                            </Text>
-                          ))
-                      ) : (med as { dosage?: string }).dosage ? (
-                        <Text style={styles.medDose}>
-                          {(med as { dosage?: string }).dosage}{(med as { unit?: string }).unit ? ` ${(med as { unit?: string }).unit}` : ""}
-                          {med.route ? ` · ${med.route}` : ""}
-                        </Text>
-                      ) : null}
-                      <View style={styles.medMetaRow}>
-                        {!!med.frequency && <Text style={styles.medFreq}>{med.frequency}</Text>}
-                        {prescribingDoctor ? <Text style={[styles.medFreq, styles.medMetaInline]}>Prescribed by: {prescribingDoctor.name}</Text> : null}
-                        {!!med.pharmacyName && <Text style={[styles.medFreq, styles.medMetaInline]}>{med.pharmacyName}</Text>}
-                        {totalDosesMed > 0 && (
-                          <Text style={[styles.medFreq, styles.medMetaInline]}>
-                            ({takenTotalMed}/{totalDosesMed} doses today)
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                    <Pressable onPress={() => handleDelete(med)} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Remove ${med.name}`}>
-                      <Ionicons name="trash-outline" size={16} color={C.textTertiary} />
-                    </Pressable>
-                  </View>
-
-                  {showRefill && (
-                    <View style={styles.refillRow}>
-                      <Ionicons name="alert-circle-outline" size={14} color={C.textTertiary} />
-                      <Text style={[styles.refillText, currentSupply != null && currentSupply <= getLowSupplyThreshold(med) && styles.refillTextWarning]}>
-                        Supply · {currentSupply != null ? `${formatSupplyAmount(currentSupply)} ${displayRefillUnit(getInventoryUnit(med), currentSupply)} left` : "Not set"}
-                        {remainingRefills != null ? ` · ${remainingRefills} refill${remainingRefills === 1 ? "" : "s"} left` : ""}
-                      </Text>
-                    </View>
-                  )}
-
-                  {caregiverStatus ? (
-                    <View style={[styles.caregiverStatusLayer, caregiverStatus.status === "missed" && styles.caregiverStatusLayerMissed]}>
-                      <Text style={styles.caregiverStatusText}>
-                        {caregiverStatus.status === "taken" ? "🟢 Taken" : caregiverStatus.status === "dueSoon" ? "🟡 Due soon" : caregiverStatus.status === "missed" ? "🔴 Missed" : "🟡 Pending"}
-                      </Text>
-                      <Text style={styles.caregiverStatusMeta}>
-                        Last taken: {caregiverStatus.lastTaken ? formatLoggedTime(caregiverStatus.lastTaken) : "Not today"}
-                      </Text>
-                      <Text style={styles.caregiverStatusMeta}>
-                        Next dose: {caregiverStatus.nextDose?.reminderTime ? formatReminderTimeDisplay(caregiverStatus.nextDose.reminderTime) : "None today"}
-                      </Text>
-                      {caregiverStatus.missedCount > 0 ? (
-                        <Text style={styles.caregiverMissedText}>🔴 {caregiverStatus.missedCount} dose{caregiverStatus.missedCount === 1 ? "" : "s"} missed today</Text>
-                      ) : null}
-                    </View>
-                  ) : null}
-
-                  {doseCountForTag === 1 ? (
-                    allTaken ? (
-                      <Pressable
-                        style={styles.takenBanner}
-                        onPress={() => handleDoseToggle(med.id, indicesForTag[0])}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${med.name} taken, tap to undo`}
-                      >
-                        <Ionicons name="checkmark-circle" size={18} color={C.green} />
-                        <Text style={styles.takenText}>Taken</Text>
-                      </Pressable>
-                    ) : !hasAnyDueDose ? (
-                      <View style={styles.notReadyBanner}>
-                        <Ionicons name="time-outline" size={12} color={C.textTertiary} style={styles.notReadyIcon} />
-                        <Text style={styles.notReadyText}>
-                          {nextReminderTime
-                            ? `Next dose • ${formatReminderTimeDisplay(nextReminderTime)}`
-                            : "Next dose • Scheduled time"}
-                        </Text>
-                      </View>
-                    ) : (
-                      <View style={styles.actionRow}>
-                        <Pressable
-                          style={styles.yesBtn}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            handleDoseToggle(med.id, indicesForTag[0]);
-                          }}
-                          testID={`taken-${med.name}`}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Mark ${med.name} as taken`}
-                        >
-                          <Ionicons name="checkmark" size={16} color="#fff" />
-                          <Text style={styles.yesBtnText}>Yes, took it</Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.notYetBtn}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            handleNotYet(med.id);
-                          }}
-                          testID={`notyet-${med.name}`}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Skip ${med.name} for now`}
-                        >
-                          <Text style={styles.notYetText}>Not yet</Text>
-                        </Pressable>
-                      </View>
-                    )
-                  ) : (
-                    !hasAnyDueDose ? (
-                      <View style={styles.notReadyBanner}>
-                        <Ionicons name="time-outline" size={12} color={C.textTertiary} style={styles.notReadyIcon} />
-                        <Text style={styles.notReadyText}>
-                          {nextReminderTime
-                            ? `Next dose • ${formatReminderTimeDisplay(nextReminderTime)}`
-                            : "Next dose • Scheduled time"}
-                        </Text>
-                      </View>
-                    ) : (
-                    <View style={styles.dosesContainer}>
-                      {indicesForTag.map((doseIdx) => {
-                        const taken = isDoseTaken(med.id, doseIdx);
-                        const dueNow = isDoseDueNow(med, doseIdx);
-                        const reminderTime = normalizeMedication(med).doses?.[doseIdx]?.reminderTime;
-                        return (
-                          <Pressable
-                            key={doseIdx}
-                            style={[styles.doseRow, taken && styles.doseRowTaken, !taken && !dueNow && styles.doseRowPending]}
-                            onPress={(event) => {
-                              event.stopPropagation();
-                              if (!dueNow) return;
-                              handleDoseToggle(med.id, doseIdx);
-                            }}
-                            accessibilityRole={dueNow ? "button" : "text"}
-                            accessibilityLabel={`${med.name} ${labels[doseIdx]}, ${taken ? "taken" : dueNow ? "ready" : "not due yet"}`}
-                          >
-                            <Ionicons
-                              name={taken ? "checkmark-circle" : dueNow ? "radio-button-off-outline" : "time-outline"}
-                              size={20}
-                              color={taken ? C.green : dueNow ? C.textTertiary : C.textSecondary}
-                            />
-                            <Text style={[styles.doseLabel, taken && { color: C.green }]}>{labels[doseIdx]}</Text>
-                            <Text style={{ fontSize: 11, fontWeight: "600" as const, color: taken ? C.green : C.textTertiary }}>
-                              {taken ? "Taken" : dueNow ? "Ready" : reminderTime ? `Due ${formatReminderTimeDisplay(reminderTime)}` : "Not yet"}
-                            </Text>
-                            {!taken && dueNow && (
-                              <Pressable
-                                style={styles.doseNotYet}
-                                onPress={(event) => {
-                                  event.stopPropagation();
-                                  handleNotYet(med.id);
-                                }}
-                              >
-                                <Text style={styles.doseNotYetText}>skip</Text>
-                              </Pressable>
-                            )}
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                    )
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
-        )))}
-
-        {prnMeds.length > 0 && (
-          <View style={{ marginBottom: 20 }}>
-            <View style={[styles.tagBadge, { backgroundColor: C.orangeLight }]}>
-              <Ionicons name="flash-outline" size={12} color={C.orange} />
-              <Text style={[styles.tagText, { color: C.orange }]}>As Needed</Text>
-            </View>
-            {prnMeds.map((med) => {
-              const prnLogs = getPrnLogsForMed(med.id);
-              const lastTaken = prnLogs[0]?.recordedAt;
-              const emoji = getAutoEmoji(med);
-              const currentSupply = getCurrentSupplyAmount(med);
-              const remainingRefills = med.refillsRemaining;
-              const showRefill = currentSupply != null || remainingRefills != null;
-              const prescribingDoctor = getMedicationDoctor(med);
-
-              return (
-                <Pressable
-                  key={med.id}
-                  style={styles.medCard}
-                  onPress={() => openEditModal(med)}
-                >
-                  <View style={styles.medInfo}>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                        <Text style={{ fontSize: 18 }}>{emoji}</Text>
-                        <Text style={styles.medName}>{med.name}</Text>
-                        {isCaregiver && (
-                          <View style={styles.ownerBadge}>
-                            <Text style={styles.ownerBadgeText}>{getOwnerLabel(med.entryOwner)}</Text>
-                          </View>
-                        )}
-                      </View>
-                      {Array.isArray(med.doses) && med.doses.length > 0 ? (
-                        med.doses.map((d, i) => (
-                          <Text key={d.id || i} style={styles.medDose}>
-                            {d.amount && d.unit ? `${d.amount} ${d.unit}` : "Dose"}
-                            {d.optionalNotes ? ` • ${d.optionalNotes}` : ""}
-                          </Text>
-                        ))
-                      ) : (med as { dosage?: string }).dosage ? (
-                        <Text style={styles.medDose}>
-                          {(med as { dosage?: string }).dosage}
-                          {(med as { unit?: string }).unit ? ` ${(med as { unit?: string }).unit}` : ""}
-                        </Text>
-                      ) : null}
-                      <View style={styles.medMetaRow}>
-                        <Text style={styles.medFreq}>As Needed</Text>
-                        {prescribingDoctor ? <Text style={[styles.medFreq, styles.medMetaInline]}>Prescribed by: {prescribingDoctor.name}</Text> : null}
-                        {!!med.pharmacyName && (
-                          <Text style={[styles.medFreq, styles.medMetaInline]}>{med.pharmacyName}</Text>
-                        )}
-                      </View>
-                    </View>
-                    <Pressable
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        handleDelete(med);
-                      }}
-                      hitSlop={12}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Remove ${med.name}`}
-                    >
-                      <Ionicons name="trash-outline" size={16} color={C.textTertiary} />
-                    </Pressable>
-                  </View>
-
-                  {showRefill && (
-                    <View style={styles.refillRow}>
-                      <Ionicons name="alert-circle-outline" size={14} color={C.textTertiary} />
-                      <Text
-                        style={[
-                          styles.refillText,
-                          currentSupply != null &&
-                            currentSupply <= getLowSupplyThreshold(med) &&
-                            styles.refillTextWarning,
-                        ]}
-                      >
-                        Supply · {currentSupply != null ? `${formatSupplyAmount(currentSupply)} ${displayRefillUnit(getInventoryUnit(med), currentSupply)} left` : "Not set"}
-                        {remainingRefills != null ? ` · ${remainingRefills} refill${remainingRefills === 1 ? "" : "s"} left` : ""}
-                      </Text>
-                    </View>
-                  )}
-
-                  <View style={styles.prnInlineStatus}>
-                    <Text style={styles.prnSummary}>
-                      Taken {prnLogs.length} time{prnLogs.length === 1 ? "" : "s"} today
-                    </Text>
-                    <Text style={styles.prnInlineMeta}>
-                      {lastTaken ? `Last taken ${formatRelativeTime(lastTaken)}` : "Not taken yet"}
-                    </Text>
-                  </View>
-
-                  <View style={styles.actionRow}>
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.prnLogBtn,
-                        pressed && styles.prnLogBtnPressed,
-                      ]}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        handleQuickPrnLog(med);
-                      }}
-                      onLongPress={(event) => {
-                        event.stopPropagation();
-                        handleQuickPrnLog(med, { silent: true });
-                      }}
-                      delayLongPress={220}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Log dose for ${med.name}`}
-                      accessibilityHint="Long press to log instantly without opening follow-up details"
-                    >
-                      <Ionicons name="add" size={16} color="#fff" />
-                      <Text style={styles.prnLogBtnText}>Log Dose</Text>
-                    </Pressable>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
+        {renderBrowseBody()}
 
         {medications.length > 0 && (
           <View style={styles.safetyNote}>
@@ -3693,6 +3212,33 @@ function makeStyles(C: Theme, S: SickModePalette, textScale: number) {
   simpleScreen: { backgroundColor: "transparent" },
   simpleContent: { paddingTop: 8, gap: 18 },
   headerSticky: { paddingHorizontal: 24 },
+  browseTabs: {
+    flexDirection: "row",
+    backgroundColor: C.surfaceElevated,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+    gap: 4,
+  },
+  browseTab: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  browseTabActive: {
+    backgroundColor: C.surface,
+    ...raised("sm"),
+  },
+  browseTabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: C.textSecondary,
+  },
+  browseTabTextActive: {
+    color: C.text,
+    fontWeight: "700",
+  },
   sickBanner: { marginBottom: 16, borderRadius: 12, padding: 12, borderWidth: 1 },
   sickBannerInner: { flexDirection: "row", alignItems: "center", gap: 8 },
   sickBannerText: { fontWeight: "600", fontSize: 13 },
