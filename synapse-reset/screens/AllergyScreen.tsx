@@ -27,10 +27,11 @@ const DEFAULT_ALLERGY: AllergyInfo = {
 };
 
 interface AllergyScreenProps {
-  onBack: () => void;
+  /** Chrome already provides back/menu — do not render an in-screen My Profile back. */
+  onBack?: () => void;
 }
 
-export default function AllergyScreen({ onBack }: AllergyScreenProps) {
+export default function AllergyScreen(_props: AllergyScreenProps) {
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const insets = useSafeAreaInsets();
@@ -71,11 +72,6 @@ export default function AllergyScreen({ onBack }: AllergyScreenProps) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Pressable onPress={onBack} style={styles.backRow} accessibilityRole="button" accessibilityLabel="Back to My Profile">
-          <Ionicons name="arrow-back" size={22} color={C.text} />
-          <Text style={styles.backText}>My Profile</Text>
-        </Pressable>
-
         <Text style={styles.title}>Allergy & Emergency Info</Text>
         <Text style={styles.subtitle}>Important information for emergencies</Text>
 

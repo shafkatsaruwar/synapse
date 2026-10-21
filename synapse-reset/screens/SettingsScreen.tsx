@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system/legacy";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -32,6 +31,7 @@ import {
   type HealthProfileInfo,
   type UserRole,
 } from "@/lib/storage";
+import { persistProfileImage } from "@/lib/profile-image";
 import { useRole } from "@/contexts/RoleContext";
 import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
@@ -72,15 +72,6 @@ type CaregiverOnboardingStep =
   | "caregiver-code"
   | "confirmation";
 
-const PROFILE_IMAGE_DIR = `${FileSystem.documentDirectory ?? ""}profile-images/`;
-
-function getFileExtension(uri: string) {
-  const clean = uri.split("?")[0] ?? uri;
-  const lastDot = clean.lastIndexOf(".");
-  if (lastDot === -1) return "jpg";
-  return clean.slice(lastDot + 1).toLowerCase() || "jpg";
-}
-
 function formatBackupTime(value?: string | null) {
   if (!value) return "Not synced yet";
   const date = new Date(value);
@@ -91,27 +82,6 @@ function formatBackupTime(value?: string | null) {
     hour: "numeric",
     minute: "2-digit",
   })}`;
-}
-
-async function persistProfileImage(sourceUri: string, previousUri?: string) {
-  if (Platform.OS === "web" || !FileSystem.documentDirectory) {
-    return sourceUri;
-  }
-
-  await FileSystem.makeDirectoryAsync(PROFILE_IMAGE_DIR, { intermediates: true });
-
-  const extension = getFileExtension(sourceUri);
-  const destinationUri = `${PROFILE_IMAGE_DIR}profile-${Date.now()}.${extension}`;
-  await FileSystem.copyAsync({ from: sourceUri, to: destinationUri });
-
-  if (previousUri?.startsWith(PROFILE_IMAGE_DIR) && previousUri !== destinationUri) {
-    const previousInfo = await FileSystem.getInfoAsync(previousUri);
-    if (previousInfo.exists) {
-      await FileSystem.deleteAsync(previousUri, { idempotent: true });
-    }
-  }
-
-  return destinationUri;
 }
 
 export default function SettingsScreen({
