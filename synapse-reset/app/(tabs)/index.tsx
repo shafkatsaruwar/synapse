@@ -73,7 +73,6 @@ import {
   type NotificationNavigationTarget,
   setNotificationNavigateCallback,
   handleLastNotificationResponse,
-  syncRecoveryTrackingCheckIn,
 } from "@/lib/notification-manager";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import AppBackground from "@/components/AppBackground";
@@ -451,30 +450,26 @@ export default function MainScreen() {
     }
   }, []);
 
+  /** Legacy PRN widget deep links open confirmation — never auto-log from a tap. */
   const handlePrnWidgetLog = useCallback(async (prnMedId: string) => {
     setActiveScreen("medications");
-
     try {
       const medications = await medicationStorage.getAll();
       const prnMed = medications
         .map((med) => normalizeMedication(med))
         .find((med) => med.id === prnMedId && med.active && med.medicationType === "prn");
-
       if (!prnMed) {
         setRefreshKey((k) => k + 1);
         return;
       }
-
-      await medicationLogStorage.logPrnDose(prnMedId);
-      await syncAllFromSettings().catch(() => {});
-      await syncWidgetSnapshot().catch(() => {});
+      await openMedicationPrompt(prnMedId, 0);
     } catch (error) {
-      console.warn("Failed to log PRN dose from widget", error);
+      console.warn("Failed to open PRN confirmation from widget", error);
     } finally {
       setRefreshKey((k) => k + 1);
       trackFeedbackWidgetLaunch().catch(() => {});
     }
-  }, []);
+  }, [openMedicationPrompt]);
 
   const processQueuedAppIntentActions = useCallback(async () => {
     try {
@@ -570,17 +565,31 @@ export default function MainScreen() {
         return true;
       }
 
-      if (normalizedRoute === "medications") {
+      if (normalizedRoute === "medications" || normalizedRoute === "nextdose") {
         setActiveScreen("medications");
-        if (synapseRouteId) void openMedicationPrompt(synapseRouteId);
+        const queryMedId = parsed.searchParams.get("medId") || synapseRouteId;
+        const doseIndexRaw = parsed.searchParams.get("doseIndex");
+        const doseIndex =
+          doseIndexRaw != null && doseIndexRaw !== "" && Number.isFinite(Number(doseIndexRaw))
+            ? Number(doseIndexRaw)
+            : undefined;
+        if (queryMedId) void openMedicationPrompt(queryMedId, doseIndex);
         setRefreshKey((k) => k + 1);
         trackFeedbackWidgetLaunch().catch(() => {});
         return true;
       }
 
-      if (normalizedRoute === "appointments") {
-        if (synapseRouteId) setFocusedAppointmentId(synapseRouteId);
+      if (normalizedRoute === "appointments" || normalizedRoute === "nextappointment") {
+        const appointmentId = parsed.searchParams.get("appointmentId") || synapseRouteId;
+        if (appointmentId) setFocusedAppointmentId(appointmentId);
         setActiveScreen("appointments");
+        setRefreshKey((k) => k + 1);
+        trackFeedbackWidgetLaunch().catch(() => {});
+        return true;
+      }
+
+      if (normalizedRoute === "myday") {
+        setActiveScreen("dashboard");
         setRefreshKey((k) => k + 1);
         trackFeedbackWidgetLaunch().catch(() => {});
         return true;
@@ -621,46 +630,23 @@ export default function MainScreen() {
         return true;
       }
 
+      // Open Sick Mode screen only — never auto-activate from a widget tap.
       if (normalizedRoute === "sickmode") {
         void (async () => {
-          const settings = await settingsStorage.get();
           const existing = await sickModeStorage.get();
-          if (!settings.sickMode) {
-            await settingsStorage.save({ ...settings, sickMode: true });
-          }
-          if (!existing.active) {
-            await sickModeStorage.save({
-              ...existing,
-              active: true,
-              startedAt: new Date().toISOString(),
-              checkInTimer: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-            });
-          }
-          await syncRecoveryTrackingCheckIn();
-          setSickMode(true);
+          setSickMode(existing.active === true);
           setActiveScreen("sickmode");
           setRefreshKey((k) => k + 1);
-          await syncWidgetSnapshot().catch(() => {});
           trackFeedbackWidgetLaunch().catch(() => {});
         })();
         return true;
       }
 
+      // Open Mental Health screen only — do not auto-activate from a widget tap.
       if (normalizedRoute === "mentalhealth") {
-        void (async () => {
-          const current = await mentalHealthModeStorage.get();
-          if (!current.active) {
-            await mentalHealthModeStorage.save({
-              active: true,
-              startedAt: new Date().toISOString(),
-              hourlyCheckInTimer: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-            });
-            await syncWidgetSnapshot().catch(() => {});
-          }
-          setActiveScreen("mentalhealth");
-          setRefreshKey((k) => k + 1);
-          trackFeedbackWidgetLaunch().catch(() => {});
-        })();
+        setActiveScreen("mentalhealth");
+        setRefreshKey((k) => k + 1);
+        trackFeedbackWidgetLaunch().catch(() => {});
         return true;
       }
     } catch {
@@ -946,12 +932,19 @@ export default function MainScreen() {
     if (!medicationPrompt) return;
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const existingLogs = await medicationLogStorage.getByDate(today);
-      const alreadyTaken = existingLogs.some(
-        (log) => log.medicationId === medicationPrompt.medicationId && (log.doseIndex ?? 0) === medicationPrompt.doseIndex && log.taken,
-      );
-      if (!alreadyTaken) {
-        await medicationLogStorage.toggle(medicationPrompt.medicationId, today, medicationPrompt.doseIndex);
+      const medications = await medicationStorage.getAll();
+      const med = medications.find((item) => item.id === medicationPrompt.medicationId);
+      const isPrn = med ? normalizeMedication(med).medicationType === "prn" : false;
+      if (isPrn) {
+        await medicationLogStorage.logPrnDose(medicationPrompt.medicationId);
+      } else {
+        const existingLogs = await medicationLogStorage.getByDate(today);
+        const alreadyTaken = existingLogs.some(
+          (log) => log.medicationId === medicationPrompt.medicationId && (log.doseIndex ?? 0) === medicationPrompt.doseIndex && log.taken,
+        );
+        if (!alreadyTaken) {
+          await medicationLogStorage.toggle(medicationPrompt.medicationId, today, medicationPrompt.doseIndex);
+        }
       }
       await syncAllFromSettings().catch(() => {});
       await syncWidgetSnapshot().catch(() => {});
