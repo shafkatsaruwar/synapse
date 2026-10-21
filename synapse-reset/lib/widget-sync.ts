@@ -49,22 +49,34 @@ type WidgetActionRow = {
 /** Soft UI hydration goal for widgets only — not a medical recommendation. */
 const SOFT_HYDRATION_GOAL_ML = 2000;
 
+type NextDoseEmptyKind = "none_scheduled" | "all_recorded";
+
 type WidgetSnapshot = {
+  /** Snapshot schema for WidgetKit decoders. v1 payloads omit this (treated as 1). */
+  schemaVersion: 2;
   appearance: WidgetAppearancePreference;
   medication: null | {
+    id: string | null;
+    doseIndex: number | null;
     name: string;
     detail: string;
     dueAt: string | null;
     windowStart: string | null;
     dueText: string;
     isTaken: boolean;
+    isOverdue: boolean;
+    emptyKind: NextDoseEmptyKind | null;
     nextText: string | null;
+    followingName: string | null;
+    followingDetail: string | null;
+    followingTimeText: string | null;
     heroTimeText: string;
-    statusLabel: "Next" | "Done";
+    statusLabel: "Next" | "Done" | "Overdue" | "Quiet";
     secondaryLine: string;
     tone: WidgetTone;
   };
   appointment: null | {
+    id: string | null;
     doctorName: string;
     detail: string;
     startsAt: string | null;
@@ -78,6 +90,14 @@ type WidgetSnapshot = {
     headline: string;
     supportText: string;
     rows: WidgetActionRow[];
+  };
+  /** Concise “My Day” slice for Widgets 2.0 (derived; not a second source of truth). */
+  myDay: {
+    dateLabel: string;
+    medicationLine: string | null;
+    appointmentLine: string | null;
+    attentionLine: string | null;
+    quietSummary: string;
   };
   recovery: {
     active: boolean;
@@ -207,10 +227,13 @@ type WidgetSnapshot = {
     statusText: string;
     statusLabel: "Active" | "Easing" | "Off";
     heroAction: string;
+    nextStep: string;
+    inactiveSupport: string;
     tone: WidgetTone;
     needsStressDose: boolean;
     stressDoseText: string;
     checkInTimer: string | null;
+    checkInDueAt: string | null;
   };
   mentalHealth: {
     active: boolean;
@@ -286,16 +309,6 @@ function fallbackDose(id: string, timeOfDay: string): MedicationDose {
   };
 }
 
-function formatTakenTime(recordedAt?: string) {
-  if (!recordedAt) return "Taken";
-  const parsed = new Date(recordedAt);
-  if (Number.isNaN(parsed.getTime())) return "Taken";
-  return `Taken at ${new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(parsed)}`;
-}
-
 function formatRelativeLogTime(recordedAt?: string) {
   if (!recordedAt) return "just now";
   const diffMs = Date.now() - new Date(recordedAt).getTime();
@@ -307,13 +320,6 @@ function formatRelativeLogTime(recordedAt?: string) {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-function tomorrowAt(hour: number, minute: number) {
-  const date = new Date();
-  date.setDate(date.getDate() + 1);
-  date.setHours(hour, minute, 0, 0);
-  return date;
-}
-
 function buildMedicationWindow(sortedDoses: MedicationDose[], index: number, dueAt: Date) {
   const previousDose = index > 0 ? sortedDoses[index - 1] : sortedDoses[sortedDoses.length - 1];
   const [prevHour, prevMinute] = (previousDose.reminderTime || "09:00").split(":").map((part) => parseInt(part, 10));
@@ -323,10 +329,62 @@ function buildMedicationWindow(sortedDoses: MedicationDose[], index: number, due
   return previousDate;
 }
 
+function formatClock(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function emptyNextDoseSnapshot(emptyKind: NextDoseEmptyKind): NonNullable<WidgetSnapshot["medication"]> {
+  if (emptyKind === "all_recorded") {
+    return {
+      id: null,
+      doseIndex: null,
+      name: "All scheduled doses recorded",
+      detail: "",
+      dueAt: null,
+      windowStart: null,
+      dueText: "Done for today",
+      isTaken: true,
+      isOverdue: false,
+      emptyKind,
+      nextText: null,
+      followingName: null,
+      followingDetail: null,
+      followingTimeText: null,
+      heroTimeText: "Done",
+      statusLabel: "Done",
+      secondaryLine: "Nothing else scheduled today",
+      tone: "green",
+    };
+  }
+  return {
+    id: null,
+    doseIndex: null,
+    name: "No doses scheduled",
+    detail: "",
+    dueAt: null,
+    windowStart: null,
+    dueText: "Quiet",
+    isTaken: false,
+    isOverdue: false,
+    emptyKind,
+    nextText: null,
+    followingName: null,
+    followingDetail: null,
+    followingTimeText: null,
+    heroTimeText: "—",
+    statusLabel: "Quiet",
+    secondaryLine: "Open Synapse to add medications",
+    tone: "muted",
+  };
+}
+
 function getNextMedicationSnapshot(
   medications: Medication[],
   logs: { medicationId: string; doseIndex?: number; taken: boolean; recordedAt?: string }[],
-) {
+): WidgetSnapshot["medication"] {
   const now = new Date();
   const pendingCandidates: Array<{
     dueAt: Date;
@@ -335,36 +393,14 @@ function getNextMedicationSnapshot(
     dose: MedicationDose;
     doseIndex: number;
   }> = [];
-  const prnTakenCandidates: Array<{
-    med: Medication;
-    detail: string;
-    recordedAt: string;
-  }> = [];
-  let takenWinner: null | {
-    dueAt: Date;
-    windowStart: Date;
-    med: Medication;
-    dose: MedicationDose;
-  } = null;
+  let scheduledDoseCount = 0;
+  let takenScheduledCount = 0;
 
   for (const rawMed of medications) {
     const med = normalizeMedication(rawMed);
     if (!med.active) continue;
-
-    if (med.medicationType === "prn") {
-      const latestPrnLog = logs
-        .filter((log) => log.medicationId === med.id && (log.doseIndex ?? -1) === -1 && log.taken && !!log.recordedAt)
-        .sort((a, b) => (b.recordedAt ?? "").localeCompare(a.recordedAt ?? ""))[0];
-
-      if (latestPrnLog?.recordedAt) {
-        prnTakenCandidates.push({
-          med,
-          detail: doseDetail(med.doses?.[0] ?? fallbackDose(`prn-${med.id}`, "As Needed")),
-          recordedAt: latestPrnLog.recordedAt,
-        });
-      }
-      continue;
-    }
+    // PRN medications are never “due” by elapsed time alone.
+    if (med.medicationType === "prn") continue;
 
     const doses = (med.doses || [])
       .filter((dose) => !!dose.reminderTime)
@@ -373,87 +409,71 @@ function getNextMedicationSnapshot(
 
     for (let index = 0; index < doses.length; index++) {
       const dose = doses[index];
+      scheduledDoseCount += 1;
       const [hour, minute] = (dose.reminderTime || "09:00").split(":").map((part) => parseInt(part, 10));
       const safeHour = Number.isFinite(hour) ? hour : 9;
       const safeMinute = Number.isFinite(minute) ? minute : 0;
       const takenToday = logs.some((log) => log.medicationId === med.id && (log.doseIndex ?? 0) === index && log.taken);
 
-      if (!takenToday) {
-        const dueAt = new Date(now);
-        dueAt.setHours(safeHour, safeMinute, 0, 0);
-        const windowStart = buildMedicationWindow(doses, index, dueAt);
-        pendingCandidates.push({ dueAt, windowStart, med, dose, doseIndex: index });
-      } else {
-        const dueAt = tomorrowAt(safeHour, safeMinute);
-        const windowStart = buildMedicationWindow(doses, index, dueAt);
-        if (!takenWinner || dueAt < takenWinner.dueAt) {
-          takenWinner = { dueAt, windowStart, med, dose };
-        }
+      if (takenToday) {
+        takenScheduledCount += 1;
+        continue;
       }
+
+      const dueAt = new Date(now);
+      dueAt.setHours(safeHour, safeMinute, 0, 0);
+      const windowStart = buildMedicationWindow(doses, index, dueAt);
+      pendingCandidates.push({ dueAt, windowStart, med, dose, doseIndex: index });
     }
   }
 
-  const pendingWinner =
-    pendingCandidates
-      .filter((candidate) => candidate.dueAt.getTime() <= now.getTime())
-      .sort((a, b) => b.dueAt.getTime() - a.dueAt.getTime())[0] ??
-    pendingCandidates.sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())[0] ??
-    null;
-
-  if (pendingWinner) {
-    const heroTimeText = new Intl.DateTimeFormat("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(pendingWinner.dueAt);
-    return {
-      name: pendingWinner.med.name,
-      detail: doseDetail(pendingWinner.dose),
-      dueAt: pendingWinner.dueAt.toISOString(),
-      windowStart: pendingWinner.windowStart.toISOString(),
-      dueText: "Due soon",
-      isTaken: false,
-      nextText: null,
-      heroTimeText,
-      statusLabel: "Next" as const,
-      secondaryLine: "quiet reminder set",
-      tone: "green" as const,
-    };
+  if (scheduledDoseCount === 0) {
+    return emptyNextDoseSnapshot("none_scheduled");
   }
 
-  if (takenWinner) {
-    return {
-      name: takenWinner.med.name,
-      detail: doseDetail(takenWinner.dose),
-      dueAt: takenWinner.dueAt.toISOString(),
-      windowStart: takenWinner.windowStart.toISOString(),
-      dueText: "Taken ✓",
-      isTaken: true,
-      nextText: "Next: tomorrow",
-      heroTimeText: "Done",
-      statusLabel: "Done" as const,
-      secondaryLine: "next dose tomorrow",
-      tone: "green" as const,
-    };
+  const overdue = pendingCandidates
+    .filter((candidate) => candidate.dueAt.getTime() <= now.getTime())
+    .sort((a, b) => b.dueAt.getTime() - a.dueAt.getTime());
+  const upcoming = pendingCandidates
+    .filter((candidate) => candidate.dueAt.getTime() > now.getTime())
+    .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
+  const pendingWinner = overdue[0] ?? upcoming[0] ?? null;
+
+  if (!pendingWinner) {
+    return emptyNextDoseSnapshot("all_recorded");
   }
 
-  const latestPrnWinner = prnTakenCandidates.sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))[0] ?? null;
-  if (latestPrnWinner) {
-    return {
-      name: latestPrnWinner.med.name,
-      detail: latestPrnWinner.detail,
-      dueAt: null,
-      windowStart: null,
-      dueText: formatTakenTime(latestPrnWinner.recordedAt),
-      isTaken: true,
-      nextText: null,
-      heroTimeText: "Done",
-      statusLabel: "Done" as const,
-      secondaryLine: formatTakenTime(latestPrnWinner.recordedAt),
-      tone: "green" as const,
-    };
-  }
+  const remaining = [...overdue.slice(pendingWinner === overdue[0] ? 1 : 0), ...upcoming]
+    .filter((item) => item !== pendingWinner)
+    .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
+  const following = remaining[0] ?? null;
+  const isOverdue = pendingWinner.dueAt.getTime() <= now.getTime();
+  const heroTimeText = formatClock(pendingWinner.dueAt);
 
-  return null;
+  return {
+    id: pendingWinner.med.id,
+    doseIndex: pendingWinner.doseIndex,
+    name: pendingWinner.med.name,
+    detail: doseDetail(pendingWinner.dose),
+    dueAt: pendingWinner.dueAt.toISOString(),
+    windowStart: pendingWinner.windowStart.toISOString(),
+    dueText: isOverdue ? "Scheduled time passed" : "Up next",
+    isTaken: false,
+    isOverdue,
+    emptyKind: null,
+    nextText: following
+      ? `Then ${following.med.name} · ${formatClock(following.dueAt)}`
+      : takenScheduledCount > 0
+        ? `${takenScheduledCount} recorded today`
+        : null,
+    followingName: following?.med.name ?? null,
+    followingDetail: following ? doseDetail(following.dose) : null,
+    followingTimeText: following ? formatClock(following.dueAt) : null,
+    heroTimeText,
+    statusLabel: isOverdue ? "Overdue" : "Next",
+    secondaryLine: isOverdue ? "Confirm in Synapse if taken" : "Tap to review and confirm",
+    tone: isOverdue ? "orange" : "green",
+  };
 }
 
 function getPrnMedicationSnapshot(
@@ -812,35 +832,50 @@ function buildSickModeSnapshot(
   const latestTemperature = sickMode.temperatures.length > 0
     ? sickMode.temperatures[sickMode.temperatures.length - 1]?.value ?? null
     : null;
-  const escalate = needsStressDose || (sickMode.active && !sickMode.recoveryMode);
   let statusLabel: "Active" | "Easing" | "Off" = "Off";
-  let tone: WidgetTone = "blue";
-  let heroAction = "Stay ready";
-  if (sickMode.recoveryMode) {
+  let tone: WidgetTone = "muted";
+  let heroAction = "Open Sick Mode";
+  let nextStep = "Extra support when you need it.";
+  if (sickMode.recoveryMode && sickMode.active) {
     statusLabel = "Easing";
     tone = "green";
-    heroAction = "Ease back";
+    heroAction = "Recovering";
+    nextStep = "Check-ins paused. End Sick Mode when you feel ready.";
   } else if (sickMode.active) {
     statusLabel = "Active";
-    tone = escalate ? "red" : "orange";
-    heroAction = needsStressDose ? "Check stress dose" : "Check symptoms";
+    tone = "orange";
+    heroAction = "Sick Mode Active";
+    if (needsStressDose) {
+      nextStep = "Review your saved care plan in Synapse.";
+    } else if (sickMode.checkInTimer) {
+      nextStep = "Focus on resting until your next check-in.";
+    } else {
+      nextStep = "Focus on resting.";
+    }
   }
   return {
     active: sickMode.active,
     recoveryMode: sickMode.recoveryMode === true,
     latestTemperature,
     latestTemperatureText: latestTemperature != null ? `${latestTemperature}°F` : "No temp logged",
-    statusText: !sickMode.active ? "tap to start" : sickMode.recoveryMode ? "easing back" : "sick mode on",
+    statusText: !sickMode.active
+      ? "Extra support when you need it."
+      : sickMode.recoveryMode
+        ? "Recovering"
+        : "Sick Mode Active",
     statusLabel,
     heroAction,
+    nextStep,
+    inactiveSupport: "Extra support when you need it.",
     tone,
     needsStressDose,
     stressDoseText: activeStressMeds.length === 0
-      ? "no stress-dose meds"
+      ? "Open your care plan in the app"
       : needsStressDose
-        ? "stress dose may be needed"
-        : "stress dose logged",
+        ? "Review saved care-plan instructions"
+        : "Care plan available in Synapse",
     checkInTimer: sickMode.active && !sickMode.recoveryMode ? formatTimerText(sickMode.checkInTimer) : null,
+    checkInDueAt: sickMode.active && !sickMode.recoveryMode ? sickMode.checkInTimer ?? null : null,
   };
 }
 
@@ -969,13 +1004,13 @@ function buildCaregiverWidgetSnapshot(
       age,
       relation,
       status: "urgent" as const,
-      statusText: "Urgent",
-      statusLabel: "Share" as const,
-      tone: "red" as const,
-      primaryText: `${missedDoses.length} missed dose${missedDoses.length === 1 ? "" : "s"}`,
-      secondaryText: "Tap to log",
-      actionText: "Tap to log",
-      headline: "Send today summary?",
+      statusText: "Needs follow-up",
+      statusLabel: "Check" as const,
+      tone: "orange" as const,
+      primaryText: `${missedDoses.length} dose${missedDoses.length === 1 ? "" : "s"} may need review`,
+      secondaryText: "Open Care Circle",
+      actionText: "Open dashboard",
+      headline: "Something may need review",
       items: items.slice(0, 3),
       missedCount: missedDoses.length,
     };
@@ -988,12 +1023,12 @@ function buildCaregiverWidgetSnapshot(
       age,
       relation,
       status: "attention" as const,
-      statusText: "Needs attention",
+      statusText: "Needs follow-up",
       statusLabel: "Check" as const,
       tone: "yellow" as const,
-      primaryText: "Needs attention",
+      primaryText: "Something to review",
       secondaryText: !hasTodayLog ? "No logs today" : `Next: ${doseTime(nextDose) ?? "soon"}`,
-      actionText: "Check in",
+      actionText: "Open dashboard",
       headline: "A gentle check-in helps",
       items: items.slice(0, 3),
       missedCount: 0,
@@ -1006,17 +1041,73 @@ function buildCaregiverWidgetSnapshot(
     age,
     relation,
     status: "all_good" as const,
-    statusText: "All good",
+    statusText: "Nothing new to review",
     statusLabel: "OK" as const,
     tone: "green" as const,
-    primaryText: "All good",
-    secondaryText: nextDose ? `Next: ${doseTime(nextDose) ?? "soon"}` : "All caught up",
+    primaryText: "Nothing new to review",
+    secondaryText: nextDose ? `Next: ${doseTime(nextDose) ?? "soon"}` : null,
     actionText: null,
-    headline: "Today looks covered",
+    headline: "Nothing new to review",
     items: [
-      { kind: "good" as const, text: nextDose ? `Next: ${doseTime(nextDose) ?? "soon"}` : "All caught up", tone: "green" as const },
+      {
+        kind: "good" as const,
+        text: nextDose ? `Next: ${doseTime(nextDose) ?? "soon"}` : "Nothing new to review",
+        tone: "muted" as const,
+      },
     ],
     missedCount: 0,
+  };
+}
+
+function buildMyDaySnapshot(
+  medication: WidgetSnapshot["medication"],
+  appointment: WidgetSnapshot["appointment"],
+  sickMode: WidgetSnapshot["sickMode"],
+  caregiver: WidgetSnapshot["caregiver"],
+): WidgetSnapshot["myDay"] {
+  const dateLabel = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  }).format(new Date());
+
+  let medicationLine: string | null = null;
+  if (medication?.emptyKind === "all_recorded") {
+    medicationLine = "All scheduled doses recorded";
+  } else if (medication?.emptyKind === "none_scheduled") {
+    medicationLine = null;
+  } else if (medication) {
+    medicationLine = `${medication.name} — ${medication.heroTimeText}`;
+  }
+
+  const appointmentLine = appointment
+    ? `${appointment.doctorName} — ${appointment.whenText}`
+    : null;
+
+  let attentionLine: string | null = null;
+  if (sickMode.active) {
+    attentionLine = sickMode.recoveryMode
+      ? "Sick Mode recovering"
+      : sickMode.checkInTimer
+        ? `Sick Mode · next check-in ${sickMode.checkInTimer}`
+        : "Sick Mode is active";
+  } else if (caregiver.hasProfile && caregiver.status !== "all_good") {
+    attentionLine = caregiver.primaryText;
+  }
+
+  const quiet =
+    !medicationLine && !appointmentLine && !attentionLine
+      ? "Nothing needs your attention right now."
+      : !appointmentLine && medication?.emptyKind === "all_recorded" && !attentionLine
+        ? "A quiet day ahead."
+        : "Today";
+
+  return {
+    dateLabel,
+    medicationLine,
+    appointmentLine,
+    attentionLine,
+    quietSummary: quiet,
   };
 }
 
@@ -1057,6 +1148,7 @@ async function getNextAppointmentSnapshot(appointments: Appointment[]) {
     },
   ];
   return {
+    id: appointment.id ?? null,
     doctorName: appointment.doctorName || "Appointment",
     detail: simplifyAppointmentDetail(appointment.specialty || appointment.location || "Upcoming visit"),
     startsAt: startsAt.toISOString(),
@@ -1067,7 +1159,7 @@ async function getNextAppointmentSnapshot(appointments: Appointment[]) {
     prepHint,
     statusLabel: "Ready" as const,
     tone: "green" as const,
-    headline: "Prep looks ready.",
+    headline: appointment.doctorName || "Upcoming visit",
     supportText: travelText || prepHint,
     rows,
   };
@@ -1570,18 +1662,25 @@ export async function syncWidgetSnapshot() {
     dailyPoints,
   });
 
+  const medication = getNextMedicationSnapshot(medications, logs);
+  const appointment = await getNextAppointmentSnapshot(appointments);
+  const sickModeSnap = buildSickModeSnapshot(sickMode, medications, logs);
+  const caregiver = buildCaregiverWidgetSnapshot(caregiverProfile, medications, logs, caregiverTodayLog);
+
   const snapshot: WidgetSnapshot = {
+    schemaVersion: 2,
     appearance: profile.widgetAppearance ?? "system",
-    medication: getNextMedicationSnapshot(medications, logs),
-    appointment: await getNextAppointmentSnapshot(appointments),
+    medication,
+    appointment,
+    myDay: buildMyDaySnapshot(medication, appointment, sickModeSnap, caregiver),
     prnMedication,
     wellness: buildWellnessSnapshot(todayLog, todaySymptoms, { hydration, medicationDay, pain }),
     hydration,
     sleep,
     flareForecast,
-    sickMode: buildSickModeSnapshot(sickMode, medications, logs),
+    sickMode: sickModeSnap,
     mentalHealth: buildMentalHealthSnapshot(mentalHealthMode, todayLog, dailyPoints),
-    caregiver: buildCaregiverWidgetSnapshot(caregiverProfile, medications, logs, caregiverTodayLog),
+    caregiver,
     recovery,
     pain,
     medicationDay,

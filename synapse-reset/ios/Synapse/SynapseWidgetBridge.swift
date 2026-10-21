@@ -27,7 +27,29 @@ final class SynapseWidgetBridge: NSObject {
 
     defaults.set(payload, forKey: widgetSnapshotKey)
     defaults.set(Date().timeIntervalSince1970, forKey: widgetSnapshotUpdatedAtKey)
-    WidgetCenter.shared.reloadAllTimelines()
+    // Prefer kind-scoped reloads; fall back to all for older WidgetKit behavior.
+    let kinds = [
+      "SynapseMedicationWidget",
+      "SynapseOverviewWidget",
+      "SynapseAppointmentWidget",
+      "SynapseSickModeWidget",
+      "SynapseCaregiverWidget",
+      // Legacy kinds still installed on Home Screens
+      "SynapseRecoveryWidget",
+      "SynapseHydrationWidget",
+      "SynapsePrnMedicationWidget",
+      "SynapsePainWidget",
+      "SynapseSleepWidget",
+      "SynapseFlareForecastWidget",
+      "SynapseWellnessWidget",
+      "SynapseMedicationDayWidget",
+      "SynapseMentalHealthWidget",
+      "SynapseLabsWidget",
+      "SynapseReportWidget",
+    ]
+    for kind in kinds {
+      WidgetCenter.shared.reloadTimelines(ofKind: kind)
+    }
     resolve(true)
   }
 
