@@ -395,7 +395,7 @@ export function sampleScene(progress: number, options: SampleOptions = {}): Scen
     };
   });
 
-  const screenReveal = smoothstep(0.84, 0.94, p);
+  const screenReveal = smoothstep(0.825, 0.9, p);
 
   return {
     phase: phaseAt(p),
