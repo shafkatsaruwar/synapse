@@ -10,7 +10,6 @@ import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useModeAwareScreen } from "@/contexts/AppModeContext";
 import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import { getSickModePalette, type SickModePalette } from "@/constants/sick-mode-colors";
-import ReadAloudButton from "@/components/ReadAloudButton";
 import * as Crypto from "expo-crypto";
 import * as ImagePicker from "expo-image-picker";
 import {
@@ -1532,31 +1531,6 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
       Alert.alert("High Temperature", "Your temperature is ≥ 100°F. Consider activating Sick Mode in Settings.");
     }
   };
-
-  const getReadAloudText = useCallback(() => {
-    const parts: string[] = [];
-    parts.push(`${takenDoses} of ${totalDoses} doses taken today.`);
-    scheduledMeds.forEach((med) => {
-      const dc = getDoseCount(med);
-      let taken = 0;
-      for (let i = 0; i < dc; i++) {
-        if (isDoseTaken(med.id, i)) taken++;
-      }
-      const status = taken === dc ? "taken" : `${taken} of ${dc} taken`;
-      const doseDesc = Array.isArray(med.doses) && med.doses.length > 0
-        ? med.doses.map((d) => `${d.amount} ${d.unit} ${d.timeOfDay}`).join(", ")
-        : `${(med as { dosage?: string }).dosage ?? ""} ${(med as { unit?: string }).unit ?? ""}`.trim() || "—";
-      parts.push(`${med.name}, ${doseDesc}, ${status}.`);
-    });
-    prnMeds.forEach((med) => {
-      const prnLogs = getPrnLogsForMed(med.id);
-      const doseDesc = Array.isArray(med.doses) && med.doses.length > 0
-        ? med.doses.map((d) => `${d.amount} ${d.unit}`).join(", ")
-        : `${(med as { dosage?: string }).dosage ?? ""} ${(med as { unit?: string }).unit ?? ""}`.trim() || "—";
-      parts.push(`${med.name}, As Needed, ${doseDesc}, ${prnLogs.length} time${prnLogs.length === 1 ? "" : "s"} today${prnLogs[0]?.recordedAt ? `. Last taken ${formatRelativeTime(prnLogs[0].recordedAt)}` : ""}.`);
-    });
-    return parts.join(" ");
-  }, [scheduledMeds, prnMeds, takenDoses, totalDoses, getPrnLogsForMed]);
 
   const doseLabels = (med: Medication): string[] => {
     if (Array.isArray(med.doses) && med.doses.length > 0) {
@@ -3196,8 +3170,6 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
           </View>
         </View>
       </Modal>
-
-      <ReadAloudButton getText={getReadAloudText} bottomOffset={190} />
     </View>
   );
 }
