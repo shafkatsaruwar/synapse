@@ -1,6 +1,14 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
-import { useColorScheme } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AccessibilityInfo, useColorScheme } from "react-native";
+import { DEFAULT_APPEARANCE } from "@/lib/appearance/defaults";
+import { applyAppearanceToTheme, effectiveSurfaceStyle } from "@/lib/appearance/resolve";
+import { loadAppearance, loadSavedLooks, saveAppearance, saveSavedLooks } from "@/lib/appearance/storage";
+import type {
+  AppearanceConfig,
+  AppearanceThemePreference,
+  SavedLook,
+  SurfaceStyleId,
+} from "@/lib/appearance/types";
 
 export interface Theme {
   background: string;
@@ -39,30 +47,43 @@ export interface Theme {
 }
 
 /** Effective theme used for styling. */
-export type ThemeId = "calm" | "light" | "dark" | "evergreen" | "evergreenDark";
+export type ThemeId = "calm" | "light" | "dark" | "evergreen" | "evergreenDark" | "blue";
 /**
- * User preference in Settings.
+ * User preference in Settings / Appearance Studio.
  * "evergreen" follows device light/dark with Soft Evergreen palettes.
  * Existing saved preferences are never overwritten on upgrade.
  */
-export type ThemePreference = "system" | "calm" | "light" | "dark" | "evergreen";
+export type ThemePreference = AppearanceThemePreference;
 
-const THEME_STORAGE_KEY = "app_theme";
-/** Soft Evergreen for first launch only (no saved preference). */
 const DEFAULT_PREFERENCE: ThemePreference = "evergreen";
-
-const SAVED_PREFERENCES = new Set<string>(["system", "calm", "light", "dark", "evergreen"]);
 
 interface ThemeContextValue {
   themeId: ThemeId;
   preference: ThemePreference;
+  /** @deprecated Prefer commitAppearance / updateAppearance — kept for existing callers. */
   setThemeId: (id: ThemePreference) => Promise<void>;
   colors: Theme;
+  /** Committed appearance (persisted). */
+  appearance: AppearanceConfig;
+  /** Live draft while editing in Appearance Studio (null outside studio). */
+  draftAppearance: AppearanceConfig | null;
+  surfaceStyle: SurfaceStyleId;
+  reduceMotion: boolean;
+  savedLooks: SavedLook[];
+  beginAppearanceDraft: () => void;
+  updateAppearanceDraft: (partial: Partial<AppearanceConfig>) => void;
+  cancelAppearanceDraft: () => void;
+  commitAppearance: () => Promise<void>;
+  resetAppearance: () => Promise<void>;
+  applySavedLook: (look: SavedLook) => void;
+  saveCurrentLook: (name: string) => Promise<void>;
+  deleteSavedLook: (id: string) => Promise<void>;
+  renameSavedLook: (id: string, name: string) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function getThemeColors(id: ThemeId): Theme {
+export function getThemeColors(id: ThemeId): Theme {
   switch (id) {
     case "light":
       return require("@/themes/light").default;
@@ -72,12 +93,14 @@ function getThemeColors(id: ThemeId): Theme {
       return require("@/themes/evergreen").default;
     case "evergreenDark":
       return require("@/themes/evergreen-dark").default;
+    case "blue":
+      return require("@/themes/blue").default;
     default:
       return require("@/themes/calm").default;
   }
 }
 
-function preferenceToThemeId(preference: ThemePreference, colorScheme: string | null): ThemeId {
+export function preferenceToThemeId(preference: ThemePreference, colorScheme: string | null): ThemeId {
   if (preference === "system") {
     return colorScheme === "dark" ? "dark" : "light";
   }
@@ -89,50 +112,221 @@ function preferenceToThemeId(preference: ThemePreference, colorScheme: string | 
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const colorScheme = useColorScheme();
-  const [preference, setPreference] = useState<ThemePreference>(DEFAULT_PREFERENCE);
+  const [appearance, setAppearance] = useState<AppearanceConfig>(DEFAULT_APPEARANCE);
+  const [draftAppearance, setDraftAppearance] = useState<AppearanceConfig | null>(null);
+  const [savedLooks, setSavedLooks] = useState<SavedLook[]>([]);
+  const [systemReduceTransparency, setSystemReduceTransparency] = useState(false);
+  const [systemReduceMotion, setSystemReduceMotion] = useState(false);
+
+  const active = draftAppearance ?? appearance;
+  const preference = active.theme;
   const themeId = useMemo(
     () => preferenceToThemeId(preference, colorScheme ?? null),
-    [preference, colorScheme]
+    [preference, colorScheme],
   );
-  const colors = useMemo(() => getThemeColors(themeId), [themeId]);
+
+  const colors = useMemo(() => {
+    const base = getThemeColors(themeId);
+    return applyAppearanceToTheme(base, active, themeId, systemReduceTransparency);
+  }, [themeId, active, systemReduceTransparency]);
+
+  const surfaceStyle = useMemo(
+    () => effectiveSurfaceStyle(active, systemReduceTransparency),
+    [active, systemReduceTransparency],
+  );
+
+  const reduceMotion = active.reduceMotion || systemReduceMotion;
 
   useEffect(() => {
-    AsyncStorage.getItem(THEME_STORAGE_KEY)
-      .then((saved) => {
-        if (saved && SAVED_PREFERENCES.has(saved)) {
-          setPreference(saved as ThemePreference);
-          return;
-        }
-        // First launch: persist Soft Evergreen as the chosen default.
-        setPreference("evergreen");
-        return AsyncStorage.setItem(THEME_STORAGE_KEY, "evergreen");
+    let mounted = true;
+    Promise.all([loadAppearance(), loadSavedLooks()])
+      .then(([cfg, looks]) => {
+        if (!mounted) return;
+        setAppearance(cfg);
+        setSavedLooks(looks);
       })
       .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const sync = () => {
+      AccessibilityInfo.isReduceTransparencyEnabled?.()
+        .then((v) => setSystemReduceTransparency(!!v))
+        .catch(() => {});
+      AccessibilityInfo.isReduceMotionEnabled?.()
+        .then((v) => setSystemReduceMotion(!!v))
+        .catch(() => {});
+    };
+    sync();
+    const subs: { remove?: () => void }[] = [];
+    try {
+      const t = AccessibilityInfo.addEventListener("reduceTransparencyChanged", (v) =>
+        setSystemReduceTransparency(!!v),
+      );
+      if (t) subs.push(t);
+    } catch {
+      /* optional API */
+    }
+    try {
+      const m = AccessibilityInfo.addEventListener("reduceMotionChanged", (v) =>
+        setSystemReduceMotion(!!v),
+      );
+      if (m) subs.push(m);
+    } catch {
+      /* optional API */
+    }
+    return () => {
+      subs.forEach((s) => s.remove?.());
+    };
   }, []);
 
   const setThemeId = useCallback(async (id: ThemePreference) => {
-    setPreference(id);
-    try {
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, id);
-    } catch {}
+    setAppearance((prev) => {
+      const next = { ...prev, theme: id };
+      void saveAppearance(next);
+      return next;
+    });
+    setDraftAppearance((draft) => (draft ? { ...draft, theme: id } : draft));
   }, []);
 
-  return (
-    <ThemeContext.Provider value={{ themeId, preference, setThemeId, colors }}>
-      {children}
-    </ThemeContext.Provider>
+  const beginAppearanceDraft = useCallback(() => {
+    setDraftAppearance({ ...appearance });
+  }, [appearance]);
+
+  const updateAppearanceDraft = useCallback((partial: Partial<AppearanceConfig>) => {
+    setDraftAppearance((draft) => ({ ...(draft ?? appearance), ...partial }));
+  }, [appearance]);
+
+  const cancelAppearanceDraft = useCallback(() => {
+    setDraftAppearance(null);
+  }, []);
+
+  const commitAppearance = useCallback(async () => {
+    const next = draftAppearance ?? appearance;
+    setAppearance(next);
+    setDraftAppearance(null);
+    await saveAppearance(next);
+  }, [draftAppearance, appearance]);
+
+  const resetAppearance = useCallback(async () => {
+    const next = { ...DEFAULT_APPEARANCE };
+    setAppearance(next);
+    setDraftAppearance(null);
+    await saveAppearance(next);
+  }, []);
+
+  const applySavedLook = useCallback((look: SavedLook) => {
+    setDraftAppearance((draft) => ({
+      ...(draft ?? appearance),
+      ...look.config,
+    }));
+  }, [appearance]);
+
+  const saveCurrentLook = useCallback(async (name: string) => {
+    const source = draftAppearance ?? appearance;
+    const look: SavedLook = {
+      id: `look_${Date.now().toString(36)}`,
+      name: name.trim() || "My Look",
+      createdAt: new Date().toISOString(),
+      config: {
+        theme: source.theme,
+        accent: source.accent,
+        wallpaper: source.wallpaper,
+        customWallpaperUri: source.customWallpaperUri ?? null,
+        wallpaperBrightness: source.wallpaperBrightness,
+        surfaceStyle: source.surfaceStyle,
+      },
+    };
+    const next = [look, ...savedLooks].slice(0, 24);
+    setSavedLooks(next);
+    await saveSavedLooks(next);
+  }, [draftAppearance, appearance, savedLooks]);
+
+  const deleteSavedLook = useCallback(async (id: string) => {
+    const next = savedLooks.filter((l) => l.id !== id);
+    setSavedLooks(next);
+    await saveSavedLooks(next);
+  }, [savedLooks]);
+
+  const renameSavedLook = useCallback(async (id: string, name: string) => {
+    const next = savedLooks.map((l) => (l.id === id ? { ...l, name: name.trim() || l.name } : l));
+    setSavedLooks(next);
+    await saveSavedLooks(next);
+  }, [savedLooks]);
+
+  const value = useMemo<ThemeContextValue>(
+    () => ({
+      themeId,
+      preference,
+      setThemeId,
+      colors,
+      appearance,
+      draftAppearance,
+      surfaceStyle,
+      reduceMotion,
+      savedLooks,
+      beginAppearanceDraft,
+      updateAppearanceDraft,
+      cancelAppearanceDraft,
+      commitAppearance,
+      resetAppearance,
+      applySavedLook,
+      saveCurrentLook,
+      deleteSavedLook,
+      renameSavedLook,
+    }),
+    [
+      themeId,
+      preference,
+      setThemeId,
+      colors,
+      appearance,
+      draftAppearance,
+      surfaceStyle,
+      reduceMotion,
+      savedLooks,
+      beginAppearanceDraft,
+      updateAppearanceDraft,
+      cancelAppearanceDraft,
+      commitAppearance,
+      resetAppearance,
+      applySavedLook,
+      saveCurrentLook,
+      deleteSavedLook,
+      renameSavedLook,
+    ],
   );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) {
     const evergreen = require("@/themes/evergreen").default as Theme;
+    const noop = async () => {};
     return {
       themeId: "evergreen",
-      preference: "evergreen",
-      setThemeId: async () => {},
+      preference: DEFAULT_PREFERENCE,
+      setThemeId: noop,
       colors: evergreen,
+      appearance: DEFAULT_APPEARANCE,
+      draftAppearance: null,
+      surfaceStyle: "soft",
+      reduceMotion: false,
+      savedLooks: [],
+      beginAppearanceDraft: () => {},
+      updateAppearanceDraft: () => {},
+      cancelAppearanceDraft: () => {},
+      commitAppearance: noop,
+      resetAppearance: noop,
+      applySavedLook: () => {},
+      saveCurrentLook: noop,
+      deleteSavedLook: noop,
+      renameSavedLook: noop,
     };
   }
   return ctx;
@@ -144,4 +338,8 @@ export function isEvergreenTheme(themeId: ThemeId): boolean {
 
 export function isDarkAppearance(themeId: ThemeId): boolean {
   return themeId === "dark" || themeId === "evergreenDark";
+}
+
+export function isBlueTheme(themeId: ThemeId): boolean {
+  return themeId === "blue";
 }

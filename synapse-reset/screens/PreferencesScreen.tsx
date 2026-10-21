@@ -10,10 +10,7 @@ import { useAppMode } from "@/contexts/AppModeContext";
 import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import {
   settingsStorage,
-  healthProfileStorage,
   type UserSettings,
-  type HealthProfileInfo,
-  type WidgetAppearancePreference,
 } from "@/lib/storage";
 import { isCurrentMonthRamadan } from "@/lib/hijri";
 import { syncAllFromSettings } from "@/lib/notification-manager";
@@ -30,23 +27,20 @@ export default function PreferencesScreen({ onNavigate, onResetApp }: Preference
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
-  const { colors: C, preference, setThemeId } = useTheme();
+  const { colors: C } = useTheme();
   const { appMode, setAppMode } = useAppMode();
   const { textSize, setTextSize } = useDisplaySettings();
   const styles = useMemo(() => makeStyles(C), [C]);
 
   const [settings, setSettings] = useState<UserSettings | null>(null);
-  const [profile, setProfile] = useState<HealthProfileInfo | null>(null);
-  const [showAppearance, setShowAppearance] = useState(false);
   const [showSections, setShowSections] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [sectionSelections, setSectionSelections] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
-    const [s, p] = await Promise.all([settingsStorage.get(), healthProfileStorage.get()]);
+    const s = await settingsStorage.get();
     setSettings(s);
-    setProfile(p);
     const enabled = s.enabledSections?.length ? s.enabledSections : [...HAMBURGER_KEYS];
     setSectionSelections(new Set(enabled));
   }, []);
@@ -84,14 +78,6 @@ export default function PreferencesScreen({ onNavigate, onResetApp }: Preference
       return;
     }
     await persistSettings({ ...settings, ramadanMode: value });
-  };
-
-  const handleWidgetAppearance = async (value: WidgetAppearancePreference) => {
-    if (!profile) return;
-    const next = { ...profile, widgetAppearance: value };
-    setProfile(next);
-    await healthProfileStorage.save(next);
-    Haptics.selectionAsync();
   };
 
   const saveSections = async () => {
@@ -177,11 +163,16 @@ export default function PreferencesScreen({ onNavigate, onResetApp }: Preference
         ) : null}
 
         <Text style={styles.sectionLabel}>Appearance</Text>
-        <Pressable style={styles.navRow} onPress={() => setShowAppearance(true)} accessibilityRole="button">
+        <Pressable
+          style={styles.navRow}
+          onPress={() => onNavigate?.("appearance")}
+          accessibilityRole="button"
+          accessibilityLabel="Open Appearance Studio"
+        >
           <View style={styles.iconWrap}><Ionicons name="color-palette-outline" size={20} color={C.text} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowTitle}>Theme & widgets</Text>
-            <Text style={styles.rowBody}>App appearance and widget look</Text>
+            <Text style={styles.rowTitle}>Appearance Studio</Text>
+            <Text style={styles.rowBody}>Themes, accents, wallpapers, and more — free for everyone</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
         </Pressable>
@@ -250,52 +241,6 @@ export default function PreferencesScreen({ onNavigate, onResetApp }: Preference
           </>
         ) : null}
       </ScrollView>
-
-      <Modal visible={showAppearance} transparent animationType="fade" onRequestClose={() => setShowAppearance(false)}>
-        <Pressable style={styles.overlay} onPress={() => setShowAppearance(false)}>
-          <Pressable style={styles.modal} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Appearance</Text>
-            <Text style={styles.modalLabel}>App theme</Text>
-            {([
-              { id: "system" as const, label: "System" },
-              { id: "light" as const, label: "Light" },
-              { id: "dark" as const, label: "Dark" },
-              { id: "evergreen" as const, label: "Evergreen" },
-              { id: "calm" as const, label: "Calm" },
-            ]).map((opt) => (
-              <Pressable
-                key={opt.id}
-                style={[styles.modalRow, preference === opt.id && styles.modalRowActive]}
-                onPress={() => {
-                  void setThemeId(opt.id);
-                  Haptics.selectionAsync();
-                }}
-              >
-                <Text style={styles.modalRowText}>{opt.label}</Text>
-                {preference === opt.id ? <Ionicons name="checkmark" size={18} color={C.tint} /> : null}
-              </Pressable>
-            ))}
-            <Text style={[styles.modalLabel, { marginTop: 16 }]}>Widget look</Text>
-            {([
-              { id: "system" as const, label: "Match system" },
-              { id: "light" as const, label: "Light" },
-              { id: "dark" as const, label: "Dark" },
-            ]).map((opt) => (
-              <Pressable
-                key={opt.id}
-                style={[styles.modalRow, profile?.widgetAppearance === opt.id && styles.modalRowActive]}
-                onPress={() => handleWidgetAppearance(opt.id)}
-              >
-                <Text style={styles.modalRowText}>{opt.label}</Text>
-                {profile?.widgetAppearance === opt.id ? <Ionicons name="checkmark" size={18} color={C.tint} /> : null}
-              </Pressable>
-            ))}
-            <Pressable style={styles.modalDone} onPress={() => setShowAppearance(false)}>
-              <Text style={styles.modalDoneText}>Done</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
 
       <Modal visible={showSections} transparent animationType="fade" onRequestClose={() => setShowSections(false)}>
         <Pressable style={styles.overlay} onPress={() => setShowSections(false)}>

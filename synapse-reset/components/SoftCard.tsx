@@ -22,7 +22,7 @@ export default function SoftCard({
   children,
   ...rest
 }: SoftCardProps) {
-  const { colors: C, themeId } = useTheme();
+  const { colors: C, themeId, surfaceStyle } = useTheme();
   const tone: SoftCardTone = toneProp ?? (isDarkAppearance(themeId) ? "dark" : "light");
   return (
     <View
@@ -33,6 +33,8 @@ export default function SoftCard({
           backgroundColor: C.surface,
           borderRadius,
         }),
+        surfaceStyle === "solid" ? { borderColor: C.border, shadowOpacity: 0.04 } : null,
+        surfaceStyle === "glass" ? { borderColor: "rgba(255,255,255,0.72)" } : null,
         style,
       ]}
     >

@@ -150,6 +150,7 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
   { key: "surgeries", type: "screen", label: "Surgeries", icon: "bandage-outline", iconActive: "bandage", parent: "accounthub", description: "Past procedures and timing" },
   { key: "careteam", type: "screen", label: "Care Team", icon: "people-outline", iconActive: "people", parent: "accounthub", description: "Doctors and pharmacies" },
   { key: "settings", type: "screen", label: "Preferences", icon: "options-outline", iconActive: "options", parent: "accounthub", description: "Appearance, modes, and navigation" },
+  { key: "appearance", type: "screen", label: "Appearance Studio", icon: "color-palette-outline", iconActive: "color-palette", parent: "settings", description: "Themes, accents, wallpapers, and surfaces" },
   { key: "caresharing", type: "screen", label: "Care & Sharing", icon: "shield-checkmark-outline", iconActive: "shield-checkmark", parent: "accounthub", description: "Roles and caregiver connections" },
   { key: "integrations", type: "screen", label: "Integrations", icon: "extension-puzzle-outline", iconActive: "extension-puzzle", parent: "accounthub", description: "Apple Health" },
   { key: "privacy", type: "screen", label: "Privacy", icon: "lock-closed-outline", iconActive: "lock-closed", parent: "accounthub", description: "App lock and local-first data" },

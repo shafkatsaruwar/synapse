@@ -49,6 +49,7 @@ import CaregiverDashboardScreen from "@/screens/CaregiverDashboardScreen";
 import ManagedPersonScreen from "@/screens/ManagedPersonScreen";
 import FeatureHubScreen from "@/screens/FeatureHubScreen";
 import PreferencesScreen from "@/screens/PreferencesScreen";
+import AppearanceStudioScreen from "@/screens/AppearanceStudioScreen";
 import BackupRestoreScreen from "@/screens/BackupRestoreScreen";
 import ContextualTip from "@/components/ContextualTip";
 import { trackReturnSession } from "@/lib/product-milestones";
@@ -1468,6 +1469,12 @@ export default function MainScreen() {
         );
       case "settings":
         return <PreferencesScreen onNavigate={handleNavigate} onResetApp={handleResetApp} />;
+      case "appearance":
+        return (
+          <AppearanceStudioScreen
+            onBack={() => backToParentOr("settings")}
+          />
+        );
       default:
         if (__DEV__) {
           console.warn(`[nav] Unhandled screen key "${activeScreen}" — showing recovery`);
