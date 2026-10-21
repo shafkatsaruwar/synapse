@@ -1854,6 +1854,8 @@ export const goalStorage = {
 export type ExportPayload = {
   exportDate: string;
   appVersion: string;
+  /** Manual backup schema; older files may omit this and are still accepted. */
+  schemaVersion?: number;
   profile: UserSettings;
   healthProfile?: HealthProfileInfo;
   healthLogs: HealthLog[];
@@ -1947,7 +1949,8 @@ export const exportAllData = async (): Promise<ExportPayload> => {
   ]);
   return {
     exportDate: new Date().toISOString(),
-    appVersion: "1.0",
+    appVersion: "1.15",
+    schemaVersion: 1,
     profile: settings,
     healthProfile,
     healthLogs,
@@ -2015,6 +2018,25 @@ export const importAllData = async (payload: ExportPayload): Promise<void> => {
   await setItem(KEYS.GOALS, payload.goals ?? []);
   await setItem(KEYS.CYCLE_ENTRIES, payload.cycleEntries ?? []);
   await setItem(KEYS.FEEDBACK, payload.feedback ?? []);
+};
+
+/**
+ * Snapshot current data, import the payload, and roll back if import throws.
+ * Still best-effort — a crash mid-write can leave partial state — but failed
+ * validation paths never call this, and failed imports restore the snapshot.
+ */
+export const importAllDataTransactional = async (payload: ExportPayload): Promise<void> => {
+  const snapshot = await exportAllData();
+  try {
+    await importAllData(payload);
+  } catch (error) {
+    try {
+      await importAllData(snapshot);
+    } catch {
+      // Preserve the original failure; rollback is best-effort.
+    }
+    throw error;
+  }
 };
 
 export const clearAllData = async () => {
