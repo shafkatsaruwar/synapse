@@ -46,6 +46,21 @@ export const panelFaces: Record<
   },
 };
 
+/** Logical panel face. Textures are this size times `panelTextureScale`. */
+export const PANEL_FACE_WIDTH = 1024;
+export const PANEL_FACE_HEIGHT = 640;
+
+/**
+ * Desktop textures stay at least 2× so a 1× framebuffer does not enlarge a soft
+ * face, and cap at 3× so a 4K display does not allocate a fourth copy.
+ * Mobile stays within 1–1.5×.
+ */
+export function panelTextureScale(dpr: number, mobile: boolean) {
+  const ratio = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
+  if (mobile) return Math.min(1.5, Math.max(1, ratio));
+  return Math.min(3, Math.max(2, ratio));
+}
+
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -60,8 +75,10 @@ export function drawPanelFace(canvas: HTMLCanvasElement, id: PanelId, synapse: b
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const face = panelFaces[id];
-  const w = canvas.width;
-  const h = canvas.height;
+  const scale = canvas.width / PANEL_FACE_WIDTH;
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  const w = PANEL_FACE_WIDTH;
+  const h = PANEL_FACE_HEIGHT;
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = synapse ? "rgba(255,250,247,0.78)" : "rgba(255,255,255,0.42)";
   roundRect(ctx, 24, 24, w - 48, h - 48, 36);

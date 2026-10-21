@@ -152,8 +152,10 @@ const DESKTOP_CAM: CamKey[] = [
   { t: 0.54, position: { x: 0.55, y: 1.7, z: 5.2 }, lookAt: { x: 0, y: 0.8, z: 0 }, fov: 32 },
   { t: 0.66, position: { x: 0.95, y: 1.32, z: 3.55 }, lookAt: { x: 0.02, y: 0.38, z: 0 }, fov: 30 },
   { t: 0.78, position: { x: 0.4, y: 1.5, z: 3.6 }, lookAt: { x: 0, y: 0.4, z: 0 }, fov: 30 },
-  { t: 0.88, position: { x: 0.08, y: 1.85, z: 2.95 }, lookAt: { x: 0, y: 0.18, z: 0 }, fov: 28 },
-  { t: 1, position: { x: 0, y: 2.15, z: 2.28 }, lookAt: { x: 0, y: 0.02, z: 0 }, fov: 26 },
+  // Late merge already parks the phone on the right, so the reveal headline
+  // has the left column before it fades in.
+  { t: 0.88, position: { x: 0.03, y: 2.48, z: 3.78 }, lookAt: { x: -0.58, y: 0.06, z: 0 }, fov: 26.5 },
+  { t: 1, position: { x: 0.02, y: 2.55, z: 3.9 }, lookAt: { x: -0.62, y: 0.04, z: 0 }, fov: 26 },
 ];
 
 const MOBILE_CAM: CamKey[] = [
@@ -166,7 +168,7 @@ const MOBILE_CAM: CamKey[] = [
   { t: 0.54, position: { x: 0.3, y: 2.15, z: 6.3 }, lookAt: { x: 0, y: 0.85, z: 0 }, fov: 42 },
   { t: 0.66, position: { x: 0.45, y: 1.9, z: 4.7 }, lookAt: { x: 0, y: 0.42, z: 0 }, fov: 40 },
   { t: 0.82, position: { x: 0.12, y: 2.05, z: 4.15 }, lookAt: { x: 0, y: 0.35, z: 0 }, fov: 40 },
-  { t: 1, position: { x: 0, y: 2.45, z: 2.9 }, lookAt: { x: 0, y: 0.04, z: 0 }, fov: 36 },
+  { t: 1, position: { x: 0, y: 2.85, z: 3.45 }, lookAt: { x: 0, y: -0.02, z: 0 }, fov: 34 },
 ];
 
 export function clamp01(v: number) {

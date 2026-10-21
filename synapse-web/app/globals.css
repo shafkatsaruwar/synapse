@@ -182,6 +182,9 @@ button, input, summary { font: inherit; }
   margin: 0;
 }
 .hero-title { font-size: clamp(3.1rem, 6.4vw, 5.8rem); }
+.cinematic[data-phase="REVEAL"] .hero-copy { max-width: min(34rem, 40vw); }
+.cinematic[data-phase="REVEAL"] .hero-title { font-size: clamp(2.45rem, 4.15vw, 4.35rem); }
+.cinematic[data-phase="REVEAL"] .lede { max-width: 28rem; }
 .eyebrow {
   margin: 0 0 0.8rem;
   color: var(--burgundy);
