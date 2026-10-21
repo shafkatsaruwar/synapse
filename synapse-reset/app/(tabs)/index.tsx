@@ -35,6 +35,8 @@ import RamadanScreen from "@/screens/RamadanScreen";
 import HealthProfileScreen from "@/screens/HealthProfileScreen";
 import HealthProfileConditionsScreen from "@/screens/HealthProfileConditionsScreen";
 import AllergyScreen from "@/screens/AllergyScreen";
+import VaccinesScreen from "@/screens/VaccinesScreen";
+import SurgeriesScreen from "@/screens/SurgeriesScreen";
 import DoctorsScreen from "@/screens/DoctorsScreen";
 import PharmaciesScreen from "@/screens/PharmaciesScreen";
 import CycleTrackingScreen from "@/screens/CycleTrackingScreen";
@@ -1420,6 +1422,10 @@ export default function MainScreen() {
         return <HealthProfileConditionsScreen onBack={() => backToParentOr("accounthub")} />;
       case "allergy":
         return <AllergyScreen onBack={() => backToParentOr("accounthub")} />;
+      case "vaccines":
+        return <VaccinesScreen onBack={() => backToParentOr("accounthub")} />;
+      case "surgeries":
+        return <SurgeriesScreen onBack={() => backToParentOr("accounthub")} />;
       case "cycletracking":
         return <CycleTrackingScreen onBack={() => backToParentOr("wellbeinghub")} />;
       case "editprofile":

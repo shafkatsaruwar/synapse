@@ -205,8 +205,6 @@ function makeStyles(C: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 24 },
-    backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 20 },
-    backText: { fontWeight: "600", fontSize: 15, color: C.text },
     title: { fontWeight: "700", fontSize: 26, color: C.text, letterSpacing: -0.5, marginBottom: 8 },
     subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginBottom: 24 },
     card: { backgroundColor: C.surface, borderRadius: 14, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border, ...raised("md", "#55718F") },
