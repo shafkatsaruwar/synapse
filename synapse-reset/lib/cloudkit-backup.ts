@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, NativeModules, Platform } from "react-native";
+import { featureFlags } from "@/constants/feature-flags";
 import { exportAllData, importAllData, type ExportPayload } from "@/lib/storage";
 import {
   getLocalDataUpdatedAt,
@@ -39,7 +40,7 @@ let restoreInFlight = false;
 let installed = false;
 
 function isCloudKitAvailable() {
-  return Platform.OS === "ios" && !!bridge;
+  return featureFlags.cloudKitBackupEnabled && Platform.OS === "ios" && !!bridge;
 }
 
 function dateValue(value?: string | null) {
