@@ -17,19 +17,25 @@ import {
 } from "@/lib/storage";
 
 /**
- * Clear delivered tray notifications when the native build changes so iOS/Android
- * stop showing a cached prior App Icon on Notification Center / lock screen.
- * Value stored is the native build tag (iOS CFBundleVersion / Android versionCode).
+ * Clear delivered + pending notifications when the native build changes so
+ * iOS/Android stop showing a cached prior App Icon on Notification Center /
+ * lock screen. Value stored is the native build tag + icon generation.
  */
 const BRAND_NOTIFICATION_ICON_CLEARED_BUILD_KEY = "synapse_brand_notification_icon_cleared_build";
+/** Bump when App Icon assets are re-fingerprinted so tray refresh runs again. */
+const BRAND_NOTIFICATION_ICON_GENERATION = "v3";
 
 function getNativeBuildTag(): string {
   const iosBuild = Constants.platform?.ios?.buildNumber;
   const androidCode = Constants.platform?.android?.versionCode;
-  if (iosBuild != null && String(iosBuild).length > 0) return `ios:${iosBuild}`;
-  if (androidCode != null) return `android:${androidCode}`;
+  if (iosBuild != null && String(iosBuild).length > 0) {
+    return `ios:${iosBuild}:${BRAND_NOTIFICATION_ICON_GENERATION}`;
+  }
+  if (androidCode != null) {
+    return `android:${androidCode}:${BRAND_NOTIFICATION_ICON_GENERATION}`;
+  }
   // Fallback so OTA-only clients still clear once after this migration ships.
-  return "js:synapse_brand_notification_icon_v2";
+  return `js:synapse_brand_notification_icon_${BRAND_NOTIFICATION_ICON_GENERATION}`;
 }
 import { getToday } from "@/lib/date-utils";
 import { getHomeScreenBadgeCount } from "@/lib/nav-badge-counts";
@@ -1185,13 +1191,15 @@ function parseTimeHHMM(s: string | undefined): { hour: number; minute: number } 
 export async function syncAllFromSettings(): Promise<void> {
   if (!isNative()) return;
   try {
-    // Delivered tray items can keep a prior App Icon until dismissed. Clear once
-    // per native build (and once for this JS migration fallback).
+    // Delivered tray items (and some pending ones) can keep a prior App Icon
+    // until dismissed/cancelled. Clear once per native build + icon generation,
+    // then reschedule below so new deliveries bind to the current App Icon.
     try {
       const buildTag = getNativeBuildTag();
       const clearedFor = await AsyncStorage.getItem(BRAND_NOTIFICATION_ICON_CLEARED_BUILD_KEY);
       if (clearedFor !== buildTag) {
         await Notifications.dismissAllNotificationsAsync();
+        await Notifications.cancelAllScheduledNotificationsAsync();
         await AsyncStorage.setItem(BRAND_NOTIFICATION_ICON_CLEARED_BUILD_KEY, buildTag);
       }
     } catch {
