@@ -5,7 +5,7 @@ type CareSharingScreenProps = Omit<React.ComponentProps<typeof SettingsScreen>, 
   variant?: Extract<SettingsScreenVariant, "care">;
 };
 
-/** Care & Sharing surface — roles, caregiver linking, care team shortcuts. */
+/** Care & Sharing surface — roles and caregiver linking only. */
 export default function CareSharingScreen(props: CareSharingScreenProps) {
   return <SettingsScreen {...props} variant="care" />;
 }

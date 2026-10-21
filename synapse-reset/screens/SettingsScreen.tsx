@@ -9,11 +9,9 @@ import {
   useWindowDimensions,
   ScrollView,
   Alert,
-  Image,
   Share,
 } from "react-native";
 import TextInput from "@/components/DoneTextInput";
-import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -24,14 +22,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import GlassView from "@/components/GlassView";
 import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 import {
-  settingsStorage,
   healthProfileStorage,
-  clearAllData,
-  type UserSettings,
   type HealthProfileInfo,
   type UserRole,
 } from "@/lib/storage";
-import { persistProfileImage } from "@/lib/profile-image";
 import { useRole } from "@/contexts/RoleContext";
 import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
@@ -86,7 +80,6 @@ function formatBackupTime(value?: string | null) {
 
 export default function SettingsScreen({
   variant = "care",
-  onResetApp,
   onNavigate,
   onRestoreComplete,
 }: SettingsScreenProps) {
@@ -103,11 +96,7 @@ export default function SettingsScreen({
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
   const authUserId = (user as { id?: string } | null)?.id ?? null;
 
-  const [settings, setSettings] = useState<UserSettings>({ name: "", conditions: [], ramadanMode: false, sickMode: false });
   const [profile, setProfile] = useState<HealthProfileInfo>({ userRole: "self", widgetAppearance: "system", backupCriticalMedications: [] });
-  const [showNameModal, setShowNameModal] = useState(false);
-  const [draftName, setDraftName] = useState("");
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [roleDetailsEditing, setRoleDetailsEditing] = useState(false);
 
   const [appleHealthStatus, setAppleHealthStatus] = useState<AppleHealthStatus | null>(null);
@@ -123,19 +112,8 @@ export default function SettingsScreen({
   const [caregiverOnboardingCode, setCaregiverOnboardingCode] = useState("");
   const [caregiverOnboardingError, setCaregiverOnboardingError] = useState("");
 
-  const handleResetApp = async () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    await clearAllData();
-    setShowResetConfirm(false);
-    if (onResetApp) onResetApp();
-  };
-
   const loadData = useCallback(async () => {
-    const [s, profileInfo] = await Promise.all([
-      settingsStorage.get(),
-      healthProfileStorage.get(),
-    ]);
-    setSettings(s);
+    const profileInfo = await healthProfileStorage.get();
     setProfile(profileInfo);
   }, []);
 
@@ -190,39 +168,6 @@ export default function SettingsScreen({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     syncAllFromSettings().catch(() => {});
     syncWidgetSnapshot().catch(() => {});
-  };
-
-  const handlePickProfileImage = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("Photo access needed", "Please allow photo library access to choose a profile picture.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      quality: 0.8,
-      aspect: [1, 1],
-    });
-
-    if (result.canceled || !result.assets?.[0]?.uri) return;
-    const persistedUri = await persistProfileImage(result.assets[0].uri, profile.profileImageUri);
-    await handleSaveProfile({ ...profile, profileImageUri: persistedUri });
-  };
-
-  const openNameModal = () => {
-    setDraftName(settings.name?.trim() || "");
-    setShowNameModal(true);
-  };
-
-  const handleSaveName = async () => {
-    const trimmedName = draftName.trim();
-    const nextSettings = { ...settings, name: trimmedName };
-    setSettings(nextSettings);
-    await settingsStorage.save(nextSettings);
-    setShowNameModal(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const updateRole = async (role: UserRole) => {
@@ -523,31 +468,6 @@ export default function SettingsScreen({
     ...contentPadding,
     paddingTop: isWide ? 28 : Platform.OS === "web" ? 40 : insets.top + 24,
   };
-
-  const shortcutCardMap = {
-    doctors: {
-      key: "doctors",
-      title: "Doctors",
-      description: "Your care team",
-      icon: "medical-outline" as const,
-      tintColor: C.tint,
-      tintBg: C.tintLight,
-      onPress: () => onNavigate?.("doctors"),
-    },
-    pharmacies: {
-      key: "pharmacies",
-      title: "Pharmacies",
-      description: "Pickup and refill spots",
-      icon: "storefront-outline" as const,
-      tintColor: C.tint,
-      tintBg: C.tintLight,
-      onPress: () => onNavigate?.("pharmacies"),
-    },
-  } as const;
-
-  const accountShortcutCards = isCare
-    ? [shortcutCardMap.doctors, shortcutCardMap.pharmacies]
-    : [];
 
   const simpleHeaderTitleSize = Math.round(28 * textScale);
   const simpleSectionTitleSize = Math.round(20 * textScale);
@@ -927,41 +847,6 @@ export default function SettingsScreen({
           <Text style={[styles.title, { fontSize: simpleHeaderTitleSize, marginBottom: 18 }]}>Care & Sharing</Text>
 
           <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
-            <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Profile</Text>
-            <View style={styles.simpleProfileRow}>
-              <Pressable
-                style={styles.simpleProfileAvatar}
-                onPress={handlePickProfileImage}
-                accessibilityRole="button"
-                accessibilityLabel={profile.profileImageUri ? "Change photo" : "Add photo"}
-              >
-                {profile.profileImageUri ? (
-                  <Image source={{ uri: profile.profileImageUri }} style={styles.simpleProfileAvatarImage} />
-                ) : (
-                  <Text style={styles.simpleProfileAvatarText}>
-                    {(settings.name?.trim()?.[0] ?? "Y").toUpperCase()}
-                  </Text>
-                )}
-              </Pressable>
-              <View style={styles.simpleProfileTextWrap}>
-                <Text style={[styles.simpleProfileName, { fontSize: simpleSectionTitleSize }]}>
-                  {settings.name?.trim() || "You"}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.simpleSettingsButtonRow}>
-              <Pressable style={styles.simpleSettingsSecondaryButton} onPress={openNameModal}>
-                <Text style={[styles.simpleSettingsSecondaryButtonText, { fontSize: simpleActionSize }]}>Edit name</Text>
-              </Pressable>
-              <Pressable style={styles.simpleSettingsPrimaryButton} onPress={handlePickProfileImage}>
-                <Text style={[styles.simpleSettingsPrimaryButtonText, { fontSize: simpleActionSize }]}>
-                  {profile.profileImageUri ? "Change photo" : "Add photo"}
-                </Text>
-              </Pressable>
-            </View>
-          </GlassView>
-
-          <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
             <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Role</Text>
             <Text style={[styles.simpleSettingsPrompt, { fontSize: simpleBodySize }]}>Who is this for?</Text>
             <View style={styles.simpleSettingsOptionStack}>
@@ -1081,77 +966,8 @@ export default function SettingsScreen({
             ) : null}
             {renderCaregiverLinkingSection(true)}
           </GlassView>
-
-          <Pressable
-            style={[styles.simpleSettingsCard, styles.simpleSettingsSecondaryButton, { marginBottom: 12 }]}
-            onPress={() => onNavigate?.("settings")}
-            accessibilityRole="button"
-            accessibilityLabel="Open Preferences"
-          >
-            <Text style={[styles.simpleSettingsSecondaryButtonText, { fontSize: simpleActionSize }]}>
-              Preferences — mode, text size, appearance
-            </Text>
-          </Pressable>
-
-          {onResetApp ? (
-            <View style={styles.simpleSettingsDangerWrap}>
-              <Pressable
-                style={styles.simpleSettingsDangerButton}
-                onPress={() => setShowResetConfirm(true)}
-                testID="reset-app"
-                accessibilityRole="button"
-                accessibilityLabel="Reset app"
-              >
-                <Text style={[styles.simpleSettingsDangerText, { fontSize: simpleActionSize }]}>Reset App</Text>
-              </Pressable>
-            </View>
-          ) : null}
         </ScrollView>
         {caregiverOnboardingModal}
-
-        <Modal visible={showResetConfirm} transparent animationType="fade">
-          <Pressable style={styles.overlay} onPress={() => setShowResetConfirm(false)}>
-            <Pressable style={styles.resetModal} onPress={() => {}}>
-              <Text style={styles.resetEmoji}>⚠️</Text>
-              <Text style={styles.resetTitle}>Reset App</Text>
-              <Text style={styles.resetDesc}>This will delete all your data.</Text>
-              <View style={styles.modalActions}>
-                <Pressable style={styles.cancelBtn} onPress={() => setShowResetConfirm(false)}>
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </Pressable>
-                <Pressable style={styles.resetConfirmBtn} onPress={handleResetApp}>
-                  <Text style={styles.resetConfirmText}>Reset</Text>
-                </Pressable>
-              </View>
-            </Pressable>
-          </Pressable>
-        </Modal>
-
-        <Modal visible={showNameModal} transparent animationType="fade">
-          <Pressable style={styles.overlay} onPress={() => setShowNameModal(false)}>
-            <Pressable style={styles.resetModal} onPress={() => {}}>
-              <Text style={[styles.resetTitle, { marginBottom: 12 }]}>Edit name</Text>
-              <TextInput
-                style={[styles.input, { marginBottom: 16 }]}
-                placeholder="Your name"
-                placeholderTextColor={C.textTertiary}
-                value={draftName}
-                onChangeText={setDraftName}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={handleSaveName}
-              />
-              <View style={styles.modalActions}>
-                <Pressable style={styles.cancelBtn} onPress={() => setShowNameModal(false)}>
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </Pressable>
-                <Pressable style={[styles.resetConfirmBtn, { backgroundColor: C.tint }, !draftName.trim() && { opacity: 0.5 }]} onPress={handleSaveName} disabled={!draftName.trim()}>
-                  <Text style={styles.resetConfirmText}>Save</Text>
-                </Pressable>
-              </View>
-            </Pressable>
-          </Pressable>
-        </Modal>
       </View>
     );
   }
@@ -1169,71 +985,6 @@ export default function SettingsScreen({
           <Text style={[styles.desc, { marginBottom: 16 }]}>
             Connect optional services. Private CloudKit backup lives under Backup & Restore. Appearance and mode live in Preferences.
           </Text>
-        ) : null}
-
-        {/* ——— Local Profile Header (Care only) ——— */}
-        {isCare ? (
-        <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={styles.cardGlass}>
-          <Pressable
-            style={({ pressed }) => [styles.cardPressable, { opacity: pressed ? 0.9 : 1 }]}
-            onPress={openNameModal}
-            accessibilityRole="button"
-            accessibilityLabel="Edit your name"
-          >
-          <View style={styles.profileHeader}>
-            <Pressable
-              style={styles.profileAvatar}
-              onPress={(event) => {
-                event.stopPropagation();
-                handlePickProfileImage();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Choose profile picture"
-            >
-              {profile.profileImageUri ? (
-                <Image source={{ uri: profile.profileImageUri }} style={styles.profileAvatarImage} />
-              ) : (
-                <Text style={styles.profileAvatarText}>
-                  {(settings.name?.trim()?.[0] ?? "Y").toUpperCase()}
-                </Text>
-              )}
-            </Pressable>
-            <View style={styles.profileInfo}>
-              <Text style={styles.profileGreeting}>Hello,</Text>
-              <View style={styles.profileNameRow}>
-                <Text style={styles.profileFullName}>
-                  {settings.name?.trim() || "You"}
-                </Text>
-                <Ionicons name="pencil-outline" size={16} color={C.textTertiary} />
-              </View>
-              <Text style={styles.editHint}>Tap to edit</Text>
-            </View>
-          </View>
-          <Text style={styles.localHint}>
-            Data is stored locally on this device. Use Export All Data anytime if you want a manual backup file.
-          </Text>
-          <Pressable
-            style={styles.photoLink}
-            onPress={(event) => {
-              event.stopPropagation();
-              handlePickProfileImage();
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={profile.profileImageUri ? "Change profile picture" : "Add profile picture"}
-          >
-            <Ionicons name="image-outline" size={15} color={C.tint} />
-            <Text style={styles.photoLinkText}>
-              {profile.profileImageUri ? "Change profile picture" : "Add profile picture"}
-            </Text>
-          </Pressable>
-          </Pressable>
-        </GlassView>
-        ) : null}
-
-        {isCare ? (
-          <Pressable style={[styles.secondaryBtn, { marginBottom: 12 }]} onPress={() => onNavigate?.("editprofile")}>
-            <Text style={styles.secondaryBtnText}>Backup & Restore</Text>
-          </Pressable>
         ) : null}
 
         {isIntegrations ? (
@@ -1501,106 +1252,13 @@ export default function SettingsScreen({
         </GlassView>
         ) : null}
 
-        {isCare && accountShortcutCards.length > 0 ? (
-        <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={styles.groupCard}>
-          <View style={styles.groupHeader}>
-            <Text style={styles.groupTitle}>Care team</Text>
-            <Text style={styles.groupSubtitle}>Doctors and pharmacies for this setup.</Text>
-          </View>
-          <View style={styles.tileGrid}>
-            {accountShortcutCards.map((item) => (
-              <Pressable
-                key={item.key}
-                style={({ pressed }) => [styles.tileCard, { opacity: pressed ? 0.82 : 1 }]}
-                onPress={item.onPress}
-                accessibilityRole="button"
-                accessibilityLabel={item.title}
-              >
-                <View style={[styles.tileIconWrap, { backgroundColor: item.tintBg }]}>
-                  <Ionicons name={item.icon} size={22} color={item.tintColor} />
-                </View>
-                <Text style={styles.tileTitle}>{item.title}</Text>
-                <Text style={styles.tileDesc}>{item.description}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </GlassView>
-        ) : null}
-
-        {isCare ? (
-          <Pressable style={[styles.secondaryBtn, { marginBottom: 12 }]} onPress={() => onNavigate?.("settings")}>
-            <Text style={styles.secondaryBtnText}>Open Preferences</Text>
-          </Pressable>
-        ) : null}
-
         {isIntegrations ? (
           <Pressable style={[styles.secondaryBtn, { marginBottom: 12 }]} onPress={() => onNavigate?.("editprofile")}>
             <Text style={styles.secondaryBtnText}>Backup & Restore</Text>
           </Pressable>
         ) : null}
-
-        {isCare && onResetApp && (
-          <Pressable
-            style={({ pressed }) => [styles.resetAppBtn, { opacity: pressed ? 0.8 : 1 }]}
-            onPress={() => setShowResetConfirm(true)}
-            testID="reset-app"
-            accessibilityRole="button"
-            accessibilityLabel="Reset app"
-            accessibilityHint="Erases all data and returns to onboarding"
-          >
-            <Ionicons name="trash-outline" size={16} color={C.red} />
-            <Text style={styles.resetAppText}>Reset App</Text>
-          </Pressable>
-        )}
       </ScrollView>
       {caregiverOnboardingModal}
-
-      <Modal visible={showResetConfirm} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setShowResetConfirm(false)}>
-          <Pressable style={styles.resetModal} onPress={() => {}}>
-            <Text style={styles.resetEmoji}>⚠️</Text>
-            <Text style={styles.resetTitle}>Are you sure?</Text>
-            <Text style={styles.resetDesc}>This will delete all your data.</Text>
-            <View style={styles.modalActions}>
-              <Pressable style={styles.cancelBtn} onPress={() => setShowResetConfirm(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={styles.resetConfirmBtn} onPress={handleResetApp}>
-                <Text style={styles.resetConfirmText}>Reset</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      <Modal visible={showNameModal} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setShowNameModal(false)}>
-          <Pressable style={styles.resetModal} onPress={() => {}}>
-            <Text style={[styles.resetTitle, { marginBottom: 8 }]}>Edit name</Text>
-            <Text style={[styles.resetDesc, { marginBottom: 16 }]}>This is the name Synapse shows across the app.</Text>
-            <Text style={styles.label}>Name</Text>
-            <TextInput
-              style={[styles.input, { marginBottom: 16 }]}
-              placeholder="Your name"
-              placeholderTextColor={C.textTertiary}
-              value={draftName}
-              onChangeText={setDraftName}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={handleSaveName}
-            />
-            <View style={styles.modalActions}>
-              <Pressable style={styles.cancelBtn} onPress={() => setShowNameModal(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={[styles.resetConfirmBtn, { backgroundColor: C.tint }, !draftName.trim() && { opacity: 0.5 }]} onPress={handleSaveName} disabled={!draftName.trim()}>
-                <Text style={styles.resetConfirmText}>Save</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
     </View>
   );
 }
