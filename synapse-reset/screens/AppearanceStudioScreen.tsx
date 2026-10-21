@@ -162,14 +162,8 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
                 accessibilityState={{ selected }}
                 accessibilityLabel={`${theme.label} theme`}
               >
-                <ThemeMiniPreview themeId={theme.id} selected={selected} />
+                <ThemeMiniPreview themeId={theme.id} />
                 <Text style={styles.themeName}>{theme.label}</Text>
-                <Text style={styles.themeBlurb}>{theme.blurb}</Text>
-                {selected ? (
-                  <View style={styles.checkBadge}>
-                    <Ionicons name="checkmark" size={12} color="#fff" />
-                  </View>
-                ) : null}
               </Pressable>
             );
           })}
@@ -370,18 +364,15 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
   );
 }
 
-function ThemeMiniPreview({ themeId, selected }: { themeId: ThemePreference; selected: boolean }) {
+function ThemeMiniPreview({ themeId }: { themeId: ThemePreference }) {
   const { colors: live } = useTheme();
   const palette = previewPalette(themeId, live);
   return (
-    <View style={[mini.wrap, { backgroundColor: palette.bg, borderColor: selected ? live.tint : palette.border }]}>
-      <View style={[mini.card, { backgroundColor: palette.card }]} />
-      <View style={[mini.card, { backgroundColor: palette.card, width: "62%" }]} />
-      <View style={[mini.accent, { backgroundColor: palette.accent }]} />
-      <View style={mini.nav}>
-        <View style={[mini.dot, { backgroundColor: palette.accent }]} />
-        <View style={[mini.dot, { backgroundColor: palette.muted }]} />
-        <View style={[mini.dot, { backgroundColor: palette.muted }]} />
+    <View style={[mini.wrap, { backgroundColor: palette.bg }]}>
+      <View style={[mini.accentPill, { backgroundColor: palette.accent }]} />
+      <View style={mini.blocksRow}>
+        <View style={mini.block} />
+        <View style={mini.block} />
       </View>
     </View>
   );
@@ -446,34 +437,32 @@ function LivePreview() {
 
 const mini = StyleSheet.create({
   wrap: {
-    height: 72,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 8,
-    marginBottom: 8,
+    width: "100%",
+    height: 78,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingTop: 12,
+    paddingBottom: 10,
+    marginBottom: 10,
     overflow: "hidden",
-  },
-  card: {
-    height: 10,
-    borderRadius: 4,
-    marginBottom: 5,
-    width: "88%",
-  },
-  accent: {
-    height: 4,
-    width: 28,
-    borderRadius: 2,
-    marginTop: 2,
-  },
-  nav: {
-    position: "absolute",
-    bottom: 6,
-    left: 8,
-    right: 8,
-    flexDirection: "row",
     justifyContent: "space-between",
   },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  accentPill: {
+    height: 10,
+    width: "70%",
+    borderRadius: 999,
+    alignSelf: "flex-start",
+  },
+  blocksRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  block: {
+    flex: 1,
+    height: 28,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+  },
 });
 
 function makeStyles(C: Theme) {
@@ -506,24 +495,13 @@ function makeStyles(C: Theme) {
       borderWidth: 1,
       borderColor: C.border,
       marginBottom: 10,
-      ...raised("sm"),
+      alignItems: "center",
     },
     themeCardThird: { width: "31.5%" },
     themeCardHalf: { width: "48%" },
     themeCardSelected: { borderColor: C.tint, borderWidth: 1.5 },
-    themeName: { fontWeight: "800", fontSize: 13, color: C.text },
-    themeBlurb: { fontWeight: "500", fontSize: 11, color: C.textSecondary, marginTop: 2 },
-    checkBadge: {
-      position: "absolute",
-      top: 8,
-      right: 8,
-      width: 18,
-      height: 18,
-      borderRadius: 9,
-      backgroundColor: C.tint,
-      alignItems: "center",
-      justifyContent: "center",
-    },
+    themeName: { fontWeight: "700", fontSize: 13, color: C.text, textAlign: "center" },
+
     swatchRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
     swatch: {
       width: 36,
