@@ -7,4 +7,9 @@ export const featureFlags = {
    * intentionally private — there is no public settings/marketing surface for it.
    */
   medicationEnforcementEnabled: false,
+  /**
+   * Private CloudKit (iCloud) backup. Off while the Production schema lacks the
+   * UserData record type (CKErrorDomain 12). Local file export/restore remains.
+   */
+  cloudKitBackupEnabled: false,
 };

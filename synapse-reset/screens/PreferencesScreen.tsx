@@ -233,7 +233,7 @@ export default function PreferencesScreen({ onNavigate, onResetApp }: Preference
             <View style={styles.card}>
               <Text style={styles.rowTitle}>Reset App</Text>
               <Text style={styles.rowBody}>
-                Erase local data on this device and return to onboarding. CloudKit backups are not deleted.
+                Erase local data on this device and return to onboarding. Backup files you already saved elsewhere are not deleted.
               </Text>
               <Pressable
                 style={styles.dangerBtn}

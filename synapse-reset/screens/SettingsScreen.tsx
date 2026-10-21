@@ -983,7 +983,7 @@ export default function SettingsScreen({
         <Text style={styles.title}>{isIntegrations ? "Integrations" : "Care & Sharing"}</Text>
         {isIntegrations ? (
           <Text style={[styles.desc, { marginBottom: 16 }]}>
-            Connect optional services. Private CloudKit backup lives under Backup & Restore. Appearance and mode live in Preferences.
+            Connect optional services. Local backup files live under Backup & Restore. Appearance and mode live in Preferences.
           </Text>
         ) : null}
 

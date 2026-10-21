@@ -1,20 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Pressable, Platform, Alert, ActivityIndicator, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { exportAllData, importAllData } from "@/lib/storage";
-import { getCloudKitBackupStatus, restoreFromICloud, saveToICloud } from "@/lib/cloudkit-backup";
 import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { raised } from "@/constants/raised";
-
-type CloudKitStatus = Awaited<ReturnType<typeof getCloudKitBackupStatus>>;
 
 type BackupRestoreScreenProps = {
   onRestoreComplete?: () => void;
@@ -27,131 +24,48 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
   const isWide = width >= 768;
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
-  const [cloudStatus, setCloudStatus] = useState<CloudKitStatus | null>(null);
-  const [cloudBusy, setCloudBusy] = useState(false);
   const [localBusy, setLocalBusy] = useState(false);
 
-  const refresh = useCallback(async () => {
-    try {
-      setCloudStatus(await getCloudKitBackupStatus());
-    } catch {
-      setCloudStatus(null);
-    }
-  }, []);
-
-  useEffect(() => { refresh(); }, [refresh]);
-
-  const cloudKitUnavailableMessage = (accountStatus?: string | null) => {
-    if (Platform.OS !== "ios") {
-      return "CloudKit backup is available in the iOS app.";
-    }
-    switch (accountStatus) {
-      case "noAccount":
-        return "Sign in to iCloud in Settings to use CloudKit backup.";
-      case "restricted":
-        return "iCloud access is restricted on this device.";
-      case "couldNotDetermine":
-        return "CloudKit needs a native iOS build. Expo Go cannot access Synapse’s iCloud container.";
-      default:
-        return "CloudKit is not available right now. Synapse will keep your data local until iCloud is ready.";
-    }
-  };
-
-  const handleBackupNow = async () => {
-    if (cloudBusy) return;
-    if (cloudStatus && cloudStatus.accountStatus !== "available") {
-      Alert.alert("CloudKit unavailable", cloudKitUnavailableMessage(cloudStatus.accountStatus));
-      return;
-    }
-    setCloudBusy(true);
-    try {
-      const result = await saveToICloud();
-      await refresh();
-      if (result.error) {
-        Alert.alert("Backup didn’t finish", result.error.message || "Try again in a moment.");
-      } else if (result.skipped) {
-        Alert.alert("Backup skipped", result.skipReason || "iCloud wasn’t ready.");
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Backup saved", "Your Synapse data was backed up to iCloud.");
-      }
-    } catch (e) {
-      Alert.alert("Backup failed", e instanceof Error ? e.message : "Try again.");
-    } finally {
-      setCloudBusy(false);
-    }
-  };
-
-  const handleRestoreCloudKit = () => {
-    if (cloudBusy) return;
-    if (cloudStatus && cloudStatus.accountStatus !== "available") {
-      Alert.alert("CloudKit unavailable", cloudKitUnavailableMessage(cloudStatus.accountStatus));
-      return;
-    }
-    Alert.alert(
-      "Restore from iCloud?",
-      "This replaces data on this device with your latest CloudKit backup. Continue?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Restore",
-          style: "destructive",
-          onPress: async () => {
-            setCloudBusy(true);
-            try {
-              const result = await restoreFromICloud();
-              await refresh();
-              if (result.error) {
-                Alert.alert("Restore didn’t finish", result.error.message || "Try again.");
-              } else if (result.restored) {
-                await syncAllFromSettings().catch(() => {});
-                await syncWidgetSnapshot().catch(() => {});
-                onRestoreComplete?.();
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                Alert.alert("Restore complete", "Your CloudKit backup is on this device.");
-              } else {
-                Alert.alert("Nothing to restore", result.skipReason || "No newer CloudKit backup was found.");
-              }
-            } catch (e) {
-              Alert.alert("Restore failed", e instanceof Error ? e.message : "Try again.");
-            } finally {
-              setCloudBusy(false);
-            }
-          },
-        },
-      ]
-    );
-  };
-
   const handleExportLocal = async () => {
+    if (localBusy) return;
     setLocalBusy(true);
     try {
-      const json = await exportAllData();
-      const canShare = await Sharing.isAvailableAsync();
-      if (!canShare) {
-        Alert.alert("Export ready", "Sharing isn’t available on this device.");
+      if (!FileSystem.documentDirectory) {
+        Alert.alert("Export unavailable", "This device can’t create a backup file right now.");
         return;
       }
-      // Share the JSON string via a temporary approach used elsewhere — write via Sharing of URI if needed.
-      // storage export returns string; PrivacyScreen may write a file. Keep simple alert + clipboard-less share:
-      Alert.alert(
-        "Local export",
-        "Use Privacy → Export All Data for a shareable file, or Backup Now for iCloud.",
-        [
-          { text: "Open Privacy", onPress: () => onNavigate?.("privacy") },
-          { text: "OK" },
-        ]
-      );
-      void json;
+      const payload = await exportAllData();
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const fileName = `synapse-backup-${stamp}.json`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(payload, null, 2), {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert("Export ready", `Backup saved on this device as ${fileName}. Sharing isn’t available here.`);
+        return;
+      }
+      await Sharing.shareAsync(fileUri, {
+        mimeType: "application/json",
+        dialogTitle: "Save Synapse backup",
+        UTI: "public.json",
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      Alert.alert("Export failed", e instanceof Error ? e.message : "Try again.");
     } finally {
       setLocalBusy(false);
     }
   };
 
   const handleImportLocal = async () => {
+    if (localBusy) return;
     setLocalBusy(true);
     try {
-      const pick = await DocumentPicker.getDocumentAsync({ type: "application/json", copyToCacheDirectory: true });
+      const pick = await DocumentPicker.getDocumentAsync({
+        type: ["application/json", "text/plain"],
+        copyToCacheDirectory: true,
+      });
       if (pick.canceled || !pick.assets?.[0]?.uri) return;
       Alert.alert(
         "Restore from file?",
@@ -163,8 +77,11 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
             style: "destructive",
             onPress: async () => {
               try {
-                const res = await fetch(pick.assets![0].uri);
-                const text = await res.text();
+                const uri = pick.assets![0].uri;
+                const text =
+                  Platform.OS === "web"
+                    ? await (await fetch(uri)).text()
+                    : await FileSystem.readAsStringAsync(uri);
                 await importAllData(JSON.parse(text));
                 await syncAllFromSettings().catch(() => {});
                 await syncWidgetSnapshot().catch(() => {});
@@ -184,9 +101,6 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
   };
 
   const topPad = isWide ? 28 : Platform.OS === "web" ? 40 : 8;
-  const lastSync = cloudStatus?.lastSyncedAt
-    ? new Date(cloudStatus.lastSyncedAt).toLocaleString()
-    : null;
 
   return (
     <View style={styles.container}>
@@ -196,65 +110,35 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
       >
         <Text style={styles.title}>Backup & Restore</Text>
         <Text style={styles.subtitle}>
-          Data stays on this device by default. Optional iCloud or file copies are available when you choose them.
+          Data stays on this device. Make a local backup file anytime, or restore from a file you saved earlier.
         </Text>
-
-        <Text style={styles.sectionLabel}>iCloud (CloudKit)</Text>
-        <View style={styles.card}>
-          <View style={styles.statusRow}>
-            <Ionicons name="cloud-outline" size={22} color={C.text} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>CloudKit status</Text>
-              <Text style={styles.rowBody}>
-                {cloudStatus?.accountStatus === "available"
-                  ? "iCloud available"
-                  : cloudKitUnavailableMessage(cloudStatus?.accountStatus)}
-              </Text>
-              {lastSync ? <Text style={styles.meta}>Last backup: {lastSync}</Text> : null}
-            </View>
-          </View>
-          <Pressable
-            style={[styles.primaryBtn, cloudBusy && { opacity: 0.5 }]}
-            onPress={handleBackupNow}
-            disabled={cloudBusy}
-            accessibilityRole="button"
-            accessibilityLabel="Backup now"
-          >
-            {cloudBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Backup Now</Text>}
-          </Pressable>
-          <Pressable
-            style={[styles.secondaryBtn, cloudBusy && { opacity: 0.5 }]}
-            onPress={handleRestoreCloudKit}
-            disabled={cloudBusy}
-            accessibilityRole="button"
-            accessibilityLabel="Restore from iCloud"
-          >
-            <Text style={styles.secondaryBtnText}>Restore from iCloud</Text>
-          </Pressable>
-        </View>
 
         <Text style={styles.sectionLabel}>On this device</Text>
         <View style={styles.card}>
           <Text style={styles.rowBody}>
-            Export a local copy or restore from a file you previously saved. Assistant sync (if signed in) is separate from private CloudKit backup.
+            Export writes a JSON backup you can save to Files or share. Restore replaces what’s currently on this device.
           </Text>
           <Pressable
-            style={[styles.secondaryBtn, localBusy && { opacity: 0.5 }]}
+            style={[styles.primaryBtn, localBusy && { opacity: 0.5 }]}
             onPress={handleExportLocal}
             disabled={localBusy}
+            accessibilityRole="button"
+            accessibilityLabel="Export backup file"
           >
-            <Text style={styles.secondaryBtnText}>Export guidance</Text>
+            {localBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Export backup file</Text>}
           </Pressable>
           <Pressable
             style={[styles.secondaryBtn, localBusy && { opacity: 0.5 }]}
             onPress={handleImportLocal}
             disabled={localBusy}
+            accessibilityRole="button"
+            accessibilityLabel="Restore from file"
           >
             <Text style={styles.secondaryBtnText}>Restore from file</Text>
           </Pressable>
           {onNavigate ? (
             <Pressable style={styles.linkBtn} onPress={() => onNavigate("privacy")}>
-              <Text style={styles.linkText}>Open Privacy for full export tools</Text>
+              <Text style={styles.linkText}>Open Privacy for more data tools</Text>
             </Pressable>
           ) : null}
         </View>
@@ -288,10 +172,7 @@ function makeStyles(C: Theme) {
       gap: 12,
       ...raised("sm"),
     },
-    statusRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
-    rowTitle: { fontWeight: "700", fontSize: 16, color: C.text },
-    rowBody: { fontWeight: "500", fontSize: 13, color: C.textSecondary, lineHeight: 18, marginTop: 2 },
-    meta: { fontWeight: "500", fontSize: 12, color: C.textTertiary, marginTop: 6 },
+    rowBody: { fontWeight: "500", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
     primaryBtn: {
       minHeight: 48,
       borderRadius: 14,
