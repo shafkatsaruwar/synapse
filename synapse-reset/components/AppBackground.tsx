@@ -1,30 +1,44 @@
 import React from "react";
-import { View, StyleSheet } from "react-native";
+import { Image, View, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { isDarkAppearance, isEvergreenTheme, useTheme } from "@/contexts/ThemeContext";
+import {
+  isBlueTheme,
+  isDarkAppearance,
+  isEvergreenTheme,
+  useTheme,
+} from "@/contexts/ThemeContext";
+import { getWallpaper } from "@/lib/appearance/wallpapers";
 
 interface AppBackgroundProps {
   children: React.ReactNode;
 }
 
 export default function AppBackground({ children }: AppBackgroundProps) {
-  const { themeId, colors } = useTheme();
+  const { themeId, colors, appearance, draftAppearance, reduceMotion } = useTheme();
+  const active = draftAppearance ?? appearance;
+  const wallpaper = getWallpaper(active.wallpaper);
+  const brightness = active.wallpaperBrightness;
 
-  // Soft Evergreen: one flat cool off-white / charcoal field — no beige glass,
-  // prism blooms, or competing layer colors that break the single-surface feel.
-  if (isEvergreenTheme(themeId)) {
+  // Soft Evergreen / Light / Blue: single atmospheric field (+ optional wallpaper wash).
+  if (isEvergreenTheme(themeId) || themeId === "light" || isBlueTheme(themeId)) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background }]}>
-        {children}
-      </View>
-    );
-  }
-
-  // Light: same single flat field as Soft Evergreen — no beige/mint blooms or
-  // prism layers that leave unfilled gutters and a second ground color.
-  if (themeId === "light") {
-    return (
-      <View style={[styles.root, { backgroundColor: colors.background }]}>
+        {wallpaper && wallpaper.colors.length >= 2 && !reduceMotion ? (
+          <LinearGradient
+            colors={wallpaper.colors as [string, string, ...string[]]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.backgroundLayer, { opacity: brightness * 0.55 }]}
+          />
+        ) : null}
+        {active.wallpaper === "custom" && active.customWallpaperUri ? (
+          <Image
+            source={{ uri: active.customWallpaperUri }}
+            style={[styles.backgroundLayer, { opacity: brightness * 0.35 }]}
+            resizeMode="cover"
+            accessibilityElementsHidden
+          />
+        ) : null}
         {children}
       </View>
     );
@@ -42,17 +56,37 @@ export default function AppBackground({ children }: AppBackgroundProps) {
             end={{ x: 1, y: 1 }}
             style={styles.backgroundLayer}
           />
+          {wallpaper && wallpaper.colors.length >= 2 ? (
+            <LinearGradient
+              colors={wallpaper.colors as [string, string, ...string[]]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.backgroundLayer, { opacity: brightness * 0.22 }]}
+            />
+          ) : null}
           <View style={[styles.bloom, styles.bloomDarkTop]} />
         </>
       ) : (
         <>
           <LinearGradient
-            colors={[backgroundColor, "#EFE1DC", "#E2E9DD"]}
+            colors={
+              wallpaper && wallpaper.colors.length >= 2
+                ? (wallpaper.colors as [string, string, ...string[]])
+                : [backgroundColor, "#EFE1DC", "#E2E9DD"]
+            }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.backgroundLayer}
+            style={[styles.backgroundLayer, wallpaper ? { opacity: brightness } : null]}
           />
-          <View style={[styles.bloom, styles.bloomCalm]} />
+          {!wallpaper ? <View style={[styles.bloom, styles.bloomCalm]} /> : null}
+          {active.wallpaper === "custom" && active.customWallpaperUri ? (
+            <Image
+              source={{ uri: active.customWallpaperUri }}
+              style={[styles.backgroundLayer, { opacity: brightness * 0.3 }]}
+              resizeMode="cover"
+              accessibilityElementsHidden
+            />
+          ) : null}
         </>
       )}
       {children}
@@ -69,40 +103,12 @@ const styles = StyleSheet.create({
   backgroundLayer: {
     ...StyleSheet.absoluteFillObject,
   },
-  prismLayer: {
-    position: "absolute",
-    width: "140%",
-    height: "70%",
-  },
-  prismTop: {
-    top: -80,
-    left: -60,
-  },
-  prismMiddle: {
-    top: "28%",
-    left: -40,
-  },
   bloom: {
     position: "absolute",
     width: 280,
     height: 280,
     borderRadius: 140,
     opacity: 0.35,
-  },
-  bloomTop: {
-    top: -60,
-    right: -40,
-    backgroundColor: "rgba(255,255,255,0.55)",
-  },
-  bloomBottom: {
-    bottom: 80,
-    left: -80,
-    backgroundColor: "rgba(222,201,190,0.4)",
-  },
-  bloomMint: {
-    bottom: "18%",
-    right: -60,
-    backgroundColor: "rgba(166,203,184,0.28)",
   },
   bloomDarkTop: {
     top: -40,
