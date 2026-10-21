@@ -151,12 +151,11 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
   { key: "careteam", type: "screen", label: "Care Team", icon: "people-outline", iconActive: "people", parent: "accounthub", description: "Doctors and pharmacies" },
   { key: "settings", type: "screen", label: "Preferences", icon: "options-outline", iconActive: "options", parent: "accounthub", description: "Appearance, modes, and navigation" },
   { key: "caresharing", type: "screen", label: "Care & Sharing", icon: "shield-checkmark-outline", iconActive: "shield-checkmark", parent: "accounthub", description: "Roles and caregiver connections" },
-  { key: "integrations", type: "screen", label: "Integrations", icon: "extension-puzzle-outline", iconActive: "extension-puzzle", parent: "accounthub", description: "Apple Health and assistants" },
+  { key: "integrations", type: "screen", label: "Integrations", icon: "extension-puzzle-outline", iconActive: "extension-puzzle", parent: "accounthub", description: "Apple Health" },
   { key: "privacy", type: "screen", label: "Privacy", icon: "lock-closed-outline", iconActive: "lock-closed", parent: "accounthub", description: "App lock and local-first data" },
   { key: "editprofile", type: "screen", label: "Backup & Restore", icon: "cloud-outline", iconActive: "cloud", parent: "accounthub", description: "Keep your data safe" },
   { key: "feedback", type: "screen", label: "Help & Feedback", icon: "chatbubble-ellipses-outline", iconActive: "chatbubble-ellipses", parent: "accounthub", description: "Share feedback or get help" },
   { key: "meetfounder", type: "screen", label: "About Synapse", icon: "heart-outline", iconActive: "heart", parent: "accounthub", description: "Meet the founder" },
-  { key: "auth", type: "screen", label: "Sign In", icon: "log-in-outline", iconActive: "log-in", parent: "accounthub" },
 
   // —— Other retained screens (not hamburger children) ——
   { key: "healthstatus", type: "screen", label: "Health Status", icon: "pulse-outline", iconActive: "pulse" },
