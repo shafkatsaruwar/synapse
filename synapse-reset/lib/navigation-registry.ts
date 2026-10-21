@@ -143,7 +143,7 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
   { key: "managedperson", type: "screen", label: "Managed Person", icon: "accessibility-outline", iconActive: "accessibility", parent: "carehub", role: "caregiver", description: "Details for the person you support" },
 
   // —— You & Settings children (Settings 2.0) ——
-  { key: "healthprofile", type: "screen", label: "Personal Profile", icon: "person-outline", iconActive: "person", parent: "accounthub", description: "Your information and photo" },
+  { key: "healthprofile", type: "screen", label: "My Profile", icon: "person-outline", iconActive: "person", parent: "accounthub", description: "Your information and photo" },
   { key: "healthprofileconditions", type: "screen", label: "Conditions", icon: "clipboard-outline", iconActive: "clipboard", parent: "accounthub", description: "Important health conditions" },
   { key: "allergy", type: "screen", label: "Allergy & Emergency Info", icon: "warning-outline", iconActive: "warning", parent: "accounthub", description: "Allergies, EpiPen, emergency details" },
   { key: "vaccines", type: "screen", label: "Vaccines", icon: "shield-checkmark-outline", iconActive: "shield-checkmark", parent: "accounthub", description: "Vaccine history and record photos" },
