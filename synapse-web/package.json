@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:scene": "node --experimental-strip-types --test lib/animation/scene-sample.test.ts"
+    "test:scene": "node --experimental-strip-types --test lib/animation/scene-sample.test.ts",
+    "test:api": "node --experimental-strip-types --test app/api/send-email/route.test.ts lib/auth-callback.test.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -17,6 +18,7 @@
     "next": "^15.5.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "resend": "^6.34.1",
     "three": "^0.180.0"
   },
   "devDependencies": {
