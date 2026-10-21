@@ -1,0 +1,130 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  PANEL_DEFS,
+  PHASES,
+  STRING_ANCHOR_Y,
+  aabbOf,
+  heroCopy,
+  panelCorners,
+  panelHitsPhone,
+  panelsIntersect,
+  phaseAt,
+  phaseMidpoint,
+  sampleScene,
+} from "./scene-sample.ts";
+
+function steps(count: number) {
+  return Array.from({ length: count + 1 }, (_, i) => i / count);
+}
+
+test("phases are ordered, named, and cover 0 to 1", () => {
+  const names = [
+    "INTRO",
+    "SCATTERED",
+    "DISCONNECTION",
+    "RELEASE",
+    "FALL",
+    "STACK",
+    "ALIGN",
+    "MERGE",
+    "REVEAL",
+  ];
+  assert.deepEqual(PHASES.map((phase) => phase.name), names);
+  assert.equal(PHASES[0].start, 0);
+  assert.equal(PHASES[PHASES.length - 1].end, 1);
+  for (let i = 1; i < PHASES.length; i += 1) {
+    assert.equal(PHASES[i].start, PHASES[i - 1].end);
+    assert.equal(phaseAt(phaseMidpoint(PHASES[i].name)), PHASES[i].name);
+  }
+});
+
+test("two-panel proof and five-panel scene stay separated until the merge", () => {
+  for (const count of [2, 5]) {
+    for (const progress of steps(200)) {
+      if (progress >= 0.82) continue;
+      const sample = sampleScene(progress, { count, time: 0.8 });
+      assert.equal(sample.panels.length, count);
+      for (const panel of sample.panels) {
+        assert.equal(panelHitsPhone(panel), false, `${panel.id} hits phone at ${progress} count ${count}`);
+        const box = aabbOf(panelCorners(panel));
+        assert.ok(box.max.y < STRING_ANCHOR_Y - 0.4);
+      }
+      for (let i = 0; i < sample.panels.length; i += 1) {
+        for (let j = i + 1; j < sample.panels.length; j += 1) {
+          assert.equal(
+            panelsIntersect(sample.panels[i], sample.panels[j]),
+            false,
+            `${sample.panels[i].id} intersects ${sample.panels[j].id} at ${progress} count ${count}`,
+          );
+        }
+      }
+    }
+  }
+});
+
+test("strings are fully released before each panel falls", () => {
+  for (const progress of steps(100)) {
+    const sample = sampleScene(progress, { count: 5, time: 0 });
+    sample.panels.forEach((panel, index) => {
+      const fallStart = 0.448 + index * 0.018;
+      if (progress >= fallStart - 0.01) {
+        assert.ok(panel.stringDetach > 0.95, `${panel.id} still attached at ${progress}`);
+      }
+      if (progress < 0.36) assert.equal(panel.stringDetach, 0);
+    });
+  }
+});
+
+test("stack is staggered, then alignment centers the layers", () => {
+  const stack = sampleScene(0.66, { time: 0 });
+  const ys = stack.panels.map((panel) => panel.position.y);
+  for (let i = 1; i < ys.length; i += 1) assert.ok(ys[i] - ys[i - 1] > 0.04);
+  const xs = stack.panels.map((panel) => panel.position.x);
+  assert.ok(Math.max(...xs) - Math.min(...xs) > 0.15);
+
+  const aligned = sampleScene(0.815, { time: 0 });
+  for (const panel of aligned.panels) {
+    assert.ok(Math.abs(panel.position.x) < 0.02);
+    assert.ok(Math.abs(panel.position.z) < 0.02);
+    assert.ok(panel.synapseMix > 0.9);
+  }
+});
+
+test("camera motion has no large jumps and the phone screen is revealed at the end", () => {
+  let previous = sampleScene(0, { time: 0 });
+  for (const progress of steps(100).slice(1)) {
+    const next = sampleScene(progress, { time: 0 });
+    const dx = next.camera.position.x - previous.camera.position.x;
+    const dy = next.camera.position.y - previous.camera.position.y;
+    const dz = next.camera.position.z - previous.camera.position.z;
+    const jump = Math.hypot(dx, dy, dz);
+    assert.ok(jump < 0.55, `camera jump ${jump} at ${progress}`);
+    previous = next;
+  }
+  const reveal = sampleScene(1, { time: 0 });
+  assert.ok(reveal.screenReveal > 0.99);
+  assert.ok(reveal.panels.every((panel) => panel.opacity === 0));
+});
+
+test("hero copy follows the script", () => {
+  assert.equal(heroCopy(0.02).title, "Your health. Everywhere.");
+  assert.match(heroCopy(0.02).body, /different places/i);
+  assert.equal(heroCopy(0.12).title, "Different apps.");
+  assert.equal(heroCopy(0.19).title, "Different platforms.");
+  assert.equal(heroCopy(0.26).title, "Different places to look.");
+  assert.equal(heroCopy(0.33).title, "No more.");
+  assert.equal(heroCopy(0.4).title, "No more.");
+  assert.equal(heroCopy(0.66).title, "");
+  assert.equal(heroCopy(0.93).kicker, "Meet Synapse.");
+  assert.equal(heroCopy(0.99).title, "Your health life, finally in one place.");
+  assert.equal(heroCopy(0).showIntroCta, true);
+  assert.equal(heroCopy(0.99).showRevealCta, true);
+});
+
+test("panel catalog has the five suspended identities", () => {
+  assert.deepEqual(
+    PANEL_DEFS.map((panel) => panel.id),
+    ["feeling", "medications", "appointments", "emergency", "records"],
+  );
+});
