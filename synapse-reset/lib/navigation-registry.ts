@@ -144,8 +144,10 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
 
   // —— You & Settings children (Settings 2.0) ——
   { key: "healthprofile", type: "screen", label: "Personal Profile", icon: "person-outline", iconActive: "person", parent: "accounthub", description: "Your information and photo" },
-  { key: "healthprofileconditions", type: "screen", label: "Conditions & Allergies", icon: "clipboard-outline", iconActive: "clipboard", parent: "accounthub", description: "Important health information" },
-  { key: "allergy", type: "screen", label: "Allergies", icon: "alert-circle-outline", iconActive: "alert-circle", parent: "accounthub", description: "Allergies and sensitivities" },
+  { key: "healthprofileconditions", type: "screen", label: "Conditions", icon: "clipboard-outline", iconActive: "clipboard", parent: "accounthub", description: "Important health conditions" },
+  { key: "allergy", type: "screen", label: "Allergy & Emergency Info", icon: "warning-outline", iconActive: "warning", parent: "accounthub", description: "Allergies, EpiPen, emergency details" },
+  { key: "vaccines", type: "screen", label: "Vaccines", icon: "shield-checkmark-outline", iconActive: "shield-checkmark", parent: "accounthub", description: "Vaccine history and record photos" },
+  { key: "surgeries", type: "screen", label: "Surgeries", icon: "bandage-outline", iconActive: "bandage", parent: "accounthub", description: "Past procedures and timing" },
   { key: "careteam", type: "screen", label: "Care Team", icon: "people-outline", iconActive: "people", parent: "accounthub", description: "Doctors and pharmacies" },
   { key: "settings", type: "screen", label: "Preferences", icon: "options-outline", iconActive: "options", parent: "accounthub", description: "Appearance, modes, and navigation" },
   { key: "caresharing", type: "screen", label: "Care & Sharing", icon: "shield-checkmark-outline", iconActive: "shield-checkmark", parent: "accounthub", description: "Roles and caregiver connections" },
