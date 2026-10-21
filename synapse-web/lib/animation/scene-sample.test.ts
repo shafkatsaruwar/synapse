@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { PerspectiveCamera, Vector3 } from "three";
+import { panelTextureScale } from "../screens/draw.ts";
 import {
   PANEL_DEFS,
+  PHONE_SIZE,
   PHASES,
   STRING_ANCHOR_Y,
   aabbOf,
@@ -120,6 +123,57 @@ test("hero copy follows the script", () => {
   assert.equal(heroCopy(0.99).title, "Your health life, finally in one place.");
   assert.equal(heroCopy(0).showIntroCta, true);
   assert.equal(heroCopy(0.99).showRevealCta, true);
+});
+
+function phoneNdc(camera: { position: { x: number; y: number; z: number }; lookAt: { x: number; y: number; z: number }; fov: number }, aspect: number) {
+  const cam = new PerspectiveCamera(camera.fov, aspect, 0.08, 40);
+  cam.position.set(camera.position.x, camera.position.y, camera.position.z);
+  cam.lookAt(camera.lookAt.x, camera.lookAt.y, camera.lookAt.z);
+  cam.updateMatrixWorld();
+  const xs = [-PHONE_SIZE.width / 2, PHONE_SIZE.width / 2];
+  const ys = [0, PHONE_SIZE.thickness + 0.02];
+  const zs = [-PHONE_SIZE.depth / 2, PHONE_SIZE.depth / 2];
+  let minX = Infinity;
+  let maxX = -Infinity;
+  const point = new Vector3();
+  for (const x of xs) {
+    for (const y of ys) {
+      for (const z of zs) {
+        point.set(x, y, z).project(cam);
+        minX = Math.min(minX, point.x);
+        maxX = Math.max(maxX, point.x);
+      }
+    }
+  }
+  return { minX, maxX };
+}
+
+test("desktop reveal keeps the phone clear of the headline column", () => {
+  // Reveal copy is padded 7vw and capped at 40vw, so the column ends at 47% (NDC -0.06).
+  const columnEdge = 0.47 * 2 - 1;
+  const aspects = [1024 / 768, 1024 / 900, 1280 / 800, 1366 / 768, 1440 / 900, 1536 / 864, 1680 / 1050, 1920 / 1080, 1920 / 1200];
+  for (const progress of [0.91, 0.946, 0.98, 1]) {
+    const sample = sampleScene(progress, { time: 0, mobile: false });
+    for (const aspect of aspects) {
+      const box = phoneNdc(sample.camera, aspect);
+      assert.ok(
+        box.minX > columnEdge + 0.1,
+        `phone left ${box.minX.toFixed(3)} meets the headline at ${progress} aspect ${aspect.toFixed(3)}`,
+      );
+      assert.ok(box.maxX < 0.98, `phone clips the right edge (${box.maxX.toFixed(3)}) at ${progress} aspect ${aspect.toFixed(3)}`);
+    }
+  }
+});
+
+test("panel textures scale with the pixel ratio and stay lighter on mobile", () => {
+  assert.equal(panelTextureScale(1, false), 2);
+  assert.equal(panelTextureScale(2, false), 2);
+  assert.equal(panelTextureScale(2.5, false), 2.5);
+  assert.equal(panelTextureScale(4, false), 3);
+  assert.equal(panelTextureScale(Number.NaN, false), 2);
+  assert.equal(panelTextureScale(1, true), 1);
+  assert.equal(panelTextureScale(1.25, true), 1.25);
+  assert.equal(panelTextureScale(3, true), 1.5);
 });
 
 test("panel catalog has the five suspended identities", () => {

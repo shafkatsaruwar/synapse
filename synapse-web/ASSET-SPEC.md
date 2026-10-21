@@ -18,7 +18,7 @@ Shared identity for the marketing site and a future film. Units, names, and phas
 | Table | Standard, `#f3efe8`, roughness 0.96 | Same, fewer segments |
 | Phone body | Physical metal, `#2e2e32`, roughness 0.26, clearcoat. Glass screen with a reflection streak. Rear bump on the underside. | Standard metal, fewer curve segments |
 | Glass | Physical, transmission 0.86, roughness 0.12, ior 1.45, clearcoat | Standard, transparent, no transmission |
-| Type on glass | Canvas texture, 1024×640, sRGB, basic material in front of the glass | Same textures |
+| Type on glass | Canvas texture, logical 1024×640 drawn at devicePixelRatio (desktop 2–3×, mobile 1–1.5×). sRGB, mipmaps, anisotropy 16, linear mag filter, basic material in front of the glass | Same drawing, smaller scale |
 | Phone screen | Canvas 780×1688, opacity driven by `screenReveal` | Same |
 | String | Basic `#5c534c`, radius 0.0032 | Same |
 | Contact shadow | Radial canvas under the phone and under settled layers | Same |
@@ -48,7 +48,7 @@ Fall order: How I’m Feeling, Medications, Appointments, Emergency, Records. St
 ## Framing for a commercial
 
 - Hold STACK as the hero still: camera near `(0.95, 1.32, 3.55)`, look at the stack, phone still in frame.
-- Hold REVEAL top-down enough to read Today: camera near `(0, 2.15, 2.28)`.
+- Hold REVEAL so Today stays readable and the phone sits right of the headline: camera near `(0.02, 2.55, 3.90)` looking at `(-0.62, 0.04, 0)`, fov 26. The reveal copy column stops near 47% of the width.
 - Type on panels must stay at least a short title and one line. Do not put real patient data on either.
 - Strings stay above the glass. If a panel tilts, the string’s lower end remains above the top center.
 - Reduced motion and the static storyboard must still say the same four beats: scattered, “no more,” stack, Synapse.
@@ -63,5 +63,5 @@ Fall order: How I’m Feeling, Medications, Appointments, Emergency, Records. St
 
 ## Texture budgets
 
-- Panel face 1024×640. Today screen 780×1688. Shadow disc 256×256.
+- Panel face logical 1024×640, rasterized at `panelTextureScale` (desktop floor 2× / cap 3×, mobile cap 1.5×) with mipmaps. Today screen 780×1688. Shadow disc 256×256. WebGL pixel ratio caps at 2.5 desktop and 1.5 mobile.
 - No video textures. No external HDR. The phone is extruded slabs (body, glass, camera bump) plus side buttons, a speaker slot, and a contact shadow. Panels are five thin boxes. Strings are five cylinders.
