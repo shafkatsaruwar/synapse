@@ -18,7 +18,8 @@ import {
 } from "@/lib/storage";
 import { getMedList, addMedListItem, removeMedListItem, updateMedListItem, type MedListItem, type MedListDose, type MedListDoseTime } from "@/lib/med-list-storage";
 import { getToday } from "@/lib/date-utils";
-import { cancelMedicationReminders, DEFAULT_REMINDER_TIMES, syncAllFromSettings } from "@/lib/notification-manager";
+import { cancelMedicationReminders, DEFAULT_REMINDER_TIMES, syncAllFromSettings, updateAppIconBadgeCount } from "@/lib/notification-manager";
+import { requestBadgeRefresh } from "@/lib/badge-refresh";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import VisualScanImportModal from "@/screens/VisualScanImportModal";
@@ -420,6 +421,8 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
     ]);
     setMedications(meds);
     setMedLogs(logs);
+    requestBadgeRefresh();
+    void updateAppIconBadgeCount().catch(() => {});
   }, [today]);
 
   React.useEffect(() => {

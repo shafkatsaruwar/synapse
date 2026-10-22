@@ -11,6 +11,7 @@ import {
   type NavRegistryEntry,
 } from "@/lib/navigation-registry";
 import { getNavBadgeCounts, type NavBadgeCounts } from "@/lib/nav-badge-counts";
+import { subscribeBadgeRefresh } from "@/lib/badge-refresh";
 import BackupReminderBanner from "@/components/BackupReminderBanner";
 
 export type HubItem = {
@@ -155,7 +156,13 @@ export default function FeatureHubScreen({
   useEffect(() => {
     loadBadges();
     const interval = setInterval(loadBadges, 10000);
-    return () => clearInterval(interval);
+    const unsubscribe = subscribeBadgeRefresh(() => {
+      void loadBadges();
+    });
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [loadBadges, resolvedId]);
 
   const getItemBadgeCount = useCallback(

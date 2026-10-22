@@ -99,7 +99,8 @@ export function buildTodayDoseInstances(
   const instances: TodayDoseInstance[] = [];
 
   for (const med of medications) {
-    if (!med.active) continue;
+    // Match badge / storage semantics: only an explicit false means inactive.
+    if (med.active === false) continue;
     if ((med.medicationType ?? "scheduled") === "prn") continue;
     if (!isMedicationScheduledOnDate(med, dateKey)) continue;
 
@@ -167,6 +168,16 @@ export function bucketTodayDoses(instances: TodayDoseInstance[]): TodayDoseBucke
     total: instances.length,
     takenCount: completed.length,
   };
+}
+
+/** Pending due/overdue untaken doses — shared by Today's Doses UI and nav badges. */
+export function countNeedsAttentionDoses(
+  medications: Medication[],
+  logsForDate: MedicationLog[],
+  dateKey: string,
+  now: Date = new Date(),
+): number {
+  return bucketTodayDoses(buildTodayDoseInstances(medications, logsForDate, dateKey, now)).needsAttention.length;
 }
 
 export type RegimenSummary = {
