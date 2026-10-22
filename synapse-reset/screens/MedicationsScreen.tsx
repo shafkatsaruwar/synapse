@@ -328,6 +328,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
   const [doseUndo, setDoseUndo] = useState<{ medicationId: string; doseIndex: number; label: string } | null>(null);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
   const [nudgeMedId, setNudgeMedId] = useState<string | null>(null);
+  const [nudgeVisible, setNudgeVisible] = useState(false);
 
   const [formName, setFormName] = useState("");
   const [formMedicationImageUri, setFormMedicationImageUri] = useState("");
@@ -1208,6 +1209,13 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
   const handleNotYet = (medId: string) => {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
     setNudgeMedId(medId);
+    setNudgeVisible(true);
+  };
+
+  const dismissNudge = () => {
+    setNudgeVisible(false);
+    // Keep nudgeMedId until fade finishes so Modal children stay mounted.
+    setTimeout(() => setNudgeMedId(null), 320);
   };
 
   const openPrnDetailsModal = (med: Medication, logId: string) => {
@@ -1267,31 +1275,35 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
   };
 
   const handleAlrightTookIt = async () => {
-    if (nudgeMedId) {
-      try {
-        let med = medications.find((m) => m.id === nudgeMedId);
-        const doseCount = getDoseCount(med);
-        for (let i = 0; i < doseCount; i++) {
-          const log = medLogs.find((l) => l.medicationId === nudgeMedId && (l.doseIndex ?? 0) === i);
-          if (!log?.taken) {
-            const scheduledTime = med ? normalizeMedication(med).doses?.[i]?.reminderTime : undefined;
-            await medicationLogStorage.toggle(nudgeMedId, today, i, { scheduledTime });
-            if (med) med = await updateMedicationSupply(med, i, "take");
-          }
+    if (!nudgeMedId || !nudgeVisible) return;
+    const medId = nudgeMedId;
+    // Fade out first with content still mounted; refresh after dismiss settles.
+    setNudgeVisible(false);
+    try {
+      let med = medications.find((m) => m.id === medId);
+      const doseCount = getDoseCount(med);
+      for (let i = 0; i < doseCount; i++) {
+        const log = medLogs.find((l) => l.medicationId === medId && (l.doseIndex ?? 0) === i);
+        if (!log?.taken) {
+          const scheduledTime = med ? normalizeMedication(med).doses?.[i]?.reminderTime : undefined;
+          await medicationLogStorage.toggle(medId, today, i, { scheduledTime });
+          if (med) med = await updateMedicationSupply(med, i, "take");
         }
-        setNudgeMedId(null);
-        await refreshMedicationStatus();
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        await syncAllFromSettings().catch((error) => {
-          console.warn("Medication reminder sync failed after nudge confirm", error);
-        });
-        await syncWidgetSnapshot().catch((error) => {
-          console.warn("Medication widget sync failed after nudge confirm", error);
-        });
-      } catch (error) {
-        console.warn("Failed to confirm nudged medication", error);
-        Alert.alert("Couldn’t log medication", "We hit a snag trying to mark that dose as taken. Please try again.");
       }
+      await new Promise<void>((resolve) => setTimeout(resolve, 320));
+      setNudgeMedId(null);
+      await refreshMedicationStatus();
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      await syncAllFromSettings().catch((error) => {
+        console.warn("Medication reminder sync failed after nudge confirm", error);
+      });
+      await syncWidgetSnapshot().catch((error) => {
+        console.warn("Medication widget sync failed after nudge confirm", error);
+      });
+    } catch (error) {
+      setNudgeMedId(null);
+      console.warn("Failed to confirm nudged medication", error);
+      Alert.alert("Couldn’t log medication", "We hit a snag trying to mark that dose as taken. Please try again.");
     }
   };
 
@@ -3155,7 +3167,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
         </View>
       </Modal>
 
-      <Modal visible={!!nudgeMedId} transparent animationType="fade">
+      <Modal visible={nudgeVisible} transparent animationType="fade" onRequestClose={dismissNudge}>
         <View style={styles.overlay}>
           <View style={styles.nudgeCard}>
             <Text style={styles.nudgeEmoji}>😤</Text>
@@ -3164,7 +3176,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
               <Ionicons name="checkmark-circle" size={18} color="#fff" />
               <Text style={styles.nudgeBtnText}>alright, alright, took it</Text>
             </Pressable>
-            <Pressable style={styles.nudgeDismiss} onPress={() => setNudgeMedId(null)}>
+            <Pressable style={styles.nudgeDismiss} onPress={dismissNudge}>
               <Text style={styles.nudgeDismissText}>I really haven&apos;t yet</Text>
             </Pressable>
           </View>

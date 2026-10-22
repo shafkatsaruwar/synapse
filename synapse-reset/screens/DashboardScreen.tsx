@@ -9,7 +9,6 @@ import {
   useWindowDimensions,
   Animated,
   ScrollView,
-  LayoutAnimation,
   ActivityIndicator,
   Modal,
 } from "react-native";
@@ -575,7 +574,9 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     setSymptoms(symptomsData);
     setVitals(vitalsData);
     setHydrationEntries(hydrationData);
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    // Avoid LayoutAnimation here: on Fabric it races Modal dismiss / refreshKey
+    // remounts (e.g. "Yes, took it" medication prompt) and can SIGSEGV in
+    // RCTPerformMountInstructions.
     setLoaded(true);
   }, [today]);
 
@@ -584,9 +585,6 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   }, [loadData, onRefreshKey]);
 
   const isSickMode = settings.sickMode;
-  useEffect(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-  }, [isSickMode]);
   const getDoseCount = (med: Medication) => {
     if (Array.isArray(med.doses) && med.doses.length > 0) return med.doses.length;
     const base = (med as { doses?: number }).doses ?? 1;
