@@ -79,7 +79,44 @@ button, input, summary { font: inherit; }
 .nav.is-scrolled {
   background: rgba(246, 243, 238, 0.78);
   backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
   box-shadow: 0 1px 0 var(--line);
+}
+/* The open menu is the header stretched over the visual viewport.
+   A nested fixed panel plus backdrop-filter was positioned against the
+   72px bar on iOS, so the page showed through the links. */
+.nav.is-open,
+.nav.is-scrolled.is-open {
+  inset: 0;
+  height: auto;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  background: var(--paper);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  z-index: 80;
+  overflow: hidden;
+  transition: none;
+}
+.nav.is-open .nav-inner {
+  flex: 0 0 auto;
+  min-height: 72px;
+  width: min(1440px, calc(100% - 1.5rem));
+  background: var(--paper);
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 1px 0 var(--line);
+}
+html.menu-open,
+body.menu-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body.menu-open #content,
+body.menu-open .footer {
+  visibility: hidden;
 }
 .nav-inner, .nav-end, .hero-actions, .support-links {
   display: flex;
@@ -112,8 +149,11 @@ button, input, summary { font: inherit; }
   display: none;
   background: transparent;
   border: 0;
+  color: var(--ink);
   padding: 0.4rem 0.2rem;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
 .btn {
   display: inline-flex;
@@ -131,21 +171,29 @@ button, input, summary { font: inherit; }
 .btn-text { background: transparent; color: var(--ink); border-color: transparent; padding-inline: 0.2rem; text-decoration: underline; text-underline-offset: 0.28em; }
 .nav-cta { min-height: 40px; }
 .mobile-panel {
-  position: fixed;
-  inset: 72px 0 0 0;
-  background: rgba(246, 243, 238, 0.96);
-  backdrop-filter: blur(16px);
-  z-index: 39;
-  padding: 1.5rem 1.4rem 3rem;
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: min(1440px, calc(100% - 1.5rem));
+  margin-inline: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--paper);
+  z-index: 1;
+  padding: 0.35rem 0 calc(2.5rem + env(safe-area-inset-bottom, 0px));
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .mobile-panel a {
   display: block;
   padding: 1rem 0;
   border-bottom: 1px solid var(--line);
   text-decoration: none;
+  color: var(--ink);
   font-family: var(--font-display), serif;
   font-size: 2rem;
   letter-spacing: -0.03em;
+  line-height: 1.15;
 }
 
 .cinematic { position: relative; height: 720vh; background: #f4f0ea; }
