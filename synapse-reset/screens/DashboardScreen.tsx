@@ -61,6 +61,7 @@ import {
   countDistinctTakenDoses,
   countExpectedDosesInRange,
 } from "@/lib/medication-schedule";
+import { getDashboardUpNext } from "@/lib/medication-today";
 import { formatHydrationVolume } from "@/lib/hydration-format";
 
 // Gradient pairs: [top (darker), bottom (lighter)]. Soft, desaturated, top-to-bottom.
@@ -677,60 +678,24 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     return { label: "You", icon: "person-outline" as const };
   }, [profile.caredForName, profile.userRole]);
 
-  const getNextMedicationInfo = (): { name: string; lines: string[]; owner?: RecordOwner } | null => {
-    if (!medications.length) return null;
-    for (const med of medications) {
-      const doseCount = getDoseCount(med);
-      if (doseCount <= 0) continue;
-      const takenForMed = medLogs.filter((l) => l.medicationId === med.id && l.taken).length;
-      if (takenForMed >= doseCount) continue;
-      const doses = Array.isArray(med.doses) && med.doses.length > 0 ? med.doses : [];
-      const untakenIndices = Array.from({ length: doseCount }, (_, i) => i).filter((i) => !medLogs.some((l) => l.medicationId === med.id && (l.doseIndex ?? 0) === i && l.taken));
-      const name = med.name || "Next medication";
-      const lines: string[] = [];
-      if (doses.length > 0) {
-        untakenIndices.forEach((idx) => {
-          const d = doses[idx];
-          if (d) {
-            const text = d.amount && d.unit ? `${d.amount} ${d.unit} — ${d.timeOfDay}` : d.timeOfDay;
-            lines.push(text);
-          }
-        });
-      } else {
-        const dosage = (med as { dosage?: string }).dosage ? `${(med as { dosage?: string }).dosage}${(med as { unit?: string }).unit ? ` ${(med as { unit?: string }).unit}` : ""}` : "";
-        const timeTag = Array.isArray(med.timeTag) ? med.timeTag[0] : (med as { timeTag?: string }).timeTag;
-        const timeLabel = typeof timeTag === "string" && timeTag.trim().length > 0 ? timeTag.trim() : "Today";
-        lines.push(dosage ? `${dosage} — ${timeLabel}` : timeLabel);
-      }
-      if (lines.length === 0) lines.push("Morning dose");
-      return { name, lines, owner: med.entryOwner };
-    }
-    return null;
-  };
-
   const currentMinutes = (hour * 60) + dateObj.getMinutes();
-  const dueMedication = useMemo(() => {
-    for (const med of medications) {
-      if (med.medicationType === "prn") continue;
-      const doses = Array.isArray(med.doses) && med.doses.length > 0 ? med.doses : [];
-      for (let index = 0; index < doses.length; index += 1) {
-        const dose = doses[index];
-        const alreadyTaken = medLogs.some((log) => log.medicationId === med.id && (log.doseIndex ?? 0) === index && log.taken);
-        if (alreadyTaken) continue;
-        const dueAt = parseTimeToMinutes(dose.reminderTime) ?? fallbackMinutesForTimeOfDay(dose.timeOfDay);
-        if (dueAt == null || dueAt > currentMinutes) continue;
-        return {
-          name: med.name || "Medication due",
-          timeOfDay: dose.timeOfDay,
-          dueMinutes: dueAt,
-          subtitle: dose.amount && dose.unit ? `${dose.amount} ${dose.unit} • ${dose.timeOfDay}` : dose.timeOfDay,
-          owner: med.entryOwner,
-        };
+  /** Schedule-aware UP NEXT — same rules as Medications → Today's Doses (skips Sogroya-style off days). */
+  const dashboardUpNext = useMemo(
+    () => getDashboardUpNext(medications, medLogs, today, dateObj),
+    [dateObj, medLogs, medications, today],
+  );
+  const dueMedication = dashboardUpNext.kind === "dose" && dashboardUpNext.state === "needs_attention"
+    ? {
+        name: dashboardUpNext.medicationName,
+        timeOfDay: dashboardUpNext.timeOfDay,
+        dueMinutes: dashboardUpNext.dueMinutes ?? currentMinutes,
+        subtitle: dashboardUpNext.subtitle,
+        owner: dashboardUpNext.owner,
       }
-    }
-    return null;
-  }, [currentMinutes, medLogs, medications]);
-  const nextMedication = getNextMedicationInfo();
+    : null;
+  const nextMedication = dashboardUpNext.kind === "dose"
+    ? { name: dashboardUpNext.medicationName, lines: dashboardUpNext.lines, owner: dashboardUpNext.owner }
+    : null;
   const todayAppointments = useMemo(
     () => upcomingAppointments
       .filter((appointment) => appointment.date === today)
@@ -1341,16 +1306,23 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     return simpleContent;
   }
 
-  const upNextTitle = dueMedication?.name
-    || nextMedication?.name
-    || (medications.length ? "Your next scheduled dose" : "Add your medications");
-  const upNextSubtitle = dueMedication
-    ? (dueMedication.subtitle || formatDueMedicationStatus(currentMinutes, dueMedication.dueMinutes))
-    : nextMedication?.lines[0]
-      ? nextMedication.lines[0]
+  const upNextTitle = dashboardUpNext.kind === "dose"
+    ? dashboardUpNext.medicationName
+    : dashboardUpNext.kind === "done"
+      ? "All done for today"
+      : medications.length
+        ? "Nothing scheduled today"
+        : "Add your medications";
+  const upNextSubtitle = dashboardUpNext.kind === "dose"
+    ? (dashboardUpNext.state === "needs_attention" && dashboardUpNext.dueMinutes != null
+        ? `${dashboardUpNext.subtitle} · ${formatDueMedicationStatus(currentMinutes, dashboardUpNext.dueMinutes)}`
+        : dashboardUpNext.subtitle)
+    : dashboardUpNext.kind === "done"
+      ? "Every scheduled dose is logged"
       : medications.length
         ? "Review your medication schedule"
         : "Set up a schedule when you’re ready";
+  const upNextLabel = dashboardUpNext.kind === "done" ? "TODAY" : "UP NEXT";
 
   const appointmentSubtitle = todayAppointment
     ? [formatTime12h(todayAppointment.time), todayAppointment.doctorName || todayAppointment.specialty]
@@ -1418,7 +1390,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
 
         <View style={styles.medUpNextRow}>
           <View style={{ flex: 1, gap: 4, paddingRight: 12 }}>
-            <Text style={styles.upNextLabel}>UP NEXT</Text>
+            <Text style={styles.upNextLabel}>{upNextLabel}</Text>
             <Text style={styles.upNextTitle} numberOfLines={2}>{upNextTitle}</Text>
             <Text style={styles.quietCardBody} numberOfLines={2}>{upNextSubtitle}</Text>
           </View>

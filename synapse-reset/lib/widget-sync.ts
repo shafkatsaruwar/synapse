@@ -347,9 +347,11 @@ function getNextMedicationSnapshot(
     dose: MedicationDose;
   } = null;
 
+  const todayKey = getToday();
+
   for (const rawMed of medications) {
     const med = normalizeMedication(rawMed);
-    if (!med.active) continue;
+    if (med.active === false) continue;
 
     if (med.medicationType === "prn") {
       const latestPrnLog = logs
@@ -365,6 +367,9 @@ function getNextMedicationSnapshot(
       }
       continue;
     }
+
+    // Match home / Today's Doses: weekly/custom meds off-schedule today are not "next".
+    if (!isMedicationScheduledOnDate(med, todayKey)) continue;
 
     const doses = (med.doses || [])
       .filter((dose) => !!dose.reminderTime)

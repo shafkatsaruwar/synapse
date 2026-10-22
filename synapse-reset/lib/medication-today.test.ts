@@ -4,6 +4,7 @@ import {
   buildRegimenSummaries,
   buildTodayDoseInstances,
   formatDoseAmountLabel,
+  getDashboardUpNext,
 } from "./medication-today";
 import type { Medication, MedicationLog } from "./storage";
 
@@ -120,6 +121,62 @@ function med(partial: Partial<Medication> & { id: string; name: string }): Medic
   console.log("7. formatDoseAmountLabel");
   assert.equal(formatDoseAmountLabel("10", "mg"), "10 mg");
   assert.equal(formatDoseAmountLabel("", ""), "");
+}
+
+{
+  console.log("8. Dashboard UP NEXT ignores off-schedule meds (Sogroya) when today is done");
+  const hydro = med({
+    id: "h1",
+    name: "Hydrocortisone",
+    doses: [
+      { id: "d0", amount: "10", unit: "mg", timeOfDay: "Morning", reminderTime: "11:00" },
+      { id: "d1", amount: "5", unit: "mg", timeOfDay: "Night", reminderTime: "23:00" },
+    ],
+  });
+  const levo = med({
+    id: "l1",
+    name: "Levothyroxine",
+    doses: [{ id: "d0", amount: "200", unit: "mcg", timeOfDay: "Morning", reminderTime: "11:00" }],
+  });
+  const sim = med({
+    id: "s1",
+    name: "Simethicone",
+    doses: [{ id: "d0", amount: "125", unit: "mg", timeOfDay: "Morning", reminderTime: "11:00" }],
+  });
+  // Weekly injection — not scheduled on Thursday 2026-10-22 (Expo weekday 5); wants Monday (2).
+  const sogroya = med({
+    id: "sg1",
+    name: "Sogroya",
+    reminderCadence: "weekly",
+    reminderWeekday: 2,
+    doses: [{ id: "d0", amount: "10", unit: "mg", timeOfDay: "Night", reminderTime: "21:00" }],
+  });
+  const logs = [
+    { id: "a", medicationId: "h1", doseIndex: 0, date: "2026-10-22", taken: true },
+    { id: "b", medicationId: "h1", doseIndex: 1, date: "2026-10-22", taken: true },
+    { id: "c", medicationId: "l1", doseIndex: 0, date: "2026-10-22", taken: true },
+    { id: "d", medicationId: "s1", doseIndex: 0, date: "2026-10-22", taken: true },
+  ];
+  const now = new Date("2026-10-22T23:34:00");
+  const upNext = getDashboardUpNext([hydro, levo, sim, sogroya], logs, "2026-10-22", now);
+  assert.equal(upNext.kind, "done");
+}
+
+{
+  console.log("9. Dashboard UP NEXT still surfaces a due scheduled dose");
+  const meds = [
+    med({
+      id: "m1",
+      name: "Levothyroxine",
+      doses: [{ id: "d0", amount: "200", unit: "mcg", timeOfDay: "Morning", reminderTime: "08:00" }],
+    }),
+  ];
+  const upNext = getDashboardUpNext(meds, [], "2026-10-22", new Date("2026-10-22T11:00:00"));
+  assert.equal(upNext.kind, "dose");
+  if (upNext.kind === "dose") {
+    assert.equal(upNext.medicationName, "Levothyroxine");
+    assert.equal(upNext.state, "needs_attention");
+  }
 }
 
 console.log("medication-today: all assertions passed");
