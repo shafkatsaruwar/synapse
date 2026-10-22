@@ -10,7 +10,7 @@ export function TodayScreen() {
         <h4>Medications today</h4>
         <ul>
           {demo.meds.map((med) => (
-            <li key={med.name}>
+            <li key={`${med.name}-${med.when}`}>
               <span>
                 {med.name}
                 <small>{med.dose}</small>
@@ -58,7 +58,7 @@ export function MedicationsScreen() {
       <p className="app-quiet">Scheduled and as-needed.</p>
       <ul className="app-list">
         {demo.meds.map((med) => (
-          <li key={med.name}>
+          <li key={`${med.name}-${med.when}`}>
             <span>
               {med.name}
               <small>
@@ -70,8 +70,8 @@ export function MedicationsScreen() {
         ))}
         <li>
           <span>
-            Ibuprofen
-            <small>200 mg · As needed</small>
+            Sample tablet
+            <small>As needed</small>
           </span>
           <em>PRN</em>
         </li>
@@ -196,7 +196,7 @@ export function EmergencyScreen() {
         </li>
         <li>
           <span>Medications</span>
-          <em>Lisinopril, Vitamin D</em>
+          <em>Vitamin D</em>
         </li>
         <li>
           <span>

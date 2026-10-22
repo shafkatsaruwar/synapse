@@ -17,12 +17,25 @@ import {
   SRGBColorSpace,
 } from "three";
 import { panelGroups, sceneBridge } from "@/lib/animation/bridge";
+import { yieldToMain } from "@/lib/animation/yield";
 import { PANEL_FACE_HEIGHT, PANEL_FACE_WIDTH, drawPanelFace, panelFaces, panelTextureScale } from "@/lib/screens/draw";
 import { PANEL_DEFS, type PanelId } from "@/lib/animation/scene-sample";
 
 const burgundy = new Color("#f4e6e8");
 const PANEL_IDS = ["feeling", "medications", "appointments", "emergency", "records"] as const;
 const faceCache = new Map<string, CanvasTexture>();
+
+/** Draw each face on its own turn so the first paint is not one long task. */
+export async function warmPanelTextures() {
+  const dpr = typeof window === "undefined" ? 2 : window.devicePixelRatio || 1;
+  const scale = panelTextureScale(dpr, sceneBridge.mobile);
+  for (const id of PANEL_IDS) {
+    panelTexture(id, false, scale);
+    await yieldToMain();
+    panelTexture(id, true, scale);
+    await yieldToMain();
+  }
+}
 
 /** One high-DPR texture per face. The type is in the pixels, so it cannot be dropped per mesh. */
 function panelTexture(id: PanelId, synapse: boolean, scale: number) {

@@ -29,7 +29,7 @@ export default function PrivacyPage() {
 
       <h2>Optional account</h2>
       <p>
-        You can use Synapse without signing in. Email sign-in exists, through Supabase, for people who want an account. A signed-in cloud copy is optional and is there so a personal assistant can read data you choose to sync. It is not required to track medications, visits, or check-ins.
+        You can use Synapse without signing in. An account is not required to track medications, visits, or check-ins. This version does not automatically sync health logs to the cloud.
       </p>
 
       <h2>What you can do with your data</h2>
@@ -50,12 +50,12 @@ export default function PrivacyPage() {
         <li>Notifications, if you want medication reminders.</li>
       </ul>
 
-      <h2>Optional features that can move data</h2>
+      <h2>Optional tools</h2>
       <p>
-        The privacy screen states that document scan and insights, when you request them, send the relevant health data to the Synapse API and a third-party AI provider such as OpenAI. In the current source the document scanner is behind a compile-time flag that is off, so it is not a feature of the build this site describes. Do not use any AI feature with information you are not willing to share with those processors.
+        Apple Health import, when you connect it, copies selected vitals onto the device. It is read-only in this version, and it is not a connection to a hospital or patient portal. A document scanner exists in the source behind a switch that is off, so scanning is not part of the app this site describes.
       </p>
       <p>
-        Caregiver linking and email features exist as optional tools. They run when you use them. Apple Health import copies selected vitals onto the device; it is not a connection to a hospital or patient portal.
+        This site does not market automatic syncing, automatic iCloud backup, or an AI assistant. If a control in the app can send or share something, it runs only when you use it.
       </p>
 
       <h2>What Synapse is not</h2>

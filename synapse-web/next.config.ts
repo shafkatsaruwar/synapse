@@ -10,6 +10,26 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
   },
   transpilePackages: ["three", "@react-three/fiber", "@react-three/drei"],
+  experimental: {
+    optimizePackageImports: ["three", "@react-three/fiber"],
+  },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.optimization = config.optimization || {};
+      config.optimization.splitChunks = config.optimization.splitChunks || {};
+      config.optimization.splitChunks.cacheGroups = {
+        ...config.optimization.splitChunks.cacheGroups,
+        three: {
+          test: /[\\/]node_modules[\\/](three|@react-three[\\/]fiber)[\\/]/,
+          name: "three",
+          chunks: "async",
+          enforce: true,
+          priority: 40,
+        },
+      };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

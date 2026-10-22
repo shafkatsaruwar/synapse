@@ -12,6 +12,7 @@ import {
   SRGBColorSpace,
 } from "three";
 import { sceneBridge } from "@/lib/animation/bridge";
+import { yieldToMain } from "@/lib/animation/yield";
 import { PHONE_SIZE } from "@/lib/animation/scene-sample";
 import { drawTodayScreen } from "@/lib/screens/draw";
 
@@ -66,6 +67,62 @@ function roundAlpha(canvas: HTMLCanvasElement, radius: number) {
   ctx.fill();
 }
 
+type PhoneMaps = { screenMap: CanvasTexture; glossMap: CanvasTexture; shadowMap: CanvasTexture };
+let phoneMaps: PhoneMaps | null = null;
+
+function createPhoneMaps(): PhoneMaps {
+  if (phoneMaps) return phoneMaps;
+  const screen = document.createElement("canvas");
+  screen.width = 780;
+  screen.height = 1688;
+  drawTodayScreen(screen);
+  roundAlpha(screen, 110);
+  const screenMap = new CanvasTexture(screen);
+  screenMap.colorSpace = SRGBColorSpace;
+  screenMap.anisotropy = 8;
+  screenMap.needsUpdate = true;
+
+  const gloss = document.createElement("canvas");
+  gloss.width = 256;
+  gloss.height = 640;
+  const gctx = gloss.getContext("2d");
+  if (gctx) {
+    const gradient = gctx.createLinearGradient(40, 0, 180, 640);
+    gradient.addColorStop(0, "rgba(255,255,255,0)");
+    gradient.addColorStop(0.42, "rgba(255,255,255,0)");
+    gradient.addColorStop(0.5, "rgba(255,252,248,0.7)");
+    gradient.addColorStop(0.58, "rgba(255,255,255,0)");
+    gradient.addColorStop(1, "rgba(255,255,255,0.08)");
+    gctx.fillStyle = gradient;
+    gctx.fillRect(0, 0, 256, 640);
+    roundAlpha(gloss, 40);
+  }
+  const glossMap = new CanvasTexture(gloss);
+  glossMap.needsUpdate = true;
+
+  const shadow = document.createElement("canvas");
+  shadow.width = 256;
+  shadow.height = 560;
+  const sctx = shadow.getContext("2d");
+  if (sctx) {
+    const radial = sctx.createRadialGradient(128, 280, 20, 128, 280, 160);
+    radial.addColorStop(0, "rgba(32, 24, 20, 0.38)");
+    radial.addColorStop(0.62, "rgba(32, 24, 20, 0.12)");
+    radial.addColorStop(1, "rgba(32, 24, 20, 0)");
+    sctx.fillStyle = radial;
+    sctx.fillRect(0, 0, 256, 560);
+  }
+  const shadowMap = new CanvasTexture(shadow);
+  shadowMap.needsUpdate = true;
+  phoneMaps = { screenMap, glossMap, shadowMap };
+  return phoneMaps;
+}
+
+export async function warmPhoneTextures() {
+  createPhoneMaps();
+  await yieldToMain();
+}
+
 export function PhoneModel() {
   const screenRef = useRef<Mesh>(null);
   const high = sceneBridge.quality === "high";
@@ -76,51 +133,7 @@ export function PhoneModel() {
   const glass = useMemo(() => slab(width - 0.05, depth - 0.09, 0.01, 0.092, curve), [curve]);
   const bump = useMemo(() => slab(0.22, 0.22, 0.014, 0.045, Math.max(5, curve - 6)), [curve]);
 
-  const maps = useMemo(() => {
-    const screen = document.createElement("canvas");
-    screen.width = 780;
-    screen.height = 1688;
-    drawTodayScreen(screen);
-    roundAlpha(screen, 110);
-    const screenMap = new CanvasTexture(screen);
-    screenMap.colorSpace = SRGBColorSpace;
-    screenMap.anisotropy = 8;
-    screenMap.needsUpdate = true;
-
-    const gloss = document.createElement("canvas");
-    gloss.width = 256;
-    gloss.height = 640;
-    const gctx = gloss.getContext("2d");
-    if (gctx) {
-      const gradient = gctx.createLinearGradient(40, 0, 180, 640);
-      gradient.addColorStop(0, "rgba(255,255,255,0)");
-      gradient.addColorStop(0.42, "rgba(255,255,255,0)");
-      gradient.addColorStop(0.5, "rgba(255,252,248,0.7)");
-      gradient.addColorStop(0.58, "rgba(255,255,255,0)");
-      gradient.addColorStop(1, "rgba(255,255,255,0.08)");
-      gctx.fillStyle = gradient;
-      gctx.fillRect(0, 0, 256, 640);
-      roundAlpha(gloss, 40);
-    }
-    const glossMap = new CanvasTexture(gloss);
-    glossMap.needsUpdate = true;
-
-    const shadow = document.createElement("canvas");
-    shadow.width = 256;
-    shadow.height = 560;
-    const sctx = shadow.getContext("2d");
-    if (sctx) {
-      const radial = sctx.createRadialGradient(128, 280, 20, 128, 280, 160);
-      radial.addColorStop(0, "rgba(32, 24, 20, 0.38)");
-      radial.addColorStop(0.62, "rgba(32, 24, 20, 0.12)");
-      radial.addColorStop(1, "rgba(32, 24, 20, 0)");
-      sctx.fillStyle = radial;
-      sctx.fillRect(0, 0, 256, 560);
-    }
-    const shadowMap = new CanvasTexture(shadow);
-    shadowMap.needsUpdate = true;
-    return { screenMap, glossMap, shadowMap };
-  }, []);
+  const maps = useMemo(() => createPhoneMaps(), []);
 
   const metal = useMemo(() => {
     const props = { color: "#2e2e32", metalness: 0.88, roughness: 0.26 };

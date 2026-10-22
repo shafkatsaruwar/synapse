@@ -45,7 +45,13 @@ export function SiteNav() {
   useEffect(() => {
     const onScroll = () => {
       if (document.body.classList.contains("menu-open")) return;
-      setScrolled(window.scrollY > 8);
+      const y = window.scrollY;
+      // Hysteresis so the bar does not flicker when the scroll position sits on the threshold.
+      setScrolled((current) => {
+        if (y > 120) return true;
+        if (y < 80) return false;
+        return current;
+      });
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -194,7 +200,7 @@ export function SiteNav() {
       </a>
       <div className="nav-inner">
         <Link className="brand" href="/" aria-label="Synapse home" onClick={() => setOpen(false)}>
-          <img src="/brand/mark.png" alt="" width={32} height={32} />
+          <img src="/brand/mark.webp" alt="" width={32} height={32} decoding="async" fetchPriority="low" />
           <span>Synapse</span>
         </Link>
         <nav className="nav-links" aria-label="Primary">

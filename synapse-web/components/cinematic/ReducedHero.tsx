@@ -7,10 +7,10 @@ export function ReducedHero() {
     <section className="reduced-hero" aria-labelledby="reduced-title">
       <div className="reduced-copy">
         <p className="eyebrow">Meet Synapse</p>
-        <h1 id="reduced-title">Your health life, finally in one place.</h1>
-        <p className="lede">Your personal health companion.</p>
+        <h1 id="reduced-title">Your health. Everywhere.</h1>
+        <p className="lede">Your health life, finally in one place.</p>
         <p>
-          Medications. Appointments. Records. Important details. They often live in different places. Synapse is where the ones you keep can sit together.
+          Medications, appointments, records, and the details you choose to keep can sit together in one personal companion. This still view is the same story, without the scroll animation.
         </p>
         <div className="hero-actions">
           <AppStoreLink placement="reduced-hero" />
@@ -20,7 +20,9 @@ export function ReducedHero() {
         </div>
       </div>
       <PhoneFrame caption="Today in Synapse, with fictional sample information.">
-        <TodayScreen />
+        <div aria-hidden="true">
+          <TodayScreen />
+        </div>
       </PhoneFrame>
     </section>
   );
