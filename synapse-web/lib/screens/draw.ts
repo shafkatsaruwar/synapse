@@ -69,9 +69,27 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
+/** Strings painted onto one panel face. Foreign and Synapse titles differ. */
+export function panelFaceCopy(id: PanelId, synapse: boolean) {
+  const face = panelFaces[id];
+  return {
+    mark: face.mark,
+    kicker: synapse ? "SYNAPSE" : face.foreign.toUpperCase(),
+    title: synapse ? face.synapse : face.foreign,
+    detail: synapse ? face.synapseDetail : face.foreignDetail,
+  };
+}
+
+/**
+ * Paint the frosted card and its type into the texture.
+ * The words live in this canvas, not in a separate SDF atlas. Safari was only
+ * attaching glyphs for one of the five sheets when the type was a troika mesh.
+ */
 export function drawPanelFace(canvas: HTMLCanvasElement, id: PanelId, synapse: boolean) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
+  const face = panelFaces[id];
+  const copy = panelFaceCopy(id, synapse);
   const scale = canvas.width / PANEL_FACE_WIDTH;
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.imageSmoothingEnabled = true;
@@ -86,6 +104,37 @@ export function drawPanelFace(canvas: HTMLCanvasElement, id: PanelId, synapse: b
   ctx.fill();
   ctx.strokeStyle = synapse ? "rgba(163,13,36,0.4)" : "rgba(255,255,255,0.85)";
   ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = synapse ? "#A30D24" : face.tint;
+  ctx.beginPath();
+  ctx.arc(110, 150, 36, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = synapse ? "#FBF7F4" : "#1C1614";
+  ctx.font = "600 36px Georgia, serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(copy.mark, 110, 152);
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = synapse ? "#A30D24" : "#3A342F";
+  ctx.font = "500 28px Georgia, serif";
+  ctx.fillText(copy.kicker, 170, 140);
+
+  ctx.fillStyle = "#161311";
+  ctx.font = "560 72px Georgia, serif";
+  ctx.fillText(copy.title, 78, 280);
+
+  ctx.fillStyle = "#5E5852";
+  ctx.font = "400 36px Georgia, serif";
+  ctx.fillText(copy.detail, 80, 360);
+
+  ctx.strokeStyle = synapse ? "rgba(163,13,36,0.35)" : "rgba(40,30,24,0.18)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(80, 420);
+  ctx.lineTo(w - 80, 420);
   ctx.stroke();
 }
 

@@ -1,6 +1,5 @@
 "use client";
 
-import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import {
@@ -22,25 +21,18 @@ import { PANEL_FACE_HEIGHT, PANEL_FACE_WIDTH, drawPanelFace, panelFaces, panelTe
 import { PANEL_DEFS, type PanelId } from "@/lib/animation/scene-sample";
 
 const burgundy = new Color("#f4e6e8");
+const PANEL_IDS = ["feeling", "medications", "appointments", "emergency", "records"] as const;
+const faceCache = new Map<string, CanvasTexture>();
 
-/** GPU SDF generation drops the glyphs on some mobile and software GL paths. */
-function markCpuSdf(mesh: { gpuAccelerateSDF?: boolean } | null) {
-  if (mesh) mesh.gpuAccelerateSDF = false;
-}
-
-const GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789’'·.,";
-
-const fillCache = new Map<string, CanvasTexture>();
-
-/** The frosted fill does not vary by panel, so all five sheets share two maps. */
-function sharedFill(synapse: boolean, scale: number) {
-  const key = `${synapse ? "synapse" : "foreign"}:${scale}`;
-  const cached = fillCache.get(key);
+/** One high-DPR texture per face. The type is in the pixels, so it cannot be dropped per mesh. */
+function panelTexture(id: PanelId, synapse: boolean, scale: number) {
+  const key = `${id}:${synapse ? "synapse" : "foreign"}:${scale}`;
+  const cached = faceCache.get(key);
   if (cached) return cached;
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(PANEL_FACE_WIDTH * scale);
   canvas.height = Math.round(PANEL_FACE_HEIGHT * scale);
-  drawPanelFace(canvas, "feeling", synapse);
+  drawPanelFace(canvas, id, synapse);
   const map = new CanvasTexture(canvas);
   map.colorSpace = SRGBColorSpace;
   map.anisotropy = 16;
@@ -48,7 +40,7 @@ function sharedFill(synapse: boolean, scale: number) {
   map.minFilter = LinearMipmapLinearFilter;
   map.magFilter = LinearFilter;
   map.needsUpdate = true;
-  fillCache.set(key, map);
+  faceCache.set(key, map);
   return map;
 }
 
@@ -80,111 +72,19 @@ function roundedFace(width: number, height: number, depth: number, radius: numbe
   return geometry;
 }
 
-function FaceCopy({
-  id,
-  synapse,
-  width,
-  height,
-}: {
-  id: PanelId;
-  synapse: boolean;
-  width: number;
-  height: number;
-}) {
-  const face = panelFaces[id];
-  const title = synapse ? face.synapse : face.foreign;
-  const detail = synapse ? face.synapseDetail : face.foreignDetail;
-  const kicker = synapse ? "SYNAPSE" : face.foreign.toUpperCase();
-  const sdf = sceneBridge.mobile ? 64 : 128;
-  const xOf = (px: number) => (px / PANEL_FACE_WIDTH - 0.5) * width;
-  const yOf = (py: number) => (0.5 - py / PANEL_FACE_HEIGHT) * height;
-  const sizeOf = (px: number) => (px / PANEL_FACE_HEIGHT) * height;
-  const markX = xOf(110);
-  const markY = yOf(150);
-  return (
-    <group>
-      <mesh position={[markX, markY, 0.018]}>
-        <circleGeometry args={[sizeOf(36), sceneBridge.mobile ? 24 : 32]} />
-        <meshBasicMaterial color={synapse ? "#A30D24" : face.tint} transparent depthWrite={false} toneMapped={false} />
-      </mesh>
-      <Text
-        position={[markX, markY, 0.02]}
-        fontSize={sizeOf(36)}
-        color={synapse ? "#FBF7F4" : "#1C1614"}
-        anchorX="center"
-        anchorY="middle"
-        sdfGlyphSize={sdf}
-        characters={GLYPHS}
-        ref={markCpuSdf}
-      >
-        {face.mark}
-      </Text>
-      <Text
-        position={[xOf(170), yOf(140), 0.02]}
-        fontSize={sizeOf(28)}
-        color={synapse ? "#A30D24" : "#3A342F"}
-        anchorX="left"
-        anchorY="bottom-baseline"
-        sdfGlyphSize={sdf}
-        characters={GLYPHS}
-        ref={markCpuSdf}
-      >
-        {kicker}
-      </Text>
-      <Text
-        position={[xOf(78), yOf(280), 0.02]}
-        fontSize={sizeOf(72)}
-        color="#161311"
-        anchorX="left"
-        anchorY="bottom-baseline"
-        sdfGlyphSize={sdf}
-        characters={GLYPHS}
-        ref={markCpuSdf}
-      >
-        {title}
-      </Text>
-      <Text
-        position={[xOf(80), yOf(360), 0.02]}
-        fontSize={sizeOf(36)}
-        color="#5E5852"
-        anchorX="left"
-        anchorY="bottom-baseline"
-        sdfGlyphSize={sdf}
-        characters={GLYPHS}
-        ref={markCpuSdf}
-      >
-        {detail}
-      </Text>
-      <mesh position={[0, yOf(420), 0.018]}>
-        <planeGeometry args={[((PANEL_FACE_WIDTH - 160) / PANEL_FACE_WIDTH) * width, Math.max(0.003, sizeOf(3))]} />
-        <meshBasicMaterial
-          color={synapse ? "#A30D24" : "#2A2420"}
-          transparent
-          opacity={0.35}
-          depthWrite={false}
-          toneMapped={false}
-        />
-      </mesh>
-    </group>
-  );
-}
-
 export function GlassPanel({ index }: { index: number }) {
   const group = useRef<Group>(null);
   const glass = useRef<Mesh>(null);
   const foreignCard = useRef<Mesh>(null);
   const synapseCard = useRef<Mesh>(null);
-  const foreignCopy = useRef<Group>(null);
-  const synapseCopy = useRef<Group>(null);
 
   const maps = useMemo(() => {
-    const panelId = (["feeling", "medications", "appointments", "emergency", "records"] as PanelId[])[index];
+    const panelId = PANEL_IDS[index];
     const dpr = typeof window === "undefined" ? 2 : window.devicePixelRatio || 1;
     const scale = panelTextureScale(dpr, sceneBridge.mobile);
     return {
-      id: panelId,
-      foreign: sharedFill(false, scale),
-      synapse: sharedFill(true, scale),
+      foreign: panelTexture(panelId, false, scale),
+      synapse: panelTexture(panelId, true, scale),
       tint: new Color(panelFaces[panelId].tint),
     };
   }, [index]);
@@ -216,12 +116,8 @@ export function GlassPanel({ index }: { index: number }) {
         material.transparent = true;
       }
     }
-    const foreign = (1 - pose.synapseMix) * pose.opacity;
-    const synapse = pose.synapseMix * pose.opacity;
-    setOpacity(foreignCard.current, foreign);
-    setOpacity(synapseCard.current, synapse);
-    fadeCopy(foreignCopy.current, foreign);
-    fadeCopy(synapseCopy.current, synapse);
+    setOpacity(foreignCard.current, (1 - pose.synapseMix) * pose.opacity);
+    setOpacity(synapseCard.current, pose.synapseMix * pose.opacity);
   });
 
   return (
@@ -260,12 +156,6 @@ export function GlassPanel({ index }: { index: number }) {
         <planeGeometry args={[width, height]} />
         <meshBasicMaterial map={maps.synapse} transparent opacity={0} depthWrite={false} toneMapped={false} />
       </mesh>
-      <group ref={foreignCopy}>
-        <FaceCopy id={maps.id} synapse={false} width={width} height={height} />
-      </group>
-      <group ref={synapseCopy} visible={false}>
-        <FaceCopy id={maps.id} synapse width={width} height={height} />
-      </group>
     </group>
   );
 }
@@ -278,25 +168,4 @@ function setOpacity(mesh: Mesh | null, opacity: number) {
     material.transparent = true;
   }
   mesh.visible = opacity > 0.03;
-}
-
-function fadeCopy(group: Group | null, opacity: number) {
-  if (!group) return;
-  group.visible = opacity > 0.03;
-  group.traverse((obj) => {
-    const mesh = obj as Mesh & { material?: MeshBasicMaterial | MeshBasicMaterial[] };
-    const material = mesh.material;
-    if (!material || Array.isArray(material)) return;
-    const shader = material as MeshBasicMaterial & {
-      uniforms?: { uTroikaFillOpacity?: { value: number } };
-      userData: { baseOpacity?: number };
-    };
-    if (shader.userData.baseOpacity == null) shader.userData.baseOpacity = shader.opacity > 0 ? shader.opacity : 1;
-    const next = shader.userData.baseOpacity * opacity;
-    if (shader.uniforms?.uTroikaFillOpacity) shader.uniforms.uTroikaFillOpacity.value = next;
-    shader.opacity = next;
-    shader.transparent = true;
-    shader.depthWrite = false;
-    shader.toneMapped = false;
-  });
 }
