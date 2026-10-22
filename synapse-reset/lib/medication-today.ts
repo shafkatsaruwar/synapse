@@ -180,6 +180,55 @@ export function countNeedsAttentionDoses(
   return bucketTodayDoses(buildTodayDoseInstances(medications, logsForDate, dateKey, now)).needsAttention.length;
 }
 
+export type DashboardUpNext =
+  | {
+      kind: "dose";
+      medicationName: string;
+      /** e.g. "10 mg • Night" */
+      subtitle: string;
+      timeOfDay: string;
+      dueMinutes: number | null;
+      owner: RecordOwner;
+      state: DoseAttentionState;
+      lines: string[];
+    }
+  | { kind: "done" }
+  | { kind: "none" };
+
+/**
+ * Home “UP NEXT” — only doses scheduled for `dateKey`.
+ * Off-schedule weekly/custom meds (e.g. Sogroya not today) never win.
+ * When every scheduled dose is taken → `{ kind: "done" }` (“All done for today”).
+ */
+export function getDashboardUpNext(
+  medications: Medication[],
+  logsForDate: MedicationLog[],
+  dateKey: string,
+  now: Date = new Date(),
+): DashboardUpNext {
+  const buckets = bucketTodayDoses(buildTodayDoseInstances(medications, logsForDate, dateKey, now));
+  if (buckets.total === 0) return { kind: "none" };
+  if (buckets.needsAttention.length === 0 && buckets.upcoming.length === 0) return { kind: "done" };
+
+  const next = buckets.needsAttention[0] ?? buckets.upcoming[0];
+  const amount = formatDoseAmountLabel(next.amount, next.unit);
+  const subtitle = [amount, next.timeOfDay].filter(Boolean).join(" • ") || formatReminderClock(next.reminderTime, next.timeOfDay);
+  const line = amount && next.timeOfDay
+    ? `${amount} — ${next.timeOfDay}`
+    : amount || next.timeOfDay || "Scheduled dose";
+
+  return {
+    kind: "dose",
+    medicationName: next.medicationName,
+    subtitle,
+    timeOfDay: next.timeOfDay,
+    dueMinutes: next.sortMinutes,
+    owner: next.entryOwner,
+    state: next.state,
+    lines: [line],
+  };
+}
+
 export type RegimenSummary = {
   medication: Medication;
   doseSummary: string;
