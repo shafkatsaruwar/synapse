@@ -73,7 +73,6 @@
     "react-native-svg": "15.12.1",
     "react-native-view-shot": "^4.0.3",
     "react-native-web": "^0.21.0",
-    "resend": "^6.9.2",
     "tsx": "^4.20.6",
     "ws": "^8.18.0",
     "zod": "^3.25.76",

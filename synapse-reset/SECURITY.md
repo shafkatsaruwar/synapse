@@ -14,14 +14,13 @@ This document describes the **actual** security posture so engineers and operato
 | Optional iCloud / CloudKit | User-initiated or settings-driven backup to the user’s Apple iCloud container when enabled. |
 | Optional Supabase | Used for auth/sync features when configured; RLS must never be `USING (true)`. |
 | Optional AI (document scan / insights) | Sends user-selected health data to the Synapse API → third-party AI provider. Requires `API_SHARED_SECRET`. |
-| Optional email | Authenticated API only; not an open relay. |
 | Export / Share | Unencrypted JSON the user chooses to share. |
 | On-device caregiver mode | Local profile on the same device. |
 | Cloud caregiver linking tables | Client (anon) access is **denied** after `caregiver_linking_v2_lockdown.sql`. Re-enable only with Auth-bound RLS or Edge Functions + service role. |
 
 ## Authentication for PHI APIs
 
-Server routes under `/api/analyze-document`, `/api/health-insights`, `/api/compare-medications`, and `/api/send-email` require:
+Server routes under `/api/analyze-document`, `/api/health-insights`, and `/api/compare-medications` require:
 
 - Server env: `API_SHARED_SECRET`
 - Client env (baked into the app): `EXPO_PUBLIC_API_SHARED_SECRET` (same value)
@@ -57,7 +56,7 @@ If `API_SHARED_SECRET` is unset, these routes return **503** (fail closed).
 
 ## Related files
 
-- `server/api-auth.ts`, `server/routes.ts`, `api/send-email.ts`, `mcp/`
+- `server/api-auth.ts`, `server/routes.ts`, `mcp/`
 - `docs/MCP.md`
 - `synapse-reset/screens/PrivacyScreen.tsx`
 - `synapse-reset/components/BiometricGate.tsx`

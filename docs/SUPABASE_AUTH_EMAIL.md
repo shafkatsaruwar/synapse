@@ -36,7 +36,6 @@ Supabase’s built-in sender has limits and often lands in **spam** or is blocke
 - **Use custom SMTP** so emails are sent from your domain and are less likely to be filtered:
   - **Project Settings → Auth → SMTP**
   - Enable **Custom SMTP** and use a provider such as:
-    - **Resend** (resend.com)
     - **SendGrid**
     - **Mailgun**
     - **AWS SES**

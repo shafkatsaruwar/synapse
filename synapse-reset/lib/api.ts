@@ -229,29 +229,3 @@ export async function compareMedications(
     throw err;
   }
 }
-
-export async function sendEmail(options: {
-  to: string | string[];
-  subject: string;
-  html?: string;
-  from?: string;
-}): Promise<unknown> {
-  try {
-    const result = await apiCall("/api/send-email", {
-      method: "POST",
-      body: options,
-    });
-
-    await auditLogger.log("CREATE", "user", "success", {
-      details: "Email sent",
-    });
-
-    return result;
-  } catch (error) {
-    const err = error instanceof Error ? error : new Error("Failed to send email");
-    await auditLogger.log("ERROR", "user", "failure", {
-      errorMessage: sanitizeErrorMessage(err.message),
-    });
-    throw err;
-  }
-}

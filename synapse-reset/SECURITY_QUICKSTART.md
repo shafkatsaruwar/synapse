@@ -2,7 +2,7 @@
 
 Synapse is a **local-first consumer wellness app**. Follow these steps so deploys are not accidentally open or overclaimed.
 
-## 1. Protect AI / email APIs
+## 1. Protect AI APIs
 
 ```bash
 # On the API server (Express / Vercel)
