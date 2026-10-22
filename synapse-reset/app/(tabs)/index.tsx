@@ -64,6 +64,7 @@ import {
   normalizeMedication,
   settingsStorage,
   sickModeStorage,
+  clearAllData,
   type FeedbackSentiment,
   type RecordOwner,
 } from "@/lib/storage";
@@ -72,6 +73,7 @@ import {
   requestPermission,
   getPermissionStatus,
   syncAllFromSettings,
+  cancelAllNotifications,
   updateAppIconBadgeCount,
   type NotificationNavigationTarget,
   setNotificationNavigateCallback,
@@ -1048,14 +1050,27 @@ export default function MainScreen() {
   };
 
   const handleResetApp = () => {
-    setHasSeenWalkthrough(false); // reset tour on app reset too
-    setShowOnboarding(true);
-    setShowSimpleModeTour(false);
-    setSimpleModeTourStep(0);
-    setSuppressPostOnboardingPrompts(false);
-    setShowWhatsNew(false);
-    setActiveScreen("dashboard");
-    setSickMode(false);
+    void (async () => {
+      try {
+        await cancelAllNotifications();
+      } catch {
+        // Best-effort — still erase local data.
+      }
+      try {
+        await clearAllData();
+      } catch {
+        // Continue to onboarding even if a key fails to clear.
+      }
+      setHasSeenWalkthrough(false);
+      setShowOnboarding(true);
+      setShowSimpleModeTour(false);
+      setSimpleModeTourStep(0);
+      setSuppressPostOnboardingPrompts(false);
+      setShowWhatsNew(false);
+      setActiveScreen("dashboard");
+      setSickMode(false);
+      setRefreshKey((k) => k + 1);
+    })();
   };
 
   const SIMPLE_MODE_TOUR_CARDS = [

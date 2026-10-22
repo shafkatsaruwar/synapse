@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Platform,
@@ -64,12 +64,15 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
   const active = draftAppearance ?? appearance;
   const [saveName, setSaveName] = useState("");
   const [busy, setBusy] = useState(false);
+  const appliedRef = useRef(false);
 
   useEffect(() => {
+    appliedRef.current = false;
     beginAppearanceDraft();
     return () => {
       // Leaving without Apply restores committed look.
-      cancelAppearanceDraft();
+      // Skip cancel after a successful Apply so Dark/Light is not discarded on unmount.
+      if (!appliedRef.current) cancelAppearanceDraft();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/unmount only
   }, []);
@@ -80,6 +83,7 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
     setBusy(true);
     try {
       await commitAppearance();
+      appliedRef.current = true;
       const profile = await healthProfileStorage.get();
       await healthProfileStorage.save({
         ...profile,

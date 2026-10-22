@@ -111,6 +111,13 @@ const a11y = applyAppearanceToTheme(
 );
 check(a11y.surface === "#FFFFFF", "system reduce transparency forces solid");
 
+const darkGlass = applyAppearanceToTheme(
+  base,
+  { ...DEFAULT_APPEARANCE, surfaceStyle: "glass" },
+  "dark",
+);
+check(darkGlass.surface.startsWith("rgba(28,"), "dark glass keeps charcoal frost");
+
 const sanitized = sanitizeAppearance({
   theme: "blue",
   accent: "violet",

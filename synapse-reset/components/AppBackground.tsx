@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, View, StyleSheet } from "react-native";
+import { Image, StatusBar, View, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   isBlueTheme,
@@ -18,11 +18,13 @@ export default function AppBackground({ children }: AppBackgroundProps) {
   const active = draftAppearance ?? appearance;
   const wallpaper = getWallpaper(active.wallpaper);
   const brightness = active.wallpaperBrightness;
+  const darkUi = isDarkAppearance(themeId);
 
   // Soft Evergreen / Light / Blue: single atmospheric field (+ optional wallpaper wash).
   if (isEvergreenTheme(themeId) || themeId === "light" || isBlueTheme(themeId)) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle={darkUi ? "light-content" : "dark-content"} />
         {wallpaper && wallpaper.colors.length >= 2 && !reduceMotion ? (
           <LinearGradient
             colors={wallpaper.colors as [string, string, ...string[]]}
@@ -44,11 +46,12 @@ export default function AppBackground({ children }: AppBackgroundProps) {
     );
   }
 
-  const backgroundColor = isDarkAppearance(themeId) ? "#0D0B0C" : "#F5ECE2";
+  const backgroundColor = darkUi ? "#0D0B0C" : "#F5ECE2";
 
   return (
     <View style={styles.root}>
-      {themeId === "dark" ? (
+      <StatusBar barStyle={darkUi ? "light-content" : "dark-content"} />
+      {themeId === "dark" || themeId === "evergreenDark" ? (
         <>
           <LinearGradient
             colors={["#171011", "#0D0B0C", "#0A1512"]}

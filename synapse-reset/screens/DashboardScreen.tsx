@@ -392,7 +392,7 @@ function DashboardHero({
   );
 
   return (
-    <GlassView variant="hero" tint={themeId === "dark" ? "dark" : "light"} style={styles.dashboardHero}>
+    <GlassView variant="hero" tint={isDarkAppearance(themeId) ? "dark" : "light"} style={styles.dashboardHero}>
       {renderHeroInner()}
     </GlassView>
   );

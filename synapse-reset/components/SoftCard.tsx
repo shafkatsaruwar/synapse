@@ -34,7 +34,9 @@ export default function SoftCard({
           borderRadius,
         }),
         surfaceStyle === "solid" ? { borderColor: C.border, shadowOpacity: 0.04 } : null,
-        surfaceStyle === "glass" ? { borderColor: "rgba(255,255,255,0.72)" } : null,
+        surfaceStyle === "glass"
+          ? { borderColor: isDarkAppearance(themeId) ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.72)" }
+          : null,
         style,
       ]}
     >

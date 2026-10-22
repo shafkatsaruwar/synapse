@@ -2039,9 +2039,18 @@ export const importAllDataTransactional = async (payload: ExportPayload): Promis
   }
 };
 
+/** Extra keys outside KEYS that must also go when the user erases this device. */
+const EXTRA_CLEAR_KEYS = [
+  "synapse_appearance_v1",
+  "synapse_appearance_saved_looks_v1",
+  "app_theme",
+  "synapse_brand_notification_icon_cleared_build",
+] as const;
+
 export const clearAllData = async () => {
+  const keys = [...Object.values(KEYS), ...EXTRA_CLEAR_KEYS];
   await Promise.all(
-    Object.values(KEYS).map(async (key) => {
+    keys.map(async (key) => {
       try {
         await AsyncStorage.removeItem(key);
       } catch (e) {
