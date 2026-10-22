@@ -633,3 +633,12 @@ body.menu-open .footer {
     scroll-behavior: auto !important;
   }
 }
+
+/* Homepage only: the transparent nav sits over the dark hero, so use light text until it scrolls onto a light surface. */
+body:has(.landing-root) .nav:not(.is-scrolled) .brand,
+body:has(.landing-root) .nav:not(.is-scrolled) .nav-links a {
+  color: #f2f6fc;
+}
+body:has(.landing-root) .nav:not(.is-scrolled) .nav-links a[aria-current="page"] {
+  color: #ffffff;
+}
