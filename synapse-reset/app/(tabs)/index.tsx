@@ -73,12 +73,17 @@ import {
   requestPermission,
   getPermissionStatus,
   syncAllFromSettings,
+<<<<<<< HEAD
   cancelAllNotifications,
+=======
+  updateAppIconBadgeCount,
+>>>>>>> f7167c7 (Clear Health dose-due badge when Today's Doses is caught up.)
   type NotificationNavigationTarget,
   setNotificationNavigateCallback,
   handleLastNotificationResponse,
   syncRecoveryTrackingCheckIn,
 } from "@/lib/notification-manager";
+import { requestBadgeRefresh } from "@/lib/badge-refresh";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import AppBackground from "@/components/AppBackground";
 import BiometricGate from "@/components/BiometricGate";
@@ -996,6 +1001,8 @@ export default function MainScreen() {
       }
       await syncAllFromSettings().catch(() => {});
       await syncWidgetSnapshot().catch(() => {});
+      requestBadgeRefresh();
+      void updateAppIconBadgeCount().catch(() => {});
     } catch (error) {
       console.warn("Failed to mark medication as taken from prompt", error);
     } finally {
