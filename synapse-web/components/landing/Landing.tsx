@@ -57,7 +57,6 @@ const insideShots = [
   { src: "/screens/you-settings-real.png", alt: "You and Settings screen with a backup reminder and profile sections." },
   { src: "/screens/emergency-card.png", alt: "Medical emergency card with name, allergies, medications and contacts." },
   { src: "/screens/medications.png", alt: "Medications screen with today's doses and an Add Med button." },
-  { src: "/screens/today-sam-2.png", alt: "Today screen with Your health cards and Sick Mode." },
   { src: "/screens/appointments.png", alt: "Appointments calendar with an upcoming visit." },
 ];
 
