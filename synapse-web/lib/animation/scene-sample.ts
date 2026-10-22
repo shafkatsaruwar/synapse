@@ -515,6 +515,12 @@ export function heroCopy(progress: number): HeroCopy {
   if (phase === "DISCONNECTION" || phase === "RELEASE") {
     return { kicker: "", title: "No more.", body: "", showIntroCta: false, showRevealCta: false };
   }
+  if (phase === "FALL" || phase === "STACK") {
+    return { kicker: "", title: "Coming together.", body: "", showIntroCta: false, showRevealCta: false };
+  }
+  if (phase === "ALIGN" || phase === "MERGE") {
+    return { kicker: "", title: "Into one place.", body: "", showIntroCta: false, showRevealCta: false };
+  }
   if (phase === "REVEAL") {
     const local = clamp01((progress - 0.91) / 0.09);
     if (local < 0.4) {

@@ -11,4 +11,6 @@ export const sceneBridge = {
   quality: "high" as "high" | "low",
   visible: true,
   sample: null as SceneSample | null,
+  /** Demand-mode render. Assigned by the studio so scroll does not need a continuous loop. */
+  requestRender: () => {},
 };

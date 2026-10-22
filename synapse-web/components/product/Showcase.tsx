@@ -38,15 +38,14 @@ export function Showcase() {
           </section>
         ),
       )}
-      <section className="closing">
-        <p className="eyebrow">Synapse</p>
-        <h2>Your health life, finally in one place.</h2>
-        <div className="hero-actions">
-          <AppStoreLink placement="closing" />
-          <Link className="btn btn-text" href="/features">
-            Browse features
-          </Link>
-        </div>
+      <section className="closing" aria-labelledby="closing-title">
+        <h2 id="closing-title">Your health life, finally in one place.</h2>
+        <p className="lede">
+          Synapse brings the health information you choose to organize into one thoughtful, personal experience.
+        </p>
+        <AppStoreLink className="btn btn-primary closing-cta" placement="closing">
+          Get Synapse on the App Store
+        </AppStoreLink>
       </section>
     </div>
   );

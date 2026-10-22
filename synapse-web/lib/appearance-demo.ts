@@ -127,6 +127,9 @@ export type DemoLook = {
   accent: string;
   wallpaper: DemoWallpaperId;
   surface: DemoSurfaceId;
+  reduceTransparency: boolean;
+  reduceMotion: boolean;
+  increasedContrast: boolean;
 };
 
 export const DEFAULT_DEMO_LOOK: DemoLook = {
@@ -135,7 +138,16 @@ export const DEFAULT_DEMO_LOOK: DemoLook = {
   accent: "blue",
   wallpaper: "none",
   surface: "soft",
+  reduceTransparency: false,
+  reduceMotion: false,
+  increasedContrast: false,
 };
+
+export const APPEARANCE_A11Y = [
+  { id: "reduceTransparency", label: "Reduce Transparency", body: "Prefer solid, readable surfaces" },
+  { id: "reduceMotion", label: "Reduce Motion", body: "Limit decorative motion" },
+  { id: "increasedContrast", label: "Increased Contrast", body: "Stronger borders and solid cards" },
+] as const;
 
 export function themeById(id: DemoThemeId) {
   return APPEARANCE_THEMES.find((theme) => theme.id === id) ?? APPEARANCE_THEMES[0];

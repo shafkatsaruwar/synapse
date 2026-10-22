@@ -42,6 +42,7 @@ export function ScrollTimeline({ sectionRef, enabled, onPhase, onCopy, barRef }:
             onPhaseRef.current(phaseAt(self.progress));
             onCopyRef.current(heroCopy(self.progress));
             if (barRef.current) barRef.current.style.transform = `scaleX(${self.progress})`;
+            sceneBridge.requestRender();
             if (!completed.current && self.progress > 0.985) {
               completed.current = true;
               track("scroll_completion");

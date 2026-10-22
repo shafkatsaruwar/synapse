@@ -158,12 +158,11 @@ export function drawTodayScreen(canvas: HTMLCanvasElement) {
 
   let y = 390;
   y = card(ctx, 40, y, w - 80, "Medications today", [
-    ["Lisinopril 10 mg", "Morning · Taken"],
     ["Vitamin D 1000 IU", "Morning · Taken"],
-    ["Cetirizine 10 mg", "Evening · Due"],
+    ["Vitamin D 1000 IU", "Evening · Due"],
   ]);
   y += 28;
-  y = card(ctx, 40, y, w - 80, "Upcoming", [["Dr. Elena Cho", "Thursday · 2:30 PM"], ["Harbor Clinic", "Sample visit"]]);
+  y = card(ctx, 40, y, w - 80, "Upcoming", [["Clinic visit", "Thursday · 2:30 PM"], ["Sample clinic", "Sample visit"]]);
   y += 28;
   card(ctx, 40, y, w - 80, "How you’re feeling", [
     ["Overall", "Okay"],

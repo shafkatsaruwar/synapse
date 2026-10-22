@@ -52,7 +52,7 @@ export const features: FeatureContent[] = [
       "Today’s doses gathered on the home screen",
     ],
     privacy:
-      "Medication names and dose logs stay on this device unless you export a file or turn on an optional feature you choose, such as a signed-in cloud copy. Synapse does not sell health data to advertisers.",
+      "Medication names and dose logs stay on this device unless you export a file. Synapse does not sell health data to advertisers.",
     layout: "split",
     screen: "medications",
     caption: "A fictional medication list, showing schedules and doses you would enter yourself.",
@@ -82,7 +82,7 @@ export const features: FeatureContent[] = [
       "A leave-by travel estimate on iPhone when a place is set",
     ],
     privacy:
-      "Appointment details stay on this device unless you export them or use an optional account feature you turn on. Importing from Calendar reads events you choose. It does not sync with a healthcare provider.",
+      "Appointment details stay on this device unless you export them. Importing from Calendar reads events you choose. It does not sync with a healthcare provider.",
     layout: "overlap",
     screen: "appointments",
     caption: "A fictional upcoming visit. Names, places, and times are sample data.",
@@ -142,7 +142,7 @@ export const features: FeatureContent[] = [
       "Your words, not a diagnosis",
     ],
     privacy:
-      "Check-ins and symptom notes stay on this device unless you export them or enable an optional feature. They are not sent anywhere for the sake of the daily log itself.",
+      "Check-ins and symptom notes stay on this device unless you export them. They are not sent anywhere for the sake of the daily log itself.",
     layout: "quote",
     screen: "feeling",
     caption: "A fictional daily check-in. The sliders match the daily log in the app.",
@@ -215,8 +215,8 @@ export const features: FeatureContent[] = [
     lede: "Personalize Synapse freely — every option is included for everyone.",
     explanation: [
       "Appearance Studio is in Preferences. Next to it, Simple Mode uses larger controls and fewer distractions, and Full Mode is the complete Synapse experience. The studio itself is described there as themes, accents, wallpapers, and more — free for everyone.",
-      "You can choose a theme (System, Light, Dark, Evergreen, Calm, or Blue), an accent color, a wallpaper (None, Mist, Linen, or Cloud), and a surface style (Solid, Soft, or Glass). A live preview shows the combination before you keep it.",
-      "Apply Appearance saves that look. Cancel leaves the previous one in place. The preview on this site is a demo with fictional lines for Alex. It is not a health record.",
+      "You can choose a theme (System, Light, Dark, Evergreen, Calm, or Blue), an accent color, a wallpaper (None, Mist, Linen, or Cloud), and a surface style (Solid, Soft, or Glass). Accessibility preferences in the studio are Reduce Transparency, Reduce Motion, and Increased Contrast. A live preview shows the combination before you keep it.",
+      "Apply Appearance saves that look on the device. Cancel leaves the previous one in place. The preview on this site is a demo with fictional lines for Alex. It does not change the Synapse app on your iPhone, and it is not a health record.",
     ],
     steps: [
       { title: "Open Preferences", body: "Choose Simple Mode or Full Mode, then open Appearance Studio." },
@@ -229,6 +229,7 @@ export const features: FeatureContent[] = [
       "Accent colors you can see on the preview",
       "Wallpapers: None, Mist, Linen, and Cloud",
       "Surfaces: Solid, Soft, and Glass",
+      "Reduce Transparency, Reduce Motion, and Increased Contrast",
       "Every option is included for everyone",
     ],
     privacy:
@@ -247,14 +248,13 @@ export const demo = {
   person: "Alex Rivera",
   dob: "April 2, 1992",
   meds: [
-    { name: "Lisinopril", dose: "10 mg", when: "Morning", state: "Taken" },
     { name: "Vitamin D", dose: "1000 IU", when: "Morning", state: "Taken" },
-    { name: "Cetirizine", dose: "10 mg", when: "Evening", state: "Due" },
+    { name: "Vitamin D", dose: "1000 IU", when: "Evening", state: "Due" },
   ],
   appointment: {
     when: "Thursday · 2:30 PM",
-    who: "Dr. Elena Cho",
-    where: "Harbor Clinic",
+    who: "Clinic visit",
+    where: "Sample clinic",
     note: "Bring the questions you wrote down.",
   },
   feeling: [
@@ -269,23 +269,23 @@ export const demo = {
   ],
   allergies: "Penicillin",
   contact: { name: "Jordan Lee", phone: "(555) 010-0198" },
-  doctor: { name: "Dr. Elena Cho", phone: "(555) 010-0144" },
+  doctor: { name: "Sample clinician", phone: "(555) 010-0144" },
 };
 
 export const story = {
-  name: "Mohammed Shafkat Saruwar",
+  name: "Founder",
   role: "Building Synapse Health",
   quote:
     "I built Synapse Health to make managing your health feel calm — not like a chore.",
   paragraphs: [
     "Synapse started as a personal health companion: medications, appointments, and a daily check-in, in a place that tries to stay quiet.",
-    "The app keeps health logs on the device by default. An account is optional, for when you want sign-in or a cloud copy you turn on yourself. There is no separate public biography beyond what the app’s Meet the Founder screen already says.",
+    "The app keeps health logs on the device by default. You do not need an account. Manual backup and restore — a file you keep — is the recovery path in this version. Automatic iCloud backup is not available.",
   ],
   points: [
     "Daily logs you can actually read back",
     "Medication tracking that stays simple",
     "Emergency information you choose to keep",
-    "Local-first storage, with optional cloud only when you use it",
+    "Local-first storage, with manual backup and restore",
   ],
 };
 
@@ -304,7 +304,7 @@ export const supportFaqs = [
   },
   {
     q: "Where does my information live?",
-    a: "On the device, by default. You can export it, delete it, or turn on optional tools such as sign-in, a cloud copy for assistant access, caregiver linking, or Apple Health import. Those run when you use them. See Privacy for the longer account.",
+    a: "On the device, by default. You can export a file, restore from that file, or delete what is stored on the device. An account is not required. Automatic syncing and automatic iCloud backup are not part of this version. See Privacy for the longer account.",
   },
   {
     q: "Which permissions does the iPhone app ask for?",

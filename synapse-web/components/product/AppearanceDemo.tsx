@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  APPEARANCE_A11Y,
   APPEARANCE_ACCENTS,
   APPEARANCE_SURFACES,
   APPEARANCE_THEMES,
@@ -22,12 +23,14 @@ export function AppearanceDemo({ variant }: { variant: "stage" | "studio" }) {
   const theme = themeById(draft.theme);
   const accent = accentById(draft.accent);
   const wallpaper = APPEARANCE_WALLPAPERS.find((item) => item.id === draft.wallpaper) ?? APPEARANCE_WALLPAPERS[0];
+  const surface = draft.reduceTransparency || draft.increasedContrast ? "solid" : draft.surface;
   const ground =
     wallpaper.colors.length >= 2
       ? `linear-gradient(165deg, ${wallpaper.colors.join(", ")})`
       : theme.background;
-  const cardBackground = draft.surface === "solid" ? (theme.dark ? "#1C1A1B" : "#FFFFFF") : draft.surface === "glass" ? (theme.dark ? "rgba(255,250,247,0.14)" : "rgba(255,255,255,0.62)") : theme.card;
-  const cardShadow = draft.surface === "soft" ? "0 10px 24px rgba(32, 24, 20, 0.08)" : "none";
+  const cardBackground = surface === "solid" ? (theme.dark ? "#1C1A1B" : "#FFFFFF") : surface === "glass" ? (theme.dark ? "rgba(255,250,247,0.14)" : "rgba(255,255,255,0.62)") : theme.card;
+  const cardShadow = surface === "soft" ? "0 10px 24px rgba(32, 24, 20, 0.08)" : "none";
+  const cardBorder = draft.increasedContrast ? theme.text : theme.border;
 
   function patch(next: Partial<DemoLook>) {
     setDraft((current) => ({ ...current, ...next }));
@@ -35,7 +38,7 @@ export function AppearanceDemo({ variant }: { variant: "stage" | "studio" }) {
   }
 
   return (
-    <div className={`appearance-demo appearance-demo-${variant}`}>
+    <div className={`appearance-demo appearance-demo-${variant}${draft.reduceMotion ? " is-still" : ""}`}>
       {variant === "stage" ? (
         <div className="hang-row" role="list">
           {APPEARANCE_THEMES.map((item, index) => (
@@ -66,26 +69,26 @@ export function AppearanceDemo({ variant }: { variant: "stage" | "studio" }) {
       <div className={variant === "stage" ? "preview-hang" : "preview-studio"}>
         {variant === "stage" ? <span className="preview-string" aria-hidden="true" /> : null}
         <div
-          className={`live-preview surface-${draft.surface} mode-${draft.mode}`}
+          className={`live-preview surface-${surface} mode-${draft.mode}`}
           style={{ background: ground, color: theme.text }}
         >
           <p className="live-kicker">Live preview</p>
           <h3 style={{ color: theme.text }}>Good evening, Alex</h3>
           <div className="live-cards">
-            <article style={{ background: cardBackground, borderColor: theme.border, boxShadow: cardShadow, color: theme.text }}>
+            <article style={{ background: cardBackground, borderColor: cardBorder, boxShadow: cardShadow, color: theme.text }}>
               <strong>Medications</strong>
               <span style={{ color: theme.muted }}>Vitamin D · 1 of 2 doses today</span>
             </article>
-            <article style={{ background: cardBackground, borderColor: theme.border, boxShadow: cardShadow, color: theme.text }}>
+            <article style={{ background: cardBackground, borderColor: cardBorder, boxShadow: cardShadow, color: theme.text }}>
               <strong>Appointments</strong>
               <span style={{ color: theme.muted }}>Check-in · Tomorrow 10:30 AM</span>
             </article>
             <div className="live-split">
-              <article style={{ background: cardBackground, borderColor: theme.border, boxShadow: cardShadow, color: theme.text }}>
+              <article style={{ background: cardBackground, borderColor: cardBorder, boxShadow: cardShadow, color: theme.text }}>
                 <strong>Feeling</strong>
                 <span style={{ color: theme.muted }}>Steady</span>
               </article>
-              <article style={{ background: cardBackground, borderColor: theme.border, boxShadow: cardShadow, color: theme.text }}>
+              <article style={{ background: cardBackground, borderColor: cardBorder, boxShadow: cardShadow, color: theme.text }}>
                 <strong>Sick Mode</strong>
                 <span style={{ color: theme.muted }}>Off</span>
               </article>
@@ -98,7 +101,7 @@ export function AppearanceDemo({ variant }: { variant: "stage" | "studio" }) {
             <i />
             <i />
           </div>
-          <p className="live-note" style={{ color: theme.muted }}>
+          <p className="live-note" style={{ color: theme.dark ? "#E6E0DB" : "#3F3A36" }}>
             Demo information only — not your real health data.
           </p>
         </div>
@@ -192,6 +195,25 @@ export function AppearanceDemo({ variant }: { variant: "stage" | "studio" }) {
           </div>
         </fieldset>
 
+        <fieldset>
+          <legend>Accessibility</legend>
+          <div className="a11y-list">
+            {APPEARANCE_A11Y.map((item) => {
+              const on = draft[item.id];
+              return (
+                <button key={item.id} type="button" aria-pressed={on} onClick={() => patch({ [item.id]: !on })}>
+                  <span>
+                    <strong>{item.label}</strong>
+                    <small>{item.body}</small>
+                  </span>
+                  <em aria-hidden="true">{on ? "On" : "Off"}</em>
+                </button>
+              );
+            })}
+          </div>
+          <p className="appearance-note">In the app, system accessibility settings take priority. This preview stays in the browser.</p>
+        </fieldset>
+
         <div className="appearance-actions">
           <button
             type="button"
@@ -206,10 +228,9 @@ export function AppearanceDemo({ variant }: { variant: "stage" | "studio" }) {
           <button
             type="button"
             className="appearance-apply"
-            style={{ background: accent.hex }}
             onClick={() => {
               setApplied(draft);
-              setNote("Applied on this demo. Nothing was saved to an account.");
+              setNote("Applied on this page only. This does not change the Synapse app on your iPhone.");
             }}
           >
             Apply Appearance

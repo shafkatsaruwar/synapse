@@ -100,6 +100,7 @@ export function CinematicHero() {
         const visible = entry.isIntersecting;
         sceneBridge.visible = visible;
         setActive(visible);
+        if (visible) sceneBridge.requestRender();
       },
       { threshold: 0.01 },
     );

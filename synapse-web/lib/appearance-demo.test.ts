@@ -30,6 +30,11 @@ test("appearance studio is a feature and only lists the looks from the app", () 
     APPEARANCE_SURFACES.map((surface) => surface.label),
     ["Solid", "Soft", "Glass"],
   );
+  assert.match(appearance, /Reduce Transparency/);
+  assert.match(appearance, /Reduce Motion/);
+  assert.match(appearance, /Increased Contrast/);
+  assert.equal(appearance.includes("custom wallpaper"), false);
+  assert.equal(appearance.includes("Saved Looks"), false);
   assert.deepEqual(
     APPEARANCE_ACCENTS.map((accent) => accent.label),
     ["Burgundy", "Evergreen", "Blue", "Violet", "Rose", "Amber", "Teal", "Slate"],

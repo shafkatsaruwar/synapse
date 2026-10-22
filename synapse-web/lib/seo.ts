@@ -33,13 +33,13 @@ export function pageMeta({
 export function siteJsonLd() {
   return {
     "@context": "https://schema.org",
-    "@type": "MobileApplication",
+    "@type": "SoftwareApplication",
     name: "Synapse Health Companion",
     operatingSystem: "iOS",
     applicationCategory: "HealthApplication",
     url: getSiteUrl(),
     installUrl: "https://apps.apple.com/us/app/synapse-health-companion/id6759972036",
     description:
-      "A personal health companion for medications, appointments, records, daily check-ins, sick days, and emergency information you keep.",
+      "A personal health companion for iPhone. Medications, appointments, records, daily check-ins, sick days, and emergency information you choose to keep, stored on the device by default.",
   };
 }

@@ -15,7 +15,7 @@ export default function StoryPage() {
         <h1>Built so health admin can feel calm.</h1>
       </header>
       <figure className="founder">
-        <img src="/brand/founder.jpg" alt="Mohammed Shafkat Saruwar" width={960} height={700} />
+        <img src="/brand/founder.jpg" alt="Founder of Synapse" width={960} height={700} />
         <figcaption>
           {story.name}
           <span>{story.role}</span>
@@ -36,7 +36,7 @@ export default function StoryPage() {
         ))}
       </ul>
       <p className="story-p">
-        The in-app note also says “no accounts.” The product is more precise than that line: you do not need an account, and you can create one if you want sign-in or an optional cloud copy. There is no longer founder biography in the source, and this page does not add one.
+        You do not need an account to use Synapse. Health logs stay on the device unless you export a backup file yourself. This page does not add a biography beyond the short note already in the app.
       </p>
     </div>
   );

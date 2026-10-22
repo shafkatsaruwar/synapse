@@ -118,7 +118,10 @@ test("hero copy follows the script", () => {
   assert.equal(heroCopy(0.26).title, "Different places to look.");
   assert.equal(heroCopy(0.33).title, "No more.");
   assert.equal(heroCopy(0.4).title, "No more.");
-  assert.equal(heroCopy(0.66).title, "");
+  assert.equal(heroCopy(0.5).title, "Coming together.");
+  assert.equal(heroCopy(0.66).title, "Coming together.");
+  assert.equal(heroCopy(0.78).title, "Into one place.");
+  assert.equal(heroCopy(0.86).title, "Into one place.");
   assert.equal(heroCopy(0.93).kicker, "Meet Synapse.");
   assert.equal(heroCopy(0.99).title, "Your health life, finally in one place.");
   assert.equal(heroCopy(0).showIntroCta, true);

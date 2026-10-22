@@ -45,7 +45,13 @@ export function SiteNav() {
   useEffect(() => {
     const onScroll = () => {
       if (document.body.classList.contains("menu-open")) return;
-      setScrolled(window.scrollY > 8);
+      const y = window.scrollY;
+      // Hysteresis so the bar does not flicker when the scroll position sits on the threshold.
+      setScrolled((current) => {
+        if (y > 120) return true;
+        if (y < 80) return false;
+        return current;
+      });
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
