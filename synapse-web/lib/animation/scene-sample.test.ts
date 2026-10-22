@@ -165,15 +165,16 @@ test("desktop reveal keeps the phone clear of the headline column", () => {
   }
 });
 
-test("panel textures scale with the pixel ratio and stay lighter on mobile", () => {
+test("panel textures stay at least 2× and reach 3× on a phone", () => {
   assert.equal(panelTextureScale(1, false), 2);
   assert.equal(panelTextureScale(2, false), 2);
   assert.equal(panelTextureScale(2.5, false), 2.5);
   assert.equal(panelTextureScale(4, false), 3);
   assert.equal(panelTextureScale(Number.NaN, false), 2);
-  assert.equal(panelTextureScale(1, true), 1);
-  assert.equal(panelTextureScale(1.25, true), 1.25);
-  assert.equal(panelTextureScale(3, true), 1.5);
+  assert.equal(panelTextureScale(1, true), 2);
+  assert.equal(panelTextureScale(2, true), 2);
+  assert.equal(panelTextureScale(3, true), 3);
+  assert.equal(panelTextureScale(4, true), 3);
 });
 
 test("panel catalog has the five suspended identities", () => {

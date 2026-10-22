@@ -42,9 +42,9 @@ export function StudioScene({ active }: { active: boolean }) {
     <Canvas
       className="studio-canvas"
       camera={{ position: mobile ? [0.04, 2.7, 7.6] : [0.15, 2.08, 6.7], fov: mobile ? 40 : 30, near: 0.08, far: 40 }}
-      dpr={mobile ? [1, 1.5] : [1, 2.5]}
+      dpr={mobile ? [2, 3] : [1, 2.5]}
       frameloop={active ? "always" : "never"}
-      gl={{ antialias: !mobile, alpha: false, powerPreference: "high-performance", stencil: false }}
+      gl={{ antialias: true, alpha: false, powerPreference: "high-performance", stencil: false }}
       onCreated={({ gl }) => {
         gl.setClearColor("#f4f0ea", 1);
         gl.toneMapping = ACESFilmicToneMapping;
@@ -59,9 +59,11 @@ export function StudioScene({ active }: { active: boolean }) {
       <Table />
       <PhoneModel />
       <SynapseScreen />
-      {Array.from({ length: 5 }, (_, index) => (
-        <GlassPanel key={index} index={index} />
-      ))}
+      <Suspense fallback={null}>
+        {Array.from({ length: 5 }, (_, index) => (
+          <GlassPanel key={index} index={index} />
+        ))}
+      </Suspense>
       {Array.from({ length: 5 }, (_, index) => (
         <SuspensionString key={index} index={index} />
       ))}
