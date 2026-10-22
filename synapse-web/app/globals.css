@@ -377,6 +377,9 @@ button, input, summary { font: inherit; }
   .cinematic { height: 640vh; }
   .cinematic-sticky { padding: 6.5rem 1.25rem 12vh; }
   .hero-title { font-size: clamp(2.6rem, 12vw, 4rem); }
+  .cinematic[data-phase="REVEAL"] .hero-copy { max-width: none; }
+  .cinematic[data-phase="REVEAL"] .hero-title { font-size: clamp(2.35rem, 10vw, 3.15rem); }
+  .cinematic[data-phase="REVEAL"] .lede { max-width: none; }
   .progress-line { left: 1.25rem; right: 1.25rem; }
   .related a { font-size: 1.5rem; }
 }
