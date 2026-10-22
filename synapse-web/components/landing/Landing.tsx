@@ -10,7 +10,7 @@ import s from "./Landing.module.css";
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-landing", display: "swap" });
 
 /* Real app captures with personal details replaced by sample data. */
-const SHOT = { width: 640, height: 1235 };
+const SHOT = { width: 1170, height: 2532 };
 
 function Phone({ src, alt, priority = false, sizes = "(max-width: 880px) 70vw, 300px" }: { src: string; alt: string; priority?: boolean; sizes?: string }) {
   return (
@@ -33,7 +33,7 @@ const reasons: { n: string; title: string; body: string; src: string; alt: strin
     n: "01",
     title: "Everything together",
     body: "Keep medications, appointments, and records organized in one place.",
-    src: "/screens/health-hub.webp",
+    src: "/screens/medications.png",
     alt: "Health tab listing Medications, Appointments, How I'm Feeling, Health Records, Wellbeing and Care & Support.",
   },
   {
@@ -47,8 +47,8 @@ const reasons: { n: string; title: string; body: string; src: string; alt: strin
     n: "03",
     title: "Private and personal",
     body: "No account required. Your information stays on your iPhone, and you can customize the look for free.",
-    src: "/screens/appearance.webp",
-    alt: "Appearance Studio with a live preview. Themes, accents and wallpapers are free for everyone.",
+    src: "/screens/today-sam.png",
+    alt: "Synapse Today screen. Your information stays on your iPhone.",
   },
 ];
 
@@ -61,10 +61,10 @@ const insideShots = [
 ];
 
 const scattered = [
-  { src: "/screens/home-evergreen.webp", alt: "Today screen with medications and the next dose.", label: "Medications" },
-  { src: "/screens/health-hub.webp", alt: "Health tab with records, symptoms and appointments.", label: "Records" },
-  { src: "/screens/you-settings.webp", alt: "Profile screen with conditions and allergies.", label: "Details" },
-  { src: "/screens/preferences.webp", alt: "Preferences screen with Simple Mode and Ramadan Mode.", label: "Preferences" },
+  { src: "/screens/today-sam.png", alt: "Today screen with the next medication and a missed dose.", label: "Today" },
+  { src: "/screens/medications.png", alt: "Medications screen with today's doses.", label: "Medications" },
+  { src: "/screens/you-settings-real.png", alt: "You and Settings screen with profile, conditions and allergy details.", label: "Details" },
+  { src: "/screens/appointments.png", alt: "Appointments calendar with an upcoming visit.", label: "Appointments" },
 ];
 
 export function Landing(): ReactNode {
