@@ -168,7 +168,7 @@ const MOBILE_CAM: CamKey[] = [
   { t: 0.54, position: { x: 0.3, y: 2.15, z: 6.3 }, lookAt: { x: 0, y: 0.85, z: 0 }, fov: 42 },
   { t: 0.66, position: { x: 0.45, y: 1.9, z: 4.7 }, lookAt: { x: 0, y: 0.42, z: 0 }, fov: 40 },
   { t: 0.82, position: { x: 0.12, y: 2.05, z: 4.15 }, lookAt: { x: 0, y: 0.35, z: 0 }, fov: 40 },
-  { t: 1, position: { x: 0, y: 2.85, z: 3.45 }, lookAt: { x: 0, y: -0.02, z: 0 }, fov: 34 },
+  { t: 1, position: { x: 0, y: 3.0, z: 4.0 }, lookAt: { x: 0, y: -1.4, z: 0 }, fov: 38 },
 ];
 
 export function clamp01(v: number) {
