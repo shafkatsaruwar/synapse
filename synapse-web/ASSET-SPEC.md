@@ -18,7 +18,7 @@ Shared identity for the marketing site and a future film. Units, names, and phas
 | Table | Standard, `#f3efe8`, roughness 0.96 | Same, fewer segments |
 | Phone body | Physical metal, `#2e2e32`, roughness 0.26, clearcoat. Glass screen with a reflection streak. Rear bump on the underside. | Standard metal, fewer curve segments |
 | Glass | Physical, transmission 0.86, roughness 0.12, ior 1.45, clearcoat | Standard, transparent, no transmission |
-| Type on glass | Canvas texture, logical 1024×640 drawn at devicePixelRatio (desktop 2–3×, mobile 1–1.5×). sRGB, mipmaps, anisotropy 16, linear mag filter, basic material in front of the glass | Same drawing, smaller scale |
+| Type on glass | Card fill is a canvas texture, logical 1024×640 at 2–3× on desktop and on mobile (iPhone uses 3×). Words are SDF text, not the canvas. sRGB, mipmaps, anisotropy 16. The glass body is a rounded extrusion. | Same, WebGL pixel ratio 2–3 |
 | Phone screen | Canvas 780×1688, opacity driven by `screenReveal` | Same |
 | String | Basic `#5c534c`, radius 0.0032 | Same |
 | Contact shadow | Radial canvas under the phone and under settled layers | Same |
@@ -63,5 +63,5 @@ Fall order: How I’m Feeling, Medications, Appointments, Emergency, Records. St
 
 ## Texture budgets
 
-- Panel face logical 1024×640, rasterized at `panelTextureScale` (desktop floor 2× / cap 3×, mobile cap 1.5×) with mipmaps. Today screen 780×1688. Shadow disc 256×256. WebGL pixel ratio caps at 2.5 desktop and 1.5 mobile.
-- No video textures. No external HDR. The phone is extruded slabs (body, glass, camera bump) plus side buttons, a speaker slot, and a contact shadow. Panels are five thin boxes. Strings are five cylinders.
+- Panel face logical 1024×640, rasterized at `panelTextureScale` (floor 2×, cap 3× on desktop and mobile) with mipmaps. The fill is a shared frosted card with transparent padding. Titles, kickers, and details are SDF text (CPU-generated, power-of-two atlas). The glass sheet is a rounded extrusion. Today screen 780×1688. Shadow disc 256×256. WebGL pixel ratio caps at 2.5 on desktop and runs 2–3 on mobile, with MSAA.
+- No video textures. No external HDR. The phone is extruded slabs (body, glass, camera bump) plus side buttons, a speaker slot, and a contact shadow. Panels are five rounded glass sheets. Strings are five cylinders. The two frosted fills are shared. Titles, kickers, and details are SDF text.

@@ -51,13 +51,11 @@ export const PANEL_FACE_WIDTH = 1024;
 export const PANEL_FACE_HEIGHT = 640;
 
 /**
- * Desktop textures stay at least 2× so a 1× framebuffer does not enlarge a soft
- * face, and cap at 3× so a 4K display does not allocate a fourth copy.
- * Mobile stays within 1–1.5×.
+ * Faces are at least 2× the logical 1024×640 card and at most 3×.
+ * iPhone Safari is 3×, so the mobile cap matches that instead of stopping at 1.5×.
  */
-export function panelTextureScale(dpr: number, mobile: boolean) {
+export function panelTextureScale(dpr: number, _mobile: boolean) {
   const ratio = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
-  if (mobile) return Math.min(1.5, Math.max(1, ratio));
   return Math.min(3, Math.max(2, ratio));
 }
 
@@ -74,48 +72,20 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 export function drawPanelFace(canvas: HTMLCanvasElement, id: PanelId, synapse: boolean) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  const face = panelFaces[id];
   const scale = canvas.width / PANEL_FACE_WIDTH;
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   const w = PANEL_FACE_WIDTH;
   const h = PANEL_FACE_HEIGHT;
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = synapse ? "rgba(255,250,247,0.78)" : "rgba(255,255,255,0.42)";
-  roundRect(ctx, 24, 24, w - 48, h - 48, 36);
+  // Inset so the texture's square edge stays transparent. The rounded mesh is the silhouette.
+  const inset = 72;
+  ctx.fillStyle = synapse ? "rgba(255,250,247,0.82)" : "rgba(255,255,255,0.5)";
+  roundRect(ctx, inset, inset, w - inset * 2, h - inset * 2, 56);
   ctx.fill();
-  ctx.strokeStyle = synapse ? "rgba(163,13,36,0.45)" : "rgba(255,255,255,0.8)";
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  ctx.fillStyle = synapse ? "#A30D24" : face.tint;
-  ctx.beginPath();
-  ctx.arc(110, 150, 36, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = synapse ? "#FBF7F4" : "#1C1614";
-  ctx.font = "600 36px Georgia, serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(face.mark, 110, 152);
-
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = synapse ? "#A30D24" : "#3A342F";
-  ctx.font = "500 28px Georgia, serif";
-  ctx.fillText(synapse ? "SYNAPSE" : face.foreign.toUpperCase(), 170, 140);
-
-  ctx.fillStyle = "#161311";
-  ctx.font = "560 72px Georgia, serif";
-  const title = synapse ? face.synapse : face.foreign;
-  ctx.fillText(title, 78, 280);
-
-  ctx.fillStyle = "#5E5852";
-  ctx.font = "400 36px Georgia, serif";
-  ctx.fillText(synapse ? face.synapseDetail : face.foreignDetail, 80, 360);
-
-  ctx.strokeStyle = synapse ? "rgba(163,13,36,0.35)" : "rgba(40,30,24,0.18)";
-  ctx.beginPath();
-  ctx.moveTo(80, 420);
-  ctx.lineTo(w - 80, 420);
+  ctx.strokeStyle = synapse ? "rgba(163,13,36,0.4)" : "rgba(255,255,255,0.85)";
+  ctx.lineWidth = 2;
   ctx.stroke();
 }
 
