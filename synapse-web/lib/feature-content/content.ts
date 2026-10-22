@@ -6,7 +6,8 @@ export type FeatureSlug =
   | "health-records"
   | "how-im-feeling"
   | "sick-mode"
-  | "emergency";
+  | "emergency"
+  | "appearance";
 
 export type FeatureLayout = "split" | "overlap" | "stack" | "quote" | "quiet" | "card";
 
@@ -21,7 +22,7 @@ export type FeatureContent = {
   benefits: string[];
   privacy: string;
   layout: FeatureLayout;
-  screen: "medications" | "appointments" | "records" | "feeling" | "sick" | "emergency";
+  screen: "medications" | "appointments" | "records" | "feeling" | "sick" | "emergency" | "appearance";
   caption: string;
 };
 
@@ -205,6 +206,36 @@ export const features: FeatureContent[] = [
     layout: "card",
     screen: "emergency",
     caption: "A fictional emergency card. Every name and number on it is made up.",
+  },
+  {
+    slug: "appearance",
+    nav: "Appearance Studio",
+    eyebrow: "Appearance",
+    title: "Your health. Your space. Your way.",
+    lede: "Personalize Synapse freely — every option is included for everyone.",
+    explanation: [
+      "Appearance Studio is in Preferences. Next to it, Simple Mode uses larger controls and fewer distractions, and Full Mode is the complete Synapse experience. The studio itself is described there as themes, accents, wallpapers, and more — free for everyone.",
+      "You can choose a theme (System, Light, Dark, Evergreen, Calm, or Blue), an accent color, a wallpaper (None, Mist, Linen, or Cloud), and a surface style (Solid, Soft, or Glass). A live preview shows the combination before you keep it.",
+      "Apply Appearance saves that look. Cancel leaves the previous one in place. The preview on this site is a demo with fictional lines for Alex. It is not a health record.",
+    ],
+    steps: [
+      { title: "Open Preferences", body: "Choose Simple Mode or Full Mode, then open Appearance Studio." },
+      { title: "Try a look", body: "Switch the theme, accent, wallpaper, or surface. The live preview follows along." },
+      { title: "Apply or cancel", body: "Apply Appearance keeps the combination. Cancel returns to the look you had." },
+    ],
+    benefits: [
+      "Simple Mode and Full Mode",
+      "Themes: System, Light, Dark, Evergreen, Calm, and Blue",
+      "Accent colors you can see on the preview",
+      "Wallpapers: None, Mist, Linen, and Cloud",
+      "Surfaces: Solid, Soft, and Glass",
+      "Every option is included for everyone",
+    ],
+    privacy:
+      "The preview on this page stays in your browser and uses sample lines only. It does not create an account or store a health record. In the app, the look you apply is a preference saved on the device.",
+    layout: "card",
+    screen: "appearance",
+    caption: "A fictional preview for Alex. Vitamin D and the check-in time are sample lines, not a real record.",
   },
 ];
 
