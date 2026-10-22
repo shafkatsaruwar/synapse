@@ -11,10 +11,15 @@
     "test:scene": "node --experimental-strip-types --test lib/animation/scene-sample.test.ts lib/appearance-demo.test.ts lib/screens/panel-face.test.ts",
     "test:api": "node --experimental-strip-types --test lib/auth-callback.test.ts"
   },
+  "browserslist": [
+    "chrome >= 111",
+    "edge >= 111",
+    "firefox >= 111",
+    "safari >= 16.4"
+  ],
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.0",
-    "gsap": "^3.13.0",
     "next": "^15.5.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

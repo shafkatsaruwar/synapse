@@ -226,6 +226,13 @@ export function phaseMidpoint(name: PhaseName) {
   return (phase.start + phase.end) / 2;
 }
 
+/** Scroll progress for a section pinned from `top top` to `bottom bottom`. Pure, so reverse scrolling matches. */
+export function sectionProgress(top: number, height: number, viewport: number) {
+  const scrollable = height - viewport;
+  if (!(scrollable > 0)) return 0;
+  return clamp01(-top / scrollable);
+}
+
 function stackPose(index: number): Pose {
   return {
     position: {

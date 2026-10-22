@@ -20,7 +20,9 @@ export function ReducedHero() {
         </div>
       </div>
       <PhoneFrame caption="Today in Synapse, with fictional sample information.">
-        <TodayScreen />
+        <div aria-hidden="true">
+          <TodayScreen />
+        </div>
       </PhoneFrame>
     </section>
   );

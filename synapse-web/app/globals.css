@@ -205,9 +205,39 @@ body.menu-open .footer {
 }
 
 .cinematic { position: relative; height: 720vh; background: #f4f0ea; }
-.studio-layer { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.studio-layer { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
 .studio-layer canvas { display: block; }
-.studio-pending { width: 100%; height: 100%; background: radial-gradient(circle at 50% 42%, #fbf9f6, #f3efe8 62%, #ebe4db); }
+.studio-poster {
+  position: absolute;
+  inset: 0;
+  background: #f4f0ea;
+  overflow: hidden;
+}
+.studio-poster.is-leaving { opacity: 0; transition: opacity 0.55s var(--ease); }
+.poster-card {
+  position: absolute;
+  width: min(220px, 42vw);
+  margin: 0;
+  padding: 0.9rem 1rem 1rem;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 18px;
+  box-shadow: 0 16px 36px rgba(48, 32, 24, 0.08);
+  color: var(--ink);
+}
+.poster-card p {
+  margin: 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(1.05rem, 2vw, 1.45rem);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.poster-card small { display: block; margin-top: 0.35rem; color: var(--ink-soft); font-size: 0.82rem; }
+.poster-medications { left: 5%; top: 16%; transform: rotate(-3deg); }
+.poster-appointments { right: 6%; top: 20%; transform: rotate(2.4deg); }
+.poster-feeling { left: 24%; top: 9%; transform: rotate(1.6deg); }
+.poster-emergency { right: 16%; top: 7%; transform: rotate(-1.8deg); }
+.poster-records { left: 32%; top: 34%; transform: rotate(1deg); }
 .cinematic-sticky {
   position: sticky;
   top: 0;
@@ -261,6 +291,10 @@ body.menu-open .footer {
 .progress-line div { height: 100%; background: var(--burgundy); transform: scaleX(0); transform-origin: left center; }
 
 .showcase, .page, .feature, .closing, .reduced-hero, .storyboard { position: relative; z-index: 2; background: var(--paper); }
+.band, .closing {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 70rem;
+}
 .band, .closing, .page, .feature { padding: 7.5rem 7vw; }
 .band {
   display: grid;

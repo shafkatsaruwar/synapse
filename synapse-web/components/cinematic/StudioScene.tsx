@@ -1,17 +1,23 @@
 "use client";
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { ACESFilmicToneMapping } from "three";
 import { sceneBridge } from "@/lib/animation/bridge";
 import { sampleScene } from "@/lib/animation/scene-sample";
 import { CameraRig } from "@/components/cinematic/CameraRig";
-import { GlassPanel } from "@/components/cinematic/GlassPanel";
+import { GlassPanel, warmPanelTextures } from "@/components/cinematic/GlassPanel";
 import { PanelStack } from "@/components/cinematic/PanelStack";
-import { PhoneModel } from "@/components/cinematic/PhoneModel";
+import { PhoneModel, warmPhoneTextures } from "@/components/cinematic/PhoneModel";
 import { SceneLighting } from "@/components/cinematic/SceneLighting";
 import { SuspensionString } from "@/components/cinematic/SuspensionString";
 import { SynapseScreen } from "@/components/cinematic/SynapseScreen";
+
+/** Paint panel and phone textures before the canvas mounts, one face per turn. */
+export async function warmStudioAssets() {
+  await warmPanelTextures();
+  await warmPhoneTextures();
+}
 
 function Choreography() {
   const invalidate = useThree((state) => state.invalidate);
@@ -34,6 +40,16 @@ function Choreography() {
   return null;
 }
 
+function SignalReady({ onReady }: { onReady?: () => void }) {
+  const done = useRef(false);
+  useFrame(() => {
+    if (done.current || !onReady) return;
+    done.current = true;
+    onReady();
+  });
+  return null;
+}
+
 function Table() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
@@ -43,7 +59,7 @@ function Table() {
   );
 }
 
-export function StudioScene({ active }: { active: boolean }) {
+export function StudioScene({ active, onReady }: { active: boolean; onReady?: () => void }) {
   const mobile = sceneBridge.mobile;
   useEffect(() => {
     if (active) sceneBridge.requestRender();
@@ -62,6 +78,7 @@ export function StudioScene({ active }: { active: boolean }) {
       }}
     >
       <Choreography />
+      <SignalReady onReady={onReady} />
       <Suspense fallback={null}>
         <SceneLighting />
       </Suspense>

@@ -200,7 +200,7 @@ export function SiteNav() {
       </a>
       <div className="nav-inner">
         <Link className="brand" href="/" aria-label="Synapse home" onClick={() => setOpen(false)}>
-          <img src="/brand/mark.png" alt="" width={32} height={32} />
+          <img src="/brand/mark.webp" alt="" width={32} height={32} decoding="async" fetchPriority="low" />
           <span>Synapse</span>
         </Link>
         <nav className="nav-links" aria-label="Primary">

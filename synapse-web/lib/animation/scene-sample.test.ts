@@ -13,6 +13,7 @@ import {
   panelHitsPhone,
   panelsIntersect,
   phaseAt,
+  sectionProgress,
   phaseMidpoint,
   sampleScene,
 } from "./scene-sample.ts";
@@ -178,6 +179,15 @@ test("panel textures stay at least 2× and reach 3× on a phone", () => {
   assert.equal(panelTextureScale(2, true), 2);
   assert.equal(panelTextureScale(3, true), 3);
   assert.equal(panelTextureScale(4, true), 3);
+});
+
+test("section progress is reversible and clamped", () => {
+  assert.equal(sectionProgress(0, 720, 100), 0);
+  assert.equal(sectionProgress(-310, 720, 100), 0.5);
+  assert.equal(sectionProgress(-620, 720, 100), 1);
+  assert.equal(sectionProgress(40, 720, 100), 0);
+  assert.equal(sectionProgress(-900, 720, 100), 1);
+  assert.equal(sectionProgress(0, 80, 100), 0);
 });
 
 test("panel catalog has the five suspended identities", () => {
