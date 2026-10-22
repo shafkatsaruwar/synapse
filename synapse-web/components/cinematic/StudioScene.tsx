@@ -42,7 +42,7 @@ export function StudioScene({ active }: { active: boolean }) {
     <Canvas
       className="studio-canvas"
       camera={{ position: mobile ? [0.04, 2.7, 7.6] : [0.15, 2.08, 6.7], fov: mobile ? 40 : 30, near: 0.08, far: 40 }}
-      dpr={mobile ? [1, 1.2] : [1, 1.5]}
+      dpr={mobile ? [1, 1.5] : [1, 2.5]}
       frameloop={active ? "always" : "never"}
       gl={{ antialias: !mobile, alpha: false, powerPreference: "high-performance", stencil: false }}
       onCreated={({ gl }) => {

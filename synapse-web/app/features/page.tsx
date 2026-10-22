@@ -5,7 +5,7 @@ import { pageMeta } from "@/lib/seo";
 export const metadata = pageMeta({
   title: "Features",
   description:
-    "Medications, appointments, health records, daily check-ins, Sick Mode, and an emergency card — what Synapse actually includes.",
+    "Medications, appointments, health records, daily check-ins, Sick Mode, an emergency card, and Appearance Studio — what Synapse actually includes.",
   path: "/features",
 });
 
@@ -16,7 +16,7 @@ export default function FeaturesPage() {
         <p className="eyebrow">Features</p>
         <h1>The parts of a health life, kept in one companion.</h1>
         <p className="lede">
-          Six places people usually have to hunt for. Each one in Synapse is something you enter and control. Nothing here claims to sync with a hospital, diagnose you, or call for help on its own.
+          Medications, visits, records, a daily check-in, Sick Mode, an emergency card, and Appearance Studio. Each one is something you enter or choose. Nothing here claims to sync with a hospital, diagnose you, or call for help on its own.
         </p>
       </header>
       <ol className="feature-index">

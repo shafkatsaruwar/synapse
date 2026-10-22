@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { features, type FeatureContent } from "@/lib/feature-content/content";
+import { AppearanceDemo } from "@/components/product/AppearanceDemo";
 import { PhoneFrame } from "@/components/product/PhoneFrame";
 import { ScreenFor } from "@/components/product/screens";
 import { AppStoreLink } from "@/components/ui/AppStoreLink";
@@ -8,7 +9,7 @@ import { TrackView } from "@/components/ui/TrackView";
 export function FeatureArticle({ feature }: { feature: FeatureContent }) {
   const related = features.filter((item) => item.slug !== feature.slug).slice(0, 3);
   return (
-    <article className="feature" data-layout={feature.layout}>
+    <article className="feature" data-layout={feature.layout} data-slug={feature.slug}>
       <TrackView event="feature_visit" id={feature.slug} />
       <header className="feature-hero">
         <div>
@@ -16,9 +17,16 @@ export function FeatureArticle({ feature }: { feature: FeatureContent }) {
           <h1>{feature.title}</h1>
           <p className="lede">{feature.lede}</p>
         </div>
-        <PhoneFrame caption={feature.caption}>
-          <ScreenFor name={feature.screen} />
-        </PhoneFrame>
+        {feature.slug === "appearance" ? (
+          <figure className="appearance-figure">
+            <AppearanceDemo variant="studio" />
+            <figcaption>{feature.caption}</figcaption>
+          </figure>
+        ) : (
+          <PhoneFrame caption={feature.caption}>
+            <ScreenFor name={feature.screen === "appearance" ? "today" : feature.screen} />
+          </PhoneFrame>
+        )}
       </header>
       <div className="feature-body">
         {feature.explanation.map((paragraph) => (

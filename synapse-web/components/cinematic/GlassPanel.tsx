@@ -2,21 +2,35 @@
 
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
-import { CanvasTexture, Color, Group, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, MeshStandardMaterial, SRGBColorSpace } from "three";
+import {
+  CanvasTexture,
+  Color,
+  Group,
+  LinearFilter,
+  LinearMipmapLinearFilter,
+  Mesh,
+  MeshBasicMaterial,
+  MeshPhysicalMaterial,
+  MeshStandardMaterial,
+  SRGBColorSpace,
+} from "three";
 import { panelGroups, sceneBridge } from "@/lib/animation/bridge";
-import { panelFaces, drawPanelFace } from "@/lib/screens/draw";
+import { PANEL_FACE_HEIGHT, PANEL_FACE_WIDTH, drawPanelFace, panelFaces, panelTextureScale } from "@/lib/screens/draw";
 import { PANEL_DEFS, type PanelId } from "@/lib/animation/scene-sample";
 
 const burgundy = new Color("#f4e6e8");
 
-function makeTexture(id: PanelId, synapse: boolean) {
+function makeTexture(id: PanelId, synapse: boolean, scale: number) {
   const canvas = document.createElement("canvas");
-  canvas.width = 1024;
-  canvas.height = 640;
+  canvas.width = Math.round(PANEL_FACE_WIDTH * scale);
+  canvas.height = Math.round(PANEL_FACE_HEIGHT * scale);
   drawPanelFace(canvas, id, synapse);
   const map = new CanvasTexture(canvas);
   map.colorSpace = SRGBColorSpace;
-  map.anisotropy = 4;
+  map.anisotropy = 16;
+  map.generateMipmaps = true;
+  map.minFilter = LinearMipmapLinearFilter;
+  map.magFilter = LinearFilter;
   map.needsUpdate = true;
   return map;
 }
@@ -29,10 +43,12 @@ export function GlassPanel({ index }: { index: number }) {
 
   const maps = useMemo(() => {
     const panelId = (["feeling", "medications", "appointments", "emergency", "records"] as PanelId[])[index];
+    const dpr = typeof window === "undefined" ? 2 : window.devicePixelRatio || 1;
+    const scale = panelTextureScale(dpr, sceneBridge.mobile);
     return {
       id: panelId,
-      foreign: makeTexture(panelId, false),
-      synapse: makeTexture(panelId, true),
+      foreign: makeTexture(panelId, false, scale),
+      synapse: makeTexture(panelId, true, scale),
       tint: new Color(panelFaces[panelId].tint),
     };
   }, [index]);
