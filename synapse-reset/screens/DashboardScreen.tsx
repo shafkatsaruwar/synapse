@@ -1471,8 +1471,21 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             accessibilityRole="button"
             accessibilityLabel="Appointments"
           >
-            <View style={[styles.quietIconWrap, { backgroundColor: C.cyanLight }]}>
-              <Ionicons name="calendar-outline" size={22} color={C.cyan} />
+            <View
+              style={[
+                styles.quietIconWrap,
+                {
+                  // Evergreen keeps cyan as a blue informational accent; Appointments
+                  // should follow the brand green like the other "Your health" tiles.
+                  backgroundColor: isEvergreenTheme(themeId) ? C.tintLight : C.cyanLight,
+                },
+              ]}
+            >
+              <Ionicons
+                name="calendar-outline"
+                size={22}
+                color={isEvergreenTheme(themeId) ? C.tint : C.cyan}
+              />
             </View>
             <Text style={styles.halfCardTitle}>Appointments</Text>
             <Text style={styles.quietCardBody} numberOfLines={2}>{appointmentSubtitle}</Text>
