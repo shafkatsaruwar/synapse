@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:scene": "node --experimental-strip-types --test lib/animation/scene-sample.test.ts lib/appearance-demo.test.ts",
+    "test:scene": "node --experimental-strip-types --test lib/animation/scene-sample.test.ts lib/appearance-demo.test.ts lib/screens/panel-face.test.ts",
     "test:api": "node --experimental-strip-types --test lib/auth-callback.test.ts"
   },
   "dependencies": {
