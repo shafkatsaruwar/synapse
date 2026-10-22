@@ -358,3 +358,23 @@
 @media (prefers-reduced-motion: reduce) {
   .word { animation: none; }
 }
+
+/* inside the app: real screenshots, files unchanged. Sized by height, scrolls sideways on phones. */
+.strip {
+  list-style: none;
+  margin: 0;
+  padding: 8px max(16px, env(safe-area-inset-left, 0px)) 24px;
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.stripItem { flex: none; scroll-snap-align: center; }
+.stripImg {
+  display: block;
+  height: clamp(420px, 60vw, 620px);
+  width: auto;
+  border-radius: 36px;
+  box-shadow: 0 0 0 1px var(--c-card-line) inset, 0 40px 80px -30px #000;
+}

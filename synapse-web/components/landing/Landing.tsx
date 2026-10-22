@@ -52,6 +52,15 @@ const reasons: { n: string; title: string; body: string; src: string; alt: strin
   },
 ];
 
+const insideShots = [
+  { src: "/screens/today-sam.png", alt: "Today screen with the next medication and a missed dose." },
+  { src: "/screens/you-settings-real.png", alt: "You and Settings screen with a backup reminder and profile sections." },
+  { src: "/screens/emergency-card.png", alt: "Medical emergency card with name, allergies, medications and contacts." },
+  { src: "/screens/medications.png", alt: "Medications screen with today's doses and an Add Med button." },
+  { src: "/screens/today-sam-2.png", alt: "Today screen with Your health cards and Sick Mode." },
+  { src: "/screens/appointments.png", alt: "Appointments calendar with an upcoming visit." },
+];
+
 const scattered = [
   { src: "/screens/home-evergreen.webp", alt: "Today screen with medications and the next dose.", label: "Medications" },
   { src: "/screens/health-hub.webp", alt: "Health tab with records, symptoms and appointments.", label: "Records" },
@@ -143,6 +152,27 @@ export function Landing(): ReactNode {
             ))}
           </div>
         </div>
+      </section>
+
+      {/* INSIDE THE APP: real captures, files unchanged, displayed by height */}
+      <section className={s.section} aria-labelledby="inside-title">
+        <div className={s.wrap}>
+          <div className={s.head}>
+            <p className={s.kicker}>
+              Inside <span>the app</span>
+            </p>
+            <h2 className={s.h2} id="inside-title">
+              Real screens, nothing dressed up.
+            </h2>
+          </div>
+        </div>
+        <ul className={s.strip} aria-label="Synapse screenshots">
+          {insideShots.map((shot) => (
+            <li key={shot.src} className={s.stripItem}>
+              <img className={s.stripImg} src={shot.src} alt={shot.alt} width={1170} height={2532} loading="lazy" decoding="async" />
+            </li>
+          ))}
+        </ul>
       </section>
 
       {/* TESTIMONIALS (hidden until real quotes are added to testimonials.ts) */}
