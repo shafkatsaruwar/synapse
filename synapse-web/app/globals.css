@@ -1,11 +1,11 @@
 :root {
-  --burgundy: #1f6fc5;
-  --burgundy-deep: #0d1b2a;
-  --burgundy-soft: rgba(31, 111, 197, 0.12);
-  --ink: #0d1b2a;
+  --burgundy: #3c649b;
+  --burgundy-deep: #2e4f7c;
+  --burgundy-soft: rgba(60, 100, 155, 0.12);
+  --ink: #1f2a37;
   --ink-soft: #5e5852;
   --muted: #6e675f;
-  --paper: #f7f9fc;
+  --paper: #f5f8fc;
   --paper-deep: #eef3f8;
   --white: #ffffff;
   --line: rgba(28, 21, 18, 0.12);
