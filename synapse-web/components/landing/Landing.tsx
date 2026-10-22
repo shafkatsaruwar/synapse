@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Image from "next/image";
 import { DM_Sans } from "next/font/google";
@@ -166,7 +167,16 @@ export function Landing(): ReactNode {
           <div className={s.downloadGrid}>
             <div className={s.downloadText}>
               <span className={s.badge}>Built for iPhone</span>
-              <h2 className={s.downloadH2}>Your health life, finally in one place.</h2>
+              <h2 className={s.downloadH2}>
+                {"Your health life, finally in one place.".split(" ").map((w, i) => (
+                  <Fragment key={`${w}-${i}`}>
+                    {i > 0 && " "}
+                    <span className={s.word} style={{ "--d": `${i * 90}ms` } as CSSProperties}>
+                      {w}
+                    </span>
+                  </Fragment>
+                ))}
+              </h2>
               <p className={s.lede}>Free to download. No account required.</p>
               <AppStoreLink className={s.primary} placement="download">
                 Download Free on the App Store <Arrow />
@@ -175,6 +185,9 @@ export function Landing(): ReactNode {
             <div className={s.downloadMedia}>
               <div className={s.glow} aria-hidden="true" />
               <Phone src="/screens/home-blue.webp" alt="Synapse home screen in the Blue theme." sizes="(max-width: 980px) 70vw, 300px" />
+              <AppStoreLink className={s.floatChip} placement="download-float">
+                Download on the App Store
+              </AppStoreLink>
             </div>
           </div>
         </div>
