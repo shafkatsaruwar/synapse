@@ -637,37 +637,23 @@ export default function SettingsScreen({
             Caregiver linking
           </Text>
           <Text style={[styles.desc, simple && { fontSize: simpleBodySize, marginBottom: 0 }]}>
-            Share missed-medication alerts with one trusted person.
+            Remote cloud caregiver alerts are unavailable in this version. Use on-device caregiver mode from Role above.
           </Text>
         </View>
         <View style={[styles.linkStatusPill, hasLinkedUsers && styles.linkStatusPillLinked]}>
-          <Text style={[styles.linkStatusText, hasLinkedUsers && styles.linkStatusTextLinked]}>{hasLinkedUsers ? "Linked" : "Not linked"}</Text>
+          <Text style={[styles.linkStatusText, hasLinkedUsers && styles.linkStatusTextLinked]}>
+            {hasLinkedUsers ? "Linked" : "Unavailable"}
+          </Text>
         </View>
       </View>
 
-      {currentLinkRole === "patient" ? (
+      {!hasLinkedUsers ? (
         <View style={styles.linkSection}>
-          {hasLinkedUsers ? (
-            <Text style={styles.linkHelpText}>Caregiver alerts are active for this connection.</Text>
-          ) : (
-            <>
-              <Text style={styles.linkHelpText}>Connect with one trusted person for important alerts and check-ins.</Text>
-              <Pressable style={styles.secondaryBtn} onPress={openCaregiverOnboarding}>
-                <Text style={styles.secondaryBtnText}>Set up connection</Text>
-              </Pressable>
-            </>
-          )}
+          <Text style={styles.linkHelpText}>
+            Connection codes are turned off until cloud linking is secured. Local Self / Caregiver roles still work on this device.
+          </Text>
         </View>
-      ) : hasLinkedUsers ? null : (
-        <View style={styles.linkSection}>
-          <Text style={styles.linkHelpText}>Use the patient’s private approval code to connect.</Text>
-          <Pressable style={styles.secondaryBtn} onPress={openCaregiverOnboarding}>
-            <Text style={styles.secondaryBtnText}>Set up connection</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {hasLinkedUsers ? (
+      ) : (
         <View style={styles.linkedUsersWrap}>
           {linkedUsers.map((linkedUserId) => (
             <View key={linkedUserId} style={styles.linkedUserRow}>
@@ -678,15 +664,6 @@ export default function SettingsScreen({
                 <Text style={styles.linkedUserTitle}>{currentLinkRole === "caregiver" ? "Linked patient" : "Linked caregiver"}</Text>
                 <Text style={styles.linkedUserMeta} numberOfLines={1}>{linkedUserId}</Text>
               </View>
-              {currentLinkRole === "caregiver" ? (
-                <Pressable
-                  style={styles.linkMiniButton}
-                  onPress={() => handleSendCaregiverReminder(linkedUserId)}
-                  disabled={caregiverLinkBusy}
-                >
-                  <Text style={styles.linkMiniButtonText}>Remind</Text>
-                </Pressable>
-              ) : null}
               <Pressable
                 style={styles.linkMiniButton}
                 onPress={() => handleUnlinkCaregiverUser(linkedUserId)}
@@ -697,7 +674,7 @@ export default function SettingsScreen({
             </View>
           ))}
         </View>
-      ) : null}
+      )}
     </View>
   );
 
