@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { View, StyleSheet, Alert, Platform, AppState, Linking, Modal, Pressable, Text, Animated, useWindowDimensions, Image } from "react-native";
+import { View, StyleSheet, Alert, Platform, AppState, Linking, Modal, Pressable, Text, Animated, useWindowDimensions, Image, InteractionManager } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import { useLocalSearchParams } from "expo-router";
 import Constants from "expo-constants";
@@ -72,11 +72,13 @@ import {
   requestPermission,
   getPermissionStatus,
   syncAllFromSettings,
+  updateAppIconBadgeCount,
   type NotificationNavigationTarget,
   setNotificationNavigateCallback,
   handleLastNotificationResponse,
   syncRecoveryTrackingCheckIn,
 } from "@/lib/notification-manager";
+import { requestBadgeRefresh } from "@/lib/badge-refresh";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import AppBackground from "@/components/AppBackground";
 import BiometricGate from "@/components/BiometricGate";
@@ -406,14 +408,43 @@ export default function MainScreen() {
   const [webSidebarCollapsed, setWebSidebarCollapsed] = useState(false);
   const [icsImportPayload, setIcsImportPayload] = useState<IcsImportPayload | null>(null);
   const [showIcsImportPreview, setShowIcsImportPreview] = useState(false);
-  const [medicationPrompt, setMedicationPrompt] = useState<null | {
+  type MedicationPrompt = {
     medicationId: string;
     doseIndex: number;
     name: string;
     dosage: string;
     imageUri?: string;
-  }>(null);
+  };
+  const [medicationPrompt, setMedicationPrompt] = useState<MedicationPrompt | null>(null);
+  /** Keep modal content mounted while fade-out runs — clearing prompt + Image mid-dismiss crashes Fabric. */
+  const [medicationPromptVisible, setMedicationPromptVisible] = useState(false);
+  const medicationPromptCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHandledWidgetUrlRef = useRef<{ url: string; at: number } | null>(null);
+
+  const closeMedicationPrompt = useCallback((afterClose?: () => void) => {
+    if (medicationPromptCloseTimerRef.current) {
+      clearTimeout(medicationPromptCloseTimerRef.current);
+      medicationPromptCloseTimerRef.current = null;
+    }
+    setMedicationPromptVisible(false);
+    const finish = () => {
+      medicationPromptCloseTimerRef.current = null;
+      setMedicationPrompt(null);
+      afterClose?.();
+    };
+    // Modal fade is ~300ms; wait for interactions + a beat so native unmount is safe.
+    InteractionManager.runAfterInteractions(() => {
+      medicationPromptCloseTimerRef.current = setTimeout(finish, Platform.OS === "ios" ? 320 : 280);
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (medicationPromptCloseTimerRef.current) {
+        clearTimeout(medicationPromptCloseTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleQuickSip = useCallback(async () => {
     try {
@@ -441,6 +472,10 @@ export default function MainScreen() {
       const normalized = normalizeMedication(med);
       const safeDoseIndex = doseIndex ?? 0;
       const dose = normalized.doses?.[safeDoseIndex];
+      if (medicationPromptCloseTimerRef.current) {
+        clearTimeout(medicationPromptCloseTimerRef.current);
+        medicationPromptCloseTimerRef.current = null;
+      }
       setMedicationPrompt({
         medicationId,
         doseIndex: safeDoseIndex,
@@ -448,6 +483,7 @@ export default function MainScreen() {
         dosage: dose ? `${dose.amount} ${dose.unit}`.trim() : "",
         imageUri: med.imageUri,
       });
+      setMedicationPromptVisible(true);
     } catch (error) {
       console.warn("Failed to open medication prompt", error);
     }
@@ -945,25 +981,29 @@ export default function MainScreen() {
   }, [medId, mode, navigateToWidgetTarget, widgetTarget]);
 
   const handleMedicationPromptTaken = useCallback(async () => {
-    if (!medicationPrompt) return;
+    if (!medicationPrompt || !medicationPromptVisible) return;
+    const prompt = medicationPrompt;
+    // Fade out with prompt data still mounted; clear + refresh only after dismiss settles.
+    setMedicationPromptVisible(false);
     try {
       const today = new Date().toISOString().slice(0, 10);
       const existingLogs = await medicationLogStorage.getByDate(today);
       const alreadyTaken = existingLogs.some(
-        (log) => log.medicationId === medicationPrompt.medicationId && (log.doseIndex ?? 0) === medicationPrompt.doseIndex && log.taken,
+        (log) => log.medicationId === prompt.medicationId && (log.doseIndex ?? 0) === prompt.doseIndex && log.taken,
       );
       if (!alreadyTaken) {
-        await medicationLogStorage.toggle(medicationPrompt.medicationId, today, medicationPrompt.doseIndex);
+        await medicationLogStorage.toggle(prompt.medicationId, today, prompt.doseIndex);
       }
       await syncAllFromSettings().catch(() => {});
       await syncWidgetSnapshot().catch(() => {});
+      requestBadgeRefresh();
+      void updateAppIconBadgeCount().catch(() => {});
     } catch (error) {
       console.warn("Failed to mark medication as taken from prompt", error);
     } finally {
-      setMedicationPrompt(null);
-      setRefreshKey((k) => k + 1);
+      closeMedicationPrompt(() => setRefreshKey((k) => k + 1));
     }
-  }, [medicationPrompt]);
+  }, [closeMedicationPrompt, medicationPrompt, medicationPromptVisible]);
 
   const handleActivateSickMode = () => {
     setSickMode(true);
@@ -1139,8 +1179,8 @@ export default function MainScreen() {
     <Modal
       animationType="fade"
       transparent
-      visible={!!medicationPrompt}
-      onRequestClose={() => setMedicationPrompt(null)}
+      visible={medicationPromptVisible}
+      onRequestClose={() => closeMedicationPrompt()}
     >
       <View style={styles.modalBackdrop}>
         <View style={styles.caregiverOnboardingCard}>
@@ -1159,7 +1199,7 @@ export default function MainScreen() {
               <Text style={styles.feedbackPromptPrimaryText}>Yes, took it</Text>
             </Pressable>
             <Pressable
-              onPress={() => setMedicationPrompt(null)}
+              onPress={() => closeMedicationPrompt()}
               style={({ pressed }) => [styles.feedbackPromptSecondary, pressed && styles.whatsNewButtonPressed]}
             >
               <Text style={styles.feedbackPromptSecondaryText}>Not yet</Text>

@@ -24,6 +24,7 @@ import VisualScanImportModal from "@/screens/VisualScanImportModal";
 import { healthProfileStorage, settingsStorage } from "@/lib/storage";
 import { getDeveloperMode } from "@/lib/developer-mode";
 import { getNavBadgeCounts, type NavBadgeCounts } from "@/lib/nav-badge-counts";
+import { subscribeBadgeRefresh } from "@/lib/badge-refresh";
 import {
   FULL_BOTTOM_TAB_KEYS,
   getHamburgerItems,
@@ -289,7 +290,13 @@ export default function SidebarLayout({
   useEffect(() => {
     loadBadges();
     const interval = setInterval(loadBadges, 10000);
-    return () => clearInterval(interval);
+    const unsubscribe = subscribeBadgeRefresh(() => {
+      void loadBadges();
+    });
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [loadBadges, activeScreen, moreOpen, radialMenuOpen, quickAddHubOpen]);
 
   useEffect(() => {

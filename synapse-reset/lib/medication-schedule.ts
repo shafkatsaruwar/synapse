@@ -87,7 +87,7 @@ export function isMedicationScheduledOnDate(
   dateKey: string,
   options?: { anchorDateKey?: string | null },
 ): boolean {
-  if (!med.active || med.medicationType === "prn") return false;
+  if (med.active === false || med.medicationType === "prn") return false;
   const schedule = resolveReminderSchedule(med);
   const weekday = expoWeekdayFromDateKey(dateKey);
 

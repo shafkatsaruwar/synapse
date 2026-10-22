@@ -10,6 +10,7 @@ import { useWalkthroughTargets, measureInWindow } from "@/contexts/WalkthroughCo
 import { useSynapseHQPanel } from "@/components/SynapseHQPanel";
 import SynapseLogo from "@/components/SynapseLogo";
 import { getNavBadgeCounts, type NavBadgeCounts } from "@/lib/nav-badge-counts";
+import { subscribeBadgeRefresh } from "@/lib/badge-refresh";
 import {
   getHamburgerItems,
   getNavEntry,
@@ -72,7 +73,13 @@ export default function TabletSidebar({ activeScreen, onNavigate }: TabletSideba
     if (!isTablet || isSimpleMode) return;
     loadBadges();
     const interval = setInterval(loadBadges, 10000);
-    return () => clearInterval(interval);
+    const unsubscribe = subscribeBadgeRefresh(() => {
+      void loadBadges();
+    });
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [activeScreen, isSimpleMode, isTablet, loadBadges]);
 
   const resolvedActive = resolveNavKey(activeScreen);
