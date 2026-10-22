@@ -1119,11 +1119,6 @@ export default function SettingsScreen({
         </GlassView>
         ) : null}
 
-        {isIntegrations ? (
-          <Pressable style={[styles.secondaryBtn, { marginBottom: 12 }]} onPress={() => onNavigate?.("editprofile")}>
-            <Text style={styles.secondaryBtnText}>Backup & Restore</Text>
-          </Pressable>
-        ) : null}
       </ScrollView>
       {caregiverOnboardingModal}
     </View>
