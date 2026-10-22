@@ -15,7 +15,7 @@ const SHOT = { width: 640, height: 1235 };
 function Phone({ src, alt, priority = false, sizes = "(max-width: 880px) 70vw, 300px" }: { src: string; alt: string; priority?: boolean; sizes?: string }) {
   return (
     <div className={s.phone}>
-      <Image className={s.screen} src={src} alt={alt} width={SHOT.width} height={SHOT.height} sizes={sizes} priority={priority} />
+      <Image className={s.screen} src={src} alt={alt} width={SHOT.width} height={SHOT.height} sizes={sizes} priority={priority} unoptimized />
     </div>
   );
 }
@@ -40,8 +40,8 @@ const reasons: { n: string; title: string; body: string; src: string; alt: strin
     n: "02",
     title: "Ready when it matters",
     body: "Find important health information and emergency details quickly.",
-    src: "/screens/you-settings.webp",
-    alt: "You and Settings screen with Profile, Conditions, Allergy and Emergency Info, Vaccines and Surgeries.",
+    src: "/screens/you-settings-real.png",
+    alt: "You and Settings screen with a backup reminder, Profile, Conditions, Allergy and Emergency Info, Vaccines and Surgeries.",
   },
   {
     n: "03",
@@ -93,8 +93,8 @@ export function Landing(): ReactNode {
             <div className={s.heroMedia}>
               <div className={s.glow} aria-hidden="true" />
               <Phone
-                src="/screens/home-blue.webp"
-                alt="Synapse Today screen showing a greeting, the next medication, an upcoming appointment, and Sick Mode."
+                src="/screens/today-sam.png"
+                alt="Synapse Today screen showing a greeting, the next medication, a missed dose, and Activate Sick Mode."
                 priority
                 sizes="(max-width: 880px) 80vw, 340px"
               />
