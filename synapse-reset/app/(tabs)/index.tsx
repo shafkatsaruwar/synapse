@@ -73,11 +73,8 @@ import {
   requestPermission,
   getPermissionStatus,
   syncAllFromSettings,
-<<<<<<< HEAD
   cancelAllNotifications,
-=======
   updateAppIconBadgeCount,
->>>>>>> f7167c7 (Clear Health dose-due badge when Today's Doses is caught up.)
   type NotificationNavigationTarget,
   setNotificationNavigateCallback,
   handleLastNotificationResponse,
