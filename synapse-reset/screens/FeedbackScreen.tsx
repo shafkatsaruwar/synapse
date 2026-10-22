@@ -9,7 +9,6 @@ import {
   type FeedbackCategory,
   type FeedbackSentiment,
 } from "@/lib/storage";
-import { requestSynapseReview } from "@/lib/review-prompt";
 
 type FeedbackScreenProps = {
   onBack?: () => void;
@@ -51,46 +50,26 @@ export default function FeedbackScreen({
     setMode("choice");
   }, [initialSentiment]);
 
-  const submitNeedsImprovement = async () => {
+  const submitFeedback = async () => {
+    if (saving) return;
     if (!message.trim()) {
-      Alert.alert("Add a little more detail", "A quick note helps us understand what needs work.");
+      Alert.alert("Add a little more detail", "A quick note helps us understand your experience.");
       return;
     }
 
     setSaving(true);
     try {
       await feedbackStorage.save({
-        sentiment: "needs_improvement",
-        category,
+        sentiment: mode === "positive" ? "positive" : "needs_improvement",
+        category: mode === "positive" ? undefined : category,
         message: message.trim(),
         email: email.trim(),
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       setMode("submitted");
       onFinished?.();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleRateSynapse = async () => {
-    setSaving(true);
-    try {
-      await feedbackStorage.save({
-        sentiment: "positive",
-        message: "",
-        email: "",
-      });
-      const result = await requestSynapseReview();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      onFinished?.();
-
-      if (result === "unavailable") {
-        Alert.alert(
-          "Thanks for the love",
-          "We saved your positive feedback. App Store rating isn't available in this build yet, but we still appreciate it."
-        );
-      }
+    } catch {
+      Alert.alert("Couldn't save feedback", "Please try again. Your note is still here.");
     } finally {
       setSaving(false);
     }
@@ -112,7 +91,7 @@ export default function FeedbackScreen({
           </View>
           <View style={styles.choiceTextWrap}>
             <Text style={styles.choiceTitle}>I’m enjoying it</Text>
-            <Text style={styles.choiceBody}>Things feel smooth, helpful, and worth keeping around.</Text>
+            <Text style={styles.choiceBody}>Tell us what’s working well.</Text>
           </View>
         </Pressable>
 
@@ -128,49 +107,19 @@ export default function FeedbackScreen({
           </View>
           <View style={styles.choiceTextWrap}>
             <Text style={styles.choiceTitle}>Needs improvement</Text>
-            <Text style={styles.choiceBody}>Tell us what feels off, confusing, or not pulling its weight.</Text>
+            <Text style={styles.choiceBody}>Tell us what could be better.</Text>
           </View>
         </Pressable>
       </View>
     </View>
   );
 
-  const renderPositive = () => (
+  const renderFeedbackForm = () => (
     <View style={styles.section}>
-      <View style={styles.thankYouWrap}>
-        <View style={[styles.choiceIconWrap, { backgroundColor: C.greenLight }]}>
-          <Ionicons name="sparkles-outline" size={24} color={C.green} />
-        </View>
-        <Text style={styles.question}>Thanks for sticking with Synapse.</Text>
-        <Text style={styles.bodyCopy}>
-          If it’s helping, a quick App Store rating goes a long way. No pressure, just real support.
-        </Text>
-      </View>
+      <Text style={styles.question}>{mode === "positive" ? "What are you enjoying?" : "What could be better?"}</Text>
+      <Text style={styles.bodyCopy}>Your feedback is saved on this device. Please leave out personal health details.</Text>
 
-      <View style={styles.actionRow}>
-        <Pressable
-          style={({ pressed }) => [styles.secondaryButton, pressed && styles.choiceCardPressed]}
-          onPress={onBack}
-        >
-          <Text style={styles.secondaryButtonText}>Maybe later</Text>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed, saving && styles.buttonDisabled]}
-          onPress={handleRateSynapse}
-          disabled={saving}
-        >
-          <Text style={styles.primaryButtonText}>{saving ? "Opening…" : "Rate Synapse"}</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-
-  const renderNegative = () => (
-    <View style={styles.section}>
-      <Text style={styles.question}>What could be better?</Text>
-      <Text style={styles.bodyCopy}>We keep this local-first and calm on purpose. Say what’s not landing.</Text>
-
-      <View style={styles.fieldGroup}>
+      {mode === "negative" ? <View style={styles.fieldGroup}>
         <Text style={styles.fieldLabel}>Feedback category</Text>
         <View style={styles.categoryWrap}>
           {CATEGORY_OPTIONS.map((option) => {
@@ -189,7 +138,7 @@ export default function FeedbackScreen({
             );
           })}
         </View>
-      </View>
+      </View> : null}
 
       <View style={styles.fieldGroup}>
         <Text style={styles.fieldLabel}>Feedback</Text>
@@ -197,7 +146,7 @@ export default function FeedbackScreen({
           style={[styles.input, styles.textArea]}
           value={message}
           onChangeText={setMessage}
-          placeholder="What could be better?"
+          placeholder={mode === "positive" ? "Tell us what’s working well" : "What could be better?"}
           placeholderTextColor={C.textTertiary}
           multiline
           textAlignVertical="top"
@@ -206,11 +155,12 @@ export default function FeedbackScreen({
 
       <View style={styles.fieldGroup}>
         <Text style={styles.fieldLabel}>Email (optional)</Text>
+        <Text style={styles.bodyCopy}>Saved with your note; this does not send a message.</Text>
         <TextInput
           style={styles.input}
           value={email}
           onChangeText={setEmail}
-          placeholder="Email (optional, if you'd like a response)"
+          placeholder="Email (optional)"
           placeholderTextColor={C.textTertiary}
           keyboardType="email-address"
           autoCapitalize="none"
@@ -221,16 +171,16 @@ export default function FeedbackScreen({
       <View style={styles.actionRow}>
         <Pressable
           style={({ pressed }) => [styles.secondaryButton, pressed && styles.choiceCardPressed]}
-          onPress={onBack}
+          onPress={() => setMode("choice")}
         >
           <Text style={styles.secondaryButtonText}>Back</Text>
         </Pressable>
         <Pressable
           style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed, (!message.trim() || saving) && styles.buttonDisabled]}
-          onPress={submitNeedsImprovement}
+          onPress={submitFeedback}
           disabled={!message.trim() || saving}
         >
-          <Text style={styles.primaryButtonText}>{saving ? "Sending…" : "Submit"}</Text>
+          <Text style={styles.primaryButtonText}>{saving ? "Saving…" : "Submit"}</Text>
         </Pressable>
       </View>
     </View>
@@ -242,9 +192,9 @@ export default function FeedbackScreen({
         <View style={[styles.choiceIconWrap, { backgroundColor: C.tintLight }]}>
           <Ionicons name="chatbubble-ellipses-outline" size={24} color={C.tint} />
         </View>
-        <Text style={styles.question}>Thanks. We’ve got it.</Text>
+        <Text style={styles.question}>Thanks. Your feedback is saved.</Text>
         <Text style={styles.bodyCopy}>
-          We appreciate the honesty. Synapse gets better when people tell us what’s actually getting in the way.
+          Your note is stored on this device. Thanks for taking the time to share your experience.
         </Text>
       </View>
 
@@ -269,15 +219,14 @@ export default function FeedbackScreen({
           <Text style={styles.subtitle}>Your feedback helps make the app better.</Text>
         </View>
         {onBack ? (
-          <Pressable style={styles.closeButton} onPress={onBack}>
+          <Pressable style={styles.closeButton} onPress={onBack} accessibilityRole="button" accessibilityLabel="Close feedback" hitSlop={4}>
             <Ionicons name="close" size={22} color={C.textSecondary} />
           </Pressable>
         ) : null}
       </View>
 
       {mode === "choice" ? renderChoice() : null}
-      {mode === "positive" ? renderPositive() : null}
-      {mode === "negative" ? renderNegative() : null}
+      {mode === "positive" || mode === "negative" ? renderFeedbackForm() : null}
       {mode === "submitted" ? renderSubmitted() : null}
     </ScrollView>
   );
@@ -290,10 +239,10 @@ function makeStyles(C: Theme) {
       backgroundColor: "transparent",
     },
     content: {
-      paddingHorizontal: 24,
-      paddingTop: 28,
+      paddingHorizontal: 20,
+      paddingTop: 16,
       paddingBottom: 120,
-      gap: 18,
+      gap: 14,
     },
     headerRow: {
       flexDirection: "row",
@@ -306,15 +255,15 @@ function makeStyles(C: Theme) {
       gap: 8,
     },
     title: {
-      fontSize: 34,
-      lineHeight: 40,
+      fontSize: 26,
+      lineHeight: 32,
       fontWeight: "800",
       color: C.text,
       letterSpacing: -0.7,
     },
     subtitle: {
-      fontSize: 18,
-      lineHeight: 25,
+      fontSize: 15,
+      lineHeight: 22,
       color: C.textSecondary,
     },
     closeButton: {
@@ -332,12 +281,12 @@ function makeStyles(C: Theme) {
       borderRadius: 24,
       borderWidth: 1,
       borderColor: C.borderLight,
-      padding: 20,
-      gap: 18,
+      padding: 16,
+      gap: 14,
     },
     question: {
-      fontSize: 28,
-      lineHeight: 34,
+      fontSize: 20,
+      lineHeight: 26,
       fontWeight: "800",
       color: C.text,
       letterSpacing: -0.6,
@@ -358,14 +307,14 @@ function makeStyles(C: Theme) {
       borderRadius: 22,
       borderWidth: 1,
       borderColor: C.borderLight,
-      padding: 18,
+      padding: 12,
     },
     choiceCardPressed: {
       opacity: 0.92,
     },
     choiceIconWrap: {
-      width: 48,
-      height: 48,
+      width: 40,
+      height: 40,
       borderRadius: 16,
       alignItems: "center",
       justifyContent: "center",
@@ -375,8 +324,8 @@ function makeStyles(C: Theme) {
       gap: 6,
     },
     choiceTitle: {
-      fontSize: 20,
-      lineHeight: 25,
+      fontSize: 17,
+      lineHeight: 22,
       fontWeight: "700",
       color: C.text,
     },
@@ -423,7 +372,7 @@ function makeStyles(C: Theme) {
       color: C.accent,
     },
     input: {
-      minHeight: 58,
+      minHeight: 48,
       borderRadius: 18,
       borderWidth: 1,
       borderColor: C.borderLight,
@@ -434,7 +383,7 @@ function makeStyles(C: Theme) {
       paddingVertical: 14,
     },
     textArea: {
-      minHeight: 140,
+      minHeight: 110,
     },
     actionRow: {
       flexDirection: "row",
@@ -443,7 +392,7 @@ function makeStyles(C: Theme) {
     },
     primaryButton: {
       flex: 1,
-      minHeight: 54,
+      minHeight: 48,
       borderRadius: 18,
       backgroundColor: C.accent,
       alignItems: "center",
@@ -460,7 +409,7 @@ function makeStyles(C: Theme) {
     },
     secondaryButton: {
       flex: 1,
-      minHeight: 54,
+      minHeight: 48,
       borderRadius: 18,
       backgroundColor: C.surfaceElevated,
       borderWidth: 1,
@@ -479,3 +428,4 @@ function makeStyles(C: Theme) {
     },
   });
 }
+
