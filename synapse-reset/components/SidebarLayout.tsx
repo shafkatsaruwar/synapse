@@ -11,6 +11,7 @@ import {
   Modal,
   Animated,
   PanResponder,
+  PixelRatio,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -102,15 +103,19 @@ const RADIAL_BUTTON_SIZE = 48;
 /** Half-button — wrap is anchored so the disc center sits on the geometric origin. */
 const RADIAL_BUTTON_CENTER = RADIAL_BUTTON_SIZE / 2;
 /** Label column width; wrap is centered on the origin with marginLeft = -width/2. */
-const RADIAL_WRAP_WIDTH = 76;
+const RADIAL_WRAP_WIDTH = 88;
 /**
  * Symmetrical arc above the + (100°). Appointment is straight up (π/2);
  * Scan↔More and Medication↔Log Symptom are equal angular mirrors.
  * Narrower than a wide fan so outer discs + labels clear the nav pill.
  */
 const RADIAL_ARC_SPAN = (Math.PI * 100) / 180;
-/** Keep outer discs + labels above the nav pill (half-pill ≈ 36 + label stack). */
-const RADIAL_MIN_OUTER_LIFT = 100;
+/** Keep outer discs + charcoal label pills above the nav pill. */
+const RADIAL_MIN_OUTER_LIFT = 118;
+/** Uniform dim so Today / Health / Emergency / You and every theme match. */
+const RADIAL_BACKDROP_COLOR = "rgba(17, 24, 39, 0.48)";
+/** Translucent charcoal behind white labels for contrast on any theme. */
+const RADIAL_LABEL_PILL_BG = "rgba(28, 28, 30, 0.78)";
 
 const RADIAL_ADD_ACTION_META = [
   { key: "scan" as const, label: "Scan", icon: "scan-outline" as const },
@@ -201,8 +206,10 @@ export default function SidebarLayout({
       },
     })
   ).current;
-  const { colors: C, themeId } = useTheme();
+  const { colors: C, themeId, reduceMotion } = useTheme();
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
+  const fontScale = Math.min(PixelRatio.getFontScale(), 1.35);
+  const radialWrapWidth = Math.round(RADIAL_WRAP_WIDTH * (fontScale > 1 ? Math.min(fontScale, 1.2) : 1));
   const [developerModeActive, setDeveloperModeActive] = useState(false);
   const synapseHQ = useSynapseHQPanel(setDeveloperModeActive);
   const openSynapseHQ = __DEV__ ? synapseHQ.open : undefined;
@@ -421,6 +428,19 @@ export default function SidebarLayout({
       return;
     }
     simpleAddAnimatingRef.current = true;
+    const finishClose = () => {
+      simpleAddAnimatingRef.current = false;
+      setRadialMenuOpen(false);
+      setRadialOrigin(null);
+      afterClose?.();
+    };
+    if (reduceMotion) {
+      simpleAddFabSpin.setValue(0);
+      radialBackdropOpacity.setValue(0);
+      radialActionProgress.forEach((value) => value.setValue(0));
+      finishClose();
+      return;
+    }
     Animated.parallel([
       Animated.timing(simpleAddFabSpin, {
         toValue: 0,
@@ -442,13 +462,8 @@ export default function SidebarLayout({
           })
         )
       ),
-    ]).start(() => {
-      simpleAddAnimatingRef.current = false;
-      setRadialMenuOpen(false);
-      setRadialOrigin(null);
-      afterClose?.();
-    });
-  }, [radialActionProgress, radialBackdropOpacity, radialMenuOpen, simpleAddFabSpin]);
+    ]).start(finishClose);
+  }, [radialActionProgress, radialBackdropOpacity, radialMenuOpen, reduceMotion, simpleAddFabSpin]);
 
   const openRadialMenu = useCallback(() => {
     if (radialMenuOpen || simpleAddAnimatingRef.current) return;
@@ -458,6 +473,13 @@ export default function SidebarLayout({
       const origin = await measureRadialOrigin();
       setRadialOrigin(origin);
       setRadialMenuOpen(true);
+      if (reduceMotion) {
+        simpleAddFabSpin.setValue(1);
+        radialBackdropOpacity.setValue(1);
+        radialActionProgress.forEach((value) => value.setValue(1));
+        simpleAddAnimatingRef.current = false;
+        return;
+      }
       radialActionProgress.forEach((value) => value.setValue(0));
       radialBackdropOpacity.setValue(0);
       Animated.parallel([
@@ -492,6 +514,7 @@ export default function SidebarLayout({
     radialActionProgress,
     radialBackdropOpacity,
     radialMenuOpen,
+    reduceMotion,
     simpleAddFabSpin,
   ]);
 
@@ -517,6 +540,18 @@ export default function SidebarLayout({
   const openHubFromRadial = useCallback(() => {
     if (simpleAddAnimatingRef.current) return;
     simpleAddAnimatingRef.current = true;
+    const finishToHub = () => {
+      simpleAddAnimatingRef.current = false;
+      setRadialMenuOpen(false);
+      setRadialOrigin(null);
+      openQuickAddHub();
+    };
+    if (reduceMotion) {
+      radialBackdropOpacity.setValue(0);
+      radialActionProgress.forEach((value) => value.setValue(0));
+      finishToHub();
+      return;
+    }
     Animated.parallel([
       Animated.timing(radialBackdropOpacity, {
         toValue: 0,
@@ -533,13 +568,8 @@ export default function SidebarLayout({
           })
         )
       ),
-    ]).start(() => {
-      simpleAddAnimatingRef.current = false;
-      setRadialMenuOpen(false);
-      setRadialOrigin(null);
-      openQuickAddHub();
-    });
-  }, [openQuickAddHub, radialActionProgress, radialBackdropOpacity]);
+    ]).start(finishToHub);
+  }, [openQuickAddHub, radialActionProgress, radialBackdropOpacity, reduceMotion]);
 
   const toggleRadialMenu = useCallback(() => {
     void Haptics.selectionAsync().catch(() => {});
@@ -613,15 +643,17 @@ export default function SidebarLayout({
   /**
    * Radius from + center so outer Scan/More clear the nav and stay on-screen.
    * Vertical lift of the outer pair is r * cos(span/2); require that ≥ RADIAL_MIN_OUTER_LIFT.
+   * Edge padding includes safe-area insets so label pills never clip on small phones.
    */
   const radialRadius = useMemo(() => {
     const halfWidth = width / 2;
-    const maxByWidth = halfWidth - RADIAL_WRAP_WIDTH / 2 - 10;
+    const edgePad = Math.max(insets.left, insets.right, 12);
+    const maxByWidth = halfWidth - radialWrapWidth / 2 - edgePad;
     const outerVerticalFactor = Math.cos(RADIAL_ARC_SPAN / 2);
     const minByClearance = RADIAL_MIN_OUTER_LIFT / Math.max(outerVerticalFactor, 0.35);
     const radius = Math.min(maxByWidth, Math.max(128, minByClearance));
-    return Math.round(Math.min(148, Math.max(120, radius)));
-  }, [width]);
+    return Math.round(Math.min(152, Math.max(118, radius)));
+  }, [insets.left, insets.right, radialWrapWidth, width]);
   const radialAddActions = useMemo(() => buildRadialAddActions(radialRadius), [radialRadius]);
 
   // Keep the radial origin locked to the measured + center across rotation / layout.
@@ -889,6 +921,8 @@ export default function SidebarLayout({
                   style={[
                     styles.radialAddActionWrap,
                     {
+                      width: radialWrapWidth,
+                      marginLeft: -(radialWrapWidth / 2),
                       opacity: progress,
                       transform: [
                         {
@@ -906,7 +940,7 @@ export default function SidebarLayout({
                         {
                           scale: progress.interpolate({
                             inputRange: [0, 1],
-                            outputRange: [0.4, 1],
+                            outputRange: reduceMotion ? [1, 1] : [0.4, 1],
                           }),
                         },
                       ],
@@ -914,18 +948,30 @@ export default function SidebarLayout({
                   ]}
                 >
                   <Pressable
-                    style={({ pressed }) => [styles.radialAddAction, pressed && styles.simpleAddActionPressed]}
+                    style={({ pressed }) => [
+                      styles.radialAddAction,
+                      { width: radialWrapWidth },
+                      pressed && styles.simpleAddActionPressed,
+                    ]}
                     onPress={() => handleRadialActionPress(action.key)}
                     accessibilityRole="button"
                     accessibilityLabel={action.label}
+                    accessibilityHint="Adds this item from Quick Add"
                     hitSlop={6}
                   >
                     <View style={styles.radialAddActionButton}>
                       <Ionicons name={action.icon} size={22} color={C.tint} />
                     </View>
-                    <Text style={styles.radialAddActionLabel} numberOfLines={2}>
-                      {action.label}
-                    </Text>
+                    <View style={[styles.radialAddActionLabelPill, { maxWidth: radialWrapWidth }]}>
+                      <Text
+                        style={styles.radialAddActionLabel}
+                        numberOfLines={2}
+                        maxFontSizeMultiplier={1.35}
+                        allowFontScaling
+                      >
+                        {action.label}
+                      </Text>
+                    </View>
                   </Pressable>
                 </Animated.View>
               );
@@ -1564,8 +1610,7 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       // Full-screen uniform dim; zIndex keeps it under the frosted nav (not cut off above it).
       zIndex: 50,
       elevation: 50,
-      // Subtle Zelle-style dim — content stays visible underneath the floating discs.
-      backgroundColor: themeId === "dark" || themeId === "evergreenDark" ? "rgba(0,0,0,0.28)" : "rgba(17,24,39,0.14)",
+      backgroundColor: RADIAL_BACKDROP_COLOR,
     },
     radialAddLayer: {
       // Point origin — left/top set to the measured + center; actions translate from here.
@@ -1591,15 +1636,15 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       minHeight: 44,
       alignItems: "center",
       justifyContent: "flex-start",
-      gap: 5,
+      gap: 6,
     },
     radialAddActionButton: {
       width: RADIAL_BUTTON_SIZE,
       height: RADIAL_BUTTON_SIZE,
       borderRadius: RADIAL_BUTTON_CENTER,
-      backgroundColor: themeId === "light" || themeId === "evergreen" ? "#FFFFFF" : C.surface,
+      backgroundColor: "#FFFFFF",
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: themeId === "dark" || themeId === "evergreenDark" ? "rgba(255,255,255,0.14)" : "rgba(71,122,112,0.18)",
+      borderColor: "rgba(0,0,0,0.08)",
       alignItems: "center",
       justifyContent: "center",
       shadowColor: "transparent",
@@ -1607,14 +1652,21 @@ function makeStyles(C: Theme, themeId: ThemeId) {
       shadowRadius: 0,
       elevation: 0,
     },
-    radialAddActionLabel: {
-      color: C.text,
-      fontSize: 10,
-      fontWeight: "700",
-      textAlign: "center",
-      lineHeight: 12,
-      width: RADIAL_WRAP_WIDTH,
+    radialAddActionLabelPill: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+      backgroundColor: RADIAL_LABEL_PILL_BG,
+      alignItems: "center",
+      justifyContent: "center",
       maxWidth: RADIAL_WRAP_WIDTH,
+    },
+    radialAddActionLabel: {
+      color: "#FFFFFF",
+      fontSize: 11,
+      fontWeight: "600",
+      textAlign: "center",
+      lineHeight: 13,
     },
     simpleAddFab: {
       width: 64,
