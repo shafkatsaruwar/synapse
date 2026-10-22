@@ -48,11 +48,19 @@ export function applyAppearanceToTheme(
     border = dark ? "rgba(255,255,255,0.14)" : "rgba(32,37,42,0.10)";
     borderLight = dark ? "rgba(255,255,255,0.08)" : "rgba(32,37,42,0.06)";
   } else if (config.surfaceStyle === "glass" && isOpaqueSurface(base.surface)) {
-    // Evergreen/Blue opaque cards → soft glass tint of white
-    surface = "rgba(255,255,255,0.72)";
-    surfaceElevated = "rgba(255,255,255,0.82)";
-    surfaceHover = "rgba(255,255,255,0.9)";
-    heroCardBackground = "rgba(255,255,255,0.68)";
+    const dark = themeId === "dark" || themeId === "evergreenDark";
+    // Opaque bases (Evergreen/Blue/Light) get a frosted wash; dark stays charcoal.
+    if (dark) {
+      surface = "rgba(28,24,26,0.72)";
+      surfaceElevated = "rgba(36,32,34,0.82)";
+      surfaceHover = "rgba(44,40,42,0.9)";
+      heroCardBackground = "rgba(28,24,26,0.68)";
+    } else {
+      surface = "rgba(255,255,255,0.72)";
+      surfaceElevated = "rgba(255,255,255,0.82)";
+      surfaceHover = "rgba(255,255,255,0.9)";
+      heroCardBackground = "rgba(255,255,255,0.68)";
+    }
   }
 
   const tintLight =

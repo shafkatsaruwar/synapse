@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
-import { AccessibilityInfo, useColorScheme } from "react-native";
+import { AccessibilityInfo, Appearance, useColorScheme } from "react-native";
 import { DEFAULT_APPEARANCE } from "@/lib/appearance/defaults";
 import { applyAppearanceToTheme, effectiveSurfaceStyle } from "@/lib/appearance/resolve";
 import { loadAppearance, loadSavedLooks, saveAppearance, saveSavedLooks } from "@/lib/appearance/storage";
@@ -150,6 +150,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
     };
   }, []);
+
+  /**
+   * Keep the native color scheme aligned with the chosen appearance so BlurView,
+   * status bar, and system chrome follow Dark / Light instead of only the device setting.
+   * System + Evergreen still track the device so their light/dark variants can flip.
+   */
+  useEffect(() => {
+    if (preference === "system" || preference === "evergreen") {
+      Appearance.setColorScheme(null);
+      return;
+    }
+    Appearance.setColorScheme(themeId === "dark" || themeId === "evergreenDark" ? "dark" : "light");
+  }, [preference, themeId]);
 
   useEffect(() => {
     const sync = () => {

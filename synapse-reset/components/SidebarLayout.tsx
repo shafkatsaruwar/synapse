@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Constants from "expo-constants";
-import { isEvergreenTheme, useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
+import { isDarkAppearance, isEvergreenTheme, useTheme, type Theme, type ThemeId } from "@/contexts/ThemeContext";
 import GlassView from "@/components/GlassView";
 import { useSynapseHQPanel } from "@/components/SynapseHQPanel";
 import VisualScanImportModal from "@/screens/VisualScanImportModal";
@@ -877,7 +877,7 @@ export default function SidebarLayout({
           ) : (
             <GlassView
               variant="nav"
-              tint={themeId === "dark" ? "dark" : "light"}
+              tint={isDarkAppearance(themeId) ? "dark" : "light"}
               style={[
                 styles.mobileNav,
                 simpleMode && styles.mobileNavSimple,
@@ -991,7 +991,7 @@ export default function SidebarLayout({
         {quickAddHubOpen ? (
           <GlassView
             variant="sheet"
-            tint={themeId === "dark" ? "dark" : "light"}
+            tint={isDarkAppearance(themeId) ? "dark" : "light"}
             style={[
               styles.quickAddHub,
               {
@@ -1155,7 +1155,7 @@ export default function SidebarLayout({
               <View pointerEvents="none" style={styles.drawerTintLayer} />
               <GlassView
                 variant="sheet"
-                tint={themeId === "dark" ? "dark" : "light"}
+                tint={isDarkAppearance(themeId) ? "dark" : "light"}
                 intensity={86}
                 style={styles.drawerGlassLayer}
               />

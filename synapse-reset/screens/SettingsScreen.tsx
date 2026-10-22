@@ -15,7 +15,7 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import { isDarkAppearance, useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import { useAppMode } from "@/contexts/AppModeContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -687,7 +687,7 @@ export default function SettingsScreen({
           showsVerticalScrollIndicator={false}
         >
           <Text style={[styles.title, { fontSize: simpleHeaderTitleSize, marginBottom: 18 }]}>Integrations</Text>
-          <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
+          <GlassView variant="card" tint={isDarkAppearance(themeId) ? "dark" : "light"} style={styles.simpleSettingsCard}>
             <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Apple Health</Text>
             <Text style={[styles.simpleSettingsPrompt, { fontSize: simpleBodySize }]}>
               {appleHealthStatus?.connected
@@ -742,7 +742,7 @@ export default function SettingsScreen({
         >
           <Text style={[styles.title, { fontSize: simpleHeaderTitleSize, marginBottom: 18 }]}>Care & Sharing</Text>
 
-          <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.simpleSettingsCard}>
+          <GlassView variant="card" tint={isDarkAppearance(themeId) ? "dark" : "light"} style={styles.simpleSettingsCard}>
             <Text style={[styles.simpleSettingsSectionTitle, { fontSize: simpleSectionTitleSize }]}>Role</Text>
             <Text style={[styles.simpleSettingsPrompt, { fontSize: simpleBodySize }]}>Who is this for?</Text>
             <View style={styles.simpleSettingsOptionStack}>
@@ -885,7 +885,7 @@ export default function SettingsScreen({
 
         {isIntegrations ? (
         <>
-        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
+        <GlassView variant="card" tint={isDarkAppearance(themeId) ? "dark" : "light"} style={styles.card}>
           <Text style={styles.sectionTitle}>Apple Health</Text>
           <Text style={styles.desc}>
             Connect Apple Health to import heart rate, blood pressure, weight, temperature, oxygen, blood glucose, sleep, and steps into Vitals. Read-only — Synapse does not write back to Apple Health. Not medical advice and not HIPAA.
@@ -941,7 +941,7 @@ export default function SettingsScreen({
         ) : null}
 
         {isCare ? (
-        <GlassView variant="card" tint={themeId === "dark" ? "dark" : "light"} style={styles.card}>
+        <GlassView variant="card" tint={isDarkAppearance(themeId) ? "dark" : "light"} style={styles.card}>
           <Text style={styles.sectionTitle}>Role</Text>
           <Text style={[styles.desc, { marginBottom: 12 }]}>Tell Synapse who this setup is for so the app can stay context-aware.</Text>
           <View style={styles.roleRow}>
