@@ -1,13 +1,11 @@
 import { AuthReturnNotice } from "@/components/auth/AuthReturnNotice";
-import { CinematicHero } from "@/components/cinematic/CinematicHero";
-import { Showcase } from "@/components/product/Showcase";
+import { Landing } from "@/components/landing/Landing";
 
 export default function HomePage() {
   return (
     <>
       <AuthReturnNotice />
-      <CinematicHero />
-      <Showcase />
+      <Landing />
     </>
   );
 }

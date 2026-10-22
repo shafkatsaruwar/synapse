@@ -1,13 +1,13 @@
 :root {
-  --burgundy: #a30d24;
-  --burgundy-deep: #6e0918;
-  --burgundy-soft: rgba(163, 13, 36, 0.1);
-  --ink: #161311;
+  --burgundy: #1f6fc5;
+  --burgundy-deep: #0d1b2a;
+  --burgundy-soft: rgba(31, 111, 197, 0.12);
+  --ink: #0d1b2a;
   --ink-soft: #5e5852;
   --muted: #6e675f;
-  --paper: #f6f3ee;
-  --paper-deep: #efeae3;
-  --white: #fbf9f6;
+  --paper: #f7f9fc;
+  --paper-deep: #eef3f8;
+  --white: #ffffff;
   --line: rgba(28, 21, 18, 0.12);
   --green: #2d7d46;
   --shadow-soft: 0 24px 60px rgba(48, 32, 24, 0.1);
