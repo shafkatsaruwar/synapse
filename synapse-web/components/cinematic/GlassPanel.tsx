@@ -22,6 +22,12 @@ import { PANEL_FACE_HEIGHT, PANEL_FACE_WIDTH, drawPanelFace, panelFaces, panelTe
 import { PANEL_DEFS, type PanelId } from "@/lib/animation/scene-sample";
 
 const burgundy = new Color("#f4e6e8");
+
+/** GPU SDF generation drops the glyphs on some mobile and software GL paths. */
+function markCpuSdf(mesh: { gpuAccelerateSDF?: boolean } | null) {
+  if (mesh) mesh.gpuAccelerateSDF = false;
+}
+
 const GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789’'·.,";
 
 const fillCache = new Map<string, CanvasTexture>();
@@ -89,7 +95,7 @@ function FaceCopy({
   const title = synapse ? face.synapse : face.foreign;
   const detail = synapse ? face.synapseDetail : face.foreignDetail;
   const kicker = synapse ? "SYNAPSE" : face.foreign.toUpperCase();
-  const sdf = sceneBridge.mobile ? 96 : 128;
+  const sdf = sceneBridge.mobile ? 64 : 128;
   const xOf = (px: number) => (px / PANEL_FACE_WIDTH - 0.5) * width;
   const yOf = (py: number) => (0.5 - py / PANEL_FACE_HEIGHT) * height;
   const sizeOf = (px: number) => (px / PANEL_FACE_HEIGHT) * height;
@@ -109,6 +115,7 @@ function FaceCopy({
         anchorY="middle"
         sdfGlyphSize={sdf}
         characters={GLYPHS}
+        ref={markCpuSdf}
       >
         {face.mark}
       </Text>
@@ -120,6 +127,7 @@ function FaceCopy({
         anchorY="bottom-baseline"
         sdfGlyphSize={sdf}
         characters={GLYPHS}
+        ref={markCpuSdf}
       >
         {kicker}
       </Text>
@@ -131,6 +139,7 @@ function FaceCopy({
         anchorY="bottom-baseline"
         sdfGlyphSize={sdf}
         characters={GLYPHS}
+        ref={markCpuSdf}
       >
         {title}
       </Text>
@@ -142,6 +151,7 @@ function FaceCopy({
         anchorY="bottom-baseline"
         sdfGlyphSize={sdf}
         characters={GLYPHS}
+        ref={markCpuSdf}
       >
         {detail}
       </Text>

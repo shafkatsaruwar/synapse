@@ -63,5 +63,5 @@ Fall order: How I’m Feeling, Medications, Appointments, Emergency, Records. St
 
 ## Texture budgets
 
-- Panel face logical 1024×640, rasterized at `panelTextureScale` (floor 2×, cap 3× on desktop and mobile) with mipmaps. Titles are SDF. Today screen 780×1688. Shadow disc 256×256. WebGL pixel ratio caps at 2.5 desktop and runs 2–3 on mobile, with MSAA.
+- Panel face logical 1024×640, rasterized at `panelTextureScale` (floor 2×, cap 3× on desktop and mobile) with mipmaps. The fill is a shared frosted card with transparent padding. Titles, kickers, and details are SDF text (CPU-generated, power-of-two atlas). The glass sheet is a rounded extrusion. Today screen 780×1688. Shadow disc 256×256. WebGL pixel ratio caps at 2.5 on desktop and runs 2–3 on mobile, with MSAA.
 - No video textures. No external HDR. The phone is extruded slabs (body, glass, camera bump) plus side buttons, a speaker slot, and a contact shadow. Panels are five rounded glass sheets. Strings are five cylinders. The two frosted fills are shared. Titles, kickers, and details are SDF text.
