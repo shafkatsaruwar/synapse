@@ -77,7 +77,7 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/unmount only
   }, []);
 
-  // Use the reference three-column theme grid on iOS.\n  const previewCols = Platform.OS === "ios" || width >= 400 ? 3 : 2;
+  const previewCols = Platform.OS === "ios" || width >= 400 ? 3 : 2;
 
   const handleApply = async () => {
     setBusy(true);
