@@ -158,7 +158,7 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
                   previewCols === 3 ? styles.themeCardThird : styles.themeCardHalf,
                   selected && styles.themeCardSelected,
                 ]}
-                onPress={() => {
+                onPressIn={() => {
                   updateAppearanceDraft({ theme: theme.id });
                   Haptics.selectionAsync();
                 }}
