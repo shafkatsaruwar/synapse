@@ -1256,8 +1256,8 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
             styles.scrollViewContent,
           ]}
           showsVerticalScrollIndicator={false}
-          bounces={false}
-          alwaysBounceVertical={false}
+          bounces={true}
+          alwaysBounceVertical={true}
         >
           <View style={[styles.simpleDashboardContent, { paddingHorizontal: isWide ? 28 : 18 }]}>
             <View style={styles.simpleDashboardHeader}>
