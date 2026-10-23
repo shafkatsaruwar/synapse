@@ -1531,6 +1531,7 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
         showsVerticalScrollIndicator={false}
         bounces={true}
         alwaysBounceVertical={true}
+        scrollEventThrottle={16}
       >
         {inner}
       </ScrollView>
