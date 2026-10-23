@@ -77,7 +77,7 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/unmount only
   }, []);
 
-  const previewCols = width >= 400 ? 3 : 2;
+  // Match the three-column appearance grid on iPhone and wider screens.\n  const previewCols = Platform.OS === "ios" || width >= 400 ? 3 : 2;
 
   const handleApply = async () => {
     setBusy(true);
