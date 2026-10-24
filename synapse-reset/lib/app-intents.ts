@@ -11,7 +11,7 @@ import {
 } from "@/lib/storage";
 import { getToday } from "@/lib/date-utils";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
-import { syncRecoveryTrackingCheckIn } from "@/lib/notification-manager";
+import { syncMissedMedicationCheckIn, syncRecoveryTrackingCheckIn } from "@/lib/notification-manager";
 
 type NativeWidgetBridge = {
   getPendingAppIntentActions?: () => Promise<string | null>;
@@ -123,6 +123,7 @@ async function logMedicationByName(name: string) {
   }
 
   await medicationLogStorage.toggle(match.id, today, nextDoseIndex >= 0 ? nextDoseIndex : 0);
+  await syncMissedMedicationCheckIn().catch(() => {});
 }
 
 async function startSickMode() {

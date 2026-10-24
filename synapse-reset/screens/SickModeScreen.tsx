@@ -16,7 +16,7 @@ import { useAccessibility } from "@/lib/accessibility";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { getSickModePalette } from "@/constants/sick-mode-colors";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
-import { cancelRecoveryCheckIn } from "@/lib/notification-manager";
+import { cancelRecoveryCheckIn, syncMissedMedicationCheckIn } from "@/lib/notification-manager";
 import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 import { raised } from "@/constants/raised";
 import {
@@ -162,6 +162,7 @@ export default function SickModeScreen({ onDeactivate, onRefreshKey, onNavigate 
           onPress: async () => {
             const takenCount = getStressDosesTakenToday(med.id);
             await medicationLogStorage.toggle(med.id, today, takenCount);
+            await syncMissedMedicationCheckIn().catch(() => {});
             await syncWidgetSnapshot().catch(() => {});
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             loadData();

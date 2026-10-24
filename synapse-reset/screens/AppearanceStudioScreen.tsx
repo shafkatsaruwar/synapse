@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Platform,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,8 +16,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { useTheme, type Theme, type ThemePreference } from "@/contexts/ThemeContext";
+import { isDarkAppearance, useTheme, type Theme, type ThemePreference } from "@/contexts/ThemeContext";
 import { ACCENT_SWATCHES } from "@/lib/appearance/accents";
+import {
+  APP_ICON_OPTIONS,
+  canChangeAppIcon,
+  getCurrentAppIcon,
+  setAppIcon,
+  type AppIconId,
+} from "@/lib/appearance/app-icons";
 import { WALLPAPER_PRESETS } from "@/lib/appearance/wallpapers";
 import type { AccentId, SurfaceStyleId, WallpaperId } from "@/lib/appearance/types";
 import { raised } from "@/constants/raised";
@@ -48,6 +56,7 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
   const isWide = width >= 768;
   const {
     colors: C,
+    themeId,
     appearance,
     draftAppearance,
     beginAppearanceDraft,
@@ -65,6 +74,10 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
   const [saveName, setSaveName] = useState("");
   const [busy, setBusy] = useState(false);
   const appliedRef = useRef(false);
+  const iconsSupported = canChangeAppIcon();
+  const [savedIcon, setSavedIcon] = useState<AppIconId>("default");
+  const [pickedIcon, setPickedIcon] = useState<AppIconId>("default");
+  const isDarkSurface = isDarkAppearance(themeId);
 
   useEffect(() => {
     appliedRef.current = false;
@@ -76,6 +89,19 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/unmount only
   }, []);
+
+  useEffect(() => {
+    if (!iconsSupported) return;
+    let cancelled = false;
+    getCurrentAppIcon().then((id) => {
+      if (cancelled) return;
+      setSavedIcon(id);
+      setPickedIcon(id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [iconsSupported]);
 
   const previewCols = Platform.OS === "ios" || width >= 400 ? 3 : 2;
 
@@ -91,6 +117,13 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
           active.widgetAppearance === "calm" ? "system" : active.widgetAppearance,
       });
       await syncWidgetSnapshot().catch(() => {});
+      if (iconsSupported && pickedIcon !== savedIcon) {
+        try {
+          await setAppIcon(pickedIcon);
+        } catch {
+          Alert.alert("Couldn't change the app icon", "Your other appearance changes were saved. Try the icon again in a moment.");
+        }
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onBack?.();
     } finally {
@@ -194,6 +227,37 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
             );
           })}
         </View>
+
+        {iconsSupported ? (
+          <>
+            <Text style={styles.sectionLabel}>App Icon</Text>
+            <View style={styles.iconGrid}>
+              {APP_ICON_OPTIONS.map((opt) => {
+                const selected = pickedIcon === opt.id;
+                const source = isDarkSurface && opt.dark ? opt.dark : opt.light;
+                return (
+                  <Pressable
+                    key={opt.id}
+                    style={[styles.iconCard, selected && styles.iconCardSelected]}
+                    onPress={() => {
+                      setPickedIcon(opt.id);
+                      Haptics.selectionAsync();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`${opt.label} app icon`}
+                  >
+                    <Image source={source} style={styles.iconImage} />
+                    <Text style={styles.iconLabel}>{opt.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={[styles.rowBody, { marginTop: 6 }]}>
+              Applies when you tap Apply Appearance. iOS shows its own confirmation when the icon changes.
+            </Text>
+          </>
+        ) : null}
 
         <Text style={styles.sectionLabel}>Wallpaper</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.wallpaperRow}>
@@ -517,6 +581,19 @@ function makeStyles(C: Theme) {
       borderColor: "transparent",
     },
     swatchSelected: { borderColor: C.text },
+    iconGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    iconCard: {
+      width: "22%",
+      alignItems: "center",
+      gap: 6,
+      padding: 6,
+      borderRadius: 16,
+      borderWidth: 1.5,
+      borderColor: "transparent",
+    },
+    iconCardSelected: { borderColor: C.tint, backgroundColor: C.surface },
+    iconImage: { width: 56, height: 56, borderRadius: 13 },
+    iconLabel: { fontWeight: "600", fontSize: 11, color: C.text },
     wallpaperRow: { gap: 10, paddingRight: 8 },
     wallpaperCard: {
       width: 84,
