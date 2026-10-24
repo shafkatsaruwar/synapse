@@ -49,7 +49,7 @@ export default function AppBackground({ children }: AppBackgroundProps) {
   const backgroundColor = darkUi ? "#0D0B0C" : "#F5ECE2";
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor }]}>
       <StatusBar barStyle={darkUi ? "light-content" : "dark-content"} />
       {themeId === "dark" || themeId === "evergreenDark" ? (
         <>
