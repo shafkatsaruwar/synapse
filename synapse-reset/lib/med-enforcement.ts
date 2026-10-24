@@ -21,7 +21,7 @@ import {
   normalizeMedication,
   settingsStorage,
   type Medication,
-} from "@/lib/storage";
+} from "@/lib/storage-self";
 import {
   applyResolution,
   applySnooze,

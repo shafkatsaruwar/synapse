@@ -15,7 +15,7 @@ import {
   healthProfileStorage,
   sickModeStorage,
   normalizeMedication,
-} from "@/lib/storage";
+} from "@/lib/storage-self";
 
 /**
  * Clear delivered + pending notifications when the native build changes so
@@ -90,7 +90,8 @@ export type NotificationNavigationTarget =
   | { screen: "monthlycheckin"; notificationType: "monthly-checkin" }
   | { screen: "sickmode"; notificationType: "recovery-check-in" }
   | { screen: "healthprofile"; notificationType: "screening" }
-  | { screen: "hydration"; notificationType: "hydration" };
+  | { screen: "hydration"; notificationType: "hydration" }
+  | { screen: "checkin"; notificationType: "check-in"; personId?: string };
 
 function isNative(): boolean {
   return Platform.OS === "ios" || Platform.OS === "android";
@@ -1087,8 +1088,11 @@ export async function cancelAppointmentReminders(appointmentId: string): Promise
 /** Map a notification identifier to an app screen key. */
 function getNavigationTarget(
   id: string,
-  data?: { medicationId?: string; doseIndex?: number; appointmentId?: string; widgetTarget?: string }
+  data?: { medicationId?: string; doseIndex?: number; appointmentId?: string; widgetTarget?: string; personId?: string }
 ): NotificationNavigationTarget | null {
+  if (id.startsWith("checkin-") || data?.widgetTarget === "checkin") {
+    return { screen: "checkin", notificationType: "check-in", personId: data?.personId };
+  }
   if (id.startsWith("med-") || id.startsWith("refill-")) {
     return {
       screen: "medications",
@@ -1146,6 +1150,18 @@ export function addNotificationResponseListener(
   if (!isNative()) return () => {};
   const sub = Notifications.addNotificationResponseReceivedListener((response) => {
     const actionId = response.actionIdentifier;
+    const rawData = response.notification.request.content.data as { notificationType?: string; personId?: string; reminderId?: string } | undefined;
+    if (rawData?.notificationType === "check-in") {
+      // Check-In reminders are local nudges from a saved schedule; they never touch dose logs.
+      const content = response.notification.request.content;
+      import("@/lib/care/checkin")
+        .then((mod) => mod.handleCheckInNotificationResponse(actionId, rawData, { title: content.title ?? "", body: content.body ?? "" }))
+        .then((open) => {
+          if (open && _navigateCallback) _navigateCallback({ screen: "checkin", notificationType: "check-in", personId: rawData.personId });
+        })
+        .catch(() => {});
+      return;
+    }
     const data = response.notification.request.content.data as { medicationId?: string; doseIndex?: number; medicationName?: string; dosage?: string; appointmentId?: string; widgetTarget?: string; enforcement?: boolean; doseEventId?: string };
     // Medication Enforcement notifications route through the enforcement resolver.
     // Opening/dismissing the banner never counts as taken — only the explicit
@@ -1389,6 +1405,14 @@ export async function syncAllFromSettings(): Promise<void> {
     }
 
     await updateAppIconBadgeCount();
+
+    // Care Check-In reminders are rebuilt from saved schedules (never from live data).
+    try {
+      const checkIn = await import("@/lib/care/checkin");
+      await checkIn.syncCheckInReminders();
+    } catch (e) {
+      console.warn("syncCheckInReminders failed", e);
+    }
   } catch (e) {
     console.warn("syncAllFromSettings failed", e);
   }

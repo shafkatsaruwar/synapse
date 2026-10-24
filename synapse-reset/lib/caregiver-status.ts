@@ -10,7 +10,7 @@ import {
   type Medication,
   type MedicationDose,
   type MedicationLog,
-} from "@/lib/storage";
+} from "@/lib/storage-self";
 import { getToday } from "@/lib/date-utils";
 
 export interface CaregiverMedicationStatus {

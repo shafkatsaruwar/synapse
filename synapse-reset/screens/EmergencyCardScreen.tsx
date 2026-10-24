@@ -34,7 +34,7 @@ import {
   type HealthProfileInfo,
   type Medication,
   type RecordOwner,
-} from "@/lib/storage";
+} from "@/lib/storage-self";
 import { getMedList, type MedListItem } from "@/lib/med-list-storage";
 
 const CARD_BG = "#FFFFFF";
@@ -93,7 +93,7 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
     const [stored, allergy, medList, medicationList, doctorList, profileInfo, doctorId] = await Promise.all([
       getEmergencyCard(),
       allergyStorage.get(),
-      getMedList(),
+      getMedList("self"),
       medicationStorage.getAll(),
       doctorsStorage.getAll(),
       healthProfileStorage.get(),

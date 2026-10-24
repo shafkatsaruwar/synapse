@@ -13,7 +13,7 @@ import {
   sickModeStorage,
   symptomStorage,
   type Appointment,
-} from "@/lib/storage";
+} from "@/lib/storage-self";
 
 import {
   CAREGIVER_LINK_CODE_LENGTH,

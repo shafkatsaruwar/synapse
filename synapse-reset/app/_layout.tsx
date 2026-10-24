@@ -15,6 +15,7 @@ import { AppModeProvider } from "@/contexts/AppModeContext";
 import { DisplaySettingsProvider } from "@/contexts/DisplaySettingsContext";
 import { RoleProvider } from "@/contexts/RoleContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { CareProfileProvider } from "@/contexts/CareProfileContext";
 import { queryClient } from "@/lib/query-client";
 import {
   setNotificationHandler,
@@ -53,7 +54,11 @@ export default function RootLayout() {
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") updateAppIconBadgeCount().catch(() => {});
+      if (state === "active") {
+        updateAppIconBadgeCount().catch(() => {});
+        // Re-plan Check-In reminders so a changed time zone (travel, daylight saving) is picked up.
+        import("@/lib/care/checkin").then((m) => m.syncCheckInReminders()).catch(() => {});
+      }
     });
     return () => sub.remove();
   }, []);
@@ -95,10 +100,12 @@ export default function RootLayout() {
               <ThemeProvider>
                 <AppModeProvider>
                   <RoleProvider>
-                    <AuthProvider>
-                      <Stack screenOptions={{ headerShown: false }} />
-                      <KeyboardDoneBar />
-                    </AuthProvider>
+                    <CareProfileProvider>
+                      <AuthProvider>
+                        <Stack screenOptions={{ headerShown: false }} />
+                        <KeyboardDoneBar />
+                      </AuthProvider>
+                    </CareProfileProvider>
                   </RoleProvider>
                 </AppModeProvider>
               </ThemeProvider>

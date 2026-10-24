@@ -59,7 +59,7 @@
       </dict>
     </dict>
     <key>NSCameraUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your camera</string>
+    <string>Synapse uses the camera to scan documents and to read care-connection QR codes from another person's phone. Nothing is uploaded.</string>
     <key>NSCalendarsUsageDescription</key>
     <string>Synapse uses read-only calendar access so you can import selected events as appointments.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>

@@ -6,7 +6,7 @@
  * BEFORE any import: a file that isn't a plausible Synapse export must be
  * rejected here rather than wiping data.
  */
-import type { ExportPayload } from "@/lib/storage";
+import type { ExportPayload } from "@/lib/storage-self";
 import { MANUAL_BACKUP_SCHEMA_VERSION } from "@/lib/manual-backup-status";
 
 export type ParseExportResult =

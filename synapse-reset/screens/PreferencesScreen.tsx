@@ -11,7 +11,7 @@ import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import {
   settingsStorage,
   type UserSettings,
-} from "@/lib/storage";
+} from "@/lib/storage-self";
 import { isCurrentMonthRamadan } from "@/lib/hijri";
 import { syncAllFromSettings } from "@/lib/notification-manager";
 import { raised } from "@/constants/raised";

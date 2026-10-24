@@ -28,7 +28,7 @@ import {
 import { WALLPAPER_PRESETS } from "@/lib/appearance/wallpapers";
 import type { AccentId, SurfaceStyleId, WallpaperId } from "@/lib/appearance/types";
 import { raised } from "@/constants/raised";
-import { healthProfileStorage } from "@/lib/storage";
+import { healthProfileStorage } from "@/lib/storage-self";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 
 type AppearanceStudioScreenProps = {

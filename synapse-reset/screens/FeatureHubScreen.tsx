@@ -84,6 +84,13 @@ export const HEALTH_HUB: HubDefinition = {
       target: "wellbeinghub",
     },
     {
+      key: "checkin",
+      label: "Check-In",
+      description: "Stay connected with people you care about",
+      icon: "chatbubble-ellipses-outline",
+      target: "checkin",
+    },
+    {
       key: "carehub",
       label: "Care & Support",
       description: "Doctors, pharmacies, and care helpers",

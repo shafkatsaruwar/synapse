@@ -26,7 +26,7 @@ import {
   type SickModeData,
   type Symptom,
   type WidgetAppearancePreference,
-} from "@/lib/storage";
+} from "@/lib/storage-self";
 import { getDaysAgo, getToday } from "@/lib/date-utils";
 import { getAppointmentTravelEstimate } from "@/lib/appointment-travel";
 import { buildRecoveryInsights } from "@/lib/recovery-insights";

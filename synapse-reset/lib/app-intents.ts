@@ -8,7 +8,7 @@ import {
   settingsStorage,
   sickModeStorage,
   type Appointment,
-} from "@/lib/storage";
+} from "@/lib/storage-self";
 import { getToday } from "@/lib/date-utils";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { syncMissedMedicationCheckIn, syncRecoveryTrackingCheckIn } from "@/lib/notification-manager";

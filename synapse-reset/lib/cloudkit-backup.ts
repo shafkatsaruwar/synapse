@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, NativeModules, Platform } from "react-native";
 import { featureFlags } from "@/constants/feature-flags";
-import { exportAllData, importAllData, type ExportPayload } from "@/lib/storage";
+import { exportAllData, importAllData, type ExportPayload } from "@/lib/storage-self";
 import {
   getLocalDataUpdatedAt,
   markCloudKitBackupDirty,

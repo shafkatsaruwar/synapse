@@ -96,6 +96,15 @@ import {
 } from "@/lib/feedback-service";
 import { useAppMode } from "@/contexts/AppModeContext";
 import { useRole } from "@/contexts/RoleContext";
+import { useCareProfiles } from "@/contexts/CareProfileContext";
+import ActiveProfileBanner from "@/components/care/ActiveProfileBanner";
+import CaregiverSetupFlow from "@/components/care/CaregiverSetupFlow";
+import CheckInScreen from "@/screens/CheckInScreen";
+import ReferenceProfileScreen from "@/screens/ReferenceProfileScreen";
+import CareConnectionsScreen from "@/screens/CareConnectionsScreen";
+import { clearAllCareData } from "@/lib/care/profiles";
+import { deleteDeviceIdentity } from "@/lib/care/connections";
+import { wipeCheckInData, syncCheckInReminders } from "@/lib/care/checkin";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { getPendingIcsImport, type IcsImportPayload } from "@/lib/ics-import";
 import { processPendingAppIntentActions } from "@/lib/app-intents";
@@ -548,6 +557,12 @@ export default function MainScreen() {
 
     try {
       const parsed = new URL(url);
+      // synapse://care/invite?d=...  or  synapse://care/accept?d=...  (opened from Messages, a file, or another phone)
+      if (parsed.protocol === "synapse:" && parsed.host === "care") {
+        setCareIncoming(url);
+        setActiveScreen("careconnections");
+        return true;
+      }
       const queryTarget = parsed.searchParams.get("widgetTarget");
       const modeParam = parsed.searchParams.get("mode");
       const pathParts = parsed.pathname.split("/").filter(Boolean);
@@ -741,6 +756,9 @@ export default function MainScreen() {
       setActiveScreen("appointments");
       setRefreshKey((k) => k + 1);
       return;
+    }
+    if (target.notificationType === "check-in") {
+      setCheckInPersonId(target.personId ?? null);
     }
     setActiveScreen(target.screen);
     setRefreshKey((k) => k + 1);
@@ -1057,6 +1075,13 @@ export default function MainScreen() {
         // Best-effort — still erase local data.
       }
       try {
+        await wipeCheckInData();
+        await clearAllCareData();
+        await deleteDeviceIdentity();
+      } catch {
+        // Care data is cleared best-effort; keep going so the rest of the reset still happens.
+      }
+      try {
         await clearAllData();
       } catch {
         // Continue to onboarding even if a key fails to clear.
@@ -1184,7 +1209,12 @@ export default function MainScreen() {
   }, []);
 
   const { colors: C, themeId } = useTheme();
-  const { role, caregiverProfile, needsCaregiverOnboarding, saveCaregiverProfile, clearCaregiverMode } = useRole();
+  const { role: storedRole, caregiverProfile, needsCaregiverOnboarding, setRole: setStoredRole, clearCaregiverMode } = useRole();
+  const { activeProfile, viewingOther, revision, switchProfile } = useCareProfiles();
+  // Roles are no longer exclusive: viewing someone else is caregiver context; viewing yourself never is.
+  const role = viewingOther ? "caregiver" : storedRole === "caregiver" ? "self" : storedRole;
+  const [careIncoming, setCareIncoming] = useState<string | null>(null);
+  const [checkInPersonId, setCheckInPersonId] = useState<string | null>(null);
   const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
   const [caregiverNameDraft, setCaregiverNameDraft] = useState("");
   const [caregiverAgeDraft, setCaregiverAgeDraft] = useState("");
@@ -1225,83 +1255,25 @@ export default function MainScreen() {
     </Modal>
   );
   const caregiverOnboardingModal = (
-    <Modal
-      animationType="fade"
-      transparent
+    <CaregiverSetupFlow
       visible={needsCaregiverOnboarding}
-      onRequestClose={() => {
+      onClose={() => {
         void clearCaregiverMode();
+        setActiveScreen("settings");
+        setRefreshKey((k) => k + 1);
       }}
-    >
-      <View style={styles.caregiverModalBackdrop}>
-        <View style={styles.caregiverOnboardingCard}>
-          <Text style={styles.feedbackPromptTitle}>Set up caregiver mode</Text>
-          <Text style={styles.feedbackPromptBody}>Who are you managing care for?</Text>
-          <TextInput
-            style={styles.caregiverInput}
-            value={caregiverNameDraft}
-            onChangeText={setCaregiverNameDraft}
-            placeholder="Name"
-            placeholderTextColor={C.textTertiary}
-          />
-          <TextInput
-            style={styles.caregiverInput}
-            value={caregiverAgeDraft}
-            onChangeText={setCaregiverAgeDraft}
-            placeholder="Age"
-            placeholderTextColor={C.textTertiary}
-            keyboardType="number-pad"
-          />
-          <TextInput
-            style={styles.caregiverInput}
-            value={caregiverRelationDraft}
-            onChangeText={setCaregiverRelationDraft}
-            placeholder="Relation optional"
-            placeholderTextColor={C.textTertiary}
-          />
-          <View style={styles.feedbackPromptActions}>
-            <Pressable
-              onPress={async () => {
-                const name = caregiverNameDraft.trim();
-                if (!name) {
-                  Alert.alert("Name required", "Add the managed person’s name.");
-                  return;
-                }
-                await saveCaregiverProfile({
-                  name,
-                  age: caregiverAgeDraft.trim() ? Math.max(0, parseInt(caregiverAgeDraft, 10) || 0) : 0,
-                  relation: caregiverRelationDraft.trim() || undefined,
-                  medications: caregiverProfile?.medications ?? [],
-                  appointments: caregiverProfile?.appointments ?? [],
-                  logs: caregiverProfile?.logs ?? [],
-                });
-                setCaregiverNameDraft("");
-                setCaregiverAgeDraft("");
-                setCaregiverRelationDraft("");
-                setActiveScreen("caregiverdashboard");
-                setRefreshKey((k) => k + 1);
-              }}
-              style={({ pressed }) => [styles.feedbackPromptPrimary, pressed && styles.whatsNewButtonPressed]}
-            >
-              <Text style={styles.feedbackPromptPrimaryText}>Continue</Text>
-            </Pressable>
-            <Pressable
-              onPress={async () => {
-                setCaregiverNameDraft("");
-                setCaregiverAgeDraft("");
-                setCaregiverRelationDraft("");
-                await clearCaregiverMode();
-                setActiveScreen("settings");
-                setRefreshKey((k) => k + 1);
-              }}
-              style={({ pressed }) => [styles.feedbackPromptSecondary, pressed && styles.whatsNewButtonPressed]}
-            >
-              <Text style={styles.feedbackPromptSecondaryText}>Cancel</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
+      onCreated={async (p) => {
+        await setStoredRole("self");
+        await switchProfile(p.id);
+        setActiveScreen("caregiverdashboard");
+        setRefreshKey((k) => k + 1);
+      }}
+      onConnect={async (p) => {
+        await setStoredRole("self");
+        if (p) await switchProfile(p.id);
+        setActiveScreen("careconnections");
+      }}
+    />
   );
   const simpleModeTourOverlay = (
     <SimpleModeTourOverlay
@@ -1336,6 +1308,11 @@ export default function MainScreen() {
     }
     if (activeScreen === "sickmode") {
       return <SickModeScreen onDeactivate={handleDeactivateSickMode} onRefreshKey={refreshKey} onNavigate={handleNavigate} />;
+    }
+
+    // A connected person's reference profile is view-only and shows only their shared copies.
+    if (activeProfile.type === "connected_reference" && activeScreen !== "careconnections") {
+      return <ReferenceProfileScreen onNavigate={handleNavigate} />;
     }
 
     switch (activeScreen) {
@@ -1411,6 +1388,23 @@ export default function MainScreen() {
           <ManagedPersonScreen
             onBack={() => backToParentOr("carehub")}
             onRemoved={() => handleNavigate("caresharing")}
+            onNavigate={handleNavigate}
+          />
+        );
+      case "careconnections":
+        return (
+          <CareConnectionsScreen
+            onBack={() => backToParentOr("caresharing")}
+            incoming={careIncoming}
+            onIncomingHandled={() => setCareIncoming(null)}
+          />
+        );
+      case "checkin":
+        return (
+          <CheckInScreen
+            onBack={() => backToParentOr("health")}
+            onNavigate={handleNavigate}
+            initialPersonId={checkInPersonId}
           />
         );
       case "log":
@@ -1573,11 +1567,13 @@ export default function MainScreen() {
       onWebSidebarToggle={setWebSidebarCollapsed}
     >
       <>
+        <ActiveProfileBanner />
         <ContextualTip
           screen={activeScreen}
           blocked={sickMode || TIP_BLOCKED_SCREENS.has(activeScreen)}
         />
-        {renderScreen()}
+        {/* Remount on profile switch so every screen reloads the right person's records. */}
+        <React.Fragment key={`${activeProfile.id}:${revision}`}>{renderScreen()}</React.Fragment>
       </>
     </SidebarLayout>
   );

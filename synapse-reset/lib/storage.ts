@@ -63,8 +63,16 @@ export interface MedicationDose {
 
 export type MedicationType = "scheduled" | "prn";
 
+/** Set when a change arrived through a Care Connection and the owner accepted it. */
+export interface ChangedByInfo {
+  name: string;
+  at: string;
+  via: "care_connection";
+}
+
 export interface Medication {
   id: string;
+  changedBy?: ChangedByInfo;
   source?: "manual" | "scan" | "calendar" | "import";
   name: string;
   imageUri?: string;
@@ -155,6 +163,8 @@ export interface MedicationLog {
   scheduledTime?: string;
   notes?: string;
   reason?: string;
+  /** Who confirmed the dose. Undefined means the person themself (legacy records). */
+  enteredBy?: "self" | "caregiver";
 }
 
 export interface SickModeData {
@@ -264,6 +274,7 @@ export type AppointmentSource = "manual" | "scan" | "calendar" | "import" | "cal
 
 export interface Appointment {
   id: string;
+  changedBy?: ChangedByInfo;
   doctor_id?: string;
   doctorName: string;
   specialty: string;
@@ -544,7 +555,7 @@ export interface UserSettings {
   medicationEnforcementEnabled?: boolean;
 }
 
-const KEYS = {
+const BASE_KEYS = {
   HEALTH_LOGS: "fir_health_logs",
   SYMPTOMS: "fir_symptoms",
   MEDICATIONS: "fir_medications",
@@ -579,6 +590,32 @@ const KEYS = {
   MED_ENFORCEMENT: "fir_med_enforcement_events",
 };
 
+/** App-level keys that are never namespaced per care profile. */
+const GLOBAL_KEY_NAMES = ["SETTINGS", "USER_ROLE", "CAREGIVER_PROFILE", "FEEDBACK", "HYDRATION_PRESET"] as const;
+type KeyMap = typeof BASE_KEYS;
+
+export const SELF_PROFILE_ID = "self";
+export const PROFILE_KEY_PREFIX = "fir_p_";
+
+/** Self uses the legacy keys unchanged; every other profile is namespaced fir_p_<id>_<key>. */
+export function profileStorageKey(profileId: string, baseKey: string): string {
+  return profileId === SELF_PROFILE_ID ? baseKey : `${PROFILE_KEY_PREFIX}${profileId}_${baseKey}`;
+}
+
+function keysForProfile(profileId: string): KeyMap {
+  if (profileId === SELF_PROFILE_ID) return BASE_KEYS;
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(BASE_KEYS)) {
+    out[name] = (GLOBAL_KEY_NAMES as readonly string[]).includes(name) ? value : profileStorageKey(profileId, value);
+  }
+  return out as KeyMap;
+}
+
+export const STORAGE_BASE_KEYS = BASE_KEYS;
+
+/** Self-profile keys. Code outside createStores (export/import/clear) always means Self. */
+const KEYS = BASE_KEYS;
+
 async function getItem<T>(key: string): Promise<T[]> {
   try {
     const raw = await AsyncStorage.getItem(key);
@@ -598,1258 +635,1391 @@ async function setItem<T>(key: string, data: T[]): Promise<void> {
   }
 }
 
-export const healthLogStorage = {
-  getAll: async () => {
-    const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
-    return logs.map((log) => ({
-      ...log,
-      entryOwner: log.entryOwner ?? "self",
-      recordedAt: log.recordedAt ?? `${log.date}T12:00:00`,
-    }));
-  },
-  getByDate: async (date: string, entryOwner: RecordOwner = "self") => {
-    const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
-    return logs.find((l) => l.date === date && (l.entryOwner ?? "self") === entryOwner);
-  },
-  save: async (log: Omit<HealthLog, "id">) => {
-    const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
-    const owner = log.entryOwner ?? "self";
-    const existing = logs.findIndex((l) => l.date === log.date && (l.entryOwner ?? "self") === owner);
-    if (existing >= 0) {
-      logs[existing] = { ...logs[existing], ...log, entryOwner: owner, recordedAt: log.recordedAt ?? logs[existing].recordedAt ?? new Date().toISOString() };
-    } else {
-      logs.push({ ...log, id: Crypto.randomUUID(), entryOwner: owner, recordedAt: log.recordedAt ?? new Date().toISOString() });
-    }
-    await setItem(KEYS.HEALTH_LOGS, logs);
-  },
-  delete: async (id: string) => {
-    const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
-    await setItem(KEYS.HEALTH_LOGS, logs.filter((l) => l.id !== id));
-  },
-};
 
-export const symptomStorage = {
-  getAll: async () => {
-    const all = await getItem<Symptom>(KEYS.SYMPTOMS);
-    return all.map((symptom) => ({
-      ...symptom,
-      recordedAt: symptom.recordedAt ?? `${symptom.date}T12:00:00`,
-    }));
-  },
-  getByDate: async (date: string) => {
-    const all = await getItem<Symptom>(KEYS.SYMPTOMS);
-    return all.filter((s) => s.date === date);
-  },
-  save: async (symptom: Omit<Symptom, "id">) => {
-    const all = await getItem<Symptom>(KEYS.SYMPTOMS);
-    all.push({ ...symptom, id: Crypto.randomUUID(), recordedAt: symptom.recordedAt ?? new Date().toISOString() });
-    await setItem(KEYS.SYMPTOMS, all);
-  },
-  delete: async (id: string) => {
-    const all = await getItem<Symptom>(KEYS.SYMPTOMS);
-    await setItem(KEYS.SYMPTOMS, all.filter((s) => s.id !== id));
-  },
-};
+/** Builds the full set of storage accessors bound to one care profile's keys. */
+function createStores(KEYS: KeyMap, profileId: string) {
+  const isSelfProfile = profileId === SELF_PROFILE_ID;
+  const scopedRaw = (key: string) => profileStorageKey(profileId, key);
+  const healthLogStorage = {
+    getAll: async () => {
+      const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
+      return logs.map((log) => ({
+        ...log,
+        entryOwner: log.entryOwner ?? "self",
+        recordedAt: log.recordedAt ?? `${log.date}T12:00:00`,
+      }));
+    },
+    getByDate: async (date: string, entryOwner: RecordOwner = "self") => {
+      const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
+      return logs.find((l) => l.date === date && (l.entryOwner ?? "self") === entryOwner);
+    },
+    save: async (log: Omit<HealthLog, "id">) => {
+      const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
+      const owner = log.entryOwner ?? "self";
+      const existing = logs.findIndex((l) => l.date === log.date && (l.entryOwner ?? "self") === owner);
+      if (existing >= 0) {
+        logs[existing] = { ...logs[existing], ...log, entryOwner: owner, recordedAt: log.recordedAt ?? logs[existing].recordedAt ?? new Date().toISOString() };
+      } else {
+        logs.push({ ...log, id: Crypto.randomUUID(), entryOwner: owner, recordedAt: log.recordedAt ?? new Date().toISOString() });
+      }
+      await setItem(KEYS.HEALTH_LOGS, logs);
+    },
+    delete: async (id: string) => {
+      const logs = await getItem<HealthLog>(KEYS.HEALTH_LOGS);
+      await setItem(KEYS.HEALTH_LOGS, logs.filter((l) => l.id !== id));
+    },
+  };
 
-export const feedbackStorage = {
-  getAll: () => getItem<FeedbackEntry>(KEYS.FEEDBACK),
-  save: async (entry: Omit<FeedbackEntry, "id" | "timestamp"> & { timestamp?: string }) => {
-    const all = await getItem<FeedbackEntry>(KEYS.FEEDBACK);
-    const saved: FeedbackEntry = {
-      id: Crypto.randomUUID(),
-      timestamp: entry.timestamp ?? new Date().toISOString(),
-      sentiment: entry.sentiment,
-      category: entry.category,
-      message: entry.message,
-      email: entry.email?.trim() || undefined,
-    };
-    all.unshift(saved);
-    await setItem(KEYS.FEEDBACK, all);
-    return saved;
-  },
-};
+  const symptomStorage = {
+    getAll: async () => {
+      const all = await getItem<Symptom>(KEYS.SYMPTOMS);
+      return all.map((symptom) => ({
+        ...symptom,
+        recordedAt: symptom.recordedAt ?? `${symptom.date}T12:00:00`,
+      }));
+    },
+    getByDate: async (date: string) => {
+      const all = await getItem<Symptom>(KEYS.SYMPTOMS);
+      return all.filter((s) => s.date === date);
+    },
+    save: async (symptom: Omit<Symptom, "id">) => {
+      const all = await getItem<Symptom>(KEYS.SYMPTOMS);
+      all.push({ ...symptom, id: Crypto.randomUUID(), recordedAt: symptom.recordedAt ?? new Date().toISOString() });
+      await setItem(KEYS.SYMPTOMS, all);
+    },
+    delete: async (id: string) => {
+      const all = await getItem<Symptom>(KEYS.SYMPTOMS);
+      await setItem(KEYS.SYMPTOMS, all.filter((s) => s.id !== id));
+    },
+  };
 
-export const medicationStorage = {
-  getAll: async () => {
-    const raw = await getItem<Medication>(KEYS.MEDICATIONS);
-    return raw.map((med) => ({ ...normalizeMedication(med), entryOwner: med.entryOwner ?? "self" }));
-  },
-  save: async (med: Omit<Medication, "id">) => {
-    const meds = await getItem<Medication>(KEYS.MEDICATIONS);
-    const savedMedication: Medication = {
-      ...med,
-      medicationType: med.medicationType ?? "scheduled",
-      id: Crypto.randomUUID(),
-      entryOwner: med.entryOwner ?? "self",
-    };
-    meds.push(savedMedication);
-    await setItem(KEYS.MEDICATIONS, meds);
-    return savedMedication;
-  },
-  update: async (id: string, updates: Partial<Medication>) => {
-    const meds = await getItem<Medication>(KEYS.MEDICATIONS);
-    const idx = meds.findIndex((m) => m.id === id);
-    if (idx >= 0) {
-      meds[idx] = { ...meds[idx], ...updates };
+  const feedbackStorage = {
+    getAll: () => getItem<FeedbackEntry>(KEYS.FEEDBACK),
+    save: async (entry: Omit<FeedbackEntry, "id" | "timestamp"> & { timestamp?: string }) => {
+      const all = await getItem<FeedbackEntry>(KEYS.FEEDBACK);
+      const saved: FeedbackEntry = {
+        id: Crypto.randomUUID(),
+        timestamp: entry.timestamp ?? new Date().toISOString(),
+        sentiment: entry.sentiment,
+        category: entry.category,
+        message: entry.message,
+        email: entry.email?.trim() || undefined,
+      };
+      all.unshift(saved);
+      await setItem(KEYS.FEEDBACK, all);
+      return saved;
+    },
+  };
+
+  const medicationStorage = {
+    getAll: async () => {
+      const raw = await getItem<Medication>(KEYS.MEDICATIONS);
+      return raw.map((med) => ({ ...normalizeMedication(med), entryOwner: med.entryOwner ?? "self" }));
+    },
+    save: async (med: Omit<Medication, "id">) => {
+      const meds = await getItem<Medication>(KEYS.MEDICATIONS);
+      const savedMedication: Medication = {
+        ...med,
+        medicationType: med.medicationType ?? "scheduled",
+        id: Crypto.randomUUID(),
+        entryOwner: med.entryOwner ?? "self",
+      };
+      meds.push(savedMedication);
       await setItem(KEYS.MEDICATIONS, meds);
-    }
-  },
-  delete: async (id: string) => {
-    const meds = await getItem<Medication>(KEYS.MEDICATIONS);
-    await setItem(KEYS.MEDICATIONS, meds.filter((m) => m.id !== id));
-  },
-};
+      return savedMedication;
+    },
+    update: async (id: string, updates: Partial<Medication>) => {
+      const meds = await getItem<Medication>(KEYS.MEDICATIONS);
+      const idx = meds.findIndex((m) => m.id === id);
+      if (idx >= 0) {
+        meds[idx] = { ...meds[idx], ...updates };
+        await setItem(KEYS.MEDICATIONS, meds);
+      }
+    },
+    delete: async (id: string) => {
+      const meds = await getItem<Medication>(KEYS.MEDICATIONS);
+      await setItem(KEYS.MEDICATIONS, meds.filter((m) => m.id !== id));
+    },
+  };
 
-export const medicationLogStorage = {
-  getAll: async () => {
-    const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
-    return logs.map((log) => ({ ...log, recordedAt: log.recordedAt ?? (log.taken ? `${log.date}T12:00:00` : undefined) }));
-  },
-  getByDate: async (date: string) => {
-    const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
-    return logs.filter((l) => l.date === date);
-  },
-  toggle: async (medicationId: string, date: string, doseIndex?: number, metadata?: { scheduledTime?: string; notes?: string }) => {
-    const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
-    const existing = logs.findIndex(
-      (l) => l.medicationId === medicationId && l.date === date && (l.doseIndex ?? 0) === (doseIndex ?? 0),
-    );
-    if (existing >= 0) {
-      logs[existing].taken = !logs[existing].taken;
-      logs[existing].recordedAt = logs[existing].taken ? new Date().toISOString() : undefined;
-      logs[existing].scheduledTime = metadata?.scheduledTime ?? logs[existing].scheduledTime;
-      logs[existing].notes = metadata?.notes ?? logs[existing].notes;
-    } else {
-      logs.push({
+  const medicationLogStorage = {
+    getAll: async () => {
+      const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+      return logs.map((log) => ({ ...log, recordedAt: log.recordedAt ?? (log.taken ? `${log.date}T12:00:00` : undefined) }));
+    },
+    getByDate: async (date: string) => {
+      const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+      return logs.filter((l) => l.date === date);
+    },
+    toggle: async (medicationId: string, date: string, doseIndex?: number, metadata?: { scheduledTime?: string; notes?: string }) => {
+      const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+      const existing = logs.findIndex(
+        (l) => l.medicationId === medicationId && l.date === date && (l.doseIndex ?? 0) === (doseIndex ?? 0),
+      );
+      if (existing >= 0) {
+        logs[existing].taken = !logs[existing].taken;
+        logs[existing].recordedAt = logs[existing].taken ? new Date().toISOString() : undefined;
+        logs[existing].scheduledTime = metadata?.scheduledTime ?? logs[existing].scheduledTime;
+        logs[existing].notes = metadata?.notes ?? logs[existing].notes;
+        if (!isSelfProfile) logs[existing].enteredBy = "caregiver";
+      } else {
+        logs.push({
+          id: Crypto.randomUUID(),
+          medicationId,
+          doseIndex: doseIndex ?? 0,
+          date,
+          taken: true,
+          recordedAt: new Date().toISOString(),
+          scheduledTime: metadata?.scheduledTime,
+          notes: metadata?.notes,
+          // Confirmations typed into a caregiver-managed profile are the caregiver's, not the person's.
+          ...(isSelfProfile ? {} : { enteredBy: "caregiver" as const }),
+        });
+      }
+      await setItem(KEYS.MEDICATION_LOGS, logs);
+    },
+    /**
+     * Idempotently ensure a scheduled dose is recorded as taken.
+     *
+     * - If a log already exists for (medicationId, date, doseIndex): set taken=true
+     *   (never flip an already-taken dose back to false), update metadata, and do
+     *   NOT create a duplicate row.
+     * - Otherwise create a single taken log.
+     *
+     * This is the safe path for both the notification "Mark as Taken" action and
+     * Medication Enforcement TAKEN, so repeated actions can never un-take a dose.
+     */
+    ensureTaken: async (
+      medicationId: string,
+      date: string,
+      doseIndex = 0,
+      metadata?: { scheduledTime?: string; notes?: string; recordedAt?: string; enteredBy?: "self" | "caregiver" },
+    ) => {
+      const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+      const index = logs.findIndex(
+        (l) => l.medicationId === medicationId && l.date === date && (l.doseIndex ?? 0) === doseIndex,
+      );
+      if (index >= 0) {
+        logs[index] = {
+          ...logs[index],
+          taken: true,
+          recordedAt: logs[index].recordedAt ?? metadata?.recordedAt ?? new Date().toISOString(),
+          scheduledTime: metadata?.scheduledTime ?? logs[index].scheduledTime,
+          notes: metadata?.notes ?? logs[index].notes,
+          ...(metadata?.enteredBy ? { enteredBy: metadata.enteredBy } : {}),
+        };
+        await setItem(KEYS.MEDICATION_LOGS, logs);
+        return logs[index];
+      }
+      const created: MedicationLog = {
         id: Crypto.randomUUID(),
         medicationId,
-        doseIndex: doseIndex ?? 0,
+        doseIndex,
         date,
         taken: true,
-        recordedAt: new Date().toISOString(),
+        recordedAt: metadata?.recordedAt ?? new Date().toISOString(),
         scheduledTime: metadata?.scheduledTime,
         notes: metadata?.notes,
-      });
-    }
-    await setItem(KEYS.MEDICATION_LOGS, logs);
-  },
-  /**
-   * Idempotently ensure a scheduled dose is recorded as taken.
-   *
-   * - If a log already exists for (medicationId, date, doseIndex): set taken=true
-   *   (never flip an already-taken dose back to false), update metadata, and do
-   *   NOT create a duplicate row.
-   * - Otherwise create a single taken log.
-   *
-   * This is the safe path for both the notification "Mark as Taken" action and
-   * Medication Enforcement TAKEN, so repeated actions can never un-take a dose.
-   */
-  ensureTaken: async (
-    medicationId: string,
-    date: string,
-    doseIndex = 0,
-    metadata?: { scheduledTime?: string; notes?: string; recordedAt?: string },
-  ) => {
-    const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
-    const index = logs.findIndex(
-      (l) => l.medicationId === medicationId && l.date === date && (l.doseIndex ?? 0) === doseIndex,
-    );
-    if (index >= 0) {
+        ...(metadata?.enteredBy ? { enteredBy: metadata.enteredBy } : {}),
+      };
+      logs.push(created);
+      await setItem(KEYS.MEDICATION_LOGS, logs);
+      return created;
+    },
+    logPrnDose: async (
+      medicationId: string,
+      metadata?: { notes?: string; reason?: string; timestamp?: string },
+    ) => {
+      const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+      const recordedAt = metadata?.timestamp ?? new Date().toISOString();
+      const recordedDate = metadata?.timestamp ? getLocalDateKey(recordedAt) : getToday();
+      const nextLog: MedicationLog = {
+        id: Crypto.randomUUID(),
+        medicationId,
+        doseIndex: -1,
+        date: recordedDate,
+        taken: true,
+        recordedAt,
+        notes: metadata?.notes?.trim() || undefined,
+        reason: metadata?.reason?.trim() || undefined,
+      };
+      logs.push(nextLog);
+      await setItem(KEYS.MEDICATION_LOGS, logs);
+      return nextLog;
+    },
+    update: async (id: string, updates: Partial<Pick<MedicationLog, "notes" | "reason" | "recordedAt">>) => {
+      const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+      const index = logs.findIndex((log) => log.id === id);
+      if (index === -1) return null;
+      const nextRecordedAt = updates.recordedAt ?? logs[index].recordedAt;
       logs[index] = {
         ...logs[index],
-        taken: true,
-        recordedAt: logs[index].recordedAt ?? metadata?.recordedAt ?? new Date().toISOString(),
-        scheduledTime: metadata?.scheduledTime ?? logs[index].scheduledTime,
-        notes: metadata?.notes ?? logs[index].notes,
+        date: nextRecordedAt ? getLocalDateKey(nextRecordedAt) : logs[index].date,
+        notes: updates.notes?.trim() || undefined,
+        reason: updates.reason?.trim() || undefined,
+        recordedAt: nextRecordedAt,
       };
       await setItem(KEYS.MEDICATION_LOGS, logs);
       return logs[index];
+    },
+    deleteByMedicationId: async (medicationId: string) => {
+      const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+      await setItem(KEYS.MEDICATION_LOGS, logs.filter((log) => log.medicationId !== medicationId));
+    },
+  };
+
+  /**
+   * Private Medication Enforcement accountability metadata. This is NOT medication
+   * adherence — Reports + `medicationLogStorage` remain the canonical adherence
+   * source. These records only track enforcement resolution/escalation history.
+   */
+  const medicationEnforcementStorage = {
+    getAll: () => getItem<MedicationEnforcementEvent>(KEYS.MED_ENFORCEMENT),
+    getById: async (id: string) => {
+      const all = await getItem<MedicationEnforcementEvent>(KEYS.MED_ENFORCEMENT);
+      return all.find((event) => event.id === id) ?? null;
+    },
+    upsert: async (event: MedicationEnforcementEvent) => {
+      const all = await getItem<MedicationEnforcementEvent>(KEYS.MED_ENFORCEMENT);
+      const index = all.findIndex((existing) => existing.id === event.id);
+      if (index >= 0) all[index] = event;
+      else all.push(event);
+      await setItem(KEYS.MED_ENFORCEMENT, all);
+      return event;
+    },
+    setAll: async (events: MedicationEnforcementEvent[]) => {
+      await setItem(KEYS.MED_ENFORCEMENT, events);
+    },
+    delete: async (id: string) => {
+      const all = await getItem<MedicationEnforcementEvent>(KEYS.MED_ENFORCEMENT);
+      await setItem(KEYS.MED_ENFORCEMENT, all.filter((event) => event.id !== id));
+    },
+  };
+
+  function getLocalDateKey(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value.slice(0, 10);
     }
-    const created: MedicationLog = {
-      id: Crypto.randomUUID(),
-      medicationId,
-      doseIndex,
-      date,
-      taken: true,
-      recordedAt: metadata?.recordedAt ?? new Date().toISOString(),
-      scheduledTime: metadata?.scheduledTime,
-      notes: metadata?.notes,
-    };
-    logs.push(created);
-    await setItem(KEYS.MEDICATION_LOGS, logs);
-    return created;
-  },
-  logPrnDose: async (
-    medicationId: string,
-    metadata?: { notes?: string; reason?: string; timestamp?: string },
-  ) => {
-    const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
-    const recordedAt = metadata?.timestamp ?? new Date().toISOString();
-    const recordedDate = metadata?.timestamp ? getLocalDateKey(recordedAt) : getToday();
-    const nextLog: MedicationLog = {
-      id: Crypto.randomUUID(),
-      medicationId,
-      doseIndex: -1,
-      date: recordedDate,
-      taken: true,
-      recordedAt,
-      notes: metadata?.notes?.trim() || undefined,
-      reason: metadata?.reason?.trim() || undefined,
-    };
-    logs.push(nextLog);
-    await setItem(KEYS.MEDICATION_LOGS, logs);
-    return nextLog;
-  },
-  update: async (id: string, updates: Partial<Pick<MedicationLog, "notes" | "reason" | "recordedAt">>) => {
-    const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
-    const index = logs.findIndex((log) => log.id === id);
-    if (index === -1) return null;
-    const nextRecordedAt = updates.recordedAt ?? logs[index].recordedAt;
-    logs[index] = {
-      ...logs[index],
-      date: nextRecordedAt ? getLocalDateKey(nextRecordedAt) : logs[index].date,
-      notes: updates.notes?.trim() || undefined,
-      reason: updates.reason?.trim() || undefined,
-      recordedAt: nextRecordedAt,
-    };
-    await setItem(KEYS.MEDICATION_LOGS, logs);
-    return logs[index];
-  },
-  deleteByMedicationId: async (medicationId: string) => {
-    const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
-    await setItem(KEYS.MEDICATION_LOGS, logs.filter((log) => log.medicationId !== medicationId));
-  },
-};
-
-/**
- * Private Medication Enforcement accountability metadata. This is NOT medication
- * adherence — Reports + `medicationLogStorage` remain the canonical adherence
- * source. These records only track enforcement resolution/escalation history.
- */
-export const medicationEnforcementStorage = {
-  getAll: () => getItem<MedicationEnforcementEvent>(KEYS.MED_ENFORCEMENT),
-  getById: async (id: string) => {
-    const all = await getItem<MedicationEnforcementEvent>(KEYS.MED_ENFORCEMENT);
-    return all.find((event) => event.id === id) ?? null;
-  },
-  upsert: async (event: MedicationEnforcementEvent) => {
-    const all = await getItem<MedicationEnforcementEvent>(KEYS.MED_ENFORCEMENT);
-    const index = all.findIndex((existing) => existing.id === event.id);
-    if (index >= 0) all[index] = event;
-    else all.push(event);
-    await setItem(KEYS.MED_ENFORCEMENT, all);
-    return event;
-  },
-  setAll: async (events: MedicationEnforcementEvent[]) => {
-    await setItem(KEYS.MED_ENFORCEMENT, events);
-  },
-  delete: async (id: string) => {
-    const all = await getItem<MedicationEnforcementEvent>(KEYS.MED_ENFORCEMENT);
-    await setItem(KEYS.MED_ENFORCEMENT, all.filter((event) => event.id !== id));
-  },
-};
-
-function getLocalDateKey(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value.slice(0, 10);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   }
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
 
-function normalizeDoctorOwner(doc: Doctor): Doctor {
-  return { ...doc, entryOwner: doc.entryOwner ?? "self" };
-}
-
-async function getDoctorsWithOwnerMigration(): Promise<Doctor[]> {
-  const all = await getItem<Doctor>(KEYS.DOCTORS);
-  const normalized = all.map(normalizeDoctorOwner);
-  if (normalized.some((doc, index) => doc.entryOwner !== all[index]?.entryOwner)) {
-    await setItem(KEYS.DOCTORS, normalized);
+  function normalizeDoctorOwner(doc: Doctor): Doctor {
+    return { ...doc, entryOwner: doc.entryOwner ?? "self" };
   }
-  return normalized;
-}
 
-export const doctorsStorage = {
-  getAll: async (entryOwner?: RecordOwner) => {
-    const all = await getDoctorsWithOwnerMigration();
-    return entryOwner ? all.filter((doctor) => (doctor.entryOwner ?? "self") === entryOwner) : all;
-  },
-  save: async (doc: Omit<Doctor, "id" | "created_at">, entryOwner: RecordOwner = doc.entryOwner ?? "self") => {
-    const all = await getDoctorsWithOwnerMigration();
-    const newDoc: Doctor = {
-      ...doc,
-      name: (doc.name ?? "").trim(),
-      specialty: doc.specialty?.trim() || undefined,
-      phone: doc.phone?.trim() || undefined,
-      address: doc.address?.trim() || undefined,
-      hospital: doc.hospital?.trim() || undefined,
-      entryOwner,
-      isPrimary: doc.isPrimary ?? false,
-      isEmergency: doc.isEmergency ?? false,
-      id: Crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-    };
-    all.push(newDoc);
-    await setItem(KEYS.DOCTORS, all);
-    return newDoc;
-  },
-  addOrGet: async (doc: { name: string; specialty?: string; phone?: string; address?: string; hospital?: string; entryOwner?: RecordOwner }, entryOwner: RecordOwner = doc.entryOwner ?? "self") => {
-    const all = await getDoctorsWithOwnerMigration();
-    const name = (doc.name ?? "").trim();
-    const normalized = name.toLowerCase();
-    const existing = all.find((d) => (d.entryOwner ?? "self") === entryOwner && (d.name ?? "").trim().toLowerCase() === normalized);
-    if (existing) return existing;
-    const newDoc: Doctor = {
-      id: Crypto.randomUUID(),
-      name,
-      specialty: doc.specialty?.trim() || undefined,
-      phone: doc.phone?.trim() || undefined,
-      address: doc.address?.trim() || undefined,
-      hospital: doc.hospital?.trim() || undefined,
-      entryOwner,
-      isPrimary: false,
-      isEmergency: false,
-      created_at: new Date().toISOString(),
-    };
-    all.push(newDoc);
-    await setItem(KEYS.DOCTORS, all);
-    return newDoc;
-  },
-  update: async (id: string, updates: Partial<Omit<Doctor, "id" | "created_at">>) => {
-    const all = await getDoctorsWithOwnerMigration();
-    const idx = all.findIndex((d) => d.id === id);
-    if (idx === -1) return;
-    all[idx] = {
-      ...all[idx],
-      ...updates,
-      name: (updates.name ?? all[idx].name ?? "").trim(),
-      specialty: updates.specialty !== undefined ? (updates.specialty?.trim() || undefined) : all[idx].specialty,
-      phone: updates.phone !== undefined ? (updates.phone?.trim() || undefined) : all[idx].phone,
-      address: updates.address !== undefined ? (updates.address?.trim() || undefined) : all[idx].address,
-      hospital: updates.hospital !== undefined ? (updates.hospital?.trim() || undefined) : all[idx].hospital,
-      entryOwner: updates.entryOwner ?? all[idx].entryOwner ?? "self",
-      isPrimary: updates.isPrimary ?? all[idx].isPrimary ?? false,
-      isEmergency: updates.isEmergency ?? all[idx].isEmergency ?? false,
-    };
-    await setItem(KEYS.DOCTORS, all);
-  },
-  mergeFromRemote: async (remote: Doctor[]) => {
-    const local = await getDoctorsWithOwnerMigration();
-    const byId = new Map(local.map((d) => [d.id, d]));
-    remote.forEach((r) => byId.set(r.id, normalizeDoctorOwner(r)));
-    await setItem(KEYS.DOCTORS, Array.from(byId.values()));
-  },
-  setPrimary: async (id: string, entryOwner: RecordOwner) => {
-    const all = await getDoctorsWithOwnerMigration();
-    const target = all.find((doctor) => doctor.id === id && (doctor.entryOwner ?? "self") === entryOwner);
-    const nextValue = !target?.isPrimary;
-    const next = all.map((doctor) => (
-      (doctor.entryOwner ?? "self") === entryOwner
-        ? { ...doctor, isPrimary: doctor.id === id ? nextValue : false }
-        : doctor
-    ));
-    await setItem(KEYS.DOCTORS, next);
-  },
-  setEmergency: async (id: string, entryOwner: RecordOwner) => {
-    const all = await getDoctorsWithOwnerMigration();
-    const target = all.find((doctor) => doctor.id === id && (doctor.entryOwner ?? "self") === entryOwner);
-    const nextValue = !target?.isEmergency;
-    const next = all.map((doctor) => (
-      (doctor.entryOwner ?? "self") === entryOwner
-        ? { ...doctor, isEmergency: doctor.id === id ? nextValue : false }
-        : doctor
-    ));
-    await setItem(KEYS.DOCTORS, next);
-  },
-  delete: async (id: string) => {
-    const all = await getDoctorsWithOwnerMigration();
-    await setItem(KEYS.DOCTORS, all.filter((d) => d.id !== id));
-  },
-};
-
-export const pharmacyStorage = {
-  getAll: () => getItem<Pharmacy>(KEYS.PHARMACIES),
-  save: async (pharmacy: Omit<Pharmacy, "id" | "created_at">) => {
-    const all = await getItem<Pharmacy>(KEYS.PHARMACIES);
-    const newPharmacy: Pharmacy = {
-      ...pharmacy,
-      name: (pharmacy.name ?? "").trim(),
-      phone: pharmacy.phone?.trim() || undefined,
-      address: pharmacy.address?.trim() || undefined,
-      hospital: pharmacy.hospital?.trim() || undefined,
-      id: Crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-    };
-    all.push(newPharmacy);
-    await setItem(KEYS.PHARMACIES, all);
-    return newPharmacy;
-  },
-  addOrGet: async (pharmacy: { name: string; phone?: string; address?: string; hospital?: string }) => {
-    const all = await getItem<Pharmacy>(KEYS.PHARMACIES);
-    const name = (pharmacy.name ?? "").trim();
-    const normalized = name.toLowerCase();
-    const existing = all.find((p) => (p.name ?? "").trim().toLowerCase() === normalized);
-    if (existing) return existing;
-    const newPharmacy: Pharmacy = {
-      id: Crypto.randomUUID(),
-      name,
-      phone: pharmacy.phone?.trim() || undefined,
-      address: pharmacy.address?.trim() || undefined,
-      hospital: pharmacy.hospital?.trim() || undefined,
-      created_at: new Date().toISOString(),
-    };
-    all.push(newPharmacy);
-    await setItem(KEYS.PHARMACIES, all);
-    return newPharmacy;
-  },
-  update: async (id: string, updates: Partial<Omit<Pharmacy, "id" | "created_at">>) => {
-    const all = await getItem<Pharmacy>(KEYS.PHARMACIES);
-    const idx = all.findIndex((p) => p.id === id);
-    if (idx === -1) return;
-    all[idx] = {
-      ...all[idx],
-      ...updates,
-      name: (updates.name ?? all[idx].name ?? "").trim(),
-      phone: updates.phone !== undefined ? (updates.phone?.trim() || undefined) : all[idx].phone,
-      address: updates.address !== undefined ? (updates.address?.trim() || undefined) : all[idx].address,
-      hospital: updates.hospital !== undefined ? (updates.hospital?.trim() || undefined) : all[idx].hospital,
-    };
-    await setItem(KEYS.PHARMACIES, all);
-  },
-  delete: async (id: string) => {
-    const all = await getItem<Pharmacy>(KEYS.PHARMACIES);
-    await setItem(KEYS.PHARMACIES, all.filter((p) => p.id !== id));
-  },
-};
-
-function addIntervalToDate(dateStr: string, interval: number, unit: RepeatUnit): string {
-  const d = new Date(dateStr + "T12:00:00");
-  if (unit === "day") d.setDate(d.getDate() + interval);
-  else if (unit === "week") d.setDate(d.getDate() + interval * 7);
-  else if (unit === "month") d.setMonth(d.getMonth() + interval);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-async function scheduleStoredAppointmentNotifications(appointment: Appointment): Promise<void> {
-  try {
-    const settings = await settingsStorage.get();
-    if (settings.notificationsAppointments === false) {
-      await cancelStoredAppointmentNotifications(appointment.id);
-      return;
+  async function getDoctorsWithOwnerMigration(): Promise<Doctor[]> {
+    const all = await getItem<Doctor>(KEYS.DOCTORS);
+    const normalized = all.map(normalizeDoctorOwner);
+    if (normalized.some((doc, index) => doc.entryOwner !== all[index]?.entryOwner)) {
+      await setItem(KEYS.DOCTORS, normalized);
     }
-    const { scheduleAppointmentRemindersForAppointment } = await import("@/lib/notification-manager");
-    await scheduleAppointmentRemindersForAppointment({
-      appointmentId: appointment.id,
-      doctorName: appointment.doctorName,
-      date: appointment.date,
-      time: appointment.time || "09:00",
-      location: appointment.location,
-      status: appointment.status,
-    });
-  } catch (error) {
-    console.warn("scheduleStoredAppointmentNotifications failed", error);
+    return normalized;
   }
-}
 
-async function cancelStoredAppointmentNotifications(appointmentId: string): Promise<void> {
-  try {
-    const { cancelAppointmentReminders } = await import("@/lib/notification-manager");
-    await cancelAppointmentReminders(appointmentId);
-  } catch (error) {
-    console.warn("cancelStoredAppointmentNotifications failed", error);
+  const doctorsStorage = {
+    getAll: async (entryOwner?: RecordOwner) => {
+      const all = await getDoctorsWithOwnerMigration();
+      return entryOwner ? all.filter((doctor) => (doctor.entryOwner ?? "self") === entryOwner) : all;
+    },
+    save: async (doc: Omit<Doctor, "id" | "created_at">, entryOwner: RecordOwner = doc.entryOwner ?? "self") => {
+      const all = await getDoctorsWithOwnerMigration();
+      const newDoc: Doctor = {
+        ...doc,
+        name: (doc.name ?? "").trim(),
+        specialty: doc.specialty?.trim() || undefined,
+        phone: doc.phone?.trim() || undefined,
+        address: doc.address?.trim() || undefined,
+        hospital: doc.hospital?.trim() || undefined,
+        entryOwner,
+        isPrimary: doc.isPrimary ?? false,
+        isEmergency: doc.isEmergency ?? false,
+        id: Crypto.randomUUID(),
+        created_at: new Date().toISOString(),
+      };
+      all.push(newDoc);
+      await setItem(KEYS.DOCTORS, all);
+      return newDoc;
+    },
+    addOrGet: async (doc: { name: string; specialty?: string; phone?: string; address?: string; hospital?: string; entryOwner?: RecordOwner }, entryOwner: RecordOwner = doc.entryOwner ?? "self") => {
+      const all = await getDoctorsWithOwnerMigration();
+      const name = (doc.name ?? "").trim();
+      const normalized = name.toLowerCase();
+      const existing = all.find((d) => (d.entryOwner ?? "self") === entryOwner && (d.name ?? "").trim().toLowerCase() === normalized);
+      if (existing) return existing;
+      const newDoc: Doctor = {
+        id: Crypto.randomUUID(),
+        name,
+        specialty: doc.specialty?.trim() || undefined,
+        phone: doc.phone?.trim() || undefined,
+        address: doc.address?.trim() || undefined,
+        hospital: doc.hospital?.trim() || undefined,
+        entryOwner,
+        isPrimary: false,
+        isEmergency: false,
+        created_at: new Date().toISOString(),
+      };
+      all.push(newDoc);
+      await setItem(KEYS.DOCTORS, all);
+      return newDoc;
+    },
+    update: async (id: string, updates: Partial<Omit<Doctor, "id" | "created_at">>) => {
+      const all = await getDoctorsWithOwnerMigration();
+      const idx = all.findIndex((d) => d.id === id);
+      if (idx === -1) return;
+      all[idx] = {
+        ...all[idx],
+        ...updates,
+        name: (updates.name ?? all[idx].name ?? "").trim(),
+        specialty: updates.specialty !== undefined ? (updates.specialty?.trim() || undefined) : all[idx].specialty,
+        phone: updates.phone !== undefined ? (updates.phone?.trim() || undefined) : all[idx].phone,
+        address: updates.address !== undefined ? (updates.address?.trim() || undefined) : all[idx].address,
+        hospital: updates.hospital !== undefined ? (updates.hospital?.trim() || undefined) : all[idx].hospital,
+        entryOwner: updates.entryOwner ?? all[idx].entryOwner ?? "self",
+        isPrimary: updates.isPrimary ?? all[idx].isPrimary ?? false,
+        isEmergency: updates.isEmergency ?? all[idx].isEmergency ?? false,
+      };
+      await setItem(KEYS.DOCTORS, all);
+    },
+    mergeFromRemote: async (remote: Doctor[]) => {
+      const local = await getDoctorsWithOwnerMigration();
+      const byId = new Map(local.map((d) => [d.id, d]));
+      remote.forEach((r) => byId.set(r.id, normalizeDoctorOwner(r)));
+      await setItem(KEYS.DOCTORS, Array.from(byId.values()));
+    },
+    setPrimary: async (id: string, entryOwner: RecordOwner) => {
+      const all = await getDoctorsWithOwnerMigration();
+      const target = all.find((doctor) => doctor.id === id && (doctor.entryOwner ?? "self") === entryOwner);
+      const nextValue = !target?.isPrimary;
+      const next = all.map((doctor) => (
+        (doctor.entryOwner ?? "self") === entryOwner
+          ? { ...doctor, isPrimary: doctor.id === id ? nextValue : false }
+          : doctor
+      ));
+      await setItem(KEYS.DOCTORS, next);
+    },
+    setEmergency: async (id: string, entryOwner: RecordOwner) => {
+      const all = await getDoctorsWithOwnerMigration();
+      const target = all.find((doctor) => doctor.id === id && (doctor.entryOwner ?? "self") === entryOwner);
+      const nextValue = !target?.isEmergency;
+      const next = all.map((doctor) => (
+        (doctor.entryOwner ?? "self") === entryOwner
+          ? { ...doctor, isEmergency: doctor.id === id ? nextValue : false }
+          : doctor
+      ));
+      await setItem(KEYS.DOCTORS, next);
+    },
+    delete: async (id: string) => {
+      const all = await getDoctorsWithOwnerMigration();
+      await setItem(KEYS.DOCTORS, all.filter((d) => d.id !== id));
+    },
+  };
+
+  const pharmacyStorage = {
+    getAll: () => getItem<Pharmacy>(KEYS.PHARMACIES),
+    save: async (pharmacy: Omit<Pharmacy, "id" | "created_at">) => {
+      const all = await getItem<Pharmacy>(KEYS.PHARMACIES);
+      const newPharmacy: Pharmacy = {
+        ...pharmacy,
+        name: (pharmacy.name ?? "").trim(),
+        phone: pharmacy.phone?.trim() || undefined,
+        address: pharmacy.address?.trim() || undefined,
+        hospital: pharmacy.hospital?.trim() || undefined,
+        id: Crypto.randomUUID(),
+        created_at: new Date().toISOString(),
+      };
+      all.push(newPharmacy);
+      await setItem(KEYS.PHARMACIES, all);
+      return newPharmacy;
+    },
+    addOrGet: async (pharmacy: { name: string; phone?: string; address?: string; hospital?: string }) => {
+      const all = await getItem<Pharmacy>(KEYS.PHARMACIES);
+      const name = (pharmacy.name ?? "").trim();
+      const normalized = name.toLowerCase();
+      const existing = all.find((p) => (p.name ?? "").trim().toLowerCase() === normalized);
+      if (existing) return existing;
+      const newPharmacy: Pharmacy = {
+        id: Crypto.randomUUID(),
+        name,
+        phone: pharmacy.phone?.trim() || undefined,
+        address: pharmacy.address?.trim() || undefined,
+        hospital: pharmacy.hospital?.trim() || undefined,
+        created_at: new Date().toISOString(),
+      };
+      all.push(newPharmacy);
+      await setItem(KEYS.PHARMACIES, all);
+      return newPharmacy;
+    },
+    update: async (id: string, updates: Partial<Omit<Pharmacy, "id" | "created_at">>) => {
+      const all = await getItem<Pharmacy>(KEYS.PHARMACIES);
+      const idx = all.findIndex((p) => p.id === id);
+      if (idx === -1) return;
+      all[idx] = {
+        ...all[idx],
+        ...updates,
+        name: (updates.name ?? all[idx].name ?? "").trim(),
+        phone: updates.phone !== undefined ? (updates.phone?.trim() || undefined) : all[idx].phone,
+        address: updates.address !== undefined ? (updates.address?.trim() || undefined) : all[idx].address,
+        hospital: updates.hospital !== undefined ? (updates.hospital?.trim() || undefined) : all[idx].hospital,
+      };
+      await setItem(KEYS.PHARMACIES, all);
+    },
+    delete: async (id: string) => {
+      const all = await getItem<Pharmacy>(KEYS.PHARMACIES);
+      await setItem(KEYS.PHARMACIES, all.filter((p) => p.id !== id));
+    },
+  };
+
+  function addIntervalToDate(dateStr: string, interval: number, unit: RepeatUnit): string {
+    const d = new Date(dateStr + "T12:00:00");
+    if (unit === "day") d.setDate(d.getDate() + interval);
+    else if (unit === "week") d.setDate(d.getDate() + interval * 7);
+    else if (unit === "month") d.setMonth(d.getMonth() + interval);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
-}
 
-export const appointmentStorage = {
-  getAll: async () => {
-    const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
-    return apts.map((apt) => ({ ...apt, entryOwner: apt.entryOwner ?? "self" }));
-  },
-  setAll: async (apts: Appointment[]) => {
-    await setItem(KEYS.APPOINTMENTS, apts);
-  },
-  save: async (apt: Omit<Appointment, "id">) => {
-    const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
-    const id = Crypto.randomUUID();
-    const first: Appointment = { ...apt, id, entryOwner: apt.entryOwner ?? "self" };
-    const createdAppointments: Appointment[] = [first];
-    apts.push(first);
-    const isRecurring = apt.is_recurring && apt.repeat_interval != null && apt.repeat_unit;
-    if (isRecurring && apt.repeat_interval != null && apt.repeat_unit) {
-      const interval = apt.repeat_interval;
-      const unit = apt.repeat_unit;
-      const end = apt.repeat_end_date ?? (() => {
-        const d = new Date(apt.date + "T12:00:00");
-        d.setMonth(d.getMonth() + 6);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      })();
-      let nextDate = addIntervalToDate(apt.date, interval, unit);
-      while (nextDate <= end) {
-        const recurringAppointment: Appointment = {
-          ...apt,
-          id: Crypto.randomUUID(),
-          date: nextDate,
-          parent_recurring_id: id,
-          is_recurring: false,
-          repeat_interval: undefined,
-          repeat_unit: undefined,
-          repeat_end_date: undefined,
-          entryOwner: apt.entryOwner ?? "self",
-        };
-        apts.push(recurringAppointment);
-        createdAppointments.push(recurringAppointment);
-        nextDate = addIntervalToDate(nextDate, interval, unit);
+  async function scheduleStoredAppointmentNotifications(appointment: Appointment): Promise<void> {
+    if (!isSelfProfile) return;
+    try {
+      const settings = await settingsStorage.get();
+      if (settings.notificationsAppointments === false) {
+        await cancelStoredAppointmentNotifications(appointment.id);
+        return;
       }
+      const { scheduleAppointmentRemindersForAppointment } = await import("@/lib/notification-manager");
+      await scheduleAppointmentRemindersForAppointment({
+        appointmentId: appointment.id,
+        doctorName: appointment.doctorName,
+        date: appointment.date,
+        time: appointment.time || "09:00",
+        location: appointment.location,
+        status: appointment.status,
+      });
+    } catch (error) {
+      console.warn("scheduleStoredAppointmentNotifications failed", error);
     }
-    await setItem(KEYS.APPOINTMENTS, apts);
-    await Promise.all(createdAppointments.map(scheduleStoredAppointmentNotifications));
-    return first;
-  },
-  update: async (id: string, updates: Partial<Appointment>) => {
-    const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
-    const idx = apts.findIndex((a) => a.id === id);
-    if (idx >= 0) {
-      apts[idx] = { ...apts[idx], ...updates };
+  }
+
+  async function cancelStoredAppointmentNotifications(appointmentId: string): Promise<void> {
+    if (!isSelfProfile) return;
+    try {
+      const { cancelAppointmentReminders } = await import("@/lib/notification-manager");
+      await cancelAppointmentReminders(appointmentId);
+    } catch (error) {
+      console.warn("cancelStoredAppointmentNotifications failed", error);
+    }
+  }
+
+  const appointmentStorage = {
+    getAll: async () => {
+      const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
+      return apts.map((apt) => ({ ...apt, entryOwner: apt.entryOwner ?? "self" }));
+    },
+    setAll: async (apts: Appointment[]) => {
       await setItem(KEYS.APPOINTMENTS, apts);
+    },
+    save: async (apt: Omit<Appointment, "id">) => {
+      const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
+      const id = Crypto.randomUUID();
+      const first: Appointment = { ...apt, id, entryOwner: apt.entryOwner ?? "self" };
+      const createdAppointments: Appointment[] = [first];
+      apts.push(first);
+      const isRecurring = apt.is_recurring && apt.repeat_interval != null && apt.repeat_unit;
+      if (isRecurring && apt.repeat_interval != null && apt.repeat_unit) {
+        const interval = apt.repeat_interval;
+        const unit = apt.repeat_unit;
+        const end = apt.repeat_end_date ?? (() => {
+          const d = new Date(apt.date + "T12:00:00");
+          d.setMonth(d.getMonth() + 6);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        })();
+        let nextDate = addIntervalToDate(apt.date, interval, unit);
+        while (nextDate <= end) {
+          const recurringAppointment: Appointment = {
+            ...apt,
+            id: Crypto.randomUUID(),
+            date: nextDate,
+            parent_recurring_id: id,
+            is_recurring: false,
+            repeat_interval: undefined,
+            repeat_unit: undefined,
+            repeat_end_date: undefined,
+            entryOwner: apt.entryOwner ?? "self",
+          };
+          apts.push(recurringAppointment);
+          createdAppointments.push(recurringAppointment);
+          nextDate = addIntervalToDate(nextDate, interval, unit);
+        }
+      }
+      await setItem(KEYS.APPOINTMENTS, apts);
+      await Promise.all(createdAppointments.map(scheduleStoredAppointmentNotifications));
+      return first;
+    },
+    update: async (id: string, updates: Partial<Appointment>) => {
+      const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
+      const idx = apts.findIndex((a) => a.id === id);
+      if (idx >= 0) {
+        apts[idx] = { ...apts[idx], ...updates };
+        await setItem(KEYS.APPOINTMENTS, apts);
+        await cancelStoredAppointmentNotifications(id);
+        await scheduleStoredAppointmentNotifications(apts[idx]);
+      }
+    },
+    delete: async (id: string) => {
+      const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
+      await setItem(KEYS.APPOINTMENTS, apts.filter((a) => a.id !== id));
       await cancelStoredAppointmentNotifications(id);
-      await scheduleStoredAppointmentNotifications(apts[idx]);
-    }
-  },
-  delete: async (id: string) => {
-    const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
-    await setItem(KEYS.APPOINTMENTS, apts.filter((a) => a.id !== id));
-    await cancelStoredAppointmentNotifications(id);
-  },
-  deleteRecurringSeries: async (parentId: string) => {
-    const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
-    const removed = apts.filter((a) => a.id === parentId || a.parent_recurring_id === parentId);
-    const filtered = apts.filter((a) => a.id !== parentId && a.parent_recurring_id !== parentId);
-    await setItem(KEYS.APPOINTMENTS, filtered);
-    await Promise.all(removed.map((appointment) => cancelStoredAppointmentNotifications(appointment.id)));
-  },
-  deleteRecurringFuture: async (parentId: string, fromDate: string) => {
-    const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
-    const removed = apts.filter((a) => a.parent_recurring_id === parentId && a.date >= fromDate);
-    const filtered = apts.filter((a) => !(a.parent_recurring_id === parentId && a.date >= fromDate));
-    await setItem(KEYS.APPOINTMENTS, filtered);
-    await Promise.all(removed.map((appointment) => cancelStoredAppointmentNotifications(appointment.id)));
-  },
-};
-
-export const doctorNoteStorage = {
-  getAll: () => getItem<DoctorNote>(KEYS.DOCTOR_NOTES),
-  save: async (note: Omit<DoctorNote, "id" | "createdAt">) => {
-    const notes = await getItem<DoctorNote>(KEYS.DOCTOR_NOTES);
-    const nextNote = { ...note, id: Crypto.randomUUID(), createdAt: new Date().toISOString() };
-    notes.push(nextNote);
-    await setItem(KEYS.DOCTOR_NOTES, notes);
-    return nextNote;
-  },
-  update: async (id: string, updates: Partial<Omit<DoctorNote, "id" | "createdAt">>) => {
-    const notes = await getItem<DoctorNote>(KEYS.DOCTOR_NOTES);
-    const index = notes.findIndex((note) => note.id === id);
-    if (index === -1) return null;
-    notes[index] = {
-      ...notes[index],
-      ...updates,
-      text: updates.text?.trim() || notes[index].text,
-    };
-    await setItem(KEYS.DOCTOR_NOTES, notes);
-    return notes[index];
-  },
-  delete: async (id: string) => {
-    const notes = await getItem<DoctorNote>(KEYS.DOCTOR_NOTES);
-    await setItem(KEYS.DOCTOR_NOTES, notes.filter((n) => n.id !== id));
-  },
-};
-
-export const labWorkStorage = {
-  getAll: () => getItem<LabWork>(KEYS.LAB_WORK),
-  save: async (record: Omit<LabWork, "id">) => {
-    const all = await getItem<LabWork>(KEYS.LAB_WORK);
-    const next: LabWork = {
-      ...record,
-      testName: record.testName.trim(),
-      notes: record.notes?.trim() ?? "",
-      id: Crypto.randomUUID(),
-    };
-    all.push(next);
-    await setItem(KEYS.LAB_WORK, all);
-    return next;
-  },
-  update: async (id: string, updates: Partial<Omit<LabWork, "id">>) => {
-    const all = await getItem<LabWork>(KEYS.LAB_WORK);
-    const index = all.findIndex((record) => record.id === id);
-    if (index === -1) return null;
-    all[index] = {
-      ...all[index],
-      ...updates,
-      testName: updates.testName?.trim() || all[index].testName,
-      notes: updates.notes !== undefined ? updates.notes.trim() : all[index].notes,
-    };
-    await setItem(KEYS.LAB_WORK, all);
-    return all[index];
-  },
-  delete: async (id: string) => {
-    const all = await getItem<LabWork>(KEYS.LAB_WORK);
-    await setItem(KEYS.LAB_WORK, all.filter((record) => record.id !== id));
-  },
-};
-
-export const imagingStorage = {
-  getAll: () => getItem<Imaging>(KEYS.IMAGING),
-  save: async (record: Omit<Imaging, "id">) => {
-    const all = await getItem<Imaging>(KEYS.IMAGING);
-    const next: Imaging = {
-      ...record,
-      type: record.type.trim(),
-      bodyArea: record.bodyArea?.trim() || undefined,
-      notes: record.notes?.trim() ?? "",
-      id: Crypto.randomUUID(),
-    };
-    all.push(next);
-    await setItem(KEYS.IMAGING, all);
-    return next;
-  },
-  update: async (id: string, updates: Partial<Omit<Imaging, "id">>) => {
-    const all = await getItem<Imaging>(KEYS.IMAGING);
-    const index = all.findIndex((record) => record.id === id);
-    if (index === -1) return null;
-    all[index] = {
-      ...all[index],
-      ...updates,
-      type: updates.type?.trim() || all[index].type,
-      bodyArea: updates.bodyArea !== undefined ? (updates.bodyArea.trim() || undefined) : all[index].bodyArea,
-      notes: updates.notes !== undefined ? updates.notes.trim() : all[index].notes,
-    };
-    await setItem(KEYS.IMAGING, all);
-    return all[index];
-  },
-  delete: async (id: string) => {
-    const all = await getItem<Imaging>(KEYS.IMAGING);
-    await setItem(KEYS.IMAGING, all.filter((record) => record.id !== id));
-  },
-};
-
-export const fastingLogStorage = {
-  getAll: () => getItem<FastingLog>(KEYS.FASTING_LOGS),
-  getByDate: async (date: string) => {
-    const all = await getItem<FastingLog>(KEYS.FASTING_LOGS);
-    return all.find((f) => f.date === date);
-  },
-  save: async (log: Omit<FastingLog, "id">) => {
-    const all = await getItem<FastingLog>(KEYS.FASTING_LOGS);
-    const existing = all.findIndex((f) => f.date === log.date);
-    if (existing >= 0) {
-      all[existing] = { ...all[existing], ...log };
-    } else {
-      all.push({ ...log, id: Crypto.randomUUID() });
-    }
-    await setItem(KEYS.FASTING_LOGS, all);
-  },
-};
-
-export const vitalStorage = {
-  getAll: async () => {
-    const vitals = await getItem<Vital>(KEYS.VITALS);
-    return vitals.map((vital) => ({
-      ...vital,
-      recordedAt: vital.recordedAt ?? `${vital.date}T12:00:00`,
-      source: vital.source ?? "manual",
-    }));
-  },
-  save: async (vital: Omit<Vital, "id">) => {
-    const all = await getItem<Vital>(KEYS.VITALS);
-    all.push({ ...vital, id: Crypto.randomUUID(), recordedAt: vital.recordedAt ?? new Date().toISOString(), source: vital.source ?? "manual" });
-    await setItem(KEYS.VITALS, all);
-  },
-  update: async (id: string, updates: Partial<Omit<Vital, "id">>) => {
-    const all = await getItem<Vital>(KEYS.VITALS);
-    const idx = all.findIndex((v) => v.id === id);
-    if (idx === -1) return;
-    all[idx] = { ...all[idx], ...updates };
-    await setItem(KEYS.VITALS, all);
-  },
-  delete: async (id: string) => {
-    const all = await getItem<Vital>(KEYS.VITALS);
-    await setItem(KEYS.VITALS, all.filter((v) => v.id !== id));
-  },
-};
-
-export const settingsStorage = {
-  get: async (): Promise<UserSettings> => {
-    const defaults: UserSettings = {
-      name: "",
-      conditions: [],
-      appMode: "full",
-      ramadanMode: false,
-      sickMode: false,
-      notificationsDailySummary: true,
-      notificationsWeeklySummary: true,
-      notificationsMonthlySummary: true,
-    };
-    try {
-      const raw = await AsyncStorage.getItem(KEYS.SETTINGS);
-      return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
-    } catch (e) {
-      console.warn("AsyncStorage settings get failed", e);
-      return defaults;
-    }
-  },
-  save: async (settings: UserSettings) => {
-    try {
-      await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
-      await markCloudKitBackupDirty();
-    } catch (e) {
-      console.warn("AsyncStorage settings save failed", e);
-    }
-  },
-};
-
-export const roleStorage = {
-  get: async (): Promise<UserRole> => {
-    try {
-      const raw = await AsyncStorage.getItem(KEYS.USER_ROLE);
-      if (raw === "self" || raw === "caregiver" || raw === "backup") return raw;
-      const profile = await healthProfileStorage.get();
-      return profile.userRole ?? "self";
-    } catch (e) {
-      console.warn("AsyncStorage role get failed", e);
-      return "self";
-    }
-  },
-  save: async (role: UserRole) => {
-    try {
-      await AsyncStorage.setItem(KEYS.USER_ROLE, role);
-      const profile = await healthProfileStorage.get();
-      await healthProfileStorage.save({ ...profile, userRole: role });
-      await markCloudKitBackupDirty();
-    } catch (e) {
-      console.warn("AsyncStorage role save failed", e);
-    }
-  },
-};
-
-export const caregiverProfileStorage = {
-  get: async (): Promise<CaregiverProfile | null> => {
-    try {
-      const raw = await AsyncStorage.getItem(KEYS.CAREGIVER_PROFILE);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<CaregiverProfile>;
-        return {
-          name: parsed.name?.trim() || "",
-          age: Number.isFinite(parsed.age) ? Number(parsed.age) : 0,
-          relation: parsed.relation?.trim() || undefined,
-          medications: Array.isArray(parsed.medications) ? parsed.medications : [],
-          appointments: Array.isArray(parsed.appointments) ? parsed.appointments : [],
-          logs: Array.isArray(parsed.logs) ? parsed.logs : [],
-        };
-      }
-      const profile = await healthProfileStorage.get();
-      if (!profile.caredForName?.trim() && !profile.caredForAge) return null;
-      return {
-        name: profile.caredForName?.trim() || "",
-        age: profile.caredForAge ?? 0,
-        relation: undefined,
-        medications: [],
-        appointments: [],
-        logs: [],
-      };
-    } catch (e) {
-      console.warn("AsyncStorage caregiverProfile get failed", e);
-      return null;
-    }
-  },
-  save: async (profile: CaregiverProfile) => {
-    try {
-      const safeProfile: CaregiverProfile = {
-        name: profile.name.trim(),
-        age: Number.isFinite(profile.age) ? Math.max(0, Math.round(profile.age)) : 0,
-        relation: profile.relation?.trim() || undefined,
-        medications: Array.isArray(profile.medications) ? profile.medications : [],
-        appointments: Array.isArray(profile.appointments) ? profile.appointments : [],
-        logs: Array.isArray(profile.logs) ? profile.logs : [],
-      };
-      await AsyncStorage.setItem(KEYS.CAREGIVER_PROFILE, JSON.stringify(safeProfile));
-      const healthProfile = await healthProfileStorage.get();
-      await healthProfileStorage.save({
-        ...healthProfile,
-        userRole: "caregiver",
-        caredForName: safeProfile.name,
-        caredForAge: safeProfile.age || undefined,
-      });
-      await markCloudKitBackupDirty();
-    } catch (e) {
-      console.warn("AsyncStorage caregiverProfile save failed", e);
-    }
-  },
-  clear: async () => {
-    try {
-      await AsyncStorage.removeItem(KEYS.CAREGIVER_PROFILE);
-      const healthProfile = await healthProfileStorage.get();
-      await healthProfileStorage.save({
-        ...healthProfile,
-        userRole: healthProfile.userRole === "caregiver" ? "self" : healthProfile.userRole,
-        caredForName: undefined,
-        caredForAge: undefined,
-      });
-      await markCloudKitBackupDirty();
-    } catch (e) {
-      console.warn("AsyncStorage caregiverProfile clear failed", e);
-    }
-  },
-};
-
-const DEFAULT_SICK_MODE: SickModeData = {
-  active: false,
-  hydrationMl: 0,
-  foodChecklist: { lightMeal: false, saltySnack: false, liquidCalories: false },
-  restChecklist: { lying: false, napping: false, screenBreak: false },
-  symptoms: [],
-  temperatures: [],
-  prnDoses: [],
-};
-
-export const sickModeStorage = {
-  get: async (): Promise<SickModeData> => {
-    try {
-      const raw = await AsyncStorage.getItem(KEYS.SICK_MODE);
-      return raw ? { ...DEFAULT_SICK_MODE, ...JSON.parse(raw) } : { ...DEFAULT_SICK_MODE };
-    } catch (e) {
-      console.warn("AsyncStorage sickMode get failed", e);
-      return { ...DEFAULT_SICK_MODE };
-    }
-  },
-  save: async (data: SickModeData) => {
-    try {
-      await AsyncStorage.setItem(KEYS.SICK_MODE, JSON.stringify(data));
-      await markCloudKitBackupDirty();
-    } catch (e) {
-      console.warn("AsyncStorage sickMode save failed", e);
-    }
-  },
-  reset: async () => {
-    try {
-      await AsyncStorage.setItem(KEYS.SICK_MODE, JSON.stringify(DEFAULT_SICK_MODE));
-      await markCloudKitBackupDirty();
-    } catch (e) {
-      console.warn("AsyncStorage sickMode reset failed", e);
-    }
-  },
-};
-
-export const documentStorage = {
-  getAll: () => getItem<DocumentExtraction>(KEYS.DOCUMENTS),
-  save: async (doc: Omit<DocumentExtraction, "id">) => {
-    const all = await getItem<DocumentExtraction>(KEYS.DOCUMENTS);
-    const newDoc = { ...doc, id: Crypto.randomUUID() };
-    all.push(newDoc);
-    await setItem(KEYS.DOCUMENTS, all);
-    return newDoc;
-  },
-  delete: async (id: string) => {
-    const all = await getItem<DocumentExtraction>(KEYS.DOCUMENTS);
-    await setItem(KEYS.DOCUMENTS, all.filter((d) => d.id !== id));
-  },
-};
-
-export const insightStorage = {
-  getAll: () => getItem<HealthInsight>(KEYS.INSIGHTS),
-  getLatest: async () => {
-    const all = await getItem<HealthInsight>(KEYS.INSIGHTS);
-    return all.sort((a, b) => b.date.localeCompare(a.date))[0];
-  },
-  save: async (insight: Omit<HealthInsight, "id">) => {
-    const all = await getItem<HealthInsight>(KEYS.INSIGHTS);
-    const newInsight = { ...insight, id: Crypto.randomUUID() };
-    all.push(newInsight);
-    await setItem(KEYS.INSIGHTS, all);
-    return newInsight;
-  },
-  deleteAll: async () => {
-    await setItem(KEYS.INSIGHTS, []);
-  },
-};
-
-export const medComparisonStorage = {
-  getAll: () => getItem<MedComparison>(KEYS.MED_COMPARISONS),
-  save: async (comp: Omit<MedComparison, "id">) => {
-    const all = await getItem<MedComparison>(KEYS.MED_COMPARISONS);
-    const newComp = { ...comp, id: Crypto.randomUUID() };
-    all.push(newComp);
-    await setItem(KEYS.MED_COMPARISONS, all);
-    return newComp;
-  },
-  delete: async (id: string) => {
-    const all = await getItem<MedComparison>(KEYS.MED_COMPARISONS);
-    await setItem(KEYS.MED_COMPARISONS, all.filter((c) => c.id !== id));
-  },
-};
-
-const DEFAULT_ALLERGY_INFO: AllergyInfo = {
-  hasAllergies: false,
-  allergyName: "",
-  reactionDescription: "",
-  hasEpiPen: false,
-  primaryEpiPenLocation: "",
-  backupEpiPenLocation: "",
-  noTreatmentConsequence: "",
-};
-
-export const allergyStorage = {
-  get: async (): Promise<AllergyInfo> => {
-    try {
-      const raw = await AsyncStorage.getItem(KEYS.ALLERGY_INFO);
-      return raw ? { ...DEFAULT_ALLERGY_INFO, ...JSON.parse(raw) } : { ...DEFAULT_ALLERGY_INFO };
-    } catch (e) {
-      console.warn("AsyncStorage allergy get failed", e);
-      return { ...DEFAULT_ALLERGY_INFO };
-    }
-  },
-  save: async (data: AllergyInfo) => {
-    try {
-      await AsyncStorage.setItem(KEYS.ALLERGY_INFO, JSON.stringify(data));
-      await markCloudKitBackupDirty();
-    } catch (e) {
-      console.warn("AsyncStorage allergy save failed", e);
-    }
-  },
-};
-
-export const emergencyDoctorStorage = {
-  getDocId: async (): Promise<string | null> => {
-    try {
-      return await AsyncStorage.getItem("emergency_doctor");
-    } catch {
-      return null;
-    }
-  },
-  setDocId: async (id: string | null): Promise<void> => {
-    try {
-      if (id === null) {
-        await AsyncStorage.removeItem("emergency_doctor");
-      } else {
-        await AsyncStorage.setItem("emergency_doctor", id);
-      }
-      await markCloudKitBackupDirty();
-    } catch (e) {
-      console.warn("AsyncStorage emergencyDoctor setDocId failed", e);
-    }
-  },
-};
-
-export const primaryDoctorStorage = {
-  getDocId: async (): Promise<string | null> => {
-    try {
-      return await AsyncStorage.getItem("primary_doctor");
-    } catch {
-      return null;
-    }
-  },
-  setDocId: async (id: string | null): Promise<void> => {
-    try {
-      if (id === null) {
-        await AsyncStorage.removeItem("primary_doctor");
-      } else {
-        await AsyncStorage.setItem("primary_doctor", id);
-      }
-      await markCloudKitBackupDirty();
-    } catch (e) {
-      console.warn("AsyncStorage primaryDoctor setDocId failed", e);
-    }
-  },
-};
-
-export const healthProfileStorage = {
-  get: async (): Promise<HealthProfileInfo> => {
-    try {
-      const raw = await AsyncStorage.getItem(KEYS.HEALTH_PROFILE_INFO);
-      return raw
-        ? { userRole: "self", widgetAppearance: "system", recoveryTrackingEnabled: false, recoveryFocus: "", backupCriticalMedications: [], vaccines: [], surgeries: [], ...JSON.parse(raw) }
-        : { userRole: "self", widgetAppearance: "system", recoveryTrackingEnabled: false, recoveryFocus: "", backupCriticalMedications: [], vaccines: [], surgeries: [] };
-    } catch (e) {
-      console.warn("AsyncStorage healthProfile get failed", e);
-      return { userRole: "self", widgetAppearance: "system", recoveryTrackingEnabled: false, recoveryFocus: "", backupCriticalMedications: [], vaccines: [], surgeries: [] };
-    }
-  },
-  save: async (data: HealthProfileInfo) => {
-    try {
-      await AsyncStorage.setItem(
-        KEYS.HEALTH_PROFILE_INFO,
-        JSON.stringify({
-          userRole: "self",
-          widgetAppearance: "system",
-          recoveryTrackingEnabled: false,
-          recoveryFocus: "",
-          backupCriticalMedications: [],
-          vaccines: [],
-          surgeries: [],
-          ...data,
-        })
-      );
-      await markCloudKitBackupDirty();
-    } catch (e) {
-      console.warn("AsyncStorage healthProfile save failed", e);
-    }
-  },
-};
-
-export const enableRecoveryTracking = async (focus = "sick mode recovery") => {
-  const profile = await healthProfileStorage.get();
-  const nextProfile: HealthProfileInfo = {
-    ...profile,
-    recoveryTrackingEnabled: true,
-    recoveryFocus: profile.recoveryFocus?.trim() ? profile.recoveryFocus : focus,
-    recoveryTrackingStartedAt: profile.recoveryTrackingStartedAt ?? new Date().toISOString(),
+    },
+    deleteRecurringSeries: async (parentId: string) => {
+      const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
+      const removed = apts.filter((a) => a.id === parentId || a.parent_recurring_id === parentId);
+      const filtered = apts.filter((a) => a.id !== parentId && a.parent_recurring_id !== parentId);
+      await setItem(KEYS.APPOINTMENTS, filtered);
+      await Promise.all(removed.map((appointment) => cancelStoredAppointmentNotifications(appointment.id)));
+    },
+    deleteRecurringFuture: async (parentId: string, fromDate: string) => {
+      const apts = await getItem<Appointment>(KEYS.APPOINTMENTS);
+      const removed = apts.filter((a) => a.parent_recurring_id === parentId && a.date >= fromDate);
+      const filtered = apts.filter((a) => !(a.parent_recurring_id === parentId && a.date >= fromDate));
+      await setItem(KEYS.APPOINTMENTS, filtered);
+      await Promise.all(removed.map((appointment) => cancelStoredAppointmentNotifications(appointment.id)));
+    },
   };
-  await healthProfileStorage.save(nextProfile);
-  return nextProfile;
-};
 
-export const disableRecoveryTracking = async () => {
-  const profile = await healthProfileStorage.get();
-  const nextProfile: HealthProfileInfo = {
-    ...profile,
-    recoveryTrackingEnabled: false,
-    recoveryFocus: "",
-    recoveryTrackingStartedAt: undefined,
+  const doctorNoteStorage = {
+    getAll: () => getItem<DoctorNote>(KEYS.DOCTOR_NOTES),
+    save: async (note: Omit<DoctorNote, "id" | "createdAt">) => {
+      const notes = await getItem<DoctorNote>(KEYS.DOCTOR_NOTES);
+      const nextNote = { ...note, id: Crypto.randomUUID(), createdAt: new Date().toISOString() };
+      notes.push(nextNote);
+      await setItem(KEYS.DOCTOR_NOTES, notes);
+      return nextNote;
+    },
+    update: async (id: string, updates: Partial<Omit<DoctorNote, "id" | "createdAt">>) => {
+      const notes = await getItem<DoctorNote>(KEYS.DOCTOR_NOTES);
+      const index = notes.findIndex((note) => note.id === id);
+      if (index === -1) return null;
+      notes[index] = {
+        ...notes[index],
+        ...updates,
+        text: updates.text?.trim() || notes[index].text,
+      };
+      await setItem(KEYS.DOCTOR_NOTES, notes);
+      return notes[index];
+    },
+    delete: async (id: string) => {
+      const notes = await getItem<DoctorNote>(KEYS.DOCTOR_NOTES);
+      await setItem(KEYS.DOCTOR_NOTES, notes.filter((n) => n.id !== id));
+    },
   };
-  await healthProfileStorage.save(nextProfile);
-  return nextProfile;
-};
 
-export const cycleTrackingStorage = {
-  getAll: () => getItem<CycleEntry>(KEYS.CYCLE_ENTRIES),
-  getLatest: async () => {
-    const all = await getItem<CycleEntry>(KEYS.CYCLE_ENTRIES);
-    return all.sort((a, b) => b.date.localeCompare(a.date))[0];
-  },
-  save: async (data: Omit<CycleEntry, "id">) => {
-    const all = await getItem<CycleEntry>(KEYS.CYCLE_ENTRIES);
-    const newItem = { ...data, id: Crypto.randomUUID(), recordedAt: data.recordedAt ?? new Date().toISOString() };
-    all.push(newItem);
-    await setItem(KEYS.CYCLE_ENTRIES, all);
-    return newItem;
-  },
-  delete: async (id: string) => {
-    const all = await getItem<CycleEntry>(KEYS.CYCLE_ENTRIES);
-    await setItem(KEYS.CYCLE_ENTRIES, all.filter((entry) => entry.id !== id));
-  },
-};
-
-export const conditionStorage = {
-  getAll: () => getItem<HealthCondition>(KEYS.CONDITIONS),
-  save: async (data: Omit<HealthCondition, "id">) => {
-    const items = await getItem<HealthCondition>(KEYS.CONDITIONS);
-    const id = `cond_${Crypto.randomUUID()}`;
-    items.push({ ...data, id });
-    await setItem(KEYS.CONDITIONS, items);
-    return id;
-  },
-  update: async (id: string, updates: Partial<HealthCondition>) => {
-    const items = await getItem<HealthCondition>(KEYS.CONDITIONS);
-    const idx = items.findIndex(c => c.id === id);
-    if (idx >= 0) {
-      items[idx] = { ...items[idx], ...updates };
-      await setItem(KEYS.CONDITIONS, items);
-    }
-  },
-  delete: async (id: string) => {
-    const items = await getItem<HealthCondition>(KEYS.CONDITIONS);
-    await setItem(KEYS.CONDITIONS, items.filter(c => c.id !== id));
-  },
-};
-
-export const monthlyCheckInStorage = {
-  getAll: () => getItem<MonthlyCheckIn>(KEYS.MONTHLY_CHECK_INS),
-  getLatest: async () => {
-    const all = await getItem<MonthlyCheckIn>(KEYS.MONTHLY_CHECK_INS);
-    return all.sort((a, b) => b.date.localeCompare(a.date))[0];
-  },
-  save: async (data: Omit<MonthlyCheckIn, "id">) => {
-    const all = await getItem<MonthlyCheckIn>(KEYS.MONTHLY_CHECK_INS);
-    const monthKey = data.date.slice(0, 7);
-    const existingForMonth = all.find((item) => item.date.slice(0, 7) === monthKey);
-    if (existingForMonth) return existingForMonth;
-    const newItem = { ...data, id: Crypto.randomUUID() };
-    all.push(newItem);
-    await setItem(KEYS.MONTHLY_CHECK_INS, all);
-    return newItem;
-  },
-  delete: async (id: string) => {
-    const all = await getItem<MonthlyCheckIn>(KEYS.MONTHLY_CHECK_INS);
-    await setItem(KEYS.MONTHLY_CHECK_INS, all.filter((c) => c.id !== id));
-  },
-};
-
-export const eatingStorage = {
-  getAll: () => getItem<EatingEntry>(KEYS.EATING_LOGS),
-  getByDateRange: async (from: string, to: string) => {
-    const all = await getItem<EatingEntry>(KEYS.EATING_LOGS);
-    return all.filter((e) => e.date >= from && e.date <= to).sort((a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || ""));
-  },
-  save: async (data: Omit<EatingEntry, "id">) => {
-    const all = await getItem<EatingEntry>(KEYS.EATING_LOGS);
-    const newItem = { ...data, id: Crypto.randomUUID() };
-    all.push(newItem);
-    await setItem(KEYS.EATING_LOGS, all);
-    return newItem;
-  },
-  delete: async (id: string) => {
-    const all = await getItem<EatingEntry>(KEYS.EATING_LOGS);
-    await setItem(KEYS.EATING_LOGS, all.filter((e) => e.id !== id));
-  },
-};
-
-const DEFAULT_HYDRATION_PRESET: HydrationQuickActionPreset = {
-  what: "Water",
-  amount: 8,
-  unit: "oz",
-};
-
-export function convertHydrationToMl(amount: number, unit: HydrationUnit): number {
-  if (!Number.isFinite(amount) || amount <= 0) return 0;
-  switch (unit) {
-    case "ml":
-      return amount;
-    case "L":
-      return amount * 1000;
-    case "glasses":
-      return amount * 240;
-    case "oz":
-    default:
-      return amount * 29.5735;
-  }
-}
-
-export function formatHydrationAmount(amount: number, unit: HydrationUnit): string {
-  const rounded = Number.isInteger(amount) ? String(amount) : amount.toFixed(1).replace(/\.0$/, "");
-  return `${rounded} ${unit}`;
-}
-
-export const hydrationStorage = {
-  getAll: () => getItem<HydrationEntry>(KEYS.HYDRATION_LOGS),
-  getByDateRange: async (from: string, to: string) => {
-    const all = await getItem<HydrationEntry>(KEYS.HYDRATION_LOGS);
-    return all
-      .filter((entry) => entry.date >= from && entry.date <= to)
-      .sort((a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || ""));
-  },
-  save: async (data: Omit<HydrationEntry, "id">) => {
-    const all = await getItem<HydrationEntry>(KEYS.HYDRATION_LOGS);
-    const newItem = { ...data, id: Crypto.randomUUID() };
-    all.push(newItem);
-    await setItem(KEYS.HYDRATION_LOGS, all);
-    return newItem;
-  },
-  delete: async (id: string) => {
-    const all = await getItem<HydrationEntry>(KEYS.HYDRATION_LOGS);
-    await setItem(KEYS.HYDRATION_LOGS, all.filter((entry) => entry.id !== id));
-  },
-  getPreset: async (): Promise<HydrationQuickActionPreset> => {
-    try {
-      const raw = await AsyncStorage.getItem(KEYS.HYDRATION_PRESET);
-      if (!raw) return { ...DEFAULT_HYDRATION_PRESET };
-      const parsed = JSON.parse(raw) as Partial<HydrationQuickActionPreset>;
-      const amount = typeof parsed.amount === "number" && parsed.amount > 0 ? parsed.amount : DEFAULT_HYDRATION_PRESET.amount;
-      const unit = parsed.unit === "oz" || parsed.unit === "ml" || parsed.unit === "L" || parsed.unit === "glasses"
-        ? parsed.unit
-        : DEFAULT_HYDRATION_PRESET.unit;
-      return {
-        what: parsed.what?.trim() || DEFAULT_HYDRATION_PRESET.what,
-        amount,
-        unit,
+  const labWorkStorage = {
+    getAll: () => getItem<LabWork>(KEYS.LAB_WORK),
+    save: async (record: Omit<LabWork, "id">) => {
+      const all = await getItem<LabWork>(KEYS.LAB_WORK);
+      const next: LabWork = {
+        ...record,
+        testName: record.testName.trim(),
+        notes: record.notes?.trim() ?? "",
+        id: Crypto.randomUUID(),
       };
-    } catch (e) {
-      console.warn("AsyncStorage hydrationPreset get failed", e);
-      return { ...DEFAULT_HYDRATION_PRESET };
-    }
-  },
-  savePreset: async (preset: HydrationQuickActionPreset) => {
-    try {
-      const safePreset: HydrationQuickActionPreset = {
-        what: preset.what.trim() || DEFAULT_HYDRATION_PRESET.what,
-        amount: Number.isFinite(preset.amount) && preset.amount > 0 ? preset.amount : DEFAULT_HYDRATION_PRESET.amount,
-        unit: preset.unit,
+      all.push(next);
+      await setItem(KEYS.LAB_WORK, all);
+      return next;
+    },
+    update: async (id: string, updates: Partial<Omit<LabWork, "id">>) => {
+      const all = await getItem<LabWork>(KEYS.LAB_WORK);
+      const index = all.findIndex((record) => record.id === id);
+      if (index === -1) return null;
+      all[index] = {
+        ...all[index],
+        ...updates,
+        testName: updates.testName?.trim() || all[index].testName,
+        notes: updates.notes !== undefined ? updates.notes.trim() : all[index].notes,
       };
-      await AsyncStorage.setItem(KEYS.HYDRATION_PRESET, JSON.stringify(safePreset));
-      await markCloudKitBackupDirty();
-    } catch (e) {
-      console.warn("AsyncStorage hydrationPreset save failed", e);
-    }
-  },
-};
+      await setItem(KEYS.LAB_WORK, all);
+      return all[index];
+    },
+    delete: async (id: string) => {
+      const all = await getItem<LabWork>(KEYS.LAB_WORK);
+      await setItem(KEYS.LAB_WORK, all.filter((record) => record.id !== id));
+    },
+  };
 
-const DEFAULT_MENTAL_HEALTH_MODE: MentalHealthModeData = {
-  active: false,
-};
+  const imagingStorage = {
+    getAll: () => getItem<Imaging>(KEYS.IMAGING),
+    save: async (record: Omit<Imaging, "id">) => {
+      const all = await getItem<Imaging>(KEYS.IMAGING);
+      const next: Imaging = {
+        ...record,
+        type: record.type.trim(),
+        bodyArea: record.bodyArea?.trim() || undefined,
+        notes: record.notes?.trim() ?? "",
+        id: Crypto.randomUUID(),
+      };
+      all.push(next);
+      await setItem(KEYS.IMAGING, all);
+      return next;
+    },
+    update: async (id: string, updates: Partial<Omit<Imaging, "id">>) => {
+      const all = await getItem<Imaging>(KEYS.IMAGING);
+      const index = all.findIndex((record) => record.id === id);
+      if (index === -1) return null;
+      all[index] = {
+        ...all[index],
+        ...updates,
+        type: updates.type?.trim() || all[index].type,
+        bodyArea: updates.bodyArea !== undefined ? (updates.bodyArea.trim() || undefined) : all[index].bodyArea,
+        notes: updates.notes !== undefined ? updates.notes.trim() : all[index].notes,
+      };
+      await setItem(KEYS.IMAGING, all);
+      return all[index];
+    },
+    delete: async (id: string) => {
+      const all = await getItem<Imaging>(KEYS.IMAGING);
+      await setItem(KEYS.IMAGING, all.filter((record) => record.id !== id));
+    },
+  };
 
-export const mentalHealthModeStorage = {
-  get: async (): Promise<MentalHealthModeData> => {
-    try {
-      const raw = await AsyncStorage.getItem(KEYS.MENTAL_HEALTH_MODE);
-      return raw ? { ...DEFAULT_MENTAL_HEALTH_MODE, ...JSON.parse(raw) } : { ...DEFAULT_MENTAL_HEALTH_MODE };
-    } catch (e) {
-      console.warn("AsyncStorage mentalHealthMode get failed", e);
-      return { ...DEFAULT_MENTAL_HEALTH_MODE };
-    }
-  },
-  save: async (data: MentalHealthModeData) => {
-    try {
-      await AsyncStorage.setItem(KEYS.MENTAL_HEALTH_MODE, JSON.stringify(data));
-      await markCloudKitBackupDirty();
-    } catch (e) {
-      console.warn("AsyncStorage mentalHealthMode save failed", e);
-    }
-  },
-  reset: async () => {
-    try {
-      await AsyncStorage.setItem(KEYS.MENTAL_HEALTH_MODE, JSON.stringify(DEFAULT_MENTAL_HEALTH_MODE));
-      await markCloudKitBackupDirty();
-    } catch (e) {
-      console.warn("AsyncStorage mentalHealthMode reset failed", e);
-    }
-  },
-};
+  const fastingLogStorage = {
+    getAll: () => getItem<FastingLog>(KEYS.FASTING_LOGS),
+    getByDate: async (date: string) => {
+      const all = await getItem<FastingLog>(KEYS.FASTING_LOGS);
+      return all.find((f) => f.date === date);
+    },
+    save: async (log: Omit<FastingLog, "id">) => {
+      const all = await getItem<FastingLog>(KEYS.FASTING_LOGS);
+      const existing = all.findIndex((f) => f.date === log.date);
+      if (existing >= 0) {
+        all[existing] = { ...all[existing], ...log };
+      } else {
+        all.push({ ...log, id: Crypto.randomUUID() });
+      }
+      await setItem(KEYS.FASTING_LOGS, all);
+    },
+  };
 
-export const comfortStorage = {
-  getAll: () => getItem<ComfortItem>(KEYS.COMFORT_ITEMS),
-  save: async (data: Omit<ComfortItem, "id">) => {
-    const all = await getItem<ComfortItem>(KEYS.COMFORT_ITEMS);
-    const newItem = { ...data, id: Crypto.randomUUID() };
-    all.push(newItem);
-    await setItem(KEYS.COMFORT_ITEMS, all);
-    return newItem;
-  },
-  delete: async (id: string) => {
-    const all = await getItem<ComfortItem>(KEYS.COMFORT_ITEMS);
-    await setItem(KEYS.COMFORT_ITEMS, all.filter((c) => c.id !== id));
-  },
-};
-
-export const goalStorage = {
-  getAll: () => getItem<Goal>(KEYS.GOALS),
-  save: async (data: Omit<Goal, "id">) => {
-    const all = await getItem<Goal>(KEYS.GOALS);
-    const newItem = { ...data, id: Crypto.randomUUID() };
-    all.push(newItem);
-    await setItem(KEYS.GOALS, all);
-    return newItem;
-  },
-  update: async (id: string, updates: Partial<Omit<Goal, "id">>) => {
-    const all = await getItem<Goal>(KEYS.GOALS);
-    const idx = all.findIndex((g) => g.id === id);
-    if (idx >= 0) {
+  const vitalStorage = {
+    getAll: async () => {
+      const vitals = await getItem<Vital>(KEYS.VITALS);
+      return vitals.map((vital) => ({
+        ...vital,
+        recordedAt: vital.recordedAt ?? `${vital.date}T12:00:00`,
+        source: vital.source ?? "manual",
+      }));
+    },
+    save: async (vital: Omit<Vital, "id">) => {
+      const all = await getItem<Vital>(KEYS.VITALS);
+      all.push({ ...vital, id: Crypto.randomUUID(), recordedAt: vital.recordedAt ?? new Date().toISOString(), source: vital.source ?? "manual" });
+      await setItem(KEYS.VITALS, all);
+    },
+    update: async (id: string, updates: Partial<Omit<Vital, "id">>) => {
+      const all = await getItem<Vital>(KEYS.VITALS);
+      const idx = all.findIndex((v) => v.id === id);
+      if (idx === -1) return;
       all[idx] = { ...all[idx], ...updates };
-      await setItem(KEYS.GOALS, all);
+      await setItem(KEYS.VITALS, all);
+    },
+    delete: async (id: string) => {
+      const all = await getItem<Vital>(KEYS.VITALS);
+      await setItem(KEYS.VITALS, all.filter((v) => v.id !== id));
+    },
+  };
+
+  const settingsStorage = {
+    get: async (): Promise<UserSettings> => {
+      const defaults: UserSettings = {
+        name: "",
+        conditions: [],
+        appMode: "full",
+        ramadanMode: false,
+        sickMode: false,
+        notificationsDailySummary: true,
+        notificationsWeeklySummary: true,
+        notificationsMonthlySummary: true,
+      };
+      try {
+        const raw = await AsyncStorage.getItem(KEYS.SETTINGS);
+        return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
+      } catch (e) {
+        console.warn("AsyncStorage settings get failed", e);
+        return defaults;
+      }
+    },
+    save: async (settings: UserSettings) => {
+      try {
+        await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+        await markCloudKitBackupDirty();
+      } catch (e) {
+        console.warn("AsyncStorage settings save failed", e);
+      }
+    },
+  };
+
+  const roleStorage = {
+    get: async (): Promise<UserRole> => {
+      try {
+        const raw = await AsyncStorage.getItem(KEYS.USER_ROLE);
+        if (raw === "self" || raw === "caregiver" || raw === "backup") return raw;
+        const profile = await healthProfileStorage.get();
+        return profile.userRole ?? "self";
+      } catch (e) {
+        console.warn("AsyncStorage role get failed", e);
+        return "self";
+      }
+    },
+    save: async (role: UserRole) => {
+      try {
+        await AsyncStorage.setItem(KEYS.USER_ROLE, role);
+        const profile = await healthProfileStorage.get();
+        await healthProfileStorage.save({ ...profile, userRole: role });
+        await markCloudKitBackupDirty();
+      } catch (e) {
+        console.warn("AsyncStorage role save failed", e);
+      }
+    },
+  };
+
+  const caregiverProfileStorage = {
+    get: async (): Promise<CaregiverProfile | null> => {
+      try {
+        const raw = await AsyncStorage.getItem(KEYS.CAREGIVER_PROFILE);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<CaregiverProfile>;
+          return {
+            name: parsed.name?.trim() || "",
+            age: Number.isFinite(parsed.age) ? Number(parsed.age) : 0,
+            relation: parsed.relation?.trim() || undefined,
+            medications: Array.isArray(parsed.medications) ? parsed.medications : [],
+            appointments: Array.isArray(parsed.appointments) ? parsed.appointments : [],
+            logs: Array.isArray(parsed.logs) ? parsed.logs : [],
+          };
+        }
+        const profile = await healthProfileStorage.get();
+        if (!profile.caredForName?.trim() && !profile.caredForAge) return null;
+        return {
+          name: profile.caredForName?.trim() || "",
+          age: profile.caredForAge ?? 0,
+          relation: undefined,
+          medications: [],
+          appointments: [],
+          logs: [],
+        };
+      } catch (e) {
+        console.warn("AsyncStorage caregiverProfile get failed", e);
+        return null;
+      }
+    },
+    save: async (profile: CaregiverProfile) => {
+      try {
+        const safeProfile: CaregiverProfile = {
+          name: profile.name.trim(),
+          age: Number.isFinite(profile.age) ? Math.max(0, Math.round(profile.age)) : 0,
+          relation: profile.relation?.trim() || undefined,
+          medications: Array.isArray(profile.medications) ? profile.medications : [],
+          appointments: Array.isArray(profile.appointments) ? profile.appointments : [],
+          logs: Array.isArray(profile.logs) ? profile.logs : [],
+        };
+        await AsyncStorage.setItem(KEYS.CAREGIVER_PROFILE, JSON.stringify(safeProfile));
+        const healthProfile = await healthProfileStorage.get();
+        await healthProfileStorage.save({
+          ...healthProfile,
+          userRole: "caregiver",
+          caredForName: safeProfile.name,
+          caredForAge: safeProfile.age || undefined,
+        });
+        await markCloudKitBackupDirty();
+      } catch (e) {
+        console.warn("AsyncStorage caregiverProfile save failed", e);
+      }
+    },
+    clear: async () => {
+      try {
+        await AsyncStorage.removeItem(KEYS.CAREGIVER_PROFILE);
+        const healthProfile = await healthProfileStorage.get();
+        await healthProfileStorage.save({
+          ...healthProfile,
+          userRole: healthProfile.userRole === "caregiver" ? "self" : healthProfile.userRole,
+          caredForName: undefined,
+          caredForAge: undefined,
+        });
+        await markCloudKitBackupDirty();
+      } catch (e) {
+        console.warn("AsyncStorage caregiverProfile clear failed", e);
+      }
+    },
+  };
+
+  const DEFAULT_SICK_MODE: SickModeData = {
+    active: false,
+    hydrationMl: 0,
+    foodChecklist: { lightMeal: false, saltySnack: false, liquidCalories: false },
+    restChecklist: { lying: false, napping: false, screenBreak: false },
+    symptoms: [],
+    temperatures: [],
+    prnDoses: [],
+  };
+
+  const sickModeStorage = {
+    get: async (): Promise<SickModeData> => {
+      try {
+        const raw = await AsyncStorage.getItem(KEYS.SICK_MODE);
+        return raw ? { ...DEFAULT_SICK_MODE, ...JSON.parse(raw) } : { ...DEFAULT_SICK_MODE };
+      } catch (e) {
+        console.warn("AsyncStorage sickMode get failed", e);
+        return { ...DEFAULT_SICK_MODE };
+      }
+    },
+    save: async (data: SickModeData) => {
+      try {
+        await AsyncStorage.setItem(KEYS.SICK_MODE, JSON.stringify(data));
+        await markCloudKitBackupDirty();
+      } catch (e) {
+        console.warn("AsyncStorage sickMode save failed", e);
+      }
+    },
+    reset: async () => {
+      try {
+        await AsyncStorage.setItem(KEYS.SICK_MODE, JSON.stringify(DEFAULT_SICK_MODE));
+        await markCloudKitBackupDirty();
+      } catch (e) {
+        console.warn("AsyncStorage sickMode reset failed", e);
+      }
+    },
+  };
+
+  const documentStorage = {
+    getAll: () => getItem<DocumentExtraction>(KEYS.DOCUMENTS),
+    save: async (doc: Omit<DocumentExtraction, "id">) => {
+      const all = await getItem<DocumentExtraction>(KEYS.DOCUMENTS);
+      const newDoc = { ...doc, id: Crypto.randomUUID() };
+      all.push(newDoc);
+      await setItem(KEYS.DOCUMENTS, all);
+      return newDoc;
+    },
+    delete: async (id: string) => {
+      const all = await getItem<DocumentExtraction>(KEYS.DOCUMENTS);
+      await setItem(KEYS.DOCUMENTS, all.filter((d) => d.id !== id));
+    },
+  };
+
+  const insightStorage = {
+    getAll: () => getItem<HealthInsight>(KEYS.INSIGHTS),
+    getLatest: async () => {
+      const all = await getItem<HealthInsight>(KEYS.INSIGHTS);
+      return all.sort((a, b) => b.date.localeCompare(a.date))[0];
+    },
+    save: async (insight: Omit<HealthInsight, "id">) => {
+      const all = await getItem<HealthInsight>(KEYS.INSIGHTS);
+      const newInsight = { ...insight, id: Crypto.randomUUID() };
+      all.push(newInsight);
+      await setItem(KEYS.INSIGHTS, all);
+      return newInsight;
+    },
+    deleteAll: async () => {
+      await setItem(KEYS.INSIGHTS, []);
+    },
+  };
+
+  const medComparisonStorage = {
+    getAll: () => getItem<MedComparison>(KEYS.MED_COMPARISONS),
+    save: async (comp: Omit<MedComparison, "id">) => {
+      const all = await getItem<MedComparison>(KEYS.MED_COMPARISONS);
+      const newComp = { ...comp, id: Crypto.randomUUID() };
+      all.push(newComp);
+      await setItem(KEYS.MED_COMPARISONS, all);
+      return newComp;
+    },
+    delete: async (id: string) => {
+      const all = await getItem<MedComparison>(KEYS.MED_COMPARISONS);
+      await setItem(KEYS.MED_COMPARISONS, all.filter((c) => c.id !== id));
+    },
+  };
+
+  const DEFAULT_ALLERGY_INFO: AllergyInfo = {
+    hasAllergies: false,
+    allergyName: "",
+    reactionDescription: "",
+    hasEpiPen: false,
+    primaryEpiPenLocation: "",
+    backupEpiPenLocation: "",
+    noTreatmentConsequence: "",
+  };
+
+  const allergyStorage = {
+    get: async (): Promise<AllergyInfo> => {
+      try {
+        const raw = await AsyncStorage.getItem(KEYS.ALLERGY_INFO);
+        return raw ? { ...DEFAULT_ALLERGY_INFO, ...JSON.parse(raw) } : { ...DEFAULT_ALLERGY_INFO };
+      } catch (e) {
+        console.warn("AsyncStorage allergy get failed", e);
+        return { ...DEFAULT_ALLERGY_INFO };
+      }
+    },
+    save: async (data: AllergyInfo) => {
+      try {
+        await AsyncStorage.setItem(KEYS.ALLERGY_INFO, JSON.stringify(data));
+        await markCloudKitBackupDirty();
+      } catch (e) {
+        console.warn("AsyncStorage allergy save failed", e);
+      }
+    },
+  };
+
+  const emergencyDoctorStorage = {
+    getDocId: async (): Promise<string | null> => {
+      try {
+        return await AsyncStorage.getItem(scopedRaw("emergency_doctor"));
+      } catch {
+        return null;
+      }
+    },
+    setDocId: async (id: string | null): Promise<void> => {
+      try {
+        if (id === null) {
+          await AsyncStorage.removeItem(scopedRaw("emergency_doctor"));
+        } else {
+          await AsyncStorage.setItem(scopedRaw("emergency_doctor"), id);
+        }
+        await markCloudKitBackupDirty();
+      } catch (e) {
+        console.warn("AsyncStorage emergencyDoctor setDocId failed", e);
+      }
+    },
+  };
+
+  const primaryDoctorStorage = {
+    getDocId: async (): Promise<string | null> => {
+      try {
+        return await AsyncStorage.getItem(scopedRaw("primary_doctor"));
+      } catch {
+        return null;
+      }
+    },
+    setDocId: async (id: string | null): Promise<void> => {
+      try {
+        if (id === null) {
+          await AsyncStorage.removeItem(scopedRaw("primary_doctor"));
+        } else {
+          await AsyncStorage.setItem(scopedRaw("primary_doctor"), id);
+        }
+        await markCloudKitBackupDirty();
+      } catch (e) {
+        console.warn("AsyncStorage primaryDoctor setDocId failed", e);
+      }
+    },
+  };
+
+  const healthProfileStorage = {
+    get: async (): Promise<HealthProfileInfo> => {
+      try {
+        const raw = await AsyncStorage.getItem(KEYS.HEALTH_PROFILE_INFO);
+        return raw
+          ? { userRole: "self", widgetAppearance: "system", recoveryTrackingEnabled: false, recoveryFocus: "", backupCriticalMedications: [], vaccines: [], surgeries: [], ...JSON.parse(raw) }
+          : { userRole: "self", widgetAppearance: "system", recoveryTrackingEnabled: false, recoveryFocus: "", backupCriticalMedications: [], vaccines: [], surgeries: [] };
+      } catch (e) {
+        console.warn("AsyncStorage healthProfile get failed", e);
+        return { userRole: "self", widgetAppearance: "system", recoveryTrackingEnabled: false, recoveryFocus: "", backupCriticalMedications: [], vaccines: [], surgeries: [] };
+      }
+    },
+    save: async (data: HealthProfileInfo) => {
+      try {
+        await AsyncStorage.setItem(
+          KEYS.HEALTH_PROFILE_INFO,
+          JSON.stringify({
+            userRole: "self",
+            widgetAppearance: "system",
+            recoveryTrackingEnabled: false,
+            recoveryFocus: "",
+            backupCriticalMedications: [],
+            vaccines: [],
+            surgeries: [],
+            ...data,
+          })
+        );
+        await markCloudKitBackupDirty();
+      } catch (e) {
+        console.warn("AsyncStorage healthProfile save failed", e);
+      }
+    },
+  };
+
+  const enableRecoveryTracking = async (focus = "sick mode recovery") => {
+    const profile = await healthProfileStorage.get();
+    const nextProfile: HealthProfileInfo = {
+      ...profile,
+      recoveryTrackingEnabled: true,
+      recoveryFocus: profile.recoveryFocus?.trim() ? profile.recoveryFocus : focus,
+      recoveryTrackingStartedAt: profile.recoveryTrackingStartedAt ?? new Date().toISOString(),
+    };
+    await healthProfileStorage.save(nextProfile);
+    return nextProfile;
+  };
+
+  const disableRecoveryTracking = async () => {
+    const profile = await healthProfileStorage.get();
+    const nextProfile: HealthProfileInfo = {
+      ...profile,
+      recoveryTrackingEnabled: false,
+      recoveryFocus: "",
+      recoveryTrackingStartedAt: undefined,
+    };
+    await healthProfileStorage.save(nextProfile);
+    return nextProfile;
+  };
+
+  const cycleTrackingStorage = {
+    getAll: () => getItem<CycleEntry>(KEYS.CYCLE_ENTRIES),
+    getLatest: async () => {
+      const all = await getItem<CycleEntry>(KEYS.CYCLE_ENTRIES);
+      return all.sort((a, b) => b.date.localeCompare(a.date))[0];
+    },
+    save: async (data: Omit<CycleEntry, "id">) => {
+      const all = await getItem<CycleEntry>(KEYS.CYCLE_ENTRIES);
+      const newItem = { ...data, id: Crypto.randomUUID(), recordedAt: data.recordedAt ?? new Date().toISOString() };
+      all.push(newItem);
+      await setItem(KEYS.CYCLE_ENTRIES, all);
+      return newItem;
+    },
+    delete: async (id: string) => {
+      const all = await getItem<CycleEntry>(KEYS.CYCLE_ENTRIES);
+      await setItem(KEYS.CYCLE_ENTRIES, all.filter((entry) => entry.id !== id));
+    },
+  };
+
+  const conditionStorage = {
+    getAll: () => getItem<HealthCondition>(KEYS.CONDITIONS),
+    save: async (data: Omit<HealthCondition, "id">) => {
+      const items = await getItem<HealthCondition>(KEYS.CONDITIONS);
+      const id = `cond_${Crypto.randomUUID()}`;
+      items.push({ ...data, id });
+      await setItem(KEYS.CONDITIONS, items);
+      return id;
+    },
+    update: async (id: string, updates: Partial<HealthCondition>) => {
+      const items = await getItem<HealthCondition>(KEYS.CONDITIONS);
+      const idx = items.findIndex(c => c.id === id);
+      if (idx >= 0) {
+        items[idx] = { ...items[idx], ...updates };
+        await setItem(KEYS.CONDITIONS, items);
+      }
+    },
+    delete: async (id: string) => {
+      const items = await getItem<HealthCondition>(KEYS.CONDITIONS);
+      await setItem(KEYS.CONDITIONS, items.filter(c => c.id !== id));
+    },
+  };
+
+  const monthlyCheckInStorage = {
+    getAll: () => getItem<MonthlyCheckIn>(KEYS.MONTHLY_CHECK_INS),
+    getLatest: async () => {
+      const all = await getItem<MonthlyCheckIn>(KEYS.MONTHLY_CHECK_INS);
+      return all.sort((a, b) => b.date.localeCompare(a.date))[0];
+    },
+    save: async (data: Omit<MonthlyCheckIn, "id">) => {
+      const all = await getItem<MonthlyCheckIn>(KEYS.MONTHLY_CHECK_INS);
+      const monthKey = data.date.slice(0, 7);
+      const existingForMonth = all.find((item) => item.date.slice(0, 7) === monthKey);
+      if (existingForMonth) return existingForMonth;
+      const newItem = { ...data, id: Crypto.randomUUID() };
+      all.push(newItem);
+      await setItem(KEYS.MONTHLY_CHECK_INS, all);
+      return newItem;
+    },
+    delete: async (id: string) => {
+      const all = await getItem<MonthlyCheckIn>(KEYS.MONTHLY_CHECK_INS);
+      await setItem(KEYS.MONTHLY_CHECK_INS, all.filter((c) => c.id !== id));
+    },
+  };
+
+  const eatingStorage = {
+    getAll: () => getItem<EatingEntry>(KEYS.EATING_LOGS),
+    getByDateRange: async (from: string, to: string) => {
+      const all = await getItem<EatingEntry>(KEYS.EATING_LOGS);
+      return all.filter((e) => e.date >= from && e.date <= to).sort((a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || ""));
+    },
+    save: async (data: Omit<EatingEntry, "id">) => {
+      const all = await getItem<EatingEntry>(KEYS.EATING_LOGS);
+      const newItem = { ...data, id: Crypto.randomUUID() };
+      all.push(newItem);
+      await setItem(KEYS.EATING_LOGS, all);
+      return newItem;
+    },
+    delete: async (id: string) => {
+      const all = await getItem<EatingEntry>(KEYS.EATING_LOGS);
+      await setItem(KEYS.EATING_LOGS, all.filter((e) => e.id !== id));
+    },
+  };
+
+  const DEFAULT_HYDRATION_PRESET: HydrationQuickActionPreset = {
+    what: "Water",
+    amount: 8,
+    unit: "oz",
+  };
+
+  function convertHydrationToMl(amount: number, unit: HydrationUnit): number {
+    if (!Number.isFinite(amount) || amount <= 0) return 0;
+    switch (unit) {
+      case "ml":
+        return amount;
+      case "L":
+        return amount * 1000;
+      case "glasses":
+        return amount * 240;
+      case "oz":
+      default:
+        return amount * 29.5735;
     }
-  },
-  delete: async (id: string) => {
-    const all = await getItem<Goal>(KEYS.GOALS);
-    await setItem(KEYS.GOALS, all.filter((g) => g.id !== id));
-  },
-};
+  }
+
+  function formatHydrationAmount(amount: number, unit: HydrationUnit): string {
+    const rounded = Number.isInteger(amount) ? String(amount) : amount.toFixed(1).replace(/\.0$/, "");
+    return `${rounded} ${unit}`;
+  }
+
+  const hydrationStorage = {
+    getAll: () => getItem<HydrationEntry>(KEYS.HYDRATION_LOGS),
+    getByDateRange: async (from: string, to: string) => {
+      const all = await getItem<HydrationEntry>(KEYS.HYDRATION_LOGS);
+      return all
+        .filter((entry) => entry.date >= from && entry.date <= to)
+        .sort((a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || ""));
+    },
+    save: async (data: Omit<HydrationEntry, "id">) => {
+      const all = await getItem<HydrationEntry>(KEYS.HYDRATION_LOGS);
+      const newItem = { ...data, id: Crypto.randomUUID() };
+      all.push(newItem);
+      await setItem(KEYS.HYDRATION_LOGS, all);
+      return newItem;
+    },
+    delete: async (id: string) => {
+      const all = await getItem<HydrationEntry>(KEYS.HYDRATION_LOGS);
+      await setItem(KEYS.HYDRATION_LOGS, all.filter((entry) => entry.id !== id));
+    },
+    getPreset: async (): Promise<HydrationQuickActionPreset> => {
+      try {
+        const raw = await AsyncStorage.getItem(KEYS.HYDRATION_PRESET);
+        if (!raw) return { ...DEFAULT_HYDRATION_PRESET };
+        const parsed = JSON.parse(raw) as Partial<HydrationQuickActionPreset>;
+        const amount = typeof parsed.amount === "number" && parsed.amount > 0 ? parsed.amount : DEFAULT_HYDRATION_PRESET.amount;
+        const unit = parsed.unit === "oz" || parsed.unit === "ml" || parsed.unit === "L" || parsed.unit === "glasses"
+          ? parsed.unit
+          : DEFAULT_HYDRATION_PRESET.unit;
+        return {
+          what: parsed.what?.trim() || DEFAULT_HYDRATION_PRESET.what,
+          amount,
+          unit,
+        };
+      } catch (e) {
+        console.warn("AsyncStorage hydrationPreset get failed", e);
+        return { ...DEFAULT_HYDRATION_PRESET };
+      }
+    },
+    savePreset: async (preset: HydrationQuickActionPreset) => {
+      try {
+        const safePreset: HydrationQuickActionPreset = {
+          what: preset.what.trim() || DEFAULT_HYDRATION_PRESET.what,
+          amount: Number.isFinite(preset.amount) && preset.amount > 0 ? preset.amount : DEFAULT_HYDRATION_PRESET.amount,
+          unit: preset.unit,
+        };
+        await AsyncStorage.setItem(KEYS.HYDRATION_PRESET, JSON.stringify(safePreset));
+        await markCloudKitBackupDirty();
+      } catch (e) {
+        console.warn("AsyncStorage hydrationPreset save failed", e);
+      }
+    },
+  };
+
+  const DEFAULT_MENTAL_HEALTH_MODE: MentalHealthModeData = {
+    active: false,
+  };
+
+  const mentalHealthModeStorage = {
+    get: async (): Promise<MentalHealthModeData> => {
+      try {
+        const raw = await AsyncStorage.getItem(KEYS.MENTAL_HEALTH_MODE);
+        return raw ? { ...DEFAULT_MENTAL_HEALTH_MODE, ...JSON.parse(raw) } : { ...DEFAULT_MENTAL_HEALTH_MODE };
+      } catch (e) {
+        console.warn("AsyncStorage mentalHealthMode get failed", e);
+        return { ...DEFAULT_MENTAL_HEALTH_MODE };
+      }
+    },
+    save: async (data: MentalHealthModeData) => {
+      try {
+        await AsyncStorage.setItem(KEYS.MENTAL_HEALTH_MODE, JSON.stringify(data));
+        await markCloudKitBackupDirty();
+      } catch (e) {
+        console.warn("AsyncStorage mentalHealthMode save failed", e);
+      }
+    },
+    reset: async () => {
+      try {
+        await AsyncStorage.setItem(KEYS.MENTAL_HEALTH_MODE, JSON.stringify(DEFAULT_MENTAL_HEALTH_MODE));
+        await markCloudKitBackupDirty();
+      } catch (e) {
+        console.warn("AsyncStorage mentalHealthMode reset failed", e);
+      }
+    },
+  };
+
+  const comfortStorage = {
+    getAll: () => getItem<ComfortItem>(KEYS.COMFORT_ITEMS),
+    save: async (data: Omit<ComfortItem, "id">) => {
+      const all = await getItem<ComfortItem>(KEYS.COMFORT_ITEMS);
+      const newItem = { ...data, id: Crypto.randomUUID() };
+      all.push(newItem);
+      await setItem(KEYS.COMFORT_ITEMS, all);
+      return newItem;
+    },
+    delete: async (id: string) => {
+      const all = await getItem<ComfortItem>(KEYS.COMFORT_ITEMS);
+      await setItem(KEYS.COMFORT_ITEMS, all.filter((c) => c.id !== id));
+    },
+  };
+
+  const goalStorage = {
+    getAll: () => getItem<Goal>(KEYS.GOALS),
+    save: async (data: Omit<Goal, "id">) => {
+      const all = await getItem<Goal>(KEYS.GOALS);
+      const newItem = { ...data, id: Crypto.randomUUID() };
+      all.push(newItem);
+      await setItem(KEYS.GOALS, all);
+      return newItem;
+    },
+    update: async (id: string, updates: Partial<Omit<Goal, "id">>) => {
+      const all = await getItem<Goal>(KEYS.GOALS);
+      const idx = all.findIndex((g) => g.id === id);
+      if (idx >= 0) {
+        all[idx] = { ...all[idx], ...updates };
+        await setItem(KEYS.GOALS, all);
+      }
+    },
+    delete: async (id: string) => {
+      const all = await getItem<Goal>(KEYS.GOALS);
+      await setItem(KEYS.GOALS, all.filter((g) => g.id !== id));
+    },
+  };
+
+  return {
+    healthLogStorage,
+    symptomStorage,
+    feedbackStorage,
+    medicationStorage,
+    medicationLogStorage,
+    medicationEnforcementStorage,
+    doctorsStorage,
+    pharmacyStorage,
+    appointmentStorage,
+    doctorNoteStorage,
+    labWorkStorage,
+    imagingStorage,
+    fastingLogStorage,
+    vitalStorage,
+    settingsStorage,
+    roleStorage,
+    caregiverProfileStorage,
+    sickModeStorage,
+    documentStorage,
+    insightStorage,
+    medComparisonStorage,
+    allergyStorage,
+    emergencyDoctorStorage,
+    primaryDoctorStorage,
+    healthProfileStorage,
+    enableRecoveryTracking,
+    disableRecoveryTracking,
+    cycleTrackingStorage,
+    conditionStorage,
+    monthlyCheckInStorage,
+    eatingStorage,
+    convertHydrationToMl,
+    formatHydrationAmount,
+    hydrationStorage,
+    mentalHealthModeStorage,
+    comfortStorage,
+    goalStorage,
+    DEFAULT_ALLERGY_INFO,
+    DEFAULT_SICK_MODE,
+    DEFAULT_HYDRATION_PRESET,
+    DEFAULT_MENTAL_HEALTH_MODE,
+  };
+}
+
+
+type Stores = ReturnType<typeof createStores>;
+const storesByProfile = new Map<string, Stores>();
+let activeProfileId = SELF_PROFILE_ID;
+
+/** Storage accessors for a specific profile. Never reads another profile's keys. */
+export function getStoresForProfile(profileId: string): Stores {
+  let stores = storesByProfile.get(profileId);
+  if (!stores) {
+    stores = createStores(keysForProfile(profileId), profileId);
+    storesByProfile.set(profileId, stores);
+  }
+  return stores;
+}
+
+/** Always the signed-in person's own data. Notifications, widgets, backups, and enforcement use this. */
+export const selfStores: Stores = getStoresForProfile(SELF_PROFILE_ID);
+
+export function getActiveProfileId(): string {
+  return activeProfileId;
+}
+
+export function setActiveProfileId(profileId: string): void {
+  activeProfileId = profileId || SELF_PROFILE_ID;
+}
+
+/** Screens use these names unchanged; calls resolve against whichever profile is being viewed. */
+function activeProxy<K extends keyof Stores>(name: K): Stores[K] {
+  return new Proxy({} as object, {
+    get: (_t, prop) => (getStoresForProfile(activeProfileId)[name] as Record<string | symbol, unknown>)[prop],
+  }) as Stores[K];
+}
+
+export const healthLogStorage = activeProxy("healthLogStorage");
+export const symptomStorage = activeProxy("symptomStorage");
+/** App-level (not per care profile). */
+export const feedbackStorage = selfStores.feedbackStorage;
+export const medicationStorage = activeProxy("medicationStorage");
+export const medicationLogStorage = activeProxy("medicationLogStorage");
+export const medicationEnforcementStorage = activeProxy("medicationEnforcementStorage");
+export const doctorsStorage = activeProxy("doctorsStorage");
+export const pharmacyStorage = activeProxy("pharmacyStorage");
+export const appointmentStorage = activeProxy("appointmentStorage");
+export const doctorNoteStorage = activeProxy("doctorNoteStorage");
+export const labWorkStorage = activeProxy("labWorkStorage");
+export const imagingStorage = activeProxy("imagingStorage");
+export const fastingLogStorage = activeProxy("fastingLogStorage");
+export const vitalStorage = activeProxy("vitalStorage");
+/** App-level (not per care profile). */
+export const settingsStorage = selfStores.settingsStorage;
+/** App-level (not per care profile). */
+export const roleStorage = selfStores.roleStorage;
+/** App-level (not per care profile). */
+export const caregiverProfileStorage = selfStores.caregiverProfileStorage;
+export const sickModeStorage = activeProxy("sickModeStorage");
+export const documentStorage = activeProxy("documentStorage");
+export const insightStorage = activeProxy("insightStorage");
+export const medComparisonStorage = activeProxy("medComparisonStorage");
+export const allergyStorage = activeProxy("allergyStorage");
+export const emergencyDoctorStorage = activeProxy("emergencyDoctorStorage");
+export const primaryDoctorStorage = activeProxy("primaryDoctorStorage");
+export const healthProfileStorage = activeProxy("healthProfileStorage");
+export const cycleTrackingStorage = activeProxy("cycleTrackingStorage");
+export const conditionStorage = activeProxy("conditionStorage");
+export const monthlyCheckInStorage = activeProxy("monthlyCheckInStorage");
+export const eatingStorage = activeProxy("eatingStorage");
+export const hydrationStorage = activeProxy("hydrationStorage");
+export const mentalHealthModeStorage = activeProxy("mentalHealthModeStorage");
+export const comfortStorage = activeProxy("comfortStorage");
+export const goalStorage = activeProxy("goalStorage");
+export const enableRecoveryTracking = selfStores.enableRecoveryTracking;
+export const disableRecoveryTracking = selfStores.disableRecoveryTracking;
+const { DEFAULT_ALLERGY_INFO, DEFAULT_SICK_MODE, DEFAULT_HYDRATION_PRESET, DEFAULT_MENTAL_HEALTH_MODE } = selfStores;
+export const convertHydrationToMl = selfStores.convertHydrationToMl;
+export const formatHydrationAmount = selfStores.formatHydrationAmount;
 
 export type ExportPayload = {
   exportDate: string;
@@ -1913,39 +2083,39 @@ export const exportAllData = async (): Promise<ExportPayload> => {
     userRole,
     caregiverProfile,
   ] = await Promise.all([
-    healthLogStorage.getAll(),
-    symptomStorage.getAll(),
-    medicationStorage.getAll(),
-    medicationLogStorage.getAll(),
-    doctorsStorage.getAll(),
-    pharmacyStorage.getAll(),
-    appointmentStorage.getAll(),
-    doctorNoteStorage.getAll(),
-    labWorkStorage.getAll(),
-    imagingStorage.getAll(),
-    fastingLogStorage.getAll(),
-    vitalStorage.getAll(),
-    settingsStorage.get(),
-    documentStorage.getAll(),
-    insightStorage.getAll(),
-    allergyStorage.get(),
-    conditionStorage.getAll(),
-    sickModeStorage.get(),
-    healthProfileStorage.get(),
-    roleStorage.get(),
-    caregiverProfileStorage.get(),
+    selfStores.healthLogStorage.getAll(),
+    selfStores.symptomStorage.getAll(),
+    selfStores.medicationStorage.getAll(),
+    selfStores.medicationLogStorage.getAll(),
+    selfStores.doctorsStorage.getAll(),
+    selfStores.pharmacyStorage.getAll(),
+    selfStores.appointmentStorage.getAll(),
+    selfStores.doctorNoteStorage.getAll(),
+    selfStores.labWorkStorage.getAll(),
+    selfStores.imagingStorage.getAll(),
+    selfStores.fastingLogStorage.getAll(),
+    selfStores.vitalStorage.getAll(),
+    selfStores.settingsStorage.get(),
+    selfStores.documentStorage.getAll(),
+    selfStores.insightStorage.getAll(),
+    selfStores.allergyStorage.get(),
+    selfStores.conditionStorage.getAll(),
+    selfStores.sickModeStorage.get(),
+    selfStores.healthProfileStorage.get(),
+    selfStores.roleStorage.get(),
+    selfStores.caregiverProfileStorage.get(),
   ]);
   const [medComparisons, monthlyCheckIns, eatingLogs, hydrationLogs, hydrationPreset, mentalHealthMode, comfortItems, goals, cycleEntries, feedback] = await Promise.all([
-    medComparisonStorage.getAll(),
-    monthlyCheckInStorage.getAll(),
-    eatingStorage.getAll(),
-    hydrationStorage.getAll(),
-    hydrationStorage.getPreset(),
-    mentalHealthModeStorage.get(),
-    comfortStorage.getAll(),
-    goalStorage.getAll(),
-    cycleTrackingStorage.getAll(),
-    feedbackStorage.getAll(),
+    selfStores.medComparisonStorage.getAll(),
+    selfStores.monthlyCheckInStorage.getAll(),
+    selfStores.eatingStorage.getAll(),
+    selfStores.hydrationStorage.getAll(),
+    selfStores.hydrationStorage.getPreset(),
+    selfStores.mentalHealthModeStorage.get(),
+    selfStores.comfortStorage.getAll(),
+    selfStores.goalStorage.getAll(),
+    selfStores.cycleTrackingStorage.getAll(),
+    selfStores.feedbackStorage.getAll(),
   ]);
   return {
     exportDate: new Date().toISOString(),
@@ -1987,12 +2157,12 @@ export const exportAllData = async (): Promise<ExportPayload> => {
 
 export const importAllData = async (payload: ExportPayload): Promise<void> => {
   await clearAllData();
-  await settingsStorage.save(payload.profile);
-  await healthProfileStorage.save(payload.healthProfile ?? { userRole: "self", backupCriticalMedications: [] });
-  await roleStorage.save(payload.userRole ?? payload.healthProfile?.userRole ?? "self");
-  if (payload.caregiverProfile) await caregiverProfileStorage.save(payload.caregiverProfile);
-  await allergyStorage.save(payload.allergy ?? { ...DEFAULT_ALLERGY_INFO });
-  await sickModeStorage.save(payload.sickMode ?? { ...DEFAULT_SICK_MODE });
+  await selfStores.settingsStorage.save(payload.profile);
+  await selfStores.healthProfileStorage.save(payload.healthProfile ?? { userRole: "self", backupCriticalMedications: [] });
+  await selfStores.roleStorage.save(payload.userRole ?? payload.healthProfile?.userRole ?? "self");
+  if (payload.caregiverProfile) await selfStores.caregiverProfileStorage.save(payload.caregiverProfile);
+  await selfStores.allergyStorage.save(payload.allergy ?? { ...DEFAULT_ALLERGY_INFO });
+  await selfStores.sickModeStorage.save(payload.sickMode ?? { ...DEFAULT_SICK_MODE });
   await setItem(KEYS.HEALTH_LOGS, payload.healthLogs ?? []);
   await setItem(KEYS.SYMPTOMS, payload.symptoms ?? []);
   await setItem(KEYS.MEDICATIONS, payload.medications ?? []);
@@ -2012,8 +2182,8 @@ export const importAllData = async (payload: ExportPayload): Promise<void> => {
   await setItem(KEYS.MONTHLY_CHECK_INS, payload.monthlyCheckIns ?? []);
   await setItem(KEYS.EATING_LOGS, payload.eatingLogs ?? []);
   await setItem(KEYS.HYDRATION_LOGS, payload.hydrationLogs ?? []);
-  await hydrationStorage.savePreset(payload.hydrationPreset ?? { ...DEFAULT_HYDRATION_PRESET });
-  await mentalHealthModeStorage.save(payload.mentalHealthMode ?? { ...DEFAULT_MENTAL_HEALTH_MODE });
+  await selfStores.hydrationStorage.savePreset(payload.hydrationPreset ?? { ...DEFAULT_HYDRATION_PRESET });
+  await selfStores.mentalHealthModeStorage.save(payload.mentalHealthMode ?? { ...DEFAULT_MENTAL_HEALTH_MODE });
   await setItem(KEYS.COMFORT_ITEMS, payload.comfortItems ?? []);
   await setItem(KEYS.GOALS, payload.goals ?? []);
   await setItem(KEYS.CYCLE_ENTRIES, payload.cycleEntries ?? []);

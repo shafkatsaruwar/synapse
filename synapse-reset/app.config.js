@@ -23,7 +23,7 @@ module.exports = {
     // OTA (EAS Update): bare workflow (committed native project) requires a fixed
     // runtimeVersion string. Must match ios Expo.plist EXUpdatesRuntimeVersion.
     // Bump this only when native code/config changes in a way JS updates can't cross.
-    runtimeVersion: "1.15",
+    runtimeVersion: "1.16.1",
     updates: {
       url: "https://u.expo.dev/2ae7d5f4-1514-408d-b1ec-250da7c8ccfa",
       fallbackToCacheTimeout: 0,
@@ -121,6 +121,15 @@ module.exports = {
           color: "#2B5FBF",
         },
       ],
+      [
+        "expo-camera",
+        {
+          cameraPermission:
+            "Synapse uses the camera only to read a care-connection QR code from another person's phone. Nothing is saved or sent.",
+          recordAudioAndroid: false,
+        },
+      ],
+      "expo-secure-store",
       "@react-native-community/datetimepicker",
       [
         "@kingstinct/react-native-healthkit",
