@@ -45,7 +45,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
-      buildNumber: "1",
+      buildNumber: "2",
       // iOS 18+ system appearance icons (light / dark). Needs a new native build to show on home screen.
       icon: {
         light: "./assets/icon-light.png",
