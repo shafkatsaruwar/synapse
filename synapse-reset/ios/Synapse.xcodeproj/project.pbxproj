@@ -585,7 +585,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = SynapseShareExtension/SynapseShareExtension.entitlements;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 9NND6657B2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SynapseShareExtension/Info.plist;
@@ -614,7 +614,7 @@
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIcon-Ocean AppIcon-Sage AppIcon-Amber AppIcon-Rose AppIcon-Copper AppIcon-Lavender AppIcon-Chocolate AppIcon-Graphite";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Synapse/Synapse.entitlements;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 9NND6657B2;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -653,7 +653,7 @@
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIcon-Ocean AppIcon-Sage AppIcon-Amber AppIcon-Rose AppIcon-Copper AppIcon-Lavender AppIcon-Chocolate AppIcon-Graphite";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Synapse/Synapse.entitlements;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 9NND6657B2;
 				INFOPLIST_FILE = Synapse/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
@@ -684,7 +684,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = SynapseShareExtension/SynapseShareExtension.entitlements;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 9NND6657B2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SynapseShareExtension/Info.plist;
@@ -829,7 +829,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = SynapseWidgets/SynapseWidgets.entitlements;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 9NND6657B2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SynapseWidgets/Info.plist;
@@ -854,7 +854,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = SynapseWidgets/SynapseWidgets.entitlements;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 9NND6657B2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SynapseWidgets/Info.plist;
