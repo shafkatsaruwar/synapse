@@ -59,6 +59,7 @@ const mocks: Record<string, unknown> = {
       return req.identifier;
     },
   },
+  "@/lib/notification-icon": { getNotificationIconAttachments: async () => undefined },
   "expo-sms": { isAvailableAsync: async () => true, sendSMSAsync: async (to: string[], body: string) => void smsLog.push({ to, body }) },
   "expo-secure-store": {
     WHEN_UNLOCKED_THIS_DEVICE_ONLY: "when_unlocked_this_device_only",

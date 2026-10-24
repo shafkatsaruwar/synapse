@@ -9,6 +9,7 @@ import * as Notifications from "expo-notifications";
 import * as SMS from "expo-sms";
 import { Linking, Platform, Share } from "react-native";
 import { getStoresForProfile } from "@/lib/storage";
+import { getNotificationIconAttachments } from "@/lib/notification-icon";
 import { loadConnections, isTrusted } from "./connections";
 import { loadSharedData } from "./sharing";
 import { CARE_KEY_PREFIX, loadRegistry } from "./profiles";
@@ -327,6 +328,7 @@ export async function syncCheckInReminders(now = Date.now()): Promise<PlannedRem
   const previousIds = new Set(state.reminders.map((r) => r.id));
   if (chosen.length) {
     await ensureCategory();
+    const attachments = await getNotificationIconAttachments();
     for (const item of chosen) {
       try {
         await Notifications.scheduleNotificationAsync({
@@ -335,6 +337,7 @@ export async function syncCheckInReminders(now = Date.now()): Promise<PlannedRem
             title: reminderTitle(item.personName),
             body: reminderBody(item.personName, "medication", item.postponedFrom ? { reason: "quiet_hours", originalInstant: item.postponedFrom } : null),
             categoryIdentifier: CHECKIN_CATEGORY,
+            ...(attachments?.length ? { attachments } : {}),
             data: { widgetTarget: "checkin", notificationType: "check-in", personId: item.personId, reminderId: item.id },
           },
           trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(item.fireInstant) },
