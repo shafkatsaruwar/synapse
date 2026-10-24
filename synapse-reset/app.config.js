@@ -19,7 +19,7 @@ module.exports = {
   expo: {
     name: "Synapse",
     slug: "synapse",
-    version: "1.15",
+    version: "1.16.1",
     // OTA (EAS Update): bare workflow (committed native project) requires a fixed
     // runtimeVersion string. Must match ios Expo.plist EXUpdatesRuntimeVersion.
     // Bump this only when native code/config changes in a way JS updates can't cross.
@@ -45,7 +45,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
-      buildNumber: "27",
+      buildNumber: "1",
       // iOS 18+ system appearance icons (light / dark). Needs a new native build to show on home screen.
       icon: {
         light: "./assets/icon-light.png",
