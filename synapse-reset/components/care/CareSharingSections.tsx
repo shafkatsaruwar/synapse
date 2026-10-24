@@ -91,7 +91,7 @@ export default function CareSharingSections({ onNavigate, backupOn, onToggleBack
       <SectionLabel>Sharing & Privacy</SectionLabel>
       <Card>
         <Row icon="phone-portrait-outline" title="Everything stays on this iPhone" subtitle="Synapse has no servers, accounts, or cloud syncing for care information." />
-        <Row icon="share-outline" title="You choose what leaves" subtitle="Sharing is manual, view-only, and you review it first. Nothing sends in the background." />
+        <Row icon="share-outline" title="You choose what leaves" subtitle="Sharing is manual and you review it first. Others can only suggest edits, and you approve each one. Nothing sends in the background." />
         <Row icon="hand-left-outline" title="Taking access back" subtitle="Stopping a connection ends future sharing. Anything already shared stays on their phone." />
         <Body>Apple's Messages and AirDrop may process what you send through them. Synapse itself never does.</Body>
       </Card>

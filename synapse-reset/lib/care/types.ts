@@ -61,10 +61,16 @@ export const SHARING_CATEGORIES: { id: SharingCategory; label: string; blurb: st
   { id: "emergency_info", label: "Emergency information", blurb: "Allergies and emergency notes" },
 ];
 
+/** Categories where the other person may *suggest* changes. Everything else is view-only. */
+export const EDITABLE_CATEGORIES: SharingCategory[] = ["med_schedule", "upcoming_appointments", "med_confirmations"];
+
 export type SharingPermission = {
   category: SharingCategory;
-  /** View-only. Editing someone else's records is not part of this release. */
-  access: "view";
+  /**
+   * "view": they can receive snapshots. "edit": they can also send change proposals, which you review
+   * and accept one by one. Nothing ever changes on your phone without your approval.
+   */
+  access: "view" | "edit";
 };
 
 export type ConnectionState =
@@ -134,6 +140,8 @@ export type SharedPayload = {
   med_confirmations?: SharedConfirmation[];
   selected_records?: SharedRecordItem[];
   emergency_info?: SharedEmergency;
+  /** Categories the sender allows the recipient to send change proposals for. */
+  editable?: SharingCategory[];
 };
 
 export type StoredSharedData = {
@@ -141,6 +149,8 @@ export type StoredSharedData = {
   connectionId: string;
   fromName: string;
   timeZone: string;
+  /** Categories the other person has allowed me to propose changes for (from their last update). */
+  editable: SharingCategory[];
   /** Per category: items plus the provenance of the package they came from. */
   med_schedule: { items: SharedMedication[]; provenance: SharedProvenance } | null;
   upcoming_appointments: { items: SharedAppointment[]; provenance: SharedProvenance } | null;
@@ -210,4 +220,47 @@ export type CheckInReminderRecord = {
   fireInstant: number;
   postponedFrom?: number;
   createdAt: string;
+};
+
+// ---------- change proposals (edit access) ----------
+
+export type MedicationChangeFields = {
+  name?: string;
+  amount?: string;
+  unit?: string;
+  times?: string[];
+  weekdays?: number[];
+};
+export type AppointmentChangeFields = { date?: string; time?: string; doctorName?: string; location?: string };
+export type ConfirmationChangeFields = { medicationKey?: string; medicationName?: string; date?: string; doseIndex?: number };
+
+/**
+ * One proposed change. `before` is what the proposer saw, so the owner can tell if the record has
+ * moved on since. Removing a medication means "stop" (inactive), never deleting its history.
+ */
+export type ProposedChange =
+  | { id: string; category: "med_schedule"; op: "add"; after: MedicationChangeFields }
+  | { id: string; category: "med_schedule"; op: "update"; key: string; before: MedicationChangeFields; after: MedicationChangeFields }
+  | { id: string; category: "med_schedule"; op: "stop"; key: string; before: MedicationChangeFields }
+  | { id: string; category: "upcoming_appointments"; op: "add"; after: AppointmentChangeFields }
+  | { id: string; category: "upcoming_appointments"; op: "update"; key: string; before: AppointmentChangeFields; after: AppointmentChangeFields }
+  | { id: string; category: "upcoming_appointments"; op: "cancel"; key: string; before: AppointmentChangeFields }
+  | { id: string; category: "med_confirmations"; op: "confirm"; after: ConfirmationChangeFields };
+
+export type ChangeSet = {
+  schema: 1;
+  kind: "changes";
+  senderName: string;
+  senderTimeZone: string;
+  /** ISO time of the shared update these changes were based on. */
+  baseExportedAt?: string;
+  changes: ProposedChange[];
+};
+
+export type AppliedEdit = {
+  id: string;
+  connectionId: string;
+  fromName: string;
+  at: string;
+  summary: string;
 };

@@ -11,7 +11,7 @@ import { getDeviceIdentity, loadConnections, loadSeenPackageIds, markSeen, recor
 import { CARE_KEY_PREFIX, loadRegistry, profileIsMinor } from "./profiles";
 import { CATEGORY_LABEL, describePayload, diffKeys, importFailureMessage, sanitizePayload, freshnessLabel, type ImportDiff } from "./sharing-core";
 import {
-  CARE_SCHEMA_VERSION, type CareConnection, type SharedAppointment, type SharedConfirmation, type SharedMedication, type SharedPayload,
+  CARE_SCHEMA_VERSION, EDITABLE_CATEGORIES, type CareConnection, type SharedAppointment, type SharedConfirmation, type SharedMedication, type SharedPayload,
   type SharedProvenance, type SharedRecordItem, type SharingCategory, type StoredSharedData,
 } from "./types";
 
@@ -24,6 +24,7 @@ const emptyStored = (connectionId: string, fromName: string, timeZone: string): 
   connectionId,
   fromName,
   timeZone,
+  editable: [],
   med_schedule: null,
   upcoming_appointments: null,
   med_confirmations: null,
@@ -120,6 +121,9 @@ export async function buildExportPayload(
     const picked = selection.selectedRecordKeys ? new Set(selection.selectedRecordKeys) : null;
     payload.selected_records = picked ? items.filter((i) => picked.has(i.key)) : [];
   }
+  // Tell the other person which categories they may send change proposals for (still reviewed by me).
+  const editable = conn.grants.filter((g) => g.access === "edit" && allowed.has(g.category) && EDITABLE_CATEGORIES.includes(g.category)).map((g) => g.category);
+  if (editable.length) payload.editable = editable;
   if (allowed.has("emergency_info") && sourceProfileId(conn) === SELF_PROFILE_ID) {
     const card = await getEmergencyCard();
     payload.emergency_info = { allergies: card.allergies.trim() || undefined, notes: card.optionalNotes.trim() || undefined };
@@ -152,7 +156,12 @@ export type ImportPreview =
     }
   | { ok: false; reason: string };
 
-export async function previewImport(input: string): Promise<ImportPreview> {
+export type OpenedPackage =
+  | { ok: true; connection: CareConnection; packageId: string; exportedAt: number; payload: unknown }
+  | { ok: false; reason: string };
+
+/** Finds the connection, checks it is verified, then verifies and decrypts the package. */
+export async function openIncomingPackage(input: string): Promise<OpenedPackage> {
   const json = extractJsonFromInput(input) ?? (input.trim().startsWith("{") ? input.trim() : null);
   if (!json) return { ok: false, reason: "malformed" };
   let from = "";
@@ -167,7 +176,19 @@ export async function previewImport(input: string): Promise<ImportPreview> {
   const [me, seen] = await Promise.all([getDeviceIdentity(), loadSeenPackageIds()]);
   const result = decryptPackage(me, { signPublic: fromBase64Url(conn.peerSignPublic!), agreePublic: fromBase64Url(conn.peerAgreePublic!) }, json, seen);
   if (!result.ok) return { ok: false, reason: result.reason };
-  const payload = sanitizePayload(result.payload);
+  return { ok: true, connection: conn, packageId: result.id, exportedAt: result.exportedAt, payload: result.payload };
+}
+
+export async function previewImport(input: string): Promise<ImportPreview> {
+  const opened = await openIncomingPackage(input);
+  if (!opened.ok) return opened;
+  if ((opened.payload as { kind?: string } | null)?.kind === "changes") return { ok: false, reason: "is_changes" };
+  return previewSnapshot(opened);
+}
+
+export async function previewSnapshot(opened: Extract<OpenedPackage, { ok: true }>): Promise<ImportPreview> {
+  const conn = opened.connection;
+  const payload = sanitizePayload(opened.payload);
   if (!payload) return { ok: false, reason: "invalid_payload" };
 
   const stored = (await loadSharedData(conn.id)) ?? emptyStored(conn.id, conn.peerName, payload.senderTimeZone);
@@ -182,7 +203,7 @@ export async function previewImport(input: string): Promise<ImportPreview> {
     diffs.push({ category: "emergency_info", label: CATEGORY_LABEL.emergency_info, added: stored.emergency_info ? 0 : 1, updated: stored.emergency_info && !same ? 1 : 0, unchanged: same ? 1 : 0, removed: 0 });
   }
   const newest = Math.max(0, ...keyed.map((c) => (stored[c] ? Date.parse(stored[c]!.provenance.exportedAt) : 0)), stored.emergency_info ? Date.parse(stored.emergency_info.provenance.exportedAt) : 0);
-  return { ok: true, connection: conn, packageId: result.id, exportedAt: result.exportedAt, payload, diffs, olderThanStored: result.exportedAt < newest };
+  return { ok: true, connection: conn, packageId: opened.packageId, exportedAt: opened.exportedAt, payload, diffs, olderThanStored: opened.exportedAt < newest };
 }
 
 /** Applies a previewed import to the shared-copy store only. Returns false if refused. */
@@ -196,6 +217,7 @@ export async function applyImport(preview: Extract<ImportPreview, { ok: true }>)
   const p = preview.payload;
   stored.fromName = conn.peerName;
   stored.timeZone = p.senderTimeZone;
+  stored.editable = p.editable ?? [];
   // Only categories this person is still allowed to send are applied; a snapshot replaces, it never merges.
   if (p.med_schedule) stored.med_schedule = { items: p.med_schedule, provenance: prov };
   if (p.upcoming_appointments) stored.upcoming_appointments = { items: p.upcoming_appointments, provenance: prov };

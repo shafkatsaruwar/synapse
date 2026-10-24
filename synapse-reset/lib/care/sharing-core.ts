@@ -25,6 +25,9 @@ const REASONS: Record<string, string> = {
   replayed: "You've already imported this file.",
   not_connected: "You need a verified connection with this person first.",
   invalid_payload: "This file's contents weren't in the expected format.",
+  is_changes: "This file holds suggested changes, not a snapshot.",
+  not_authorized: "You haven't allowed this person to suggest changes.",
+  nothing_allowed: "None of these changes are ones you've allowed this person to suggest.",
 };
 
 export function importFailureMessage(reason: string): string {
@@ -83,6 +86,7 @@ export function sanitizePayload(raw: unknown): SharedPayload | null {
       if (!key || !label || (i.kind !== "allergy" && i.kind !== "condition")) return null;
       return { key, kind: i.kind, label };
     }, 100);
+  if (Array.isArray(r.editable)) out.editable = r.editable.filter((c): c is SharingCategory => c === "med_schedule" || c === "upcoming_appointments" || c === "med_confirmations");
   if (r.emergency_info && typeof r.emergency_info === "object") {
     const e = r.emergency_info as Record<string, unknown>;
     out.emergency_info = { allergies: str(e.allergies, 500), notes: str(e.notes, 800) };

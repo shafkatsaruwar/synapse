@@ -19,8 +19,11 @@ import {
   type ImportPreview,
 } from "@/lib/care/sharing";
 import { deviceTimeZone } from "@/lib/care/time-zone";
-import { SHARING_CATEGORIES, type CareConnection, type ConnectionRole, type SharingCategory, type StoredSharedData } from "@/lib/care/types";
+import { EDITABLE_CATEGORIES, SHARING_CATEGORIES, type AppliedEdit, type CareConnection, type ConnectionRole, type SharingCategory, type StoredSharedData } from "@/lib/care/types";
 import { syncCheckInReminders } from "@/lib/care/checkin";
+import { applyChanges, declineChanges, isSelectable, loadEdits, previewChanges, type ChangePreview } from "@/lib/care/changes";
+import ChangeComposer from "@/components/care/ChangeComposer";
+import { ChipRow } from "@/components/care/pickers";
 import QRCode from "@/components/care/QRCode";
 import QRScanner from "@/components/care/QRScanner";
 import { Body, Card, Notice, Pill, PrimaryButton, Row, ScreenHeader, SecondaryButton, SectionLabel } from "@/components/care/ui";
@@ -418,11 +421,11 @@ function JoinFlow({ initialInput, onDone, onOpen, onConsumed }: { initialInput?:
           </Notice>
           <SectionLabel>What this connection is not</SectionLabel>
           <Card>
-            <Body>It does not give anyone access to your records. It is not live syncing, and it cannot track you. Nothing is shared unless you choose to export it.</Body>
+            <Body>It does not give anyone access to your records. It is not live syncing, and it cannot track you. Nothing is shared unless you choose to export it, and no one can change your records without you accepting it.</Body>
           </Card>
           <SectionLabel>What you'll allow them to receive</SectionLabel>
           <Card>
-            <Body>Nothing is selected by default. You can change this any time. Access is view-only.</Body>
+            <Body>Nothing is selected by default. You can change this any time. Later you can also let them suggest edits, which you approve one by one.</Body>
             {SHARING_CATEGORIES.map((c) => (
               <Row key={c.id} title={c.label} subtitle={c.blurb} right={<Switch value={grants.includes(c.id)} onValueChange={(v) => setGrantsState((g) => (v ? [...g, c.id] : g.filter((x) => x !== c.id)))} />} />
             ))}
@@ -449,6 +452,10 @@ function Detail({ id, onBack }: { id: string; onBack: () => void }) {
   const [exportPreview, setExportPreview] = useState<{ rows: ReturnType<typeof describePayload>; json: string } | null>(null);
   const [importText, setImportText] = useState("");
   const [importResult, setImportResult] = useState<ImportPreview | null>(null);
+  const [changePreview, setChangePreview] = useState<ChangePreview | null>(null);
+  const [accepted, setAccepted] = useState<Set<string>>(new Set());
+  const [edits, setEdits] = useState<AppliedEdit[]>([]);
+  const [meName, setMeName] = useState("Me");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -458,6 +465,8 @@ function Detail({ id, onBack }: { id: string; onBack: () => void }) {
     setCode(c ? await getVerificationCode(c) : null);
     setFp(await getMyFingerprint());
     setShared(c ? await loadSharedData(c.id) : null);
+    setEdits(c ? await loadEdits(c.id) : []);
+    setMeName(await myName());
   }, [id]);
   useEffect(() => {
     void reload();
@@ -475,9 +484,11 @@ function Detail({ id, onBack }: { id: string; onBack: () => void }) {
   const trusted = isTrusted(conn);
   const state = STATE_LABEL[conn.state];
 
-  const toggleGrant = async (cat: SharingCategory, on: boolean) => {
-    const next = on ? [...conn.grants.map((g) => g.category), cat] : conn.grants.map((g) => g.category).filter((c) => c !== cat);
-    await setGrants(conn.id, next);
+  const accessOf = (cat: SharingCategory): "off" | "view" | "edit" => conn.grants.find((g) => g.category === cat)?.access ?? "off";
+
+  const setAccess = async (cat: SharingCategory, access: "off" | "view" | "edit") => {
+    const others = conn.grants.filter((g) => g.category !== cat);
+    await setGrants(conn.id, access === "off" ? others : [...others, { category: cat, access }]);
     await reload();
   };
 
@@ -519,8 +530,32 @@ function Detail({ id, onBack }: { id: string; onBack: () => void }) {
 
   const runImport = async (text: string) => {
     setImportResult(null);
+    setChangePreview(null);
     const result = await previewImport(text);
+    if (!result.ok && result.reason === "is_changes") {
+      const cp = await previewChanges(text);
+      setChangePreview(cp);
+      if (cp.ok) setAccepted(new Set(cp.rows.filter((r) => r.status === "ok").map((r) => r.change.id)));
+      return;
+    }
     setImportResult(result);
+  };
+
+  const applyReview = async () => {
+    if (!changePreview?.ok) return;
+    const r = await applyChanges(changePreview, [...accepted]);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setMessage(`Applied ${r.applied} change${r.applied === 1 ? "" : "s"}${r.skipped ? `. ${r.skipped} not applied.` : "."}`);
+    setChangePreview(null);
+    setImportText("");
+    await reload();
+  };
+
+  const declineReview = async () => {
+    if (changePreview?.ok) await declineChanges(changePreview);
+    setChangePreview(null);
+    setImportText("");
+    setMessage("Declined. Nothing was changed.");
   };
 
   const pickImportFile = async () => {
@@ -602,10 +637,18 @@ function Detail({ id, onBack }: { id: string; onBack: () => void }) {
         <>
           <SectionLabel>What I may share with {conn.peerName}</SectionLabel>
           <Card>
-            <Body>Nothing is sent automatically. These choices only decide what you're allowed to include when you share an update. Access is view-only.</Body>
-            {SHARING_CATEGORIES.map((c) => (
-              <Row key={c.id} title={c.label} subtitle={c.blurb} right={<Switch value={conn.grants.some((g) => g.category === c.id)} onValueChange={(v) => toggleGrant(c.id, v)} accessibilityLabel={`Allow sharing ${c.label}`} />} />
-            ))}
+            <Body>Nothing is sent automatically. These choices decide what you include when you share an update, and whether {conn.peerName} may suggest changes.</Body>
+            {SHARING_CATEGORIES.map((c) =>
+              EDITABLE_CATEGORIES.includes(c.id) ? (
+                <View key={c.id} style={{ gap: 8, paddingVertical: 6 }}>
+                  <Row title={c.label} subtitle={c.blurb} />
+                  <ChipRow options={["off", "view", "edit"] as const} value={accessOf(c.id)} onChange={(v) => setAccess(c.id, v)} format={(v) => (v === "off" ? "Off" : v === "view" ? "View only" : "Suggest edits")} />
+                </View>
+              ) : (
+                <Row key={c.id} title={c.label} subtitle={c.blurb} right={<Switch value={accessOf(c.id) !== "off"} onValueChange={(v) => setAccess(c.id, v ? "view" : "off")} accessibilityLabel={`Allow sharing ${c.label}`} />} />
+              ),
+            )}
+            <Notice icon="create-outline">"Suggest edits" lets {conn.peerName} send you suggested changes to that category. You review every suggestion on your own iPhone, and nothing changes unless you accept it. You can switch this back any time.</Notice>
           </Card>
 
           <SectionLabel>Share an update</SectionLabel>
@@ -633,6 +676,27 @@ function Detail({ id, onBack }: { id: string; onBack: () => void }) {
             <SecondaryButton label="Open an update file" icon="document-outline" onPress={pickImportFile} />
             <TextInput value={importText} onChangeText={setImportText} placeholder="Or paste the update here" multiline style={inputStyle} autoCapitalize="none" autoCorrect={false} accessibilityLabel="Paste update" />
             <SecondaryButton label="Review update" onPress={() => runImport(importText)} disabled={!importText.trim()} />
+            {changePreview && !changePreview.ok ? <Text style={{ color: "#C0392B", fontSize: 13, fontWeight: "600" }}>{importFailureMessage(changePreview.reason)}</Text> : null}
+            {changePreview?.ok ? (
+              <>
+                <Text style={{ fontWeight: "700", fontSize: 15, color: C.text }}>{changePreview.senderName} suggests {changePreview.rows.length} change{changePreview.rows.length === 1 ? "" : "s"}</Text>
+                <Body>Nothing has changed yet. Choose which ones to accept.</Body>
+                {changePreview.rows.map((r) => (
+                  <View key={r.change.id} style={{ gap: 4, paddingVertical: 4 }}>
+                    <Row
+                      title={r.summary}
+                      subtitle={r.status === "missing" ? "That record no longer exists" : r.status === "not_authorized" ? "You haven't allowed suggestions for this" : r.status === "conflict" ? `Differs from what they saw: ${r.conflicts.join(", ")}` : undefined}
+                      right={<Switch value={accepted.has(r.change.id)} disabled={!isSelectable(r)} onValueChange={(v) => setAccepted((a) => { const n = new Set(a); if (v) n.add(r.change.id); else n.delete(r.change.id); return n; })} accessibilityLabel={`Accept: ${r.summary}`} />}
+                    />
+                    {r.fields.map((f) => (
+                      <Text key={f.field} style={{ color: C.textSecondary, fontSize: 12, marginLeft: 50 }}>{f.field}: {f.from} → {f.to}</Text>
+                    ))}
+                  </View>
+                ))}
+                <PrimaryButton label={`Apply ${accepted.size} change${accepted.size === 1 ? "" : "s"}`} onPress={applyReview} disabled={accepted.size === 0} />
+                <SecondaryButton label="Decline all" onPress={declineReview} />
+              </>
+            ) : null}
             {importResult && !importResult.ok ? <Text style={{ color: "#C0392B", fontSize: 13, fontWeight: "600" }}>{importFailureMessage(importResult.reason)}</Text> : null}
             {importResult?.ok ? (
               <>
@@ -650,6 +714,19 @@ function Detail({ id, onBack }: { id: string; onBack: () => void }) {
           </Card>
 
           {shared?.med_schedule || shared?.upcoming_appointments || shared?.selected_records || shared?.emergency_info || shared?.med_confirmations ? <SharedCopy shared={shared} /> : null}
+
+          {shared && shared.editable.length > 0 ? <ChangeComposer conn={conn} shared={shared} myName={meName} myTimeZone={deviceTimeZone()} onSent={() => setMessage("Suggestions ready. They'll review them on their iPhone.")} /> : null}
+
+          {edits.length ? (
+            <>
+              <SectionLabel>Changes you accepted from {conn.peerName}</SectionLabel>
+              <Card>
+                {[...edits].reverse().slice(0, 15).map((e) => (
+                  <Row key={e.id} icon="create-outline" title={e.summary} subtitle={new Date(e.at).toLocaleString()} />
+                ))}
+              </Card>
+            </>
+          ) : null}
 
           {!conn.referenceProfileId ? (
             <Card style={{ marginTop: 12 }}>

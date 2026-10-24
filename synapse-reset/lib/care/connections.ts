@@ -11,7 +11,7 @@ import {
   parseInvitation, setRandomSource, toBase64Url, verificationCode, type DeviceIdentity, type Invitation, type InvitationRelationship,
 } from "./crypto";
 import { CARE_KEY_PREFIX } from "./profiles";
-import { CARE_SCHEMA_VERSION, type CareConnection, type ConnectionRole, type SharingCategory, type SharingPermission } from "./types";
+import { CARE_SCHEMA_VERSION, EDITABLE_CATEGORIES, type CareConnection, type ConnectionRole, type SharingCategory, type SharingPermission } from "./types";
 
 setRandomSource((n) => Crypto.getRandomBytes(n));
 
@@ -86,7 +86,7 @@ function sanitizeConnection(c: Partial<CareConnection>): CareConnection | null {
     peerSignPublic: c.peerSignPublic,
     peerAgreePublic: c.peerAgreePublic,
     peerTimeZone: c.peerTimeZone,
-    grants: Array.isArray(c.grants) ? c.grants.filter((g): g is SharingPermission => !!g && typeof g.category === "string").map((g) => ({ category: g.category, access: "view" as const })) : [],
+    grants: Array.isArray(c.grants) ? c.grants.filter((g): g is SharingPermission => !!g && typeof g.category === "string").map((g) => ({ category: g.category, access: g.access === "edit" ? ("edit" as const) : ("view" as const) })) : [],
     theyRequested: Array.isArray(c.theyRequested) ? c.theyRequested : [],
     referenceProfileId: c.referenceProfileId,
     profileId: c.profileId,
@@ -341,13 +341,19 @@ export function confirmVerification(id: string, codesMatch: boolean): Promise<vo
   }));
 }
 
-export function setGrants(id: string, categories: SharingCategory[]): Promise<void> {
+/**
+ * What I allow this person to receive (and, for some categories, to propose changes to).
+ * Accepts plain categories for view-only, or {category, access}. Edit is only honoured for
+ * categories that support it.
+ */
+export function setGrants(id: string, grants: (SharingCategory | { category: SharingCategory; access: "view" | "edit" })[]): Promise<void> {
+  const normalised: SharingPermission[] = grants.map((g) => {
+    const category = typeof g === "string" ? g : g.category;
+    const wantsEdit = typeof g !== "string" && g.access === "edit" && EDITABLE_CATEGORIES.includes(category);
+    return { category, access: wantsEdit ? "edit" : "view" };
+  });
   return mutate((list) => ({
-    list: list.map((c) =>
-      c.id === id && c.state === "connected_locally"
-        ? { ...c, grants: categories.map((category) => ({ category, access: "view" as const })), updatedAt: new Date().toISOString() }
-        : c,
-    ),
+    list: list.map((c) => (c.id === id && c.state === "connected_locally" ? { ...c, grants: normalised, updatedAt: new Date().toISOString() } : c)),
     result: undefined,
   }));
 }

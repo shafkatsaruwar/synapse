@@ -63,8 +63,16 @@ export interface MedicationDose {
 
 export type MedicationType = "scheduled" | "prn";
 
+/** Set when a change arrived through a Care Connection and the owner accepted it. */
+export interface ChangedByInfo {
+  name: string;
+  at: string;
+  via: "care_connection";
+}
+
 export interface Medication {
   id: string;
+  changedBy?: ChangedByInfo;
   source?: "manual" | "scan" | "calendar" | "import";
   name: string;
   imageUri?: string;
@@ -266,6 +274,7 @@ export type AppointmentSource = "manual" | "scan" | "calendar" | "import" | "cal
 
 export interface Appointment {
   id: string;
+  changedBy?: ChangedByInfo;
   doctor_id?: string;
   doctorName: string;
   specialty: string;
@@ -784,7 +793,7 @@ function createStores(KEYS: KeyMap, profileId: string) {
       medicationId: string,
       date: string,
       doseIndex = 0,
-      metadata?: { scheduledTime?: string; notes?: string; recordedAt?: string },
+      metadata?: { scheduledTime?: string; notes?: string; recordedAt?: string; enteredBy?: "self" | "caregiver" },
     ) => {
       const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
       const index = logs.findIndex(
@@ -797,6 +806,7 @@ function createStores(KEYS: KeyMap, profileId: string) {
           recordedAt: logs[index].recordedAt ?? metadata?.recordedAt ?? new Date().toISOString(),
           scheduledTime: metadata?.scheduledTime ?? logs[index].scheduledTime,
           notes: metadata?.notes ?? logs[index].notes,
+          ...(metadata?.enteredBy ? { enteredBy: metadata.enteredBy } : {}),
         };
         await setItem(KEYS.MEDICATION_LOGS, logs);
         return logs[index];
@@ -810,6 +820,7 @@ function createStores(KEYS: KeyMap, profileId: string) {
         recordedAt: metadata?.recordedAt ?? new Date().toISOString(),
         scheduledTime: metadata?.scheduledTime,
         notes: metadata?.notes,
+        ...(metadata?.enteredBy ? { enteredBy: metadata.enteredBy } : {}),
       };
       logs.push(created);
       await setItem(KEYS.MEDICATION_LOGS, logs);
