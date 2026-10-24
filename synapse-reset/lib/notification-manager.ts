@@ -6,6 +6,7 @@ import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
+import { getNotificationIconAttachments } from "@/lib/notification-icon";
 import {
   medicationLogStorage,
   medicationStorage,
@@ -61,6 +62,13 @@ export const DEFAULT_REMINDER_TIMES: Record<string, { hour: number; minute: numb
   Night: { hour: 21, minute: 0 },
   "As Needed": { hour: 9, minute: 0 },
 };
+
+/** Schedules a local notification with a thumbnail of the chosen app icon (see notification-icon.ts). */
+async function scheduleWithIcon(request: Notifications.NotificationRequestInput): Promise<string> {
+  const attachments = await getNotificationIconAttachments();
+  if (!attachments?.length) return Notifications.scheduleNotificationAsync(request);
+  return Notifications.scheduleNotificationAsync({ ...request, content: { ...request.content, attachments } });
+}
 
 export const NOTIFICATION_IDS = {
   prefixMed: "med",
@@ -165,7 +173,7 @@ export async function syncRecoveryTrackingCheckIn(): Promise<void> {
       date = new Date(Date.now() + 10 * 60 * 1000);
     }
 
-    await Notifications.scheduleNotificationAsync({
+    await scheduleWithIcon({
       identifier: NOTIFICATION_IDS.recoveryCheckIn,
       content: {
         title: "Hey, still not feeling better?",
@@ -236,7 +244,7 @@ export async function scheduleMedicationReminder(params: {
       });
     }
 
-    const id = await Notifications.scheduleNotificationAsync({
+    const id = await scheduleWithIcon({
       identifier,
       content: {
         title: "Medication Reminder",
@@ -337,7 +345,7 @@ async function scheduleIntervalMedicationReminders(params: {
     const daysOut = (date.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
     if (daysOut > horizonDays) break;
 
-    const nextId = await Notifications.scheduleNotificationAsync({
+    const nextId = await scheduleWithIcon({
       identifier: `${identifier}-${i}`,
       content: {
         title: "Medication Reminder",
@@ -366,7 +374,7 @@ export async function scheduleMedicationSnooze(params: {
   if (!isNative()) return null;
   const identifier = `${NOTIFICATION_IDS.prefixMedSnooze}-${params.medicationId}-${params.doseIndex}-${Date.now()}`;
   try {
-    const id = await Notifications.scheduleNotificationAsync({
+    const id = await scheduleWithIcon({
       identifier,
       content: {
         title: "Medication Reminder",
@@ -393,7 +401,7 @@ export async function scheduleMedicationRefillReminder(medicationId: string, med
   const identifier = `${NOTIFICATION_IDS.prefixRefill}-${medicationId}`;
   try {
     await Notifications.cancelScheduledNotificationAsync(identifier);
-    const id = await Notifications.scheduleNotificationAsync({
+    const id = await scheduleWithIcon({
       identifier,
       content: {
         title: "Medication Refill Reminder",
@@ -586,7 +594,7 @@ export async function scheduleAppointmentReminder(params: {
     if (triggerDate.getTime() >= appointmentDate.getTime()) return null;
     if (triggerDate.getTime() <= Date.now()) return null;
     await Notifications.cancelScheduledNotificationAsync(identifier);
-    const id = await Notifications.scheduleNotificationAsync({
+    const id = await scheduleWithIcon({
       identifier,
       content: {
         title: "Upcoming Appointment",
@@ -631,7 +639,7 @@ export async function scheduleDailyCheckIn(hour: number, minute: number): Promis
   const identifier = NOTIFICATION_IDS.dailyCheckIn;
   try {
     await Notifications.cancelScheduledNotificationAsync(identifier);
-    const id = await Notifications.scheduleNotificationAsync({
+    const id = await scheduleWithIcon({
       identifier,
       content: {
         title: "Daily Check-In",
@@ -813,7 +821,7 @@ export async function syncMissedMedicationCheckIn(): Promise<void> {
       }
 
       const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-      await Notifications.scheduleNotificationAsync({
+      await scheduleWithIcon({
         identifier: `${NOTIFICATION_IDS.missedMedsCheckIn}-${dayKey}`,
         content: {
           title: "Hey! Where have you been all day?",
@@ -839,7 +847,7 @@ export async function scheduleHydrationReminders(): Promise<void> {
       for (let slotIndex = 0; slotIndex < 3; slotIndex++) {
         const date = hydrationReminderDate(dayOffset, slotIndex);
         const identifier = `${NOTIFICATION_IDS.prefixHydration}-${date.toISOString().slice(0, 10)}-${slotIndex}`;
-        await Notifications.scheduleNotificationAsync({
+        await scheduleWithIcon({
           identifier,
           content: {
             title: "Hydration",
@@ -864,7 +872,7 @@ export async function scheduleMonthlyCheckIn(dayOfMonth: number, hour: number, m
   const identifier = NOTIFICATION_IDS.monthlyCheckIn;
   try {
     await Notifications.cancelScheduledNotificationAsync(identifier);
-    const id = await Notifications.scheduleNotificationAsync({
+    const id = await scheduleWithIcon({
       identifier,
       content: {
         title: "Monthly Health Review",
@@ -933,7 +941,7 @@ export async function scheduleAgeBasedScreeningReminder(dateOfBirth?: string): P
   if (!nextMilestone) return null;
   const identifier = `${NOTIFICATION_IDS.screening}-${nextMilestone.age}`;
   try {
-    const id = await Notifications.scheduleNotificationAsync({
+    const id = await scheduleWithIcon({
       identifier,
       content: {
         title: "Preventive Care Reminder",
@@ -1007,7 +1015,7 @@ export async function scheduleEnforcementNotificationsForPlan(
     const copy = escalationCopy(item.level, meta.medicationName);
     try {
       await Notifications.cancelScheduledNotificationAsync(item.id);
-      await Notifications.scheduleNotificationAsync({
+      await scheduleWithIcon({
         identifier: item.id,
         content: {
           title: copy.title,
