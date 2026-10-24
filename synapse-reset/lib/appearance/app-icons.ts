@@ -85,6 +85,18 @@ export const APP_ICON_OPTIONS: AppIconOption[] = [
 ];
 /* eslint-enable @typescript-eslint/no-require-imports */
 
+/** Which app icon goes with each accent color. Classic and Chocolate stay manual-only. */
+export const ACCENT_TO_ICON: Record<string, AppIconId> = {
+  burgundy: "copper",
+  evergreen: "sage",
+  blue: "ocean",
+  violet: "lavender",
+  rose: "rose",
+  amber: "amber",
+  teal: "sage",
+  slate: "graphite",
+};
+
 type AppIconNative = {
   getIconName: () => Promise<string | null>;
   setIconName: (name: string | null) => Promise<string | null>;
