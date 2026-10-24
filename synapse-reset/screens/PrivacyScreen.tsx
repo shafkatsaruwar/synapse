@@ -281,8 +281,8 @@ export default function PrivacyScreen() {
         <Ionicons name="information-circle-outline" size={16} color={C.textTertiary} />
         <Text style={styles.infoText}>
           {featureFlags.cloudKitBackupEnabled
-            ? "Local data stays on this device unless you use optional cloud backup, caregiver linking, AI, email, or export. Review Settings for iCloud and account options. For the security posture of this project, see SECURITY.md in the repository."
-            : "Local data stays on this device unless you export a backup file, use caregiver linking, AI, or email. Prefer Backup & Restore under You for saving and restoring. Automatic iCloud backup is unavailable. For the security posture of this project, see SECURITY.md in the repository."}
+            ? "Local data stays on this device unless you use optional cloud backup, AI, email, export, or choose to share a Care Connection update with someone. Review Settings for iCloud and account options. For the security posture of this project, see SECURITY.md in the repository."
+            : "Local data stays on this device unless you export a backup file, use AI or email, or choose to share a Care Connection update with someone. Care Connections use no Synapse server; Apple's Messages or AirDrop may handle files you send. Prefer Backup & Restore under You for saving and restoring. Automatic iCloud backup is unavailable. For the security posture of this project, see SECURITY.md in the repository."}
         </Text>
       </View>
     </ScrollView>

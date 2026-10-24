@@ -319,3 +319,13 @@ export async function removeLegacyCopies(profileId: string): Promise<{ medicatio
   ]);
   return { medications: meds.length - keepMeds.length, appointments: appts.length - keepAppts.length };
 }
+
+export function profileIsMinor(p: Pick<LocalCareProfile, "dateOfBirth" | "legacyAge">, now = new Date()): boolean {
+  if (p.dateOfBirth) {
+    const [y, m, d] = p.dateOfBirth.split("-").map(Number);
+    let age = now.getFullYear() - y;
+    if (now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) age -= 1;
+    return age < 18;
+  }
+  return typeof p.legacyAge === "number" && p.legacyAge > 0 && p.legacyAge < 18;
+}

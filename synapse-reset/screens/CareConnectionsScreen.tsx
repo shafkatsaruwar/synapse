@@ -10,7 +10,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useCareProfiles } from "@/contexts/CareProfileContext";
 import { settingsStorage } from "@/lib/storage-self";
 import {
-  acceptInvitation, completeWithAcceptance, confirmVerification, createOutgoingInvitation, detectCareMessageKind, extractJsonFromInput,
+  acceptInvitation, completeWithAcceptance, confirmVerification, createOutgoingInvitation, detectCareMessageKind, encodeLink, extractJsonFromInput, INVITE_LINK_PREFIX,
   getMyFingerprint, getVerificationCode, isTrusted, linkConnectionProfile, loadConnections, previewInvitation, rejectInvitation,
   removeConnection, revokeConnection, setGrants, setGuardianClaim, type InvitationPreview,
 } from "@/lib/care/connections";
@@ -35,7 +35,7 @@ type Props = {
   startConnectionId?: string | null;
 };
 
-type View_ = { name: "home" } | { name: "invite" } | { name: "join" } | { name: "detail"; id: string };
+type View_ = { name: "home" } | { name: "invite"; resume?: CareConnection } | { name: "join" } | { name: "detail"; id: string };
 
 const ROLE_LABEL: Record<ConnectionRole, string> = {
   i_care_for_them: "I care for them",
@@ -83,6 +83,7 @@ export default function CareConnectionsScreen({ onBack, incoming, onIncomingHand
           connections={active}
           onBack={onBack}
           onInvite={() => setView({ name: "invite" })}
+          onResume={(c) => setView({ name: "invite", resume: c })}
           onJoin={() => setView({ name: "join" })}
           onOpen={(id) => setView({ name: "detail", id })}
           incoming={incoming}
@@ -90,7 +91,7 @@ export default function CareConnectionsScreen({ onBack, incoming, onIncomingHand
           onNeedsJoin={() => setView({ name: "join" })}
         />
       ) : null}
-      {view.name === "invite" ? <InviteFlow onDone={goHome} onOpen={(id) => setView({ name: "detail", id })} /> : null}
+      {view.name === "invite" ? <InviteFlow resume={view.resume} onDone={goHome} onOpen={(id) => setView({ name: "detail", id })} /> : null}
       {view.name === "join" ? <JoinFlow initialInput={incoming ?? undefined} onDone={goHome} onOpen={(id) => setView({ name: "detail", id })} onConsumed={onIncomingHandled} /> : null}
       {view.name === "detail" ? <Detail id={view.id} onBack={goHome} /> : null}
       <Text style={{ color: C.textTertiary, fontSize: 12, marginTop: 24, lineHeight: 17 }}>
@@ -103,11 +104,12 @@ export default function CareConnectionsScreen({ onBack, incoming, onIncomingHand
 // ---------- home ----------
 
 function Home({
-  connections, onBack, onInvite, onJoin, onOpen, incoming, onIncomingHandled, onNeedsJoin,
+  connections, onBack, onInvite, onResume, onJoin, onOpen, incoming, onIncomingHandled, onNeedsJoin,
 }: {
   connections: CareConnection[];
   onBack?: () => void;
   onInvite: () => void;
+  onResume: (c: CareConnection) => void;
   onJoin: () => void;
   onOpen: (id: string) => void;
   incoming?: string | null;
@@ -140,7 +142,13 @@ function Home({
           <SectionLabel>Pending</SectionLabel>
           <Card>
             {pending.map((c) => (
-              <Row key={c.id} icon="hourglass-outline" title={c.peerName} subtitle={`${ROLE_LABEL[c.role]} · ${STATE_LABEL[c.state].text}`} onPress={() => onOpen(c.id)} />
+              <Row
+                key={c.id}
+                icon="hourglass-outline"
+                title={c.peerName}
+                subtitle={`${ROLE_LABEL[c.role]} · ${c.state === "invitation_created" && Date.now() - Date.parse(c.createdAt) > 7 * 86_400_000 ? "Invitation expired" : STATE_LABEL[c.state].text}`}
+                onPress={() => (c.state === "invitation_created" && c.invitationJson ? onResume(c) : onOpen(c.id))}
+              />
             ))}
           </Card>
         </>
@@ -162,11 +170,13 @@ function Home({
 
 // ---------- invite (inviter side) ----------
 
-function InviteFlow({ onDone, onOpen }: { onDone: () => void; onOpen: (id: string) => void }) {
+function InviteFlow({ resume, onDone, onOpen }: { resume?: CareConnection; onDone: () => void; onOpen: (id: string) => void }) {
   const { activeProfile, profiles } = useCareProfiles();
   const [role, setRole] = useState<ConnectionRole>("they_care_for_me");
   const [requests, setRequests] = useState<SharingCategory[]>([]);
-  const [created, setCreated] = useState<{ connection: CareConnection; link: string; json: string } | null>(null);
+  const [created, setCreated] = useState<{ connection: CareConnection; link: string; json: string } | null>(
+    resume?.invitationJson ? { connection: resume, json: resume.invitationJson, link: encodeLink(INVITE_LINK_PREFIX, JSON.parse(resume.invitationJson)) } : null,
+  );
   const [reply, setReply] = useState("");
   const [scanOpen, setScanOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -479,9 +489,10 @@ function Detail({ id, onBack }: { id: string; onBack: () => void }) {
       const payload = await buildExportPayload(conn, (s.name || "").trim() || "Me", deviceTimeZone());
       const rows = describePayload(payload);
       if (rows.length === 0) {
-        setMessage("Nothing to share yet. Turn on at least one category above.");
+        setMessage("Nothing to share yet. Turn on at least one category above. Some categories are held back for a minor's profile unless guardianship is declared.");
         return;
       }
+      if (rows.length < conn.grants.length) setMessage("Some categories were left out because they involve a minor's sensitive information.");
       const result = await createExportPackage(conn, payload);
       if (!result.ok) {
         setMessage(result.reason === "not_verified" ? "Confirm the verification code first." : "That's too much to share at once.");
@@ -668,7 +679,7 @@ function Detail({ id, onBack }: { id: string; onBack: () => void }) {
   );
 }
 
-function SharedCopy({ shared }: { shared: StoredSharedData }) {
+export function SharedCopy({ shared }: { shared: StoredSharedData }) {
   return (
     <>
       <SectionLabel>Latest from {shared.fromName}</SectionLabel>

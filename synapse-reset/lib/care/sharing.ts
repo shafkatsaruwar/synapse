@@ -8,12 +8,14 @@ import { getStoresForProfile, SELF_PROFILE_ID } from "@/lib/storage";
 import { getEmergencyCard } from "@/lib/emergency-card-storage";
 import { decryptPackage, encryptPackage, fromBase64Url, PACKAGE_MAX_BYTES } from "./crypto";
 import { getDeviceIdentity, loadConnections, loadSeenPackageIds, markSeen, recordConnectionTransfer, extractJsonFromInput, isTrusted } from "./connections";
-import { CARE_KEY_PREFIX } from "./profiles";
+import { CARE_KEY_PREFIX, loadRegistry, profileIsMinor } from "./profiles";
 import { CATEGORY_LABEL, describePayload, diffKeys, importFailureMessage, sanitizePayload, freshnessLabel, type ImportDiff } from "./sharing-core";
 import {
   CARE_SCHEMA_VERSION, type CareConnection, type SharedAppointment, type SharedConfirmation, type SharedMedication, type SharedPayload,
   type SharedProvenance, type SharedRecordItem, type SharingCategory, type StoredSharedData,
 } from "./types";
+
+const MINOR_RESTRICTED: SharingCategory[] = ["selected_records", "emergency_info", "med_confirmations"];
 
 const sharedKey = (connectionId: string) => `${CARE_KEY_PREFIX}shared_v1_${connectionId}`;
 
@@ -63,6 +65,14 @@ export async function buildExportPayload(
   selection: ExportSelection = {},
 ): Promise<SharedPayload> {
   const allowed = new Set<SharingCategory>(conn.grants.map((g) => g.category));
+  // A minor's sensitive information is never exported through a connection unless the caregiver has at
+  // least declared guardianship. Synapse can't verify that offline, so this is a floor, not proof.
+  if (conn.profileId) {
+    const source = (await loadRegistry()).profiles.find((p) => p.id === conn.profileId);
+    if (source && profileIsMinor(source) && conn.guardianClaim !== "self_declared" && source.guardianClaim !== "self_declared") {
+      for (const c of MINOR_RESTRICTED) allowed.delete(c);
+    }
+  }
   const stores = getStoresForProfile(sourceProfileId(conn));
   const payload: SharedPayload = { schema: 1, senderName, senderTimeZone };
 

@@ -100,6 +100,7 @@ import { useCareProfiles } from "@/contexts/CareProfileContext";
 import ActiveProfileBanner from "@/components/care/ActiveProfileBanner";
 import CaregiverSetupFlow from "@/components/care/CaregiverSetupFlow";
 import CheckInScreen from "@/screens/CheckInScreen";
+import ReferenceProfileScreen from "@/screens/ReferenceProfileScreen";
 import CareConnectionsScreen from "@/screens/CareConnectionsScreen";
 import { clearAllCareData } from "@/lib/care/profiles";
 import { deleteDeviceIdentity } from "@/lib/care/connections";
@@ -1307,6 +1308,11 @@ export default function MainScreen() {
     }
     if (activeScreen === "sickmode") {
       return <SickModeScreen onDeactivate={handleDeactivateSickMode} onRefreshKey={refreshKey} onNavigate={handleNavigate} />;
+    }
+
+    // A connected person's reference profile is view-only and shows only their shared copies.
+    if (activeProfile.type === "connected_reference" && activeScreen !== "careconnections") {
+      return <ReferenceProfileScreen onNavigate={handleNavigate} />;
     }
 
     switch (activeScreen) {

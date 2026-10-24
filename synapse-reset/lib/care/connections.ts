@@ -55,6 +55,11 @@ export async function getMyFingerprint(): Promise<string> {
   return fingerprint((await getDeviceIdentity()).signPublic);
 }
 
+/** Test hook: forget the in-memory identity so the next call re-reads the Keychain. */
+export function resetIdentityCacheForTests(): void {
+  cachedIdentity = null;
+}
+
 /** Used by "Reset app". Removes the private keys from the Keychain. */
 export async function deleteDeviceIdentity(): Promise<void> {
   cachedIdentity = null;
@@ -77,6 +82,7 @@ function sanitizeConnection(c: Partial<CareConnection>): CareConnection | null {
     role: c.role === "i_care_for_them" || c.role === "they_care_for_me" ? c.role : "peers",
     state: c.state ?? "needs_verification",
     inviteId: c.inviteId,
+    invitationJson: c.state === "invitation_created" ? c.invitationJson : undefined,
     peerSignPublic: c.peerSignPublic,
     peerAgreePublic: c.peerAgreePublic,
     peerTimeZone: c.peerTimeZone,
@@ -215,6 +221,7 @@ export async function createOutgoingInvitation(input: {
     role: input.role,
     state: "invitation_created",
     inviteId: invitation.id,
+    invitationJson: JSON.stringify(invitation),
     grants: [],
     theyRequested: [],
     profileId: input.profileId,

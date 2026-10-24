@@ -86,6 +86,8 @@ export type CareConnection = {
   state: ConnectionState;
   /** Invitation id this connection grew out of. */
   inviteId: string;
+  /** The signed invitation, kept only while it is waiting for a reply so its QR can be shown again. */
+  invitationJson?: string;
   /** Present once the other side has answered. Base64url. */
   peerSignPublic?: string;
   peerAgreePublic?: string;
