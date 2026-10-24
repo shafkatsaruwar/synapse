@@ -105,8 +105,9 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
 
   const previewCols = Platform.OS === "ios" || width >= 400 ? 3 : 2;
   const THEME_GAP = 10;
-  // Exact pixel width so three cards always fit on one row (percent widths + gaps overflowed and wrapped).
-  const themeCardWidth = Math.floor((Math.min(width, 720) - 40 - THEME_GAP * (previewCols - 1)) / previewCols);
+  const themeRows = Array.from({ length: Math.ceil(THEMES.length / previewCols) }, (_, i) =>
+    THEMES.slice(i * previewCols, (i + 1) * previewCols),
+  );
 
   const handleApply = async () => {
     setBusy(true);
@@ -184,29 +185,33 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
 
         <Text style={styles.sectionLabel}>Theme</Text>
         <View style={[styles.themeGrid, { gap: THEME_GAP }]}>
-          {THEMES.map((theme) => {
-            const selected = active.theme === theme.id;
-            return (
-              <Pressable
-                key={theme.id}
-                style={[
-                  styles.themeCard,
-                  { width: themeCardWidth },
-                  selected && styles.themeCardSelected,
-                ]}
-                onPressIn={() => {
-                  updateAppearanceDraft({ theme: theme.id });
-                  Haptics.selectionAsync();
-                }}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={`${theme.label} theme`}
-              >
-                <ThemeMiniPreview themeId={theme.id} />
-                <Text style={styles.themeName}>{theme.label}</Text>
-              </Pressable>
-            );
-          })}
+          {themeRows.map((row, rowIndex) => (
+            <View key={rowIndex} style={[styles.themeRow, { gap: THEME_GAP }]}>
+              {row.map((theme) => {
+                const selected = active.theme === theme.id;
+                return (
+                  <Pressable
+                    key={theme.id}
+                    style={[styles.themeCard, selected && styles.themeCardSelected]}
+                    onPressIn={() => {
+                      updateAppearanceDraft({ theme: theme.id });
+                      Haptics.selectionAsync();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`${theme.label} theme`}
+                  >
+                    <ThemeMiniPreview themeId={theme.id} />
+                    <Text style={styles.themeName}>{theme.label}</Text>
+                  </Pressable>
+                );
+              })}
+              {/* Keep a short last row aligned to the same column width. */}
+              {Array.from({ length: previewCols - row.length }, (_, i) => (
+                <View key={`pad-${i}`} style={{ flex: 1 }} />
+              ))}
+            </View>
+          ))}
         </View>
 
         <Text style={styles.sectionLabel}>Accent Color</Text>
@@ -558,8 +563,10 @@ function makeStyles(C: Theme) {
       marginBottom: 10,
       marginTop: 18,
     },
-    themeGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-start" },
+    themeGrid: {},
+    themeRow: { flexDirection: "row" },
     themeCard: {
+      flex: 1,
       backgroundColor: C.surface,
       borderRadius: 16,
       padding: 8,
