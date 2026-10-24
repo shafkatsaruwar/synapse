@@ -19,6 +19,7 @@ import * as ImagePicker from "expo-image-picker";
 import { isDarkAppearance, useTheme, type Theme, type ThemePreference } from "@/contexts/ThemeContext";
 import { ACCENT_SWATCHES } from "@/lib/appearance/accents";
 import {
+  ACCENT_TO_ICON,
   APP_ICON_OPTIONS,
   canChangeAppIcon,
   getCurrentAppIcon,
@@ -77,6 +78,8 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
   const iconsSupported = canChangeAppIcon();
   const [savedIcon, setSavedIcon] = useState<AppIconId>("default");
   const [pickedIcon, setPickedIcon] = useState<AppIconId>("default");
+  // Picking an accent also picks its matching icon, until you choose an icon yourself.
+  const [matchIcon, setMatchIcon] = useState(true);
   const isDarkSurface = isDarkAppearance(themeId);
 
   useEffect(() => {
@@ -228,6 +231,7 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
                 key={swatch.id}
                 onPress={() => {
                   updateAppearanceDraft({ accent: swatch.id as AccentId });
+                  if (iconsSupported && matchIcon && ACCENT_TO_ICON[swatch.id]) setPickedIcon(ACCENT_TO_ICON[swatch.id]);
                   Haptics.selectionAsync();
                 }}
                 style={[styles.swatch, { backgroundColor: swatch.hex }, selected && styles.swatchSelected]}
@@ -254,6 +258,7 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
                     style={[styles.iconCard, selected && styles.iconCardSelected]}
                     onPress={() => {
                       setPickedIcon(opt.id);
+                      setMatchIcon(false);
                       Haptics.selectionAsync();
                     }}
                     accessibilityRole="button"
@@ -265,6 +270,22 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
                   </Pressable>
                 );
               })}
+            </View>
+            <View style={[styles.toggleRow, { borderBottomWidth: 0, marginTop: 4 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle}>Match icon to accent color</Text>
+                <Text style={styles.rowBody}>Picking an accent also picks its icon. Choose an icon yourself to override.</Text>
+              </View>
+              <Switch
+                value={matchIcon}
+                onValueChange={(v) => {
+                  setMatchIcon(v);
+                  if (v && ACCENT_TO_ICON[active.accent]) setPickedIcon(ACCENT_TO_ICON[active.accent]);
+                }}
+                trackColor={{ true: C.tintLight, false: C.border }}
+                thumbColor={matchIcon ? C.tint : C.surfaceElevated}
+                accessibilityLabel="Match icon to accent color"
+              />
             </View>
             <Text style={[styles.rowBody, { marginTop: 6 }]}>
               Applies when you tap Apply Appearance. iOS shows its own confirmation when the icon changes. Notification banners always show iOS's main app icon on the left, which apps can't change, so Synapse adds a small picture of your chosen icon on the right.
