@@ -1,163 +1,140 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import TextInput from "@/components/DoneTextInput";
-import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import React, { useEffect, useState } from "react";
+import { Alert, Platform, ScrollView, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import * as Haptics from "expo-haptics";
+import { useTheme } from "@/contexts/ThemeContext";
+import { useCareProfiles } from "@/contexts/CareProfileContext";
 import { useRole } from "@/contexts/RoleContext";
+import TextInput from "@/components/DoneTextInput";
+import { Body, Card, Notice, Pill, PrimaryButton, Row, ScreenHeader, SecondaryButton, SectionLabel } from "@/components/care/ui";
+import { ContactHoursEditor, TimeZoneField } from "@/components/care/pickers";
+import CaregiverSetupFlow from "@/components/care/CaregiverSetupFlow";
+import { profileAgeLabel, removeLegacyCopies } from "@/lib/care/profiles";
+import type { LocalCareProfile } from "@/lib/care/types";
 
 interface ManagedPersonScreenProps {
   onBack?: () => void;
   onRemoved?: () => void;
+  onNavigate?: (key: string) => void;
 }
 
-export default function ManagedPersonScreen({ onBack, onRemoved }: ManagedPersonScreenProps) {
+/** "People I Care For": every caregiver-managed profile on this iPhone, and the editor for one. */
+export default function ManagedPersonScreen({ onBack, onRemoved, onNavigate }: ManagedPersonScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const isWide = width >= 768;
-  const { colors: C, themeId } = useTheme();
-  const styles = useMemo(() => makeStyles(C, themeId), [C, themeId]);
-  const { caregiverProfile, saveCaregiverProfile, clearCaregiverMode } = useRole();
-  const [name, setName] = useState("");
-  const [age, setAge] = useState("");
-  const [relation, setRelation] = useState("");
-
-  useEffect(() => {
-    setName(caregiverProfile?.name ?? "");
-    setAge(caregiverProfile?.age ? String(caregiverProfile.age) : "");
-    setRelation(caregiverProfile?.relation ?? "");
-  }, [caregiverProfile]);
-
-  const save = async () => {
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      Alert.alert("Name required", "Add the managed person’s name.");
-      return;
-    }
-    await saveCaregiverProfile({
-      name: trimmedName,
-      age: age.trim() ? Math.max(0, parseInt(age, 10) || 0) : 0,
-      relation: relation.trim() || undefined,
-      medications: caregiverProfile?.medications ?? [],
-      appointments: caregiverProfile?.appointments ?? [],
-      logs: caregiverProfile?.logs ?? [],
-    });
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    onBack?.();
-  };
-
-  const removeManagedPerson = () => {
-    Haptics.selectionAsync().catch(() => {});
-    Alert.alert(
-      "Remove managed person?",
-      "This clears the care recipient on this device and switches you back to Self.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            await clearCaregiverMode();
-            setName("");
-            setAge("");
-            setRelation("");
-            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            if (onRemoved) onRemoved();
-            else onBack?.();
-          },
-        },
-      ],
-    );
-  };
-
-  const topPad = isWide ? 28 : Platform.OS === "web" ? 40 : insets.top + 10;
+  const { colors: C } = useTheme();
+  const { profiles, activeProfile, switchProfile, deleteProfile, updateProfile } = useCareProfiles();
+  const { refreshRole } = useRole();
+  const managed = profiles.filter((p) => p.type === "caregiver_managed");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const editing = managed.find((p) => p.id === editingId) ?? null;
+  const topPad = width >= 768 ? 28 : Platform.OS === "web" ? 40 : insets.top + 10;
 
   return (
-    <View style={styles.screen}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: topPad, paddingBottom: isWide ? 40 : insets.bottom + 118 }]} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={onBack}>
-            <Ionicons name="chevron-back" size={22} color={C.text} />
-          </Pressable>
-          <View style={styles.headerText}>
-            <Text style={styles.eyebrow}>Caregiver</Text>
-            <Text style={styles.title}>Managed Person</Text>
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: topPad, paddingBottom: width >= 768 ? 40 : insets.bottom + 118 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      {editing ? (
+        <Editor
+          profile={editing}
+          isActive={activeProfile.id === editing.id}
+          onBack={() => setEditingId(null)}
+          onSwitch={async () => { await switchProfile(editing.id); void Haptics.selectionAsync(); onNavigate?.("dashboard"); }}
+          onSave={async (patch) => { await updateProfile(editing.id, patch); await refreshRole(); }}
+          onDelete={async () => { await deleteProfile(editing.id); await refreshRole(); setEditingId(null); if (managed.length <= 1) onRemoved?.(); }}
+        />
+      ) : (
+        <>
+          <ScreenHeader title="People I Care For" subtitle="Each person keeps their own medications, appointments, and records on this iPhone." onBack={onBack} />
+          <Card>
+            {managed.length === 0 ? <Body>You haven't added anyone yet.</Body> : null}
+            {managed.map((p) => (
+              <Row key={p.id} icon="person-outline" title={p.displayName} subtitle={[p.relationship, profileAgeLabel(p), p.id === activeProfile.id ? "Viewing now" : null].filter(Boolean).join(" · ") || "On this iPhone"} onPress={() => setEditingId(p.id)} right={p.id === activeProfile.id ? <Pill label="Viewing" tone="good" /> : undefined} />
+            ))}
+          </Card>
+          <View style={{ gap: 10, marginTop: 12 }}>
+            <PrimaryButton label="Add someone" icon="person-add-outline" onPress={() => setSetupOpen(true)} />
+            <SecondaryButton label="Care Connections" icon="link-outline" onPress={() => onNavigate?.("careconnections")} />
           </View>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.avatar}>
-            <Ionicons name="person-outline" size={28} color={C.tint} />
-          </View>
-          <Text style={styles.cardTitle}>{caregiverProfile?.name || "Set up profile"}</Text>
-          <Text style={styles.cardMeta}>
-            {caregiverProfile?.age ? `${caregiverProfile.age} years old` : "Age not set"}
-            {caregiverProfile?.relation ? ` · ${caregiverProfile.relation}` : ""}
-          </Text>
-        </View>
-
-        <View style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Profile</Text>
-          <View>
-            <Text style={styles.label}>Name</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Name" placeholderTextColor={C.textTertiary} />
-          </View>
-          <View>
-            <Text style={styles.label}>Age</Text>
-            <TextInput style={styles.input} value={age} onChangeText={setAge} placeholder="Age" placeholderTextColor={C.textTertiary} keyboardType="number-pad" />
-          </View>
-          <View>
-            <Text style={styles.label}>Relation optional</Text>
-            <TextInput style={styles.input} value={relation} onChangeText={setRelation} placeholder="Parent, spouse, child..." placeholderTextColor={C.textTertiary} />
-          </View>
-          <Pressable style={styles.primaryButton} onPress={save} accessibilityRole="button" accessibilityLabel="Save profile">
-            <Text style={styles.primaryButtonText}>Save profile</Text>
-          </Pressable>
-          <Pressable
-            style={styles.removeButton}
-            onPress={removeManagedPerson}
-            accessibilityRole="button"
-            accessibilityLabel="Remove managed person"
-          >
-            <Text style={styles.removeButtonText}>Remove managed person</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </View>
+          <Notice>Everything for a person stays in their own profile. Nothing is mixed with your own health information.</Notice>
+        </>
+      )}
+      <CaregiverSetupFlow
+        visible={setupOpen}
+        onClose={() => setSetupOpen(false)}
+        onConnect={() => onNavigate?.("careconnections")}
+      />
+    </ScrollView>
   );
 }
 
-function makeStyles(C: Theme, themeId: string) {
-  const solidSurface = themeId === "dark" ? "#1B1719" : "#FFFCF8";
-  const solidElevated = themeId === "dark" ? "#241F22" : "#FFFFFF";
-  return StyleSheet.create({
-    screen: { flex: 1 },
-    content: { paddingHorizontal: 18, gap: 14 },
-    header: { flexDirection: "row", alignItems: "center", gap: 12 },
-    backButton: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: solidSurface },
-    headerText: { flex: 1, minWidth: 0 },
-    eyebrow: { fontSize: 12, fontWeight: "800", color: C.textTertiary, textTransform: "uppercase", letterSpacing: 0.6 },
-    title: { fontSize: 30, fontWeight: "900", color: C.text },
-    card: { backgroundColor: solidSurface, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 18, alignItems: "center" },
-    avatar: { width: 58, height: 58, borderRadius: 29, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center", marginBottom: 10 },
-    cardTitle: { fontSize: 22, fontWeight: "900", color: C.text },
-    cardMeta: { marginTop: 4, fontSize: 13, fontWeight: "700", color: C.textSecondary },
-    formCard: { backgroundColor: solidSurface, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 16, gap: 14 },
-    sectionTitle: { fontSize: 16, fontWeight: "900", color: C.text },
-    label: { fontSize: 12, fontWeight: "900", color: C.textTertiary, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 },
-    input: { borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, color: C.text, fontWeight: "700", backgroundColor: solidElevated },
-    primaryButton: { marginTop: 4, minHeight: 48, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.tint },
-    primaryButtonText: { color: "#fff", fontWeight: "900", fontSize: 15 },
-    removeButton: {
-      minHeight: 48,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1,
-      borderColor: C.red,
-      backgroundColor: C.redLight,
-    },
-    removeButtonText: { color: C.red, fontWeight: "900", fontSize: 15 },
-  });
+function Editor({ profile, isActive, onBack, onSwitch, onSave, onDelete }: { profile: LocalCareProfile; isActive: boolean; onBack: () => void; onSwitch: () => void; onSave: (patch: Partial<LocalCareProfile>) => Promise<void>; onDelete: () => Promise<void> }) {
+  const { colors: C } = useTheme();
+  const [name, setName] = useState(profile.displayName);
+  const [relation, setRelation] = useState(profile.relationship ?? "");
+  const [age, setAge] = useState(profile.legacyAge ? String(profile.legacyAge) : "");
+  useEffect(() => {
+    setName(profile.displayName);
+    setRelation(profile.relationship ?? "");
+    setAge(profile.legacyAge ? String(profile.legacyAge) : "");
+  }, [profile]);
+
+  const save = async () => {
+    if (!name.trim()) {
+      Alert.alert("Name required", "Add their name.");
+      return;
+    }
+    await onSave({ displayName: name.trim(), relationship: relation.trim() || undefined, legacyAge: profile.dateOfBirth ? profile.legacyAge : age.trim() ? Math.max(0, parseInt(age, 10) || 0) : undefined });
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const cleanLegacy = () =>
+    Alert.alert(
+      "Clean up your own lists?",
+      `Older versions kept ${profile.displayName}'s medications and appointments in your own lists. They've been copied here. This removes those older copies from your own lists. Nothing is removed from ${profile.displayName}'s profile.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Clean up", style: "destructive", onPress: async () => { const r = await removeLegacyCopies(profile.id); Alert.alert("Done", `Removed ${r.medications} medication${r.medications === 1 ? "" : "s"} and ${r.appointments} appointment${r.appointments === 1 ? "" : "s"} from your own lists.`); } },
+      ],
+    );
+
+  const confirmDelete = () =>
+    Alert.alert(
+      `Delete ${profile.displayName}'s profile?`,
+      "This permanently deletes their medications, appointments, records, and Check-In settings from this iPhone. It can't be undone, and it doesn't affect anyone else's phone.",
+      [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => void onDelete() }],
+    );
+
+  return (
+    <>
+      <ScreenHeader title={profile.displayName} subtitle="Caregiver-managed profile on this iPhone" onBack={onBack} />
+      <Card>
+        <PrimaryButton label={isActive ? "Viewing this profile" : `View ${profile.displayName}'s health`} onPress={onSwitch} disabled={isActive} icon="eye-outline" />
+      </Card>
+      <SectionLabel>Details</SectionLabel>
+      <Card>
+        <TextInput value={name} onChangeText={setName} placeholder="Name" placeholderTextColor={C.textTertiary} style={fieldStyle(C)} accessibilityLabel="Name" />
+        {profile.dateOfBirth ? <Row title="Date of birth" subtitle={profile.dateOfBirth} /> : <TextInput value={age} onChangeText={setAge} placeholder="Age" placeholderTextColor={C.textTertiary} keyboardType="number-pad" style={fieldStyle(C)} accessibilityLabel="Age" />}
+        <TextInput value={relation} onChangeText={setRelation} placeholder="Relationship (optional)" placeholderTextColor={C.textTertiary} style={fieldStyle(C)} accessibilityLabel="Relationship" />
+        <PrimaryButton label="Save" onPress={save} />
+      </Card>
+      <SectionLabel>Time zones</SectionLabel>
+      <Card>
+        <TimeZoneField value={profile.timeZone} onChange={(tz) => onSave({ timeZone: tz })} label="Where they live" />
+        <TimeZoneField value={profile.medScheduleTimeZone} onChange={(tz) => onSave({ medScheduleTimeZone: tz })} label="Their medication times are in" />
+        <Body>Medication times are read in their medication time zone, so Check-In reminders stay right even when you're in a different time zone, and across daylight saving changes.</Body>
+        <ContactHoursEditor value={profile.contactHours} onChange={(v) => onSave({ contactHours: v })} />
+      </Card>
+      <SectionLabel>Care role</SectionLabel>
+      <Card>
+        <Row title={profile.guardianClaim === "self_declared" ? "Parent or guardian (self-declared)" : "Caregiver"} subtitle="Synapse can't verify legal guardianship, so this is never shown as verified." />
+      </Card>
+      <SectionLabel>Housekeeping</SectionLabel>
+      <View style={{ gap: 10 }}>
+        <SecondaryButton label="Remove older copies from my own lists" icon="layers-outline" onPress={cleanLegacy} />
+        <SecondaryButton label="Delete this profile" icon="trash-outline" destructive onPress={confirmDelete} />
+      </View>
+    </>
+  );
 }
+
+const fieldStyle = (C: { text: string; border: string; surfaceElevated: string }) => ({ minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated, paddingHorizontal: 12, fontSize: 16, color: C.text }) as const;

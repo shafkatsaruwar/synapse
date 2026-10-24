@@ -14,7 +14,7 @@ import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { settingsStorage, healthProfileStorage, ALL_SECTION_KEYS, type AppMode } from "@/lib/storage";
+import { settingsStorage, healthProfileStorage, ALL_SECTION_KEYS, type AppMode } from "@/lib/storage-self";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { useAppMode } from "@/contexts/AppModeContext";
 import { recordMilestone } from "@/lib/product-milestones";

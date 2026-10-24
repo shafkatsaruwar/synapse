@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { feedbackStorage, medicationLogStorage } from "@/lib/storage";
+import { feedbackStorage, medicationLogStorage } from "@/lib/storage-self";
 
 const FEEDBACK_PROMPT_KEY = "feedback_prompt_state_v1";
 

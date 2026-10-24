@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { conditionStorage, settingsStorage } from "@/lib/storage";
+import { conditionStorage, settingsStorage } from "@/lib/storage-self";
 import { modalOverlay, modalSurface } from "@/lib/modal-colors";
 
 interface EditProfileScreenProps {

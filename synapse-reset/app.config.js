@@ -121,6 +121,15 @@ module.exports = {
           color: "#2B5FBF",
         },
       ],
+      [
+        "expo-camera",
+        {
+          cameraPermission:
+            "Synapse uses the camera only to read a care-connection QR code from another person's phone. Nothing is saved or sent.",
+          recordAudioAndroid: false,
+        },
+      ],
+      "expo-secure-store",
       "@react-native-community/datetimepicker",
       [
         "@kingstinct/react-native-healthkit",

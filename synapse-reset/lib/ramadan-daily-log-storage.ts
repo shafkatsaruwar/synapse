@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getActiveProfileId, profileStorageKey } from "@/lib/storage";
 
-const RAMADAN_DAILY_LOG_KEY = "ramadan_daily_log";
+const RAMADAN_DAILY_LOG_BASE_KEY = "ramadan_daily_log";
+const ramadanKey = () => profileStorageKey(getActiveProfileId(), RAMADAN_DAILY_LOG_BASE_KEY);
 
 export type WaterUnit = "glasses" | "ml" | "oz";
 
@@ -55,7 +57,7 @@ function parseRaw(raw: unknown): RamadanDailyLogEntry[] {
 
 export async function getRamadanDailyLog(): Promise<RamadanDailyLogEntry[]> {
   try {
-    const raw = await AsyncStorage.getItem(RAMADAN_DAILY_LOG_KEY);
+    const raw = await AsyncStorage.getItem(ramadanKey());
     if (raw == null) return [];
     const parsed = JSON.parse(raw);
     return parseRaw(parsed);
@@ -77,7 +79,7 @@ export async function saveRamadanDailyLogEntry(
   const all = await getRamadanDailyLog();
   const rest = all.filter((e) => e.date !== entry.date);
   await AsyncStorage.setItem(
-    RAMADAN_DAILY_LOG_KEY,
+    ramadanKey(),
     JSON.stringify([...rest, entry])
   );
 }

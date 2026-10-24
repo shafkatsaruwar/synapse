@@ -9,7 +9,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { exportAllData, clearAllData, importAllDataTransactional } from "@/lib/storage";
+import { exportAllData, clearAllData, importAllDataTransactional } from "@/lib/storage-self";
 import { formatRestorePreview, parseSynapseExport } from "@/lib/backup-import";
 import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";

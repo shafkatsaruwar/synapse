@@ -1,7 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
+import { getActiveProfileId, profileStorageKey } from "@/lib/storage";
 
-const MED_LIST_KEY = "med_list";
+const MED_LIST_BASE_KEY = "med_list";
+/** Follows the care profile being viewed; pass "self" to always mean the device owner. */
+const medListKey = (profileId = getActiveProfileId()) => profileStorageKey(profileId, MED_LIST_BASE_KEY);
 
 export type DurationUnit = "Days" | "Weeks" | "Months";
 
@@ -65,9 +68,9 @@ function normalizeItem(x: unknown): MedListItem | null {
   return { id, name, doses, prescribingDoctor, pharmacyId, pharmacyName, pharmacyPhone, pharmacyAddress, pharmacyHospital, refillsRemaining, refillUnit, duration, durationUnit };
 }
 
-export async function getMedList(): Promise<MedListItem[]> {
+export async function getMedList(profileId?: string): Promise<MedListItem[]> {
   try {
-    const raw = await AsyncStorage.getItem(MED_LIST_KEY);
+    const raw = await AsyncStorage.getItem(medListKey(profileId));
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
@@ -78,7 +81,7 @@ export async function getMedList(): Promise<MedListItem[]> {
 }
 
 export async function saveMedList(items: MedListItem[]): Promise<void> {
-  await AsyncStorage.setItem(MED_LIST_KEY, JSON.stringify(items));
+  await AsyncStorage.setItem(medListKey(), JSON.stringify(items));
 }
 
 export async function addMedListItem(entry: Omit<MedListItem, "id">): Promise<MedListItem> {

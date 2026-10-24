@@ -26,7 +26,7 @@ import {
   type HealthProfileInfo,
   type RecordOwner,
   type UserSettings,
-} from "@/lib/storage";
+} from "@/lib/storage-self";
 import { getMedList, type MedListItem } from "@/lib/med-list-storage";
 
 const MAROON = "#800020";
@@ -58,7 +58,7 @@ export default function EmergencyProtocolScreen({ onBack }: EmergencyProtocolScr
       healthProfileStorage.get(),
       conditionStorage.getAll(),
       allergyStorage.get(),
-      getMedList(),
+      getMedList("self"),
       doctorsStorage.getAll(),
       emergencyDoctorStorage.getDocId(),
     ]);

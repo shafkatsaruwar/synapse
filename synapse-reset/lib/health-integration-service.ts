@@ -16,7 +16,7 @@ import {
   type Medication,
   type MedicationDose,
   type MedicationLog,
-} from "@/lib/storage";
+} from "@/lib/storage-self";
 import { formatDate, formatTime12h, getToday } from "@/lib/date-utils";
 import type {
   ModuleIntegrationEvent,

@@ -139,6 +139,8 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
   // —— Care & Support children ——
   { key: "doctors", type: "screen", label: "Doctors", icon: "medkit-outline", iconActive: "medkit", parent: "carehub", description: "Your care team contacts" },
   { key: "pharmacies", type: "screen", label: "Pharmacies", icon: "storefront-outline", iconActive: "storefront", parent: "carehub", description: "Pharmacy details" },
+  { key: "careconnections", type: "screen", label: "Care Connections", icon: "link-outline", iconActive: "link", parent: "carehub", description: "Trusted people you share care information with" },
+  { key: "checkin", type: "screen", label: "Check-In", icon: "chatbubble-ellipses-outline", iconActive: "chatbubble-ellipses", parent: "health", description: "Stay connected with people you care about" },
   { key: "caregiverdashboard", type: "screen", label: "Caregiver Dashboard", icon: "people-outline", iconActive: "people", parent: "carehub", role: "caregiver", description: "Tools for supporting someone else" },
   { key: "managedperson", type: "screen", label: "Managed Person", icon: "accessibility-outline", iconActive: "accessibility", parent: "carehub", role: "caregiver", description: "Details for the person you support" },
 
@@ -265,7 +267,8 @@ export function primaryTabForScreen(screen: string): string {
     parent === "feelinghub" ||
     parent === "recordshub" ||
     parent === "wellbeinghub" ||
-    parent === "carehub"
+    parent === "carehub" ||
+    parent === "health"
   ) {
     return "health";
   }

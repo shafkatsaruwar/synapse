@@ -19,7 +19,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { exportAllData, importAllDataTransactional } from "@/lib/storage";
+import { exportAllData, importAllDataTransactional } from "@/lib/storage-self";
 import { formatRestorePreview, parseSynapseExport } from "@/lib/backup-import";
 import {
   describeBackupStatus,

@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getSupabase } from "@/lib/supabase";
-import { exportAllData, importAllData, type ExportPayload } from "@/lib/storage";
+import { exportAllData, importAllData, type ExportPayload } from "@/lib/storage-self";
 
 const BACKUP_LAST_SYNC = "fir_backup_last_sync";
 

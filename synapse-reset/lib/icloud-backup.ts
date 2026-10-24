@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
-import { exportAllData } from "@/lib/storage";
+import { exportAllData } from "@/lib/storage-self";
 
 const ICLOUD_BACKUP_LAST_DATE_KEY = "synapse_icloud_backup_last_date";
 const ICLOUD_BACKUP_LAST_FILE_KEY = "synapse_icloud_backup_last_file";

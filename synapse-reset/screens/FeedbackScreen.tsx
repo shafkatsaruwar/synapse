@@ -8,7 +8,7 @@ import {
   feedbackStorage,
   type FeedbackCategory,
   type FeedbackSentiment,
-} from "@/lib/storage";
+} from "@/lib/storage-self";
 
 type FeedbackScreenProps = {
   onBack?: () => void;

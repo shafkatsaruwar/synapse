@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import type { ObjectTypeIdentifier, QuantitySample, QuantityTypeIdentifier } from "@kingstinct/react-native-healthkit";
-import { vitalStorage, type Vital } from "@/lib/storage";
+import { vitalStorage, type Vital } from "@/lib/storage-self";
 
 const CONNECTED_KEY = "synapse_apple_health_connected_v1";
 const LAST_SYNC_KEY = "synapse_apple_health_last_sync_v1";
