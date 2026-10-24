@@ -124,6 +124,11 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
       if (iconsSupported && pickedIcon !== savedIcon) {
         try {
           await setAppIcon(pickedIcon);
+          // Rebuild pending notifications so they carry a thumbnail of the new icon.
+          const { refreshNotificationIcon } = await import("@/lib/notification-icon");
+          await refreshNotificationIcon();
+          const { syncAllFromSettings } = await import("@/lib/notification-manager");
+          void syncAllFromSettings().catch(() => {});
         } catch {
           Alert.alert("Couldn't change the app icon", "Your other appearance changes were saved. Try the icon again in a moment.");
         }
@@ -262,7 +267,7 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
               })}
             </View>
             <Text style={[styles.rowBody, { marginTop: 6 }]}>
-              Applies when you tap Apply Appearance. iOS shows its own confirmation when the icon changes.
+              Applies when you tap Apply Appearance. iOS shows its own confirmation when the icon changes. Notification banners always show iOS's main app icon on the left, which apps can't change, so Synapse adds a small picture of your chosen icon on the right.
             </Text>
           </>
         ) : null}
