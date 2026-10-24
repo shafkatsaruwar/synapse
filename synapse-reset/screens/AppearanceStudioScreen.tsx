@@ -104,6 +104,9 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
   }, [iconsSupported]);
 
   const previewCols = Platform.OS === "ios" || width >= 400 ? 3 : 2;
+  const THEME_GAP = 10;
+  // Exact pixel width so three cards always fit on one row (percent widths + gaps overflowed and wrapped).
+  const themeCardWidth = Math.floor((Math.min(width, 720) - 40 - THEME_GAP * (previewCols - 1)) / previewCols);
 
   const handleApply = async () => {
     setBusy(true);
@@ -180,7 +183,7 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
         <LivePreview />
 
         <Text style={styles.sectionLabel}>Theme</Text>
-        <View style={[styles.themeGrid, { gap: 10 }]}>
+        <View style={[styles.themeGrid, { gap: THEME_GAP }]}>
           {THEMES.map((theme) => {
             const selected = active.theme === theme.id;
             return (
@@ -188,7 +191,7 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
                 key={theme.id}
                 style={[
                   styles.themeCard,
-                  previewCols === 3 ? styles.themeCardThird : styles.themeCardHalf,
+                  { width: themeCardWidth },
                   selected && styles.themeCardSelected,
                 ]}
                 onPressIn={() => {
@@ -506,18 +509,18 @@ function LivePreview() {
 const mini = StyleSheet.create({
   wrap: {
     width: "100%",
-    height: 78,
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingTop: 12,
-    paddingBottom: 10,
-    marginBottom: 10,
+    aspectRatio: 1.45,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingTop: 9,
+    paddingBottom: 8,
+    marginBottom: 8,
     overflow: "hidden",
     justifyContent: "space-between",
   },
   accentPill: {
-    height: 10,
-    width: "70%",
+    height: 8,
+    width: "42%",
     borderRadius: 999,
     alignSelf: "flex-start",
   },
@@ -527,8 +530,8 @@ const mini = StyleSheet.create({
   },
   block: {
     flex: 1,
-    height: 28,
-    borderRadius: 10,
+    height: 22,
+    borderRadius: 7,
     backgroundColor: "#FFFFFF",
   },
 });
@@ -555,18 +558,15 @@ function makeStyles(C: Theme) {
       marginBottom: 10,
       marginTop: 18,
     },
-    themeGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+    themeGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-start" },
     themeCard: {
       backgroundColor: C.surface,
       borderRadius: 16,
-      padding: 10,
+      padding: 8,
       borderWidth: 1,
       borderColor: C.border,
-      marginBottom: 10,
       alignItems: "center",
     },
-    themeCardThird: { width: "31.5%" },
-    themeCardHalf: { width: "48%" },
     themeCardSelected: { borderColor: C.tint, borderWidth: 1.5 },
     themeName: { fontWeight: "700", fontSize: 13, color: C.text, textAlign: "center" },
 
