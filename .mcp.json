@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "synapse-health": {
+      "command": "npx",
+      "args": ["tsx", "mcp/stdio.ts"],
+      "env": {
+        "SYNAPSE_MCP_TOKEN": "${SYNAPSE_MCP_TOKEN:-}",
+        "SYNAPSE_BACKUP_JSON": "${SYNAPSE_BACKUP_JSON:-}",
+        "SYNAPSE_SUPABASE_URL": "${SYNAPSE_SUPABASE_URL:-}",
+        "SYNAPSE_SUPABASE_ANON_KEY": "${SYNAPSE_SUPABASE_ANON_KEY:-}",
+        "SYNAPSE_OWNER_ACCESS_TOKEN": "${SYNAPSE_OWNER_ACCESS_TOKEN:-}"
+      }
+    }
+  }
+}
