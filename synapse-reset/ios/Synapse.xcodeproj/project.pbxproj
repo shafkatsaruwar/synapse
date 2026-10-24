@@ -15,6 +15,8 @@
 		592B1AB3F8240CD3DD203787 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 899F68671DF26BB98C21EF96 /* ExpoModulesProvider.swift */; };
 		64C88465161E62450E2A1D32 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D22D27A934C94AD3B35A250 /* ShareViewController.swift */; };
 		7F02BD12959CC42BC5FB3805 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 35431796CFF3DC9E0F0AB340 /* PrivacyInfo.xcprivacy */; };
+		A10000000000000000000F01 /* SynapseAppIconBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000F11 /* SynapseAppIconBridge.swift */; };
+		A10000000000000000000F02 /* SynapseAppIconBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000F12 /* SynapseAppIconBridge.m */; };
 		A10000000000000000000001 /* SynapseWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* SynapseWidgetBridge.swift */; };
 		A10000000000000000000002 /* SynapseWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* SynapseWidgetsBundle.swift */; };
 		A10000000000000000000003 /* SynapseWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* SynapseWidgets.swift */; };
@@ -77,6 +79,8 @@
 		6D6966030DA41711EA48E2DB /* Pods-Synapse.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Synapse.release.xcconfig"; path = "Target Support Files/Pods-Synapse/Pods-Synapse.release.xcconfig"; sourceTree = "<group>"; };
 		899F68671DF26BB98C21EF96 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Synapse/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		9D22D27A934C94AD3B35A250 /* ShareViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		A10000000000000000000F11 /* SynapseAppIconBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseAppIconBridge.swift; path = Synapse/SynapseAppIconBridge.swift; sourceTree = "<group>"; };
+		A10000000000000000000F12 /* SynapseAppIconBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseAppIconBridge.m; path = Synapse/SynapseAppIconBridge.m; sourceTree = "<group>"; };
 		A10000000000000000000011 /* SynapseWidgetBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SynapseWidgetBridge.swift; path = Synapse/SynapseWidgetBridge.swift; sourceTree = "<group>"; };
 		A10000000000000000000013 /* SynapseWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SynapseWidgetsBundle.swift; sourceTree = "<group>"; };
 		A10000000000000000000014 /* SynapseWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SynapseWidgets.swift; sourceTree = "<group>"; };
@@ -142,6 +146,8 @@
 				D80000000000000000000041 /* SynapseAppIntents.swift */,
 				E90000000000000000000041 /* SynapseVisionBridge.swift */,
 				E90000000000000000000043 /* SynapseVisionBridge.m */,
+				A10000000000000000000F11 /* SynapseAppIconBridge.swift */,
+				A10000000000000000000F12 /* SynapseAppIconBridge.m */,
 				A10000000000000000000011 /* SynapseWidgetBridge.swift */,
 				A10000000000000000000035 /* SynapseWidgetBridge.m */,
 				F11748442D0722820044C1D9 /* Synapse-Bridging-Header.h */,
@@ -531,6 +537,8 @@
 				D80000000000000000000040 /* SynapseAppIntents.swift in Sources */,
 				E90000000000000000000040 /* SynapseVisionBridge.swift in Sources */,
 				E90000000000000000000042 /* SynapseVisionBridge.m in Sources */,
+				A10000000000000000000F01 /* SynapseAppIconBridge.swift in Sources */,
+				A10000000000000000000F02 /* SynapseAppIconBridge.m in Sources */,
 				A10000000000000000000001 /* SynapseWidgetBridge.swift in Sources */,
 				A10000000000000000000034 /* SynapseWidgetBridge.m in Sources */,
 				592B1AB3F8240CD3DD203787 /* ExpoModulesProvider.swift in Sources */,
@@ -603,6 +611,7 @@
 			baseConfigurationReference = F7997B397098D2DF65004354 /* Pods-Synapse.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIcon-Ocean AppIcon-Sage AppIcon-Amber AppIcon-Rose AppIcon-Copper AppIcon-Lavender AppIcon-Chocolate AppIcon-Graphite";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Synapse/Synapse.entitlements;
 				CURRENT_PROJECT_VERSION = 25;
@@ -641,6 +650,7 @@
 			baseConfigurationReference = 6D6966030DA41711EA48E2DB /* Pods-Synapse.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIcon-Ocean AppIcon-Sage AppIcon-Amber AppIcon-Rose AppIcon-Copper AppIcon-Lavender AppIcon-Chocolate AppIcon-Graphite";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Synapse/Synapse.entitlements;
 				CURRENT_PROJECT_VERSION = 25;

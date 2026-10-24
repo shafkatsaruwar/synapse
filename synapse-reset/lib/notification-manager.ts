@@ -730,7 +730,8 @@ async function cancelMissedMedicationCheckIns(): Promise<void> {
   } catch {}
 }
 
-async function syncMissedMedicationCheckIn(): Promise<void> {
+/** Re-evaluates the evening "meds waiting" nudge. Call after any dose is logged or undone. */
+export async function syncMissedMedicationCheckIn(): Promise<void> {
   if (!isNative()) return;
   try {
     await cancelMissedMedicationCheckIns();
@@ -756,11 +757,13 @@ async function syncMissedMedicationCheckIn(): Promise<void> {
       missedAt: string;
     }> = [];
 
+    let pendingDoseCount = 0;
     const missedDoseCount = scheduledMeds
       .reduce((total, med) => {
         const doseCount = getScheduledDoseCount(med);
         const missedForMed = Array.from({ length: doseCount }, (_, doseIndex) => {
           const taken = logs.some((log) => log.medicationId === med.id && (log.doseIndex ?? 0) === doseIndex && log.taken);
+          if (!taken) pendingDoseCount += 1;
           const reminder = getDoseReminderTime(med, doseIndex);
           const missed = !taken && reminder.minutes < currentMinutes;
           if (missed) {
@@ -793,15 +796,22 @@ async function syncMissedMedicationCheckIn(): Promise<void> {
     });
 
     for (let dayOffset = 0; dayOffset < MISSED_MEDICATION_CHECK_IN_DAYS; dayOffset++) {
-      if (dayOffset === 0 && missedDoseCount <= 0) continue;
       let date = new Date();
       date.setDate(date.getDate() + dayOffset);
       date.setHours(21, 0, 0, 0);
-      if (dayOffset === 0 && date.getTime() <= Date.now()) {
-        date = new Date(Date.now() + 10 * 60 * 1000);
+      if (dayOffset === 0) {
+        // Today's nudge only makes sense while doses are still untaken.
+        if (pendingDoseCount <= 0) continue;
+        if (date.getTime() <= Date.now()) {
+          // 9 PM already passed: nudge shortly, but never into tomorrow when the list has reset.
+          if (missedDoseCount <= 0) continue;
+          const soon = new Date(Date.now() + 10 * 60 * 1000);
+          if (soon.toDateString() !== new Date().toDateString()) continue;
+          date = soon;
+        }
       }
 
-      const dayKey = date.toISOString().slice(0, 10);
+      const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
       await Notifications.scheduleNotificationAsync({
         identifier: `${NOTIFICATION_IDS.missedMedsCheckIn}-${dayKey}`,
         content: {
