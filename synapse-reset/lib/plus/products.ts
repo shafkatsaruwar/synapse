@@ -12,7 +12,7 @@ export const SYNAPSE_PLUS_SUBSCRIPTION_GROUP_REF = "synapse_plus";
 export const PLUS_PRODUCT_IDS = {
   monthly: "com.synapse.monthly",
   annual: "com.synapse.yearly",
-  lifetime: "com.synapse.lifetime",
+  lifetime: "com.synapse.plus.lifetime",
 } as const;
 
 export type PlusPlanId = keyof typeof PLUS_PRODUCT_IDS;
