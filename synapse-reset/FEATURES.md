@@ -9,6 +9,8 @@ A reference that maps every **feature** in the Synapse app to the **screens** th
 - Feature logic/storage lives in `synapse-reset/lib/*.ts`; per-domain persistence is in `synapse-reset/lib/storage.ts` (the `*Storage` objects).
 
 > Accuracy note: this reflects the `main` branch. A few screens exist in the repo but are not wired into navigation (legacy/unused) — they're called out in the [Legacy / unused](#legacy--unused-screens) section. Two features are gated behind compile-time flags in `constants/feature-flags.ts` (`documentScannerEnabled`, `medicationEnforcementEnabled`), both `false` by default.
+>
+> **Synapse Plus** (v1.17+): optional App Store IAP. Free forever: medications, appointments, Sick Mode, basic Emergency Card, You & Settings essentials. Plus: How I’m Feeling, Health Records, Wellbeing, Check-In, Care & Support, advanced Emergency Card export/save. See `docs/SYNAPSE_PLUS.md`.
 
 ---
 

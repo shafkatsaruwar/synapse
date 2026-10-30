@@ -159,6 +159,19 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
   { key: "editprofile", type: "screen", label: "Backup & Restore", icon: "cloud-outline", iconActive: "cloud", parent: "accounthub", description: "Keep your data safe" },
   { key: "feedback", type: "screen", label: "Help & Feedback", icon: "chatbubble-ellipses-outline", iconActive: "chatbubble-ellipses", parent: "accounthub", description: "Share feedback or get help" },
   { key: "meetfounder", type: "screen", label: "About Synapse", icon: "heart-outline", iconActive: "heart", parent: "accounthub", description: "Meet the founder" },
+  {
+    key: "synapseplus",
+    type: "screen",
+    label: "Synapse Plus",
+    icon: "sparkles-outline",
+    iconActive: "sparkles",
+    parent: "accounthub",
+    description: "Plans, restore purchases, and subscription status",
+  },
+  /** Internal paywall route — not listed in hubs. */
+  { key: "paywall", type: "screen", label: "Synapse Plus", icon: "sparkles-outline", iconActive: "sparkles" },
+  /** Internal feature gate route — not listed in hubs. */
+  { key: "plusgate", type: "screen", label: "Synapse Plus", icon: "sparkles-outline", iconActive: "sparkles" },
 
   // —— Other retained screens (not hamburger children) ——
   { key: "healthstatus", type: "screen", label: "Health Status", icon: "pulse-outline", iconActive: "pulse" },
@@ -188,6 +201,8 @@ export const NAV_ALIASES: Record<string, string> = {
   // "health" is the bottom-tab mega-hub (canonical key in NAV_REGISTRY)
   accountHub: "accounthub",
   account: "accounthub",
+  plus: "synapseplus",
+  "synapse-plus": "synapseplus",
 };
 
 const BY_KEY = new Map(NAV_REGISTRY.map((e) => [e.key, e]));

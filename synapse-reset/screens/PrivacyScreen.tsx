@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
-  StyleSheet, Text, View, ScrollView, Pressable, Platform, useWindowDimensions, Alert, Share, Switch,
+  StyleSheet, Text, View, ScrollView, Pressable, Platform, useWindowDimensions, Alert, Share, Switch, Linking,
 } from "react-native";
+import { SYNAPSE_LEGAL_URLS } from "@/lib/plus/legal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -239,6 +240,38 @@ export default function PrivacyScreen() {
           </View>
         </View>
       </View>
+
+      <View style={styles.card}>
+        <View style={styles.featureRow}>
+          <View style={[styles.featureIcon, { backgroundColor: C.tintLight }]}>
+            <Ionicons name="sparkles-outline" size={20} color={C.tint} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.featureTitle}>Synapse Plus Purchases</Text>
+            <Text style={styles.featureDesc}>
+              Optional Plus purchases use Apple In-App Purchase. Apple processes payment. Canceling or expiration does not delete your health records or hide essential Emergency Card information.
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <Pressable
+        style={styles.card}
+        onPress={() => Linking.openURL(SYNAPSE_LEGAL_URLS.privacy).catch(() => {})}
+        accessibilityRole="link"
+        accessibilityLabel="Open Privacy Policy"
+      >
+        <View style={styles.featureRow}>
+          <View style={[styles.featureIcon, { backgroundColor: C.greenLight }]}>
+            <Ionicons name="open-outline" size={20} color={C.green} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.featureTitle}>Full Privacy Policy</Text>
+            <Text style={styles.featureDesc}>Open the public Privacy Policy on the web.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+        </View>
+      </Pressable>
 
       <View style={styles.divider} />
 

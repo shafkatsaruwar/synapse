@@ -228,8 +228,26 @@ const sections: Section[] = [
     ],
   },
   {
+    id: "purchases",
+    title: "16. In-App Purchases (Synapse Plus)",
+    blocks: [
+      {
+        p: [
+          "Synapse may offer optional Synapse Plus purchases through Apple’s In-App Purchase system on iOS. Payment processing, billing, receipts, and subscription management are handled by Apple. Synapse does not receive your full payment card number and does not process payments outside Apple’s supported purchase flow for digital Plus features.",
+        ],
+      },
+      {
+        ul: [
+          "Purchase status may be verified on device using Apple StoreKit transaction information so Plus features can unlock.",
+          "Canceling or letting a subscription expire does not delete your health records. Essential Emergency Card information remains available.",
+          "Restore Purchases uses your Apple ID purchase history through Apple’s APIs.",
+        ],
+      },
+    ],
+  },
+  {
     id: "disclaimer",
-    title: "16. Health and Medical Disclaimer",
+    title: "17. Health and Medical Disclaimer",
     blocks: [
       { p: ["Synapse is a personal health organization tool. It is not a medical device, emergency response service, or replacement for a licensed healthcare professional."] },
       { p: ["Information stored, displayed, or organized in Synapse should not be treated as a diagnosis, treatment recommendation, or guarantee of medical accuracy. Always consult an appropriate healthcare professional regarding medical concerns, treatment decisions, or medication changes. In an emergency, contact local emergency services."] },
@@ -237,14 +255,14 @@ const sections: Section[] = [
   },
   {
     id: "changes",
-    title: "17. Changes to This Privacy Policy",
+    title: "18. Changes to This Privacy Policy",
     blocks: [
       { p: ["We may update this Privacy Policy as Synapse evolves, including when functionality, integrations, or data practices change. When we make material changes, we will update the effective date and provide notice as appropriate. The current version of this policy will remain available through the App or its official privacy policy page."] },
     ],
   },
   {
     id: "contact",
-    title: "18. Contact Us",
+    title: "19. Contact Us",
     blocks: [
       { p: ["If you have questions, concerns, or feedback about this Privacy Policy or how Synapse handles information, you can contact:"] },
       { p: ["Synapse Health Companion. Email: mohammedshafkatsaruwar@gmail.com"] },
