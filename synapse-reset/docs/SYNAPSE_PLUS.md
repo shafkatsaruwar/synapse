@@ -12,9 +12,9 @@ Entitlement: `synapse_plus` (app-level; all three products unlock the same featu
 
 | Plan | Product ID | Type | ASC price target | Trial |
 |---|---|---|---|---|
-| Monthly | `synapse.plus.monthly` | Auto-renewable subscription | $4.99 / month | 7-day free intro |
-| Annual | `synapse.plus.annual` | Auto-renewable subscription | $49.99 / year | 7-day free intro |
-| Lifetime | `synapse.plus.lifetime` | Non-consumable | $129.99 | None |
+| Monthly | `com.synapse.monthly` | Auto-renewable subscription | $4.99 / month | 7-day free intro |
+| Annual | `com.synapse.yearly` | Auto-renewable subscription | $49.99 / year | 7-day free intro |
+| Lifetime | `com.synapse.lifetime` | Non-consumable | $129.99 | None |
 
 Local StoreKit Configuration: `ios/SynapsePlus.storekit`
 
@@ -22,13 +22,13 @@ Local StoreKit Configuration: `ios/SynapsePlus.storekit`
 
 1. **Agreements**: Paid Apps Agreement + banking + tax must be Active.
 2. **Subscription group**: Create group named **Synapse Plus**. Put monthly + annual in the **same** group so intro eligibility is shared.
-3. **Monthly** (`synapse.plus.monthly`):
+3. **Monthly** (`com.synapse.monthly`):
    - Duration: 1 month
    - Introductory offer: Free, 7 days, one per subscription group
-4. **Annual** (`synapse.plus.annual`):
+4. **Annual** (`com.synapse.yearly`):
    - Duration: 1 year
    - Same 7-day free introductory offer
-5. **Lifetime** (`synapse.plus.lifetime`): Non-Consumable. No intro offer.
+5. **Lifetime** (`com.synapse.lifetime`): Non-Consumable. No intro offer.
 6. Localization: clear display names/descriptions; do not advertise a trial on Lifetime.
 7. Submit IAPs with the app version (or attach to the release).
 8. Metadata URLs:
