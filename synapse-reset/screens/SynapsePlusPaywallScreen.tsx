@@ -15,7 +15,7 @@ import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { usePlus } from "@/contexts/PlusContext";
-import { PLUS_PLANS, type PlusProductId } from "@/lib/plus/products";
+import { PLUS_PLANS, PLUS_PRODUCT_IDS, type PlusProductId } from "@/lib/plus/products";
 import { getPlusFeatureInfo } from "@/lib/plus/features";
 import { subscriptionOfferCopy } from "@/lib/plus/pricing-copy";
 import { softCardSurface } from "@/constants/soft-card";
@@ -55,12 +55,12 @@ export default function SynapsePlusPaywallScreen({ visible, onClose, featureKey 
     hasPlus,
   } = usePlus();
 
-  const [selectedId, setSelectedId] = useState<PlusProductId>("synapse.plus.annual");
+  const [selectedId, setSelectedId] = useState<PlusProductId>(PLUS_PRODUCT_IDS.annual);
   const feature = featureKey ? getPlusFeatureInfo(featureKey) : null;
   const busy = purchaseBusy === "purchasing" || purchaseBusy === "restoring";
 
   const productFor = (productId: string) => {
-    if (productId === "synapse.plus.lifetime") return lifetimeProduct ?? undefined;
+    if (productId === PLUS_PRODUCT_IDS.lifetime) return lifetimeProduct ?? undefined;
     return subscriptions.find((s) => s.id === productId);
   };
 
@@ -189,7 +189,7 @@ export default function SynapsePlusPaywallScreen({ visible, onClose, featureKey 
             disabled={busy || (monetizationEnabled && !storeConnected)}
             accessibilityRole="button"
             accessibilityLabel={
-              selectedId === "synapse.plus.lifetime"
+              selectedId === PLUS_PRODUCT_IDS.lifetime
                 ? "Unlock Lifetime Access"
                 : subscriptionOfferCopy(productFor(selectedId), PLUS_PLANS.find((p) => p.productId === selectedId)!)
                     .cta
@@ -199,7 +199,7 @@ export default function SynapsePlusPaywallScreen({ visible, onClose, featureKey 
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.ctaText}>
-                {selectedId === "synapse.plus.lifetime"
+                {selectedId === PLUS_PRODUCT_IDS.lifetime
                   ? "Unlock Lifetime Access"
                   : subscriptionOfferCopy(
                       productFor(selectedId),
