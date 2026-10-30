@@ -41,6 +41,7 @@ import {
   markLegacyIntroSeen,
   type LegacyMigrationState,
 } from "@/lib/plus/legacy-migration";
+import { hasRedeemedPromoLifetime, redeemPromoCode as redeemPromoOffer } from "@/lib/plus/promo";
 import { SYNAPSE_LEGAL_URLS } from "@/lib/plus/legal";
 import { requiresPlusGate } from "@/lib/plus/features";
 import {
@@ -143,10 +144,12 @@ export function PlusProviderIOS({ children }: { children: ReactNode }) {
             : null,
       }));
 
+      const promoLifetimeRedeemed = await hasRedeemedPromoLifetime();
       const next = resolvePlusEntitlement({
         activeSubscriptions: activeSubscriptions ?? [],
         availablePurchases,
         legacyTransitionUntilIso: legacyUntil,
+        promoLifetimeRedeemed,
         devUnlock,
         allowDevUnlock: __DEV__,
       });
@@ -331,7 +334,12 @@ export function PlusProviderIOS({ children }: { children: ReactNode }) {
       }
       const snap = await refreshEntitlement();
       setPurchaseBusy("idle");
-      if (!snap.isActive || snap.source === "legacy_transition" || snap.source === "dev_unlock") {
+      if (
+        !snap.isActive ||
+        snap.source === "legacy_transition" ||
+        snap.source === "dev_unlock" ||
+        snap.source === "promo_lifetime"
+      ) {
         setLastPurchaseError("No previous Synapse Plus purchase was found for this Apple ID.");
         return false;
       }
@@ -343,6 +351,30 @@ export function PlusProviderIOS({ children }: { children: ReactNode }) {
       return false;
     }
   }, [refreshEntitlement, restorePurchasesHook]);
+
+  const redeemPromoCode = useCallback(
+    async (code: string) => {
+      const result = await redeemPromoOffer(code);
+      if (result.ok) {
+        await applyResolved({ legacyUntil: legacyUntilRef.current });
+        setPaywallVisible(false);
+        return {
+          ok: true,
+          message: result.alreadyRedeemed
+            ? "Lifetime access is already unlocked on this device."
+            : "Lifetime access unlocked. Enjoy Synapse Plus.",
+        };
+      }
+      if (result.reason === "empty") {
+        return { ok: false, message: "Enter a promotional code." };
+      }
+      if (result.reason === "storage") {
+        return { ok: false, message: "Could not save this offer. Try again." };
+      }
+      return { ok: false, message: "That code isn’t valid." };
+    },
+    [applyResolved]
+  );
 
   const manageSubscriptions = useCallback(async () => {
     try {
@@ -419,6 +451,7 @@ export function PlusProviderIOS({ children }: { children: ReactNode }) {
       refreshEntitlement,
       purchasePlan,
       restorePurchases,
+      redeemPromoCode,
       manageSubscriptions,
       openLegalUrl,
       canAccess,
@@ -445,6 +478,7 @@ export function PlusProviderIOS({ children }: { children: ReactNode }) {
       refreshEntitlement,
       purchasePlan,
       restorePurchases,
+      redeemPromoCode,
       manageSubscriptions,
       openLegalUrl,
       canAccess,

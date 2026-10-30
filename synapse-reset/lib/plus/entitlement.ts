@@ -16,6 +16,7 @@ export type PlusAccessSource =
   | "none"
   | "subscription"
   | "lifetime"
+  | "promo_lifetime"
   | "legacy_transition"
   | "dev_unlock";
 
@@ -62,6 +63,11 @@ export type StoreEntitlementInput = {
   /** Dev-only unlock; ignored unless allowDevUnlock. */
   devUnlock?: boolean;
   allowDevUnlock?: boolean;
+  /**
+   * Device-local promotional lifetime unlock (validated via hashed offer digest).
+   * Not a StoreKit purchase; still an explicit redeemed offer, not a free boolean toggle.
+   */
+  promoLifetimeRedeemed?: boolean;
 };
 
 function isoFromMs(ms: number | null | undefined): string | undefined {
@@ -70,7 +76,7 @@ function isoFromMs(ms: number | null | undefined): string | undefined {
 }
 
 function statusForActive(source: PlusAccessSource, isInTrial?: boolean): string {
-  if (source === "lifetime") return "Lifetime access";
+  if (source === "lifetime" || source === "promo_lifetime") return "Lifetime access";
   if (source === "legacy_transition") return "Transition access";
   if (source === "dev_unlock") return "Developer unlock";
   if (isInTrial) return "Free trial";
@@ -115,6 +121,16 @@ export function resolvePlusEntitlement(input: StoreEntitlementInput): PlusEntitl
       productId: lifetime.productId,
       planLabel: planMetaForProductId(lifetime.productId)?.fallbackTitle ?? "Lifetime",
       statusLabel: statusForActive("lifetime"),
+    };
+  }
+
+  if (input.promoLifetimeRedeemed) {
+    return {
+      ...base,
+      isActive: true,
+      source: "promo_lifetime",
+      planLabel: "Lifetime (promotional)",
+      statusLabel: statusForActive("promo_lifetime"),
     };
   }
 
@@ -178,6 +194,8 @@ export function preferredPlanProductId(
   snapshot: PlusEntitlementSnapshot
 ): string | undefined {
   if (snapshot.productId) return snapshot.productId;
-  if (snapshot.source === "lifetime") return PLUS_PRODUCT_IDS.lifetime;
+  if (snapshot.source === "lifetime" || snapshot.source === "promo_lifetime") {
+    return PLUS_PRODUCT_IDS.lifetime;
+  }
   return undefined;
 }

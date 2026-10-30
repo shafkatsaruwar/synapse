@@ -15,6 +15,7 @@ import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { usePlus } from "@/contexts/PlusContext";
 import { softCardSurface } from "@/constants/soft-card";
 import PlusBadge from "@/components/plus/PlusBadge";
+import PlusPromoCodeField from "@/components/plus/PlusPromoCodeField";
 
 type Props = {
   onNavigate?: (screen: string) => void;
@@ -106,6 +107,12 @@ export default function SynapsePlusSettingsScreen({ onNavigate }: Props) {
             {hasPlus ? "View Synapse Plus plans" : "Upgrade to Synapse Plus"}
           </Text>
         </Pressable>
+      ) : null}
+
+      {entitlement.source !== "lifetime" ? (
+        <View style={styles.card}>
+          <PlusPromoCodeField compact />
+        </View>
       ) : null}
 
       <View style={styles.list}>

@@ -7,6 +7,7 @@ import {
   getLegacyMigrationState,
   markLegacyIntroSeen,
 } from "@/lib/plus/legacy-migration";
+import { hasRedeemedPromoLifetime, redeemPromoCode as redeemPromoOffer } from "@/lib/plus/promo";
 import { SYNAPSE_LEGAL_URLS } from "@/lib/plus/legal";
 import {
   PlusContext,
@@ -28,10 +29,12 @@ function PlusProviderStub({ children }: { children: React.ReactNode }) {
 
   const apply = useCallback(
     async (legacyUntil: string | null) => {
+      const promoLifetimeRedeemed = await hasRedeemedPromoLifetime();
       const next = resolvePlusEntitlement({
         activeSubscriptions: [],
         availablePurchases: [],
         legacyTransitionUntilIso: legacyUntil,
+        promoLifetimeRedeemed,
         devUnlock,
         allowDevUnlock: __DEV__,
       });
@@ -97,6 +100,25 @@ function PlusProviderStub({ children }: { children: React.ReactNode }) {
       refreshEntitlement: async () => apply(legacyUntilRef.current),
       purchasePlan: async () => false,
       restorePurchases: async () => false,
+      redeemPromoCode: async (code: string) => {
+        const result = await redeemPromoOffer(code);
+        if (result.ok) {
+          await apply(legacyUntilRef.current);
+          return {
+            ok: true,
+            message: result.alreadyRedeemed
+              ? "Lifetime access is already unlocked on this device."
+              : "Lifetime access unlocked. Enjoy Synapse Plus.",
+          };
+        }
+        if (result.reason === "empty") {
+          return { ok: false, message: "Enter a promotional code." };
+        }
+        if (result.reason === "storage") {
+          return { ok: false, message: "Could not save this offer. Try again." };
+        }
+        return { ok: false, message: "That code isn’t valid." };
+      },
       manageSubscriptions: async () => {
         await Linking.openURL(SYNAPSE_LEGAL_URLS.manageSubscriptions);
       },

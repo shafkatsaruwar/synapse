@@ -43,6 +43,7 @@ export type PlusContextValue = {
   refreshEntitlement: () => Promise<PlusEntitlementSnapshot>;
   purchasePlan: (productId: PlusProductId) => Promise<boolean>;
   restorePurchases: () => Promise<boolean>;
+  redeemPromoCode: (code: string) => Promise<{ ok: boolean; message: string }>;
   manageSubscriptions: () => Promise<void>;
   openLegalUrl: (kind: "privacy" | "terms" | "support") => void;
   canAccess: (navKey: string) => boolean;
