@@ -14,7 +14,7 @@ Entitlement: `synapse_plus` (app-level; all three products unlock the same featu
 |---|---|---|---|---|
 | Monthly | `com.synapse.monthly` | Auto-renewable subscription | $4.99 / month | 7-day free intro |
 | Annual | `com.synapse.yearly` | Auto-renewable subscription | $49.99 / year | 7-day free intro |
-| Lifetime | `com.synapse.lifetime` | Non-consumable | $129.99 | None |
+| Lifetime | `com.synapse.plus.lifetime` | Non-consumable | $129.99 | None |
 
 Local StoreKit Configuration: `ios/SynapsePlus.storekit`
 
@@ -28,7 +28,7 @@ Local StoreKit Configuration: `ios/SynapsePlus.storekit`
 4. **Annual** (`com.synapse.yearly`):
    - Duration: 1 year
    - Same 7-day free introductory offer
-5. **Lifetime** (`com.synapse.lifetime`): Non-Consumable. No intro offer.
+5. **Lifetime** (`com.synapse.plus.lifetime`): Non-Consumable. No intro offer.
 6. Localization: clear display names/descriptions; do not advertise a trial on Lifetime.
 7. Submit IAPs with the app version (or attach to the release).
 8. Metadata URLs:

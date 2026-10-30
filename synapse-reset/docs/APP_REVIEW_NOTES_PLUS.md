@@ -27,7 +27,7 @@ All Plus purchase options unlock the **same** entitlement (`synapse_plus`).
 
 - `com.synapse.monthly` — auto-renewable, 7-day free introductory offer
 - `com.synapse.yearly` — auto-renewable, 7-day free introductory offer (same subscription group)
-- `com.synapse.lifetime` — non-consumable, **no** free trial
+- `com.synapse.plus.lifetime` — non-consumable, **no** free trial
 
 Paywall prices are loaded from StoreKit (not hardcoded). Trial disclosure example: “7 days free, then {localized price}/year. Cancel anytime.” Lifetime CTA: “Unlock Lifetime Access.”
 

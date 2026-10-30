@@ -15,7 +15,7 @@
           "locale" : "en_US"
         }
       ],
-      "productID" : "com.synapse.lifetime",
+      "productID" : "com.synapse.plus.lifetime",
       "referenceName" : "Synapse Plus Lifetime",
       "type" : "NonConsumable"
     }
