@@ -122,7 +122,7 @@ export default function EditProfileScreen({ onBack, onNavigate, onRestoreComplet
           </Pressable>
         </View>
 
-        {/* Cloud backup and account system have been removed – app is fully local now. */}
+        {/* Account UI lives under Backup & Restore (optional Sign in with Apple). */}
       </ScrollView>
 
       {/* Cloud restore modal removed (no cloud backup). */}

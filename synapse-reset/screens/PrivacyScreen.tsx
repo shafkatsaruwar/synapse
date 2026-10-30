@@ -179,7 +179,7 @@ export default function PrivacyScreen() {
             <Text style={styles.featureDesc}>
               {featureFlags.cloudKitBackupEnabled
                 ? "Health logs are stored on this device by default. Optional features you turn on — such as iCloud backup, Apple Health import, caregiver tools, or signed-in cloud sync — may copy or import data when you use them."
-                : "Health logs are stored on this device by default. Manual Backup & Restore (free) lets you save a file you control. Apple Health import and other optional tools only run when you use them. Automatic iCloud backup is currently unavailable."}
+                : "Health logs are stored on this device by default. Manual Backup & Restore (free) lets you save a file you control. Optional Sign in with Apple can upload a backup to Synapse cloud storage when you choose it. Apple Health import and other optional tools only run when you use them. Automatic iCloud (CloudKit) backup is currently unavailable."}
             </Text>
           </View>
         </View>
@@ -315,7 +315,7 @@ export default function PrivacyScreen() {
         <Text style={styles.infoText}>
           {featureFlags.cloudKitBackupEnabled
             ? "Local data stays on this device unless you use optional cloud backup, AI, email, export, or choose to share a Care Connection update with someone. Review Settings for iCloud and account options. For the security posture of this project, see SECURITY.md in the repository."
-            : "Local data stays on this device unless you export a backup file, use AI or email, or choose to share a Care Connection update with someone. Care Connections use no Synapse server; Apple's Messages or AirDrop may handle files you send. Prefer Backup & Restore under You for saving and restoring. Automatic iCloud backup is unavailable. For the security posture of this project, see SECURITY.md in the repository."}
+            : "Local data stays on this device unless you export a backup file, use optional Sign in with Apple cloud backup, AI or email, or choose to share a Care Connection update with someone. Care Connections use no Synapse server; Apple's Messages or AirDrop may handle files you send. Prefer Backup & Restore under You for saving and restoring. Automatic iCloud (CloudKit) backup is unavailable. For the security posture of this project, see SECURITY.md in the repository."}
         </Text>
       </View>
     </ScrollView>

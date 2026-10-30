@@ -45,6 +45,7 @@ module.exports = {
     },
     ios: {
       supportsTablet: true,
+      usesAppleSignIn: true,
       bundleIdentifier: "com.mohammedsaruwar.synapse",
       buildNumber: "1",
       // iOS 18+ system appearance icons (light / dark). Needs a new native build to show on home screen.
@@ -63,6 +64,7 @@ module.exports = {
         },
       },
       entitlements: {
+        "com.apple.developer.applesignin": ["Default"],
         "com.apple.developer.icloud-container-identifiers": ["iCloud.com.mohammedsaruwar.synapse"],
         "com.apple.developer.icloud-services": ["CloudKit"],
         "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)com.mohammedsaruwar.synapse",
@@ -115,6 +117,7 @@ module.exports = {
     plugins: [
       "expo-router",
       "expo-font",
+      "expo-apple-authentication",
       "expo-iap",
       [
         "expo-notifications",
