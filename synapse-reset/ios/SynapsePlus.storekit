@@ -1,0 +1,165 @@
+{
+  "identifier" : "SynapsePlus",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "129.99",
+      "familyShareable" : false,
+      "internalID" : "A1B2C3D4E5F60718",
+      "localizations" : [
+        {
+          "description" : "Unlock Synapse Plus forever with a one-time purchase.",
+          "displayName" : "Synapse Plus Lifetime",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "synapse.plus.lifetime",
+      "referenceName" : "Synapse Plus Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6759972036",
+    "_developerTeamID" : "PLACEHOLDER",
+    "_failTransactionsEnabled" : false,
+    "_lastStorefrontTimeRate" : 0,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21470001",
+      "localizations" : [
+        {
+          "description" : "Synapse Plus subscriptions",
+          "displayName" : "Synapse Plus",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "Synapse Plus",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "4.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "B2C3D4E5F6071829",
+          "introductoryOffer" : {
+            "displayPrice" : "0",
+            "internalID" : "C3D4E5F60718293A",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P7D"
+          },
+          "localizations" : [
+            {
+              "description" : "Synapse Plus billed monthly after a 7-day free trial.",
+              "displayName" : "Synapse Plus Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "synapse.plus.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Synapse Plus Monthly",
+          "subscriptionGroupID" : "21470001",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "49.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "D4E5F60718293A4B",
+          "introductoryOffer" : {
+            "displayPrice" : "0",
+            "internalID" : "E5F60718293A4B5C",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P7D"
+          },
+          "localizations" : [
+            {
+              "description" : "Synapse Plus billed yearly after a 7-day free trial.",
+              "displayName" : "Synapse Plus Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "synapse.plus.annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Synapse Plus Annual",
+          "subscriptionGroupID" : "21470001",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

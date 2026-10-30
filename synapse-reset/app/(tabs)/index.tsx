@@ -51,11 +51,17 @@ import FeatureHubScreen from "@/screens/FeatureHubScreen";
 import PreferencesScreen from "@/screens/PreferencesScreen";
 import AppearanceStudioScreen from "@/screens/AppearanceStudioScreen";
 import BackupRestoreScreen from "@/screens/BackupRestoreScreen";
+import SynapsePlusPaywallScreen from "@/screens/SynapsePlusPaywallScreen";
+import SynapsePlusSettingsScreen from "@/screens/SynapsePlusSettingsScreen";
+import PlusFeatureGateScreen from "@/screens/PlusFeatureGateScreen";
 import ContextualTip from "@/components/ContextualTip";
+import LegacyPlusIntroModal from "@/components/plus/LegacyPlusIntroModal";
 import { trackReturnSession } from "@/lib/product-milestones";
 import { TIP_BLOCKED_SCREENS } from "@/lib/contextual-tips-storage";
 import { getParentHub, resolveNavKey } from "@/lib/navigation-registry";
 import { popNav, pushNav, resolveNavigationRequest, type NavStackState } from "@/lib/navigation-stack";
+import { requiresPlusGate } from "@/lib/plus/features";
+import { usePlus } from "@/contexts/PlusContext";
 import {
   hydrationStorage,
   medicationLogStorage,
@@ -345,6 +351,15 @@ export default function MainScreen() {
   const activeScreen = navState.screen;
   const [refreshKey, setRefreshKey] = useState(0);
   const [sickMode, setSickMode] = useState(false);
+  const [plusGateFeatureKey, setPlusGateFeatureKey] = useState<string>("feelinghub");
+  const {
+    canAccess,
+    monetizationEnabled,
+    paywallVisible,
+    paywallFeatureKey,
+    openPaywall,
+    closePaywall,
+  } = usePlus();
 
   const navigateTo = useCallback((raw: string, options?: { reset?: boolean; source?: string }) => {
     const result = resolveNavigationRequest(raw);
@@ -367,17 +382,44 @@ export default function MainScreen() {
   /** UI navigation — preserves hub → child back stack. Top-level destinations reset. */
   const handleNavigate = useCallback(
     (screen: string) => {
+      const key = resolveNavKey(screen);
+      if (monetizationEnabled && requiresPlusGate(key) && !canAccess(key)) {
+        setPlusGateFeatureKey(key);
+        navigateTo("plusgate", { source: "ui" });
+        return;
+      }
+      if (key === "paywall") {
+        openPaywall();
+        return;
+      }
       navigateTo(screen, { source: "ui" });
     },
-    [navigateTo]
+    [canAccess, monetizationEnabled, navigateTo, openPaywall]
   );
 
   /** External jumps (deep links, notifications, widgets) — reset stack. */
   const setActiveScreen = useCallback(
     (screen: string) => {
+      const key = resolveNavKey(screen);
+      if (monetizationEnabled && requiresPlusGate(key) && !canAccess(key)) {
+        setPlusGateFeatureKey(key);
+        navigateTo("plusgate", { reset: true, source: "external" });
+        return;
+      }
       navigateTo(screen, { reset: true, source: "external" });
     },
-    [navigateTo]
+    [canAccess, monetizationEnabled, navigateTo]
+  );
+
+  const plusOverlays = (
+    <>
+      <SynapsePlusPaywallScreen
+        visible={paywallVisible}
+        onClose={closePaywall}
+        featureKey={paywallFeatureKey}
+      />
+      <LegacyPlusIntroModal />
+    </>
   );
 
   const handleBack = useCallback(() => {
@@ -1524,6 +1566,15 @@ export default function MainScreen() {
             onBack={() => backToParentOr("settings")}
           />
         );
+      case "synapseplus":
+        return <SynapsePlusSettingsScreen onNavigate={handleNavigate} />;
+      case "plusgate":
+        return (
+          <PlusFeatureGateScreen
+            featureKey={plusGateFeatureKey}
+            onBack={() => backToParentOr("health")}
+          />
+        );
       default:
         if (__DEV__) {
           console.warn(`[nav] Unhandled screen key "${activeScreen}" — showing recovery`);
@@ -1606,6 +1657,7 @@ export default function MainScreen() {
           {simpleModeTourOverlay}
           {caregiverOnboardingModal}
           {medicationReminderModal}
+          {plusOverlays}
           <Modal
             animationType="fade"
             transparent
@@ -1689,6 +1741,7 @@ export default function MainScreen() {
         {simpleModeTourOverlay}
         {caregiverOnboardingModal}
         {medicationReminderModal}
+        {plusOverlays}
         <IcsImportPreviewScreen
           visible={showIcsImportPreview}
           payload={icsImportPayload}

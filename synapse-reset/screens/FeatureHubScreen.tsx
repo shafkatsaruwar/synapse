@@ -13,6 +13,9 @@ import {
 import { getNavBadgeCounts, type NavBadgeCounts } from "@/lib/nav-badge-counts";
 import { subscribeBadgeRefresh } from "@/lib/badge-refresh";
 import BackupReminderBanner from "@/components/BackupReminderBanner";
+import PlusBadge from "@/components/plus/PlusBadge";
+import { usePlusOptional } from "@/contexts/PlusContext";
+import { HEALTH_HUB_PLUS_ITEM_KEYS, requiresPlus } from "@/lib/plus/features";
 
 export type HubItem = {
   key: string;
@@ -147,6 +150,8 @@ export default function FeatureHubScreen({
   const role = roleProp ?? (includeCaregiver ? "caregiver" : "self");
   const resolvedId = resolveNavKey(hubId);
   const [badgeCounts, setBadgeCounts] = useState<NavBadgeCounts>({});
+  const plus = usePlusOptional();
+  const showPlusIndicators = Boolean(plus?.monetizationEnabled && !plus.hasPlus);
 
   const hub = useMemo(() => {
     return hubFromRegistry(resolvedId, role) ?? HEALTH_HUB;
@@ -211,10 +216,18 @@ export default function FeatureHubScreen({
         <View style={styles.list}>
           {hub.items.map((item) => {
             const badgeCount = getItemBadgeCount(item.key);
-            const accessibilityLabel =
-              badgeCount > 0
-                ? `${item.label}, ${badgeCount > 9 ? "9 plus" : badgeCount} pending`
-                : item.label;
+            const isPlusItem =
+              showPlusIndicators &&
+              (resolvedId === "health"
+                ? HEALTH_HUB_PLUS_ITEM_KEYS.has(item.key)
+                : requiresPlus(item.key) || requiresPlus(item.target));
+            const accessibilityLabel = [
+              item.label,
+              isPlusItem ? "Synapse Plus" : null,
+              badgeCount > 0 ? `${badgeCount > 9 ? "9 plus" : badgeCount} pending` : null,
+            ]
+              .filter(Boolean)
+              .join(", ");
             return (
               <Pressable
                 key={item.key}
@@ -236,7 +249,10 @@ export default function FeatureHubScreen({
                   ) : null}
                 </View>
                 <View style={styles.rowText}>
-                  <Text style={styles.rowLabel}>{item.label}</Text>
+                  <View style={styles.rowLabelRow}>
+                    <Text style={styles.rowLabel}>{item.label}</Text>
+                    {isPlusItem ? <PlusBadge compact /> : null}
+                  </View>
                   {item.description ? <Text style={styles.rowDesc}>{item.description}</Text> : null}
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
@@ -315,6 +331,7 @@ function makeStyles(C: Theme) {
       color: "#FFFFFF",
     },
     rowText: { flex: 1, gap: 2 },
+    rowLabelRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
     rowLabel: { fontSize: 16, fontWeight: "600", color: C.text },
     rowDesc: { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   });

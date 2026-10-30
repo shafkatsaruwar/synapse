@@ -162,6 +162,21 @@ export default function PreferencesScreen({ onNavigate, onResetApp }: Preference
           </View>
         ) : null}
 
+        <Text style={styles.sectionLabel}>Synapse Plus</Text>
+        <Pressable
+          style={styles.navRow}
+          onPress={() => onNavigate?.("synapseplus")}
+          accessibilityRole="button"
+          accessibilityLabel="Open Synapse Plus settings"
+        >
+          <View style={styles.iconWrap}><Ionicons name="sparkles-outline" size={20} color={C.tint} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowTitle}>Synapse Plus</Text>
+            <Text style={styles.rowBody}>Plans, restore purchases, and subscription status</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+        </Pressable>
+
         <Text style={styles.sectionLabel}>Appearance</Text>
         <Pressable
           style={styles.navRow}

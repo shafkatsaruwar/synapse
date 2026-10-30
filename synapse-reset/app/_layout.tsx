@@ -16,6 +16,7 @@ import { DisplaySettingsProvider } from "@/contexts/DisplaySettingsContext";
 import { RoleProvider } from "@/contexts/RoleContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { CareProfileProvider } from "@/contexts/CareProfileContext";
+import { PlusProvider } from "@/contexts/PlusContext";
 import { queryClient } from "@/lib/query-client";
 import {
   setNotificationHandler,
@@ -102,8 +103,10 @@ export default function RootLayout() {
                   <RoleProvider>
                     <CareProfileProvider>
                       <AuthProvider>
-                        <Stack screenOptions={{ headerShown: false }} />
-                        <KeyboardDoneBar />
+                        <PlusProvider>
+                          <Stack screenOptions={{ headerShown: false }} />
+                          <KeyboardDoneBar />
+                        </PlusProvider>
                       </AuthProvider>
                     </CareProfileProvider>
                   </RoleProvider>

@@ -23,6 +23,8 @@ import {
   saveEmergencyCard,
   type EmergencyCardData,
 } from "@/lib/emergency-card-storage";
+import { usePlusOptional } from "@/contexts/PlusContext";
+import PlusBadge from "@/components/plus/PlusBadge";
 import {
   allergyStorage,
   doctorsStorage,
@@ -63,6 +65,9 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const cardRef = useRef<ViewShot>(null);
+  const plus = usePlusOptional();
+  /** Essential card view/edit stays free. Export / save / share helpers need Plus when monetization is on. */
+  const advancedUnlocked = !plus?.monetizationEnabled || Boolean(plus?.hasPlus);
 
   const [data, setData] = useState<EmergencyCardData>({
     fullName: "",
@@ -272,6 +277,9 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
               ? "Your card is ready when you need it."
               : "Add your details so first responders have what they need."}
           </Text>
+          <Text style={styles.safetyNote}>
+            Essential emergency information stays available with or without Synapse Plus.
+          </Text>
         </View>
 
         {showCardView ? (
@@ -302,25 +310,51 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
             </Pressable>
 
             <View style={styles.actions}>
-              <Pressable
-                style={[styles.exportBtn, exporting && styles.exportBtnDisabled]}
-                onPress={handleExport}
-                disabled={exporting}
-              >
-                <Ionicons name="share-outline" size={20} color="#fff" />
-                <Text style={styles.exportBtnText}>
-                  {exporting ? "Preparing…" : "Export Emergency Card"}
-                </Text>
-              </Pressable>
-              {Platform.OS !== "web" && (
+              {advancedUnlocked ? (
+                <>
+                  <Pressable
+                    style={[styles.exportBtn, exporting && styles.exportBtnDisabled]}
+                    onPress={handleExport}
+                    disabled={exporting}
+                    accessibilityRole="button"
+                    accessibilityLabel="Export Emergency Card"
+                  >
+                    <Ionicons name="share-outline" size={20} color="#fff" />
+                    <Text style={styles.exportBtnText}>
+                      {exporting ? "Preparing…" : "Export Emergency Card"}
+                    </Text>
+                  </Pressable>
+                  {Platform.OS !== "web" && (
+                    <Pressable
+                      style={[styles.saveToPhoneBtn, saving && styles.exportBtnDisabled]}
+                      onPress={handleSaveToPhone}
+                      disabled={saving}
+                      accessibilityRole="button"
+                      accessibilityLabel="Save emergency card to phone"
+                    >
+                      <Ionicons name="images-outline" size={20} color={C.tint} />
+                      <Text style={styles.saveToPhoneBtnText}>
+                        {saving ? "Saving…" : "Save to Phone"}
+                      </Text>
+                    </Pressable>
+                  )}
+                </>
+              ) : (
                 <Pressable
-                  style={[styles.saveToPhoneBtn, saving && styles.exportBtnDisabled]}
-                  onPress={handleSaveToPhone}
-                  disabled={saving}
+                  style={styles.plusUpsell}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    plus?.openPaywall("emergency_advanced");
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Unlock export and save with Synapse Plus"
                 >
-                  <Ionicons name="images-outline" size={20} color={C.tint} />
-                  <Text style={styles.saveToPhoneBtnText}>
-                    {saving ? "Saving…" : "Save to Phone"}
+                  <View style={styles.plusUpsellTop}>
+                    <Text style={styles.plusUpsellTitle}>Export & save helpers</Text>
+                    <PlusBadge compact />
+                  </View>
+                  <Text style={styles.plusUpsellBody}>
+                    Your essential card stays free. Synapse Plus adds export and Save to Photos.
                   </Text>
                 </Pressable>
               )}
@@ -524,6 +558,24 @@ function makeStyles(C: Theme) {
     header: { marginBottom: 20 },
     title: { fontWeight: "700", fontSize: 28, color: C.text, letterSpacing: -0.5 },
     subtitle: { fontWeight: "400", fontSize: 14, color: C.textSecondary, marginTop: 4, lineHeight: 20 },
+    safetyNote: {
+      fontWeight: "500",
+      fontSize: 12,
+      color: C.textTertiary,
+      marginTop: 8,
+      lineHeight: 17,
+    },
+    plusUpsell: {
+      backgroundColor: C.surface,
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+      gap: 6,
+    },
+    plusUpsellTop: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+    plusUpsellTitle: { fontSize: 15, fontWeight: "700", color: C.text },
+    plusUpsellBody: { fontSize: 13, lineHeight: 18, color: C.textSecondary },
     section: { marginBottom: 24 },
     sectionTitle: { fontWeight: "600", fontSize: 15, color: C.text, marginBottom: 12 },
     field: { marginBottom: 14 },
