@@ -5,6 +5,7 @@ import { mapAuthNetworkError } from "@/lib/auth-network-error";
 import { auditLogger } from "@/lib/audit-logger";
 import { validateInput, AuthRequestSchema } from "@/lib/validation";
 import { installAssistantCloudSync } from "@/lib/assistant-cloud-sync";
+import { signInWithAppleNative } from "@/lib/apple-auth";
 
 function hostForAuthError(): string {
   try {
@@ -22,6 +23,8 @@ type AuthContextValue = {
   refreshSession: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, metadata?: { first_name?: string; last_name?: string }) => Promise<{ error: Error | null }>;
+  /** Native Sign in with Apple (iOS) → Supabase session for optional cloud backup. */
+  signInWithApple: () => Promise<{ error: Error | null; canceled?: boolean }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
 };
@@ -190,6 +193,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const signInWithApple = useCallback(async (): Promise<{ error: Error | null; canceled?: boolean }> => {
+    try {
+      const result = await signInWithAppleNative();
+      if (result.canceled) return { error: null, canceled: true };
+      if (result.error) {
+        await auditLogger.log("AUTH", "user", "failure", {
+          errorMessage: result.error.message.substring(0, 100),
+        });
+        return { error: result.error };
+      }
+      await auditLogger.log("AUTH", "user", "success", {
+        details: "Apple sign-in successful",
+      });
+      return { error: null };
+    } catch (error) {
+      const err = mapAuthNetworkError(error, hostForAuthError());
+      await auditLogger.log("AUTH", "user", "failure", {
+        errorMessage: err.message.substring(0, 100),
+      });
+      return { error: err };
+    }
+  }, []);
+
   const signOut = useCallback(async (): Promise<void> => {
     try {
       const supabase = getSupabase();
@@ -267,6 +293,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshSession,
     signIn,
     signUp,
+    signInWithApple,
     signOut,
     resetPassword,
   };

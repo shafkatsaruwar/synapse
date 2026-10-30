@@ -123,11 +123,12 @@ Navigation groups (from `SidebarLayout.tsx`): **Main**, **Caregiver**, **Emergen
 | Feature | What it does | Screen(s) (file · nav key) | Supporting modules |
 |---|---|---|---|
 | Account / Settings | Central settings hub: profile, modes, notifications, backups, assistant access, reset | `SettingsScreen.tsx` · `settings` | most contexts + `*Storage` |
-| Authentication | Email sign up / sign in / password reset (Supabase) | `AuthScreen.tsx` · `auth` | `contexts/AuthContext.tsx`, `lib/supabase.ts`, `lib/auth-network-error.ts` |
+| Authentication | Email sign up / sign in / password reset (Supabase); optional Sign in with Apple (iOS) | `AuthScreen.tsx` · `auth`; Backup & Restore | `contexts/AuthContext.tsx`, `lib/apple-auth.ts`, `lib/supabase.ts`, `lib/auth-network-error.ts` |
 | Privacy | Privacy controls, export, data retention | `PrivacyScreen.tsx` · `privacy` | `lib/data-retention.ts`, `lib/encryption.ts` |
-| Export / Restore from file | Export all data to JSON; restore (import) from a file | `PrivacyScreen.tsx` / `SettingsScreen.tsx` | `lib/storage.ts` (`exportAllData`), `lib/backup-import.ts` |
+| Export / Restore from file | Export all data to JSON; restore (import) from a file (no account) | `BackupRestoreScreen.tsx`, `PrivacyScreen.tsx` | `lib/storage-self.ts` (`exportAllData`), `lib/backup-import.ts`, `lib/manual-backup-status.ts` |
+| Sign in with Apple cloud backup | Optional Apple ID → Supabase session; upload/restore `user_backups` | `BackupRestoreScreen.tsx` · backup | `lib/apple-auth.ts`, `lib/backup.ts`, `docs/SIGN_IN_WITH_APPLE.md` |
 | Biometric lock | Face ID / passcode gate | `components/BiometricGate.tsx` | `lib/biometric-storage.ts` |
-| iCloud / CloudKit backup | Private per-user iCloud backup & restore | `SettingsScreen.tsx` | `lib/cloudkit-backup.ts`, `lib/cloudkit-backup-scheduler.ts`, `lib/cloudkit-error-copy.ts`, native `ios/Synapse/SynapseCloudKitBridge.swift` |
+| iCloud / CloudKit backup | Private per-user iCloud backup & restore (flag off) | — | `lib/cloudkit-backup.ts`, `lib/cloudkit-backup-scheduler.ts`, `lib/cloudkit-error-copy.ts`, native `ios/Synapse/SynapseCloudKitBridge.swift` |
 | Signed-in cloud copy (Assistant access) | Optional Supabase copy so a personal assistant can read your data over MCP | `SettingsScreen.tsx` | `lib/backup.ts`, `lib/assistant-cloud-sync.ts`, `lib/supabase.ts` |
 | Health MCP connector | Owner-only, read-only health data over MCP | — (`mcp/`) | `mcp/`, `server/` |
 | Apple Health | Import vitals from Apple Health (read-only) | `SettingsScreen.tsx`, `HealthDataScreen.tsx` | `lib/apple-health.ts`, `lib/health-integration-service.ts` |

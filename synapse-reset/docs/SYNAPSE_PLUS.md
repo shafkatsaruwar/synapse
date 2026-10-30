@@ -95,6 +95,10 @@ Enable **In-App Purchase** capability on the Synapse target if Xcode does not ad
 - [ ] Free features remain open
 - [ ] Dynamic Type / VoiceOver / small phones on paywall
 
+## Related: Sign in with Apple / backups
+
+Optional Sign in with Apple for cloud backup is separate from Plus IAP. See `docs/SIGN_IN_WITH_APPLE.md`. Manual file backup remains free and does not require an account or Plus.
+
 ## Review notes
 
 See `docs/APP_REVIEW_NOTES_PLUS.md`.
