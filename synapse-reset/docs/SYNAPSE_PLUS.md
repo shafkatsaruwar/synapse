@@ -47,6 +47,10 @@ Local StoreKit Configuration: `ios/SynapsePlus.storekit`
 
 No Stripe / web checkout for digital Plus features. No new backend required for v1 (on-device StoreKit confirmation).
 
+### Promotional codes
+
+The paywall and Synapse Plus settings include a **promo code** field for holiday / special offers. Accepted offers are stored only as salted digests in app code (never as plaintext). A valid redemption unlocks **lifetime** Synapse Plus on that device via SecureStore. Offer codes are distributed out-of-band (email, social, etc.) and must not be committed to the repository.
+
 ## Free vs Plus
 
 **Always free:** Medications, Appointments, Sick Mode, basic Emergency Card (view + essential edit), You & Settings essentials (profile, allergy, privacy, backup, preferences).

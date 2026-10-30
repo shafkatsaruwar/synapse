@@ -19,6 +19,7 @@ import { PLUS_PLANS, type PlusProductId } from "@/lib/plus/products";
 import { getPlusFeatureInfo } from "@/lib/plus/features";
 import { subscriptionOfferCopy } from "@/lib/plus/pricing-copy";
 import { softCardSurface } from "@/constants/soft-card";
+import PlusPromoCodeField from "@/components/plus/PlusPromoCodeField";
 
 const BENEFITS = [
   "How I’m Feeling — daily log, symptoms, monthly check-in",
@@ -219,6 +220,8 @@ export default function SynapsePlusPaywallScreen({ visible, onClose, featureKey 
               {purchaseBusy === "restoring" ? "Restoring…" : "Restore Purchases"}
             </Text>
           </Pressable>
+
+          <PlusPromoCodeField />
 
           <Text style={styles.legal}>
             Payment will be charged to your Apple ID. Subscriptions renew automatically unless canceled at

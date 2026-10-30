@@ -114,4 +114,27 @@ describe("resolvePlusEntitlement", () => {
     assert.equal(snap.isActive, false);
     assert.equal(snap.source, "none");
   });
+
+  it("grants lifetime when a promotional offer was redeemed", () => {
+    const snap = resolvePlusEntitlement({
+      activeSubscriptions: [],
+      availablePurchases: [],
+      promoLifetimeRedeemed: true,
+      nowMs: 1_700_000_000_000,
+    });
+    assert.equal(snap.isActive, true);
+    assert.equal(snap.source, "promo_lifetime");
+  });
+
+  it("prefers StoreKit lifetime over promotional lifetime", () => {
+    const snap = resolvePlusEntitlement({
+      activeSubscriptions: [],
+      availablePurchases: [
+        { productId: PLUS_PRODUCT_IDS.lifetime, purchaseState: "purchased" },
+      ],
+      promoLifetimeRedeemed: true,
+      nowMs: 1_700_000_000_000,
+    });
+    assert.equal(snap.source, "lifetime");
+  });
 });
