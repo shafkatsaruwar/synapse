@@ -27,6 +27,16 @@ export function trackKatanaPageView(path: string) {
   const siteId = process.env.NEXT_PUBLIC_KATANA_SITE_ID;
   if (!endpoint || !siteId || !ROUTE.test(path) || path.length > 200) return;
 
+  // Count a reviewed route once per browser session. Refreshing the same page
+  // should not inflate page views; a new session can count it again.
+  const sessionKey = `katana:view:${siteId}:${path}`;
+  try {
+    if (window.sessionStorage.getItem(sessionKey) === "1") return;
+    window.sessionStorage.setItem(sessionKey, "1");
+  } catch {
+    // Storage-disabled browsers still receive a page view.
+  }
+
   let url: URL;
   try {
     url = new URL(endpoint);
