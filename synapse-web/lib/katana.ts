@@ -23,8 +23,6 @@ function visitorId(siteId: string) {
 /** Sends one reviewed, static route label to Katana. No URL, query, referrer, or user data is read. */
 export function trackKatanaPageView(path: string) {
   if (typeof window === "undefined") return;
-  const privacyNavigator = navigator as Navigator & { globalPrivacyControl?: boolean };
-  if (privacyNavigator.doNotTrack === "1" || privacyNavigator.globalPrivacyControl === true) return;
   const endpoint = process.env.NEXT_PUBLIC_KATANA_ENDPOINT;
   const siteId = process.env.NEXT_PUBLIC_KATANA_SITE_ID;
   if (!endpoint || !siteId || !ROUTE.test(path) || path.length > 200) return;
