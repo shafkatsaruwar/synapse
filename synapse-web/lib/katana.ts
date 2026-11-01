@@ -29,7 +29,7 @@ export function trackKatanaPageView(path: string) {
 
   // Count a reviewed route once per browser session. Refreshing the same page
   // should not inflate page views; a new session can count it again.
-  const sessionKey = `katana:view:${siteId}:${path}`;
+  const sessionKey = `katana:view:v2:${siteId}:${path}`;
   try {
     if (window.sessionStorage.getItem(sessionKey) === "1") return;
     window.sessionStorage.setItem(sessionKey, "1");
