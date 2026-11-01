@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { features } from "@/lib/feature-content/content";
 import { pageMeta } from "@/lib/seo";
+import { KatanaPageView } from "@/components/ui/KatanaPageView";
 
 export const metadata = pageMeta({
   title: "Features",
@@ -12,6 +13,7 @@ export const metadata = pageMeta({
 export default function FeaturesPage() {
   return (
     <div className="page">
+      <KatanaPageView path="/features" />
       <header className="page-hero">
         <p className="eyebrow">Features</p>
         <h1>The parts of a health life, kept in one companion.</h1>

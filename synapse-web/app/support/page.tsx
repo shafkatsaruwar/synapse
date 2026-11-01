@@ -3,6 +3,7 @@ import { supportFaqs } from "@/lib/feature-content/content";
 import { pageMeta } from "@/lib/seo";
 import { AppStoreLink } from "@/components/ui/AppStoreLink";
 import { TrackView } from "@/components/ui/TrackView";
+import { KatanaPageView } from "@/components/ui/KatanaPageView";
 
 export const metadata = pageMeta({
   title: "Support",
@@ -13,6 +14,7 @@ export const metadata = pageMeta({
 export default function SupportPage() {
   return (
     <div className="page">
+      <KatanaPageView path="/support" />
       <TrackView event="support_visit" id="support" />
       <header className="page-hero">
         <p className="eyebrow">Support</p>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { APP_STORE_URL } from "@/lib/design-tokens/tokens";
 import { pageMeta } from "@/lib/seo";
+import { KatanaPageView } from "@/components/ui/KatanaPageView";
 
 export const metadata = pageMeta({
   title: "Terms",
@@ -11,6 +12,7 @@ export const metadata = pageMeta({
 export default function TermsPage() {
   return (
     <div className="page prose">
+      <KatanaPageView path="/terms" />
       <header className="page-hero">
         <p className="eyebrow">Terms</p>
         <h1>No separate terms document is in this project.</h1>
