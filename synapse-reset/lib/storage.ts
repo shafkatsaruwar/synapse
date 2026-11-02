@@ -2215,6 +2215,7 @@ const EXTRA_CLEAR_KEYS = [
   "synapse_appearance_saved_looks_v1",
   "app_theme",
   "synapse_brand_notification_icon_cleared_build",
+  "fir_backup_last_sync",
 ] as const;
 
 export const clearAllData = async () => {

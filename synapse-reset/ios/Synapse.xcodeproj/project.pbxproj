@@ -611,7 +611,7 @@
 			baseConfigurationReference = F7997B397098D2DF65004354 /* Pods-Synapse.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIcon-Ocean AppIcon-Sage AppIcon-Amber AppIcon-Rose AppIcon-Copper AppIcon-Lavender AppIcon-Chocolate AppIcon-Graphite";
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIcon-Ocean AppIcon-Sage AppIcon-Amber AppIcon-Rose AppIcon-Copper AppIcon-Lavender AppIcon-Chocolate AppIcon-Graphite AppIcon-Sage-Light AppIcon-Sage-Dark AppIcon-Amber-Light AppIcon-Rose-Light AppIcon-Copper-Light AppIcon-Copper-Dark AppIcon-Lavender-Dark AppIcon-Chocolate-Light AppIcon-Chocolate-Dark AppIcon-Graphite-Light AppIcon-Graphite-Dark";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Synapse/Synapse.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
@@ -650,7 +650,7 @@
 			baseConfigurationReference = 6D6966030DA41711EA48E2DB /* Pods-Synapse.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIcon-Ocean AppIcon-Sage AppIcon-Amber AppIcon-Rose AppIcon-Copper AppIcon-Lavender AppIcon-Chocolate AppIcon-Graphite";
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIcon-Ocean AppIcon-Sage AppIcon-Amber AppIcon-Rose AppIcon-Copper AppIcon-Lavender AppIcon-Chocolate AppIcon-Graphite AppIcon-Sage-Light AppIcon-Sage-Dark AppIcon-Amber-Light AppIcon-Rose-Light AppIcon-Copper-Light AppIcon-Copper-Dark AppIcon-Lavender-Dark AppIcon-Chocolate-Light AppIcon-Chocolate-Dark AppIcon-Graphite-Light AppIcon-Graphite-Dark";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Synapse/Synapse.entitlements;
 				CURRENT_PROJECT_VERSION = 1;

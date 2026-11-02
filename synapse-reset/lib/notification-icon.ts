@@ -18,10 +18,10 @@ async function resolve(): Promise<Attachment[] | undefined> {
   try {
     const id = await getCurrentAppIcon();
     // The default icon already is the primary icon, so there is nothing extra to show.
-    if (id === "default") return undefined;
+    if (id === "ocean-light") return undefined;
     const option = APP_ICON_OPTIONS.find((o) => o.id === id);
     if (!option) return undefined;
-    const asset = Asset.fromModule(option.light as number);
+    const asset = Asset.fromModule(option.preview as number);
     await asset.downloadAsync();
     const uri = asset.localUri ?? asset.uri;
     if (!uri) return undefined;

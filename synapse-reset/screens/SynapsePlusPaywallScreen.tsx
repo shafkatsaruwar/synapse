@@ -100,7 +100,7 @@ export default function SynapsePlusPaywallScreen({ visible, onClose, featureKey 
           <Text style={styles.headline} accessibilityRole="header">
             Your health, all together.
           </Text>
-          <Text style={styles.subhead}>Try Synapse Plus free for 7 days.</Text>
+          <Text style={styles.subhead}>Choose the plan that fits your care.</Text>
 
           {feature ? (
             <View style={styles.featureCard}>

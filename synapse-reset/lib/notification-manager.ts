@@ -40,6 +40,7 @@ function getNativeBuildTag(): string {
 }
 import { getToday } from "@/lib/date-utils";
 import { getHomeScreenBadgeCount } from "@/lib/nav-badge-counts";
+import { isMedicationScheduledOnDate } from "@/lib/medication-schedule";
 import { escalationCopy } from "@/constants/med-enforcement-copy";
 import { enforcementNotificationPrefix, type PlannedEnforcementNotification } from "@/lib/med-enforcement-core";
 import {
@@ -52,7 +53,6 @@ import {
 const REFILL_THRESHOLD = 5;
 const MEDICATION_CATEGORY = "MEDICATION_REMINDER";
 const SNOOZE_MINUTES = 10;
-const MISSED_MEDICATION_CHECK_IN_DAYS = 14;
 
 /** Default hour/minute for time-of-day labels when no explicit time is set. */
 export const DEFAULT_REMINDER_TIMES: Record<string, { hour: number; minute: number }> = {
@@ -745,12 +745,25 @@ export async function syncMissedMedicationCheckIn(): Promise<void> {
   try {
     await cancelMissedMedicationCheckIns();
     const today = getToday();
-    const [meds, logs] = await Promise.all([
+    const [meds, logs, allLogs] = await Promise.all([
       medicationStorage.getAll(),
       medicationLogStorage.getByDate(today),
+      medicationLogStorage.getAll(),
     ]);
     const settings = await settingsStorage.get();
-    const scheduledMeds = meds.filter((med) => med.active !== false && med.medicationType !== "prn");
+    const anchorDateByMedication = new Map<string, string>();
+    for (const log of allLogs) {
+      const current = anchorDateByMedication.get(log.medicationId);
+      if (!current || log.date < current) anchorDateByMedication.set(log.medicationId, log.date);
+    }
+    // Only evaluate doses that are actually scheduled for today. The previous
+    // implementation treated every active medication as a daily medication and
+    // then queued 14 future alerts, which is why a notification could remain
+    // after all of today's doses were completed (or appear for weekly/custom
+    // medications on an off day).
+    const scheduledMeds = meds.filter((med) =>
+      isMedicationScheduledOnDate(med, today, { anchorDateKey: anchorDateByMedication.get(med.id) ?? null }),
+    );
     if (scheduledMeds.length === 0) {
       await reportNoActivityIfNeeded().catch((error) => {
         console.warn("Caregiver no-activity report failed", error);
@@ -804,36 +817,31 @@ export async function syncMissedMedicationCheckIn(): Promise<void> {
       console.warn("Caregiver no-activity report failed", error);
     });
 
-    for (let dayOffset = 0; dayOffset < MISSED_MEDICATION_CHECK_IN_DAYS; dayOffset++) {
-      let date = new Date();
-      date.setDate(date.getDate() + dayOffset);
-      date.setHours(21, 0, 0, 0);
-      if (dayOffset === 0) {
-        // Today's nudge only makes sense while doses are still untaken.
-        if (pendingDoseCount <= 0) continue;
-        if (date.getTime() <= Date.now()) {
-          // 9 PM already passed: nudge shortly, but never into tomorrow when the list has reset.
-          if (missedDoseCount <= 0) continue;
-          const soon = new Date(Date.now() + 10 * 60 * 1000);
-          if (soon.toDateString() !== new Date().toDateString()) continue;
-          date = soon;
-        }
-      }
+    // This is an evening check-in for today's doses, so keep exactly one
+    // same-day notification. Scheduling future dates here creates stale alerts
+    // when a dose is later taken or a medication's cadence changes.
+    if (pendingDoseCount <= 0 || missedDoseCount <= 0) return;
 
-      const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-      await scheduleWithIcon({
-        identifier: `${NOTIFICATION_IDS.missedMedsCheckIn}-${dayKey}`,
-        content: {
-          title: "Hey! Where have you been all day?",
-          body: "We missed you. You still have meds waiting in Synapse.",
-          data: { widgetTarget: "medications", notificationType: "missed-medications" },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date,
-        },
-      });
+    let date = new Date();
+    date.setHours(21, 0, 0, 0);
+    if (date.getTime() <= Date.now()) {
+      const soon = new Date(Date.now() + 10 * 60 * 1000);
+      if (soon.toDateString() !== new Date().toDateString()) return;
+      date = soon;
     }
+
+    await scheduleWithIcon({
+      identifier: `${NOTIFICATION_IDS.missedMedsCheckIn}-${today}`,
+      content: {
+        title: "Medication check-in",
+        body: "You still have a dose waiting in Synapse.",
+        data: { widgetTarget: "medications", notificationType: "missed-medications" },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date,
+      },
+    });
   } catch (e) {
     console.warn("syncMissedMedicationCheckIn failed", e);
   }

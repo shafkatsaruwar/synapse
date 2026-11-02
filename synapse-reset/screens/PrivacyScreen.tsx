@@ -10,6 +10,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { raised } from "@/constants/raised";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { exportAllData, clearAllData, importAllDataTransactional } from "@/lib/storage-self";
 import { formatRestorePreview, parseSynapseExport } from "@/lib/backup-import";
 import { syncAllFromSettings } from "@/lib/notification-manager";
@@ -19,6 +20,7 @@ import { featureFlags } from "@/constants/feature-flags";
 
 export default function PrivacyScreen() {
   const { colors: C } = useTheme();
+  const { user, deleteAccount, signOut } = useAuth();
   const styles = useMemo(() => makeStyles(C), [C]);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -26,6 +28,7 @@ export default function PrivacyScreen() {
   const [exporting, setExporting] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [biometricLock, setBiometricLock] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     if (Platform.OS === "ios" || Platform.OS === "android") {
@@ -137,6 +140,37 @@ export default function PrivacyScreen() {
           },
         },
       ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    if (!user || deletingAccount) return;
+    Alert.alert(
+      "Delete Synapse account",
+      "This permanently deletes your Synapse account, cloud backup, and caregiver links. Your local data will also be removed from this device. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Account",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setDeletingAccount(true);
+              const result = await deleteAccount();
+              if (result.error) {
+                Alert.alert("Couldn’t delete account", result.error.message || "Please try again when you have a connection.");
+                return;
+              }
+              await clearAllData();
+              await signOut();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert("Account deleted", "Your Synapse account and local data have been removed.");
+            } finally {
+              setDeletingAccount(false);
+            }
+          },
+        },
+      ],
     );
   };
 
@@ -309,6 +343,26 @@ export default function PrivacyScreen() {
         </View>
         <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
       </Pressable>
+
+      {user ? (
+        <Pressable
+          style={({ pressed }) => [styles.actionBtn, styles.dangerAction, { opacity: pressed ? 0.85 : deletingAccount ? 0.55 : 1 }]}
+          onPress={handleDeleteAccount}
+          disabled={deletingAccount}
+          accessibilityRole="button"
+          accessibilityLabel="Delete Synapse account"
+          accessibilityHint="Permanently deletes your signed-in account and cloud data"
+        >
+          <View style={[styles.actionIcon, { backgroundColor: C.redLight }]}>
+            <Ionicons name="person-remove-outline" size={20} color={C.red} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.actionTitle, { color: C.red }]}>{deletingAccount ? "Deleting Account…" : "Delete Account"}</Text>
+            <Text style={styles.actionDesc}>Permanently remove your signed-in account and optional cloud backup</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+        </Pressable>
+      ) : null}
 
       <View style={styles.infoCard}>
         <Ionicons name="information-circle-outline" size={16} color={C.textTertiary} />
