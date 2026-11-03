@@ -21,7 +21,6 @@ import {
   medicationLogStorage,
   medicationStorage,
   normalizeMedication,
-  settingsStorage,
   type Medication,
 } from "@/lib/storage-self";
 import {
@@ -79,12 +78,7 @@ export async function isMedicationEnforcementActive(): Promise<boolean> {
   } catch {
     return false;
   }
-  try {
-    const settings = await settingsStorage.get();
-    return settings.medicationEnforcementEnabled === true;
-  } catch {
-    return false;
-  }
+  return true;
 }
 
 function doseTime(med: Medication, doseIndex: number): { hour: number; minute: number } {

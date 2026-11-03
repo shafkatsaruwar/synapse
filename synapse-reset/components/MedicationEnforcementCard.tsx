@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import {
   getActiveDueEvent,
@@ -8,6 +8,8 @@ import {
   resolveDoseEvent,
   snoozeDoseEvent,
 } from "@/lib/med-enforcement";
+import { medicationEnforcerConfigStorage, medicationStorage } from "@/lib/storage-self";
+import { syncAllFromSettings } from "@/lib/notification-manager";
 import { DEFAULT_ENFORCEMENT_SNOOZE_MIN } from "@/constants/med-enforcement-copy";
 import type { EnforcementMetrics, MedicationEnforcementEvent } from "@/lib/med-enforcement-core";
 import type { Medication } from "@/lib/storage";
@@ -31,6 +33,8 @@ export default function MedicationEnforcementCard({ onResolved }: { onResolved?:
   const [mode, setMode] = useState<Mode>("view");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [medications, setMedications] = useState<Medication[]>([]);
+  const [enabledIds, setEnabledIds] = useState<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
     const isActive = await isMedicationEnforcementActive();
@@ -39,9 +43,13 @@ export default function MedicationEnforcementCard({ onResolved }: { onResolved?:
       setReady(true);
       return;
     }
-    const [dueEvent, m] = await Promise.all([getActiveDueEvent(), getEnforcementMetrics(30)]);
+    const [dueEvent, m, meds, configs] = await Promise.all([
+      getActiveDueEvent(), getEnforcementMetrics(30), medicationStorage.getAll(), medicationEnforcerConfigStorage.getAll(),
+    ]);
     setDue(dueEvent);
     setMetrics(m);
+    setMedications(meds.filter((med) => med.active && med.medicationType !== "prn"));
+    setEnabledIds(new Set(configs.filter((config) => config.enabled).map((config) => config.medicationId)));
     setMode("view");
     setReason("");
     setReady(true);
@@ -102,11 +110,35 @@ export default function MedicationEnforcementCard({ onResolved }: { onResolved?:
 
   if (!ready || !active) return null;
 
+  const toggleMedication = async (medicationId: string, enabled: boolean) => {
+    await medicationEnforcerConfigStorage.setEnabled(medicationId, enabled);
+    setEnabledIds((previous) => {
+      const next = new Set(previous);
+      if (enabled) next.add(medicationId); else next.delete(medicationId);
+      return next;
+    });
+    await syncAllFromSettings().catch(() => {});
+    await refresh();
+  };
+
   // No dose currently waiting: show the compact private 30-day metrics.
   if (!due) {
     if (!metrics || metrics.scheduledOccurrences === 0) return null;
     return (
       <View style={styles.metricsCard}>
+        <Text style={styles.metricsTitle}>Medication Enforcer</Text>
+        <Text style={styles.explanation}>Choose which scheduled medications need extra reminders. Nothing is enabled automatically.</Text>
+        {medications.map((medication) => (
+          <View key={medication.id} style={styles.medicationRow}>
+            <Text style={styles.medicationRowName} numberOfLines={1}>{medication.name}</Text>
+            <Switch
+              value={enabledIds.has(medication.id)}
+              onValueChange={(value) => void toggleMedication(medication.id, value)}
+              accessibilityLabel={`Enforce ${medication.name}`}
+            />
+          </View>
+        ))}
+        {medications.length === 0 && <Text style={styles.meta}>Add a scheduled medication to choose it here.</Text>}
         <Text style={styles.metricsTitle}>Enforcement · last 30 days</Text>
         <View style={styles.metricsRow}>
           <Metric label="Taken" value={String(metrics.confirmedTaken)} styles={styles} />
@@ -210,6 +242,9 @@ function makeStyles(C: Theme) {
     reasonInput: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated, paddingHorizontal: 12, color: C.text, fontSize: 14 },
     metricsCard: { borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.surfaceElevated, padding: 14, marginBottom: 16 },
     metricsTitle: { fontSize: 12, fontWeight: "800", color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+    explanation: { fontSize: 13, lineHeight: 18, color: C.textSecondary, marginBottom: 8 },
+    medicationRow: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: C.border },
+    medicationRowName: { flex: 1, color: C.text, fontSize: 15, fontWeight: "700", marginRight: 12 },
     metricsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
     metric: { flex: 1, alignItems: "center" },
     metricValue: { fontSize: 18, fontWeight: "900", color: C.text },
