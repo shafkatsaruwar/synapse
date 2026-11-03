@@ -16,7 +16,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
       return
     }
 
-    let window = UIWindow(windowScene: windowScene)
+    // Reuse the window AppDelegate already made. A second window leaves the
+    // system launch storyboard up, because that is the one iOS is showing.
+    let window = appDelegate.window ?? UIWindow(windowScene: windowScene)
+    window.windowScene = windowScene
     self.window = window
     appDelegate.window = window
     appDelegate.startReactNative(

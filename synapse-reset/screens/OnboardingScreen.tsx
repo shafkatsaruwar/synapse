@@ -25,9 +25,9 @@ import { recordMilestone } from "@/lib/product-milestones";
 import SynapseLogo from "@/components/SynapseLogo";
 import * as AppleAuthentication from "expo-apple-authentication";
 
-type OnboardingStepId = "welcome" | "name" | "backup" | "firstAction";
+type OnboardingStepId = "welcome" | "backup" | "name" | "firstAction";
 
-const ONBOARDING_STEPS: OnboardingStepId[] = ["welcome", "name", "backup", "firstAction"];
+const ONBOARDING_STEPS: OnboardingStepId[] = ["welcome", "backup", "name", "firstAction"];
 
 export type OnboardingFirstAction = "medications" | "appointments" | "feeling" | "explore";
 
@@ -43,7 +43,7 @@ interface OnboardingScreenProps {
 }
 
 /**
- * Simplified first-run onboarding: Welcome → Name → optional Apple backup → First useful action.
+ * Simplified first-run onboarding: Welcome → optional Apple backup → name → First useful action.
  * Theme, app mode, modules, biometrics, and walkthrough are deferred to Settings / contextual tips.
  */
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
@@ -202,9 +202,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           <View style={styles.onboardingHeroBadge}>
             <Ionicons name="person-outline" size={28} color="#fff" />
           </View>
-          <Text style={styles.setupTitle}>What should we call you?</Text>
+          <Text style={styles.setupTitle}>What would you like to be called?</Text>
           <Text style={styles.setupSub}>
-            Just a first name is enough. Everything else is optional and can wait.
+            Just a first name is enough. This stays the same whether you signed in with Apple or tapped Not now.
           </Text>
           <View style={styles.formFieldCard}>
             <Text style={styles.formFieldLabel}>Preferred name (optional)</Text>
@@ -237,9 +237,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           </View>
           <Text style={styles.setupTitle}>Back up your information</Text>
           <Text style={styles.setupSub}>
-            This is optional. Not now skips sign-in and keeps your name and everything else on this phone. You can sign
-            in with Apple later from Backup & Restore. Signing in saves a copy to Synapse’s cloud so you can restore it
-            on another phone.
+            This is optional. Not now skips sign-in. Either way, the next step asks what you’d like to be called. You
+            can sign in with Apple later from Backup & Restore. Signing in saves a copy to Synapse’s cloud so you can
+            restore it on another phone.
           </Text>
           {user ? (
             <View style={styles.localCard}>
