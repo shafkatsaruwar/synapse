@@ -28,6 +28,11 @@ module.exports = {
     updates: {
       url: "https://u.expo.dev/2ae7d5f4-1514-408d-b1ec-250da7c8ccfa",
       fallbackToCacheTimeout: 0,
+      // Do not block the launch storyboard on an update download. A missing
+      // embedded manifest otherwise keeps the leaf splash up forever. JS checks
+      // for an update after the app is on screen.
+      checkAutomatically: "ON_ERROR_RECOVERY",
+      useEmbeddedUpdate: false,
       // Local Xcode Release builds read this from Expo.plist. EAS Build replaces
       // the channel with the profile channel (preview / production).
       requestHeaders: {

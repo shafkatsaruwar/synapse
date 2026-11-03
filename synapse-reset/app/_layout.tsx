@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClientProvider } from "@tanstack/react-query";
 import * as SplashScreen from "expo-splash-screen";
+import * as Updates from "expo-updates";
 import * as FileSystem from "expo-file-system/legacy";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import KeyboardDoneBar from "@/components/KeyboardDoneBar";
@@ -40,6 +41,15 @@ export default function RootLayout() {
       SplashScreen.hideAsync().catch(() => {});
     }, 100);
     return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (!Updates.isEnabled) return;
+    // Download in the background. The native launch path no longer waits on this,
+    // which was leaving the leaf splash on screen.
+    Updates.checkForUpdateAsync()
+      .then((result) => (result.isAvailable ? Updates.fetchUpdateAsync() : null))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {

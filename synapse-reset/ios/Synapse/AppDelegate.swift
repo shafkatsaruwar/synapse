@@ -30,6 +30,21 @@ public class AppDelegate: ExpoAppDelegate {
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  /// Point the scene at our delegate in code. A mismatched plist class name
+  /// leaves UIKit showing the launch storyboard and never calls `willConnect`.
+  @objc public func application(
+    _ application: UIApplication,
+    configurationForConnecting connectingSceneSession: UISceneSession,
+    options: UIScene.ConnectionOptions
+  ) -> UISceneConfiguration {
+    let configuration = UISceneConfiguration(
+      name: "Default Configuration",
+      sessionRole: connectingSceneSession.role
+    )
+    configuration.delegateClass = SceneDelegate.self
+    return configuration
+  }
+
   func startReactNative(
     in window: UIWindow,
     launchOptions: [UIApplication.LaunchOptionsKey: Any]?
