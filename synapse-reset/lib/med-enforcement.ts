@@ -31,7 +31,7 @@ import {
   computeEnforcementMetrics,
   createEnforcementEvent,
   doseEventId,
-  finalizeStaleAsMissed,
+  enforcementNotificationPrefix,
   localDateKey,
   nextDailyOccurrenceMs,
   selectOccurrencesWithinBudget,
@@ -135,15 +135,10 @@ export async function reconcileEnforcement(options?: { medicationNotificationsEn
   }
 
   const now = Date.now();
-  const today = getToday();
 
-  // 1) Administrative finalize: past-date unresolved events become MISSED.
+  // An unanswered reminder is not a missed dose. Leave those events unresolved.
   const existing = await loadEvents();
-  const { events: afterFinalize, changedIds } = finalizeStaleAsMissed(existing, today, now);
-  if (changedIds.length > 0) {
-    await medicationEnforcementStorage.setAll(afterFinalize);
-  }
-  const byId = new Map(afterFinalize.map((event) => [event.id, event]));
+  const byId = new Map(existing.map((event) => [event.id, event]));
 
   // 2) Build candidate occurrences for the nearest upcoming daily doses.
   const meds = await medicationStorage.getAll();
@@ -194,7 +189,10 @@ export async function reconcileEnforcement(options?: { medicationNotificationsEn
       await medicationEnforcementStorage.upsert(event);
       continue;
     }
-    const plan = buildEscalationPlan(id, candidate.scheduledAtMs, now, DEFAULT_ESCALATION_OFFSETS_MIN);
+    const plan = [
+      { id: `${enforcementNotificationPrefix(id)}:initial`, fireAtMs: candidate.scheduledAtMs, level: 0 },
+      ...buildEscalationPlan(id, candidate.scheduledAtMs, now, DEFAULT_ESCALATION_OFFSETS_MIN),
+    ].filter((item) => item.fireAtMs > now);
     const updated: MedicationEnforcementEvent = {
       ...event,
       firstNotifiedAt: event.firstNotifiedAt ?? new Date(now).toISOString(),
@@ -202,12 +200,14 @@ export async function reconcileEnforcement(options?: { medicationNotificationsEn
     };
     await medicationEnforcementStorage.upsert(updated);
     if (plan.length > 0) {
+      const config = configs.find((item) => item.medicationId === candidate.medicationId);
       await scheduleEnforcementNotificationsForPlan(plan, {
         doseEventId: id,
         medicationId: candidate.medicationId,
         doseIndex: candidate.doseIndex,
         medicationName: candidate.medicationName,
         dosage: candidate.dosage,
+        showMedicationName: config?.showMedicationNameOnLockScreen === true,
       });
     }
     // Keep only the freshest selected occurrences tracked as "active" ladders.
@@ -284,6 +284,9 @@ export async function snoozeDoseEvent(
   options?: { medicationId?: string; doseIndex?: number; medicationName?: string; dosage?: string },
 ): Promise<MedicationEnforcementEvent> {
   const event = await ensureEvent(eventId, options);
+  const configs = await medicationEnforcerConfigStorage.getAll();
+  const maxSnoozes = configs.find((config) => config.medicationId === event.medicationId)?.maxSnoozes ?? 3;
+  if (event.snoozeCount >= maxSnoozes) return event;
   const now = Date.now();
   const { event: snoozed, snoozeIndex, snoozeFireAtMs } = applySnooze(event, now, snoozeMinutes);
   await medicationEnforcementStorage.upsert(snoozed);

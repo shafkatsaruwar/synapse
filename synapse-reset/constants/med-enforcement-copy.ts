@@ -28,6 +28,11 @@ type EscalationCopy = { tier: EscalationTier; title: string; body: (medicationNa
 const ESCALATION_LEVELS: readonly EscalationCopy[] = [
   {
     tier: "gentle",
+    title: "Medication reminder",
+    body: () => "It's time for your medication.",
+  },
+  {
+    tier: "gentle",
     title: "Medication check-in",
     body: () => "Still waiting for confirmation. Have you taken it?",
   },
@@ -43,12 +48,25 @@ const ESCALATION_LEVELS: readonly EscalationCopy[] = [
   },
 ];
 
-/** Copy for a given 1-based escalation level, clamped to the defined levels. */
-export function escalationCopy(level: number, medicationName: string): { tier: EscalationTier; title: string; body: string } {
-  const index = Math.min(Math.max(level, 1), ESCALATION_LEVELS.length) - 1;
+/**
+ * Copy for a 0-based ladder slot. 0 is the scheduled time. Later slots are
+ * +5, +10, and +15 minutes. The medication name stays off the lock screen
+ * unless the owner turned that on.
+ */
+export function escalationCopy(
+  level: number,
+  medicationName: string,
+  options?: { showMedicationName?: boolean },
+): { tier: EscalationTier; title: string; body: string } {
+  const index = Math.min(Math.max(level, 0), ESCALATION_LEVELS.length - 1);
   const entry = ESCALATION_LEVELS[index];
-  const name = medicationName?.trim() || "your medication";
-  return { tier: entry.tier, title: entry.title, body: entry.body(name) };
+  const name = medicationName?.trim();
+  const body = entry.body(name || "your medication");
+  return {
+    tier: entry.tier,
+    title: entry.title,
+    body: options?.showMedicationName && name ? `${body} ${name}` : body,
+  };
 }
 
 export const ESCALATION_LEVEL_COUNT = ESCALATION_LEVELS.length;

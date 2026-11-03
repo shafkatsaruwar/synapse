@@ -8,6 +8,7 @@ import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { getNotificationIconAttachments } from "@/lib/notification-icon";
 import {
+  medicationEnforcerConfigStorage,
   medicationLogStorage,
   medicationStorage,
   appointmentStorage,
@@ -1016,11 +1017,11 @@ export async function cancelMedicationReminders(medicationId: string): Promise<v
 /** Schedule a bounded set of pre-computed enforcement escalation notifications. */
 export async function scheduleEnforcementNotificationsForPlan(
   plan: PlannedEnforcementNotification[],
-  meta: { doseEventId: string; medicationId: string; doseIndex: number; medicationName: string; dosage: string },
+  meta: { doseEventId: string; medicationId: string; doseIndex: number; medicationName: string; dosage: string; showMedicationName?: boolean },
 ): Promise<void> {
   if (!isNative()) return;
   for (const item of plan) {
-    const copy = escalationCopy(item.level, meta.medicationName);
+    const copy = escalationCopy(item.level, meta.medicationName, { showMedicationName: meta.showMedicationName === true });
     try {
       await Notifications.cancelScheduledNotificationAsync(item.id);
       await scheduleWithIcon({
@@ -1248,12 +1249,23 @@ export async function syncAllFromSettings(): Promise<void> {
       // Best-effort; scheduling below still runs.
     }
 
-    const [settings, meds, apts, profile] = await Promise.all([
+    const [settings, meds, apts, profile, enforcerConfigs] = await Promise.all([
       settingsStorage.get(),
       medicationStorage.getAll(),
       appointmentStorage.getAll(),
       healthProfileStorage.get(),
+      medicationEnforcerConfigStorage.getAll().catch(() => []),
     ]);
+    const enforcedMedicationIds = new Set(
+      enforcerConfigs.filter((config) => config.enabled).map((config) => config.medicationId),
+    );
+    let enforcementActive = false;
+    try {
+      const enforcement = await import("@/lib/med-enforcement");
+      enforcementActive = await enforcement.isMedicationEnforcementActive();
+    } catch {
+      enforcementActive = false;
+    }
     const today = getToday();
     const notifMed = settings.notificationsMedications !== false;
     const notifApt = settings.notificationsAppointments !== false;
@@ -1273,8 +1285,9 @@ export async function syncAllFromSettings(): Promise<void> {
           continue;
         }
 
-        // Only explicit opt-out skips dose notifications. Legacy meds (undefined) keep prior behavior.
-        const skipDoseReminders = med.remindersEnabled === false;
+        // Enforced medications use the strict ladder, including the dose-time reminder,
+        // so the ordinary reminder is not scheduled a second time.
+        const skipDoseReminders = med.remindersEnabled === false || (enforcementActive && enforcedMedicationIds.has(med.id));
         if (skipDoseReminders) {
           await cancelMedicationReminders(med.id);
         } else {
