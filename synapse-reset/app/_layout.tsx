@@ -87,6 +87,11 @@ export default function RootLayout() {
     return (
       <View
         // Match Soft Evergreen page ground so launch doesn’t flash a different cream.
+        // Hide as soon as this view lays out. A release launch from Xcode otherwise
+        // stays on the leaf storyboard if the timer effect never runs.
+        onLayout={() => {
+          SplashScreen.hideAsync().catch(() => {});
+        }}
         style={{ flex: 1, backgroundColor: "#F7F8FA" }}
       />
     );

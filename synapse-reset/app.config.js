@@ -28,6 +28,11 @@ module.exports = {
     updates: {
       url: "https://u.expo.dev/2ae7d5f4-1514-408d-b1ec-250da7c8ccfa",
       fallbackToCacheTimeout: 0,
+      // Local Xcode Release builds read this from Expo.plist. EAS Build replaces
+      // the channel with the profile channel (preview / production).
+      requestHeaders: {
+        "expo-channel-name": "production",
+      },
     },
     orientation: "default",
     icon: "./assets/icon.png",
