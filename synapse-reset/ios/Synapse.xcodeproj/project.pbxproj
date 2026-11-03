@@ -33,6 +33,7 @@
 		E90000000000000000000040 /* SynapseVisionBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000041 /* SynapseVisionBridge.swift */; };
 		E90000000000000000000042 /* SynapseVisionBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000043 /* SynapseVisionBridge.m */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		F11748462D0307B40044C1DA /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748452D0307B40044C1DA /* SceneDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -102,6 +103,7 @@
 		E90000000000000000000043 /* SynapseVisionBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SynapseVisionBridge.m; path = Synapse/SynapseVisionBridge.m; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Synapse/AppDelegate.swift; sourceTree = "<group>"; };
+		F11748452D0307B40044C1DA /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SceneDelegate.swift; path = Synapse/SceneDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Synapse-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Synapse-Bridging-Header.h"; path = "Synapse/Synapse-Bridging-Header.h"; sourceTree = "<group>"; };
 		F7997B397098D2DF65004354 /* Pods-Synapse.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Synapse.debug.xcconfig"; path = "Target Support Files/Pods-Synapse/Pods-Synapse.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -137,6 +139,7 @@
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
+				F11748452D0307B40044C1DA /* SceneDelegate.swift */,
 				A10000000000000000000037 /* SynapseCalendarBridge.swift */,
 				A10000000000000000000039 /* SynapseCalendarBridge.m */,
 				B70000000000000000000041 /* SynapseFoundationModelsBridge.swift */,
@@ -528,6 +531,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
+				F11748462D0307B40044C1DA /* SceneDelegate.swift in Sources */,
 				A10000000000000000000036 /* SynapseCalendarBridge.swift in Sources */,
 				A10000000000000000000038 /* SynapseCalendarBridge.m in Sources */,
 				B70000000000000000000040 /* SynapseFoundationModelsBridge.swift in Sources */,
