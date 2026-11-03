@@ -12,10 +12,12 @@
  * to avoid a require cycle.
  */
 import { featureFlags } from "@/constants/feature-flags";
+import { getSupabase } from "@/lib/supabase";
 import { DEFAULT_ESCALATION_OFFSETS_MIN, DEFAULT_ENFORCEMENT_SNOOZE_MIN } from "@/constants/med-enforcement-copy";
 import { getDaysAgo, getToday } from "@/lib/date-utils";
 import {
   medicationEnforcementStorage,
+  medicationEnforcerConfigStorage,
   medicationLogStorage,
   medicationStorage,
   normalizeMedication,
@@ -54,6 +56,29 @@ import {
  */
 export async function isMedicationEnforcementActive(): Promise<boolean> {
   if (!featureFlags.medicationEnforcementEnabled) return false;
+  // Fail closed: the private entitlement must be granted server-side. A local
+  // toggle is never sufficient to expose this owner-only feature.
+  const supabase = getSupabase();
+  if (!supabase) return false;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) return false;
+    // Medication Enforcer is restricted to the owner's Apple-authenticated
+    // account. Never fall back to email, display name, or a client-side owner
+    // identifier; those are not sufficient authorization signals.
+    const provider = user.app_metadata?.provider;
+    const providers = user.app_metadata?.providers;
+    const isAppleAuthenticated = provider === "apple" || (Array.isArray(providers) && providers.includes("apple"));
+    if (!isAppleAuthenticated) return false;
+    const { data, error } = await supabase
+      .from("medication_enforcer_entitlements")
+      .select("enabled")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error || data?.enabled !== true) return false;
+  } catch {
+    return false;
+  }
   try {
     const settings = await settingsStorage.get();
     return settings.medicationEnforcementEnabled === true;
@@ -128,9 +153,12 @@ export async function reconcileEnforcement(options?: { medicationNotificationsEn
 
   // 2) Build candidate occurrences for the nearest upcoming daily doses.
   const meds = await medicationStorage.getAll();
+  const configs = await medicationEnforcerConfigStorage.getAll();
+  const enabledMedicationIds = new Set(configs.filter((config) => config.enabled).map((config) => config.medicationId));
   const candidates: OccurrenceCandidate[] = [];
   for (const med of meds) {
-    if (!med.active || !isDailyCadenceMed(med)) continue;
+    // Selection is explicitly opt-in per medication. Missing config means off.
+    if (!med.active || !enabledMedicationIds.has(med.id) || !isDailyCadenceMed(med)) continue;
     const normalized = normalizeMedication(med);
     const doseCount = Math.max(1, normalized.doses?.length ?? 1);
     for (let doseIndex = 0; doseIndex < doseCount; doseIndex++) {

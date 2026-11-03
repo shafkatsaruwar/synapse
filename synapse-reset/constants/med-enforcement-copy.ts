@@ -13,7 +13,7 @@ export type EscalationTier = "gentle" | "firm" | "severe";
  * Default escalation offsets in minutes, measured FROM the original scheduled
  * reminder time (not sequential gaps). Kept intentionally small and bounded.
  */
-export const DEFAULT_ESCALATION_OFFSETS_MIN: readonly number[] = [5, 10, 15, 25];
+export const DEFAULT_ESCALATION_OFFSETS_MIN: readonly number[] = [5, 10, 15];
 
 /** Snooze duration options (minutes). */
 export const ENFORCEMENT_SNOOZE_OPTIONS_MIN: readonly number[] = [5, 10, 15];
@@ -29,22 +29,17 @@ const ESCALATION_LEVELS: readonly EscalationCopy[] = [
   {
     tier: "gentle",
     title: "Medication check-in",
-    body: (name) => `Haven't confirmed ${name} yet. Tap to update Synapse.`,
+    body: () => "Still waiting for confirmation. Have you taken it?",
   },
   {
     tier: "firm",
     title: "Still not confirmed",
-    body: (name) => `${name} is still waiting for a response in Synapse.`,
+    body: () => "You haven't confirmed this dose yet. Please update its status.",
   },
   {
     tier: "firm",
     title: "Still waiting",
-    body: (name) => `${name} hasn't been confirmed. Take it or tell Synapse what happened.`,
-  },
-  {
-    tier: "severe",
-    title: "Please resolve this reminder",
-    body: (name) => `${name} is still unconfirmed. Tap to record Taken, Snooze, Skip, or Can't take.`,
+    body: () => "This dose still needs an answer. Open Synapse to review it.",
   },
 ];
 
