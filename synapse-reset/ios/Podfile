@@ -59,5 +59,28 @@ target 'Synapse' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    # In Release the dev launcher never prepares a delegate, then its launch
+    # subscriber throws. The process dies and the leaf storyboard stays up.
+    subscriber = File.expand_path(
+      '../node_modules/expo-dev-launcher/ios/ReactDelegateHandler/ExpoDevLauncherAppDelegateSubscriber.swift',
+      __dir__
+    )
+    if File.exist?(subscriber)
+      source = File.read(subscriber)
+      marker = 'SYNAPSE_SKIP_DEV_LAUNCHER_IN_RELEASE'
+      unless source.include?(marker)
+        needle = "public func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {"
+        replacement = <<~SWIFT
+          public func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+          #if !DEBUG
+              return false // #{marker}
+          #endif
+        SWIFT
+        if source.include?(needle)
+          File.write(subscriber, source.sub(needle, replacement.rstrip))
+        end
+      end
+    end
   end
 end

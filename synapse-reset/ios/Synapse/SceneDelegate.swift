@@ -3,7 +3,6 @@ import UIKit
 /// Scene lifecycle required by apps built with the iOS 27 SDK.
 /// Without this, Xcode stops in `didFinishLaunching` with EXC_BREAKPOINT and
 /// the launch storyboard stays on screen.
-@objc(Synapse.SceneDelegate)
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
   var window: UIWindow?
 
@@ -17,13 +16,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
       return
     }
 
-    let window = UIWindow(windowScene: windowScene)
+    // Reuse the window AppDelegate already made. A second window leaves the
+    // system launch storyboard up, because that is the one iOS is showing.
+    let window = appDelegate.window ?? UIWindow(windowScene: windowScene)
+    window.windowScene = windowScene
     self.window = window
     appDelegate.window = window
-    // Drop the system launch storyboard before React Native starts. Otherwise
-    // a slow bundle load leaves the leaf icon on screen indefinitely.
-    window.rootViewController = UIViewController()
-    window.makeKeyAndVisible()
     appDelegate.startReactNative(
       in: window,
       launchOptions: Self.launchOptions(from: connectionOptions)

@@ -1,4 +1,5 @@
 import Expo
+import ObjectiveC
 import React
 import ReactAppDependencyProvider
 
@@ -9,6 +10,7 @@ public class AppDelegate: ExpoAppDelegate {
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
   private var storedLaunchOptions: [UIApplication.LaunchOptionsKey: Any]?
+  private var didStartReactNative = false
   private var didRecoverFromStuckSplash = false
 
   public override func application(
@@ -24,10 +26,52 @@ public class AppDelegate: ExpoAppDelegate {
     bindReactNativeFactory(factory)
     storedLaunchOptions = launchOptions
 
-    // The window is created in SceneDelegate. Creating it here is the old
-    // app-delegate lifecycle, which the current iOS SDK rejects at launch
-    // (EXC_BREAKPOINT, and the leaf splash never leaves).
+    // The dev client looks for this window inside super.application, before
+    // the scene connects. With no window it raises EXC_BREAKPOINT and iOS
+    // never leaves the leaf launch storyboard. The scene delegate attaches
+    // this same window to the scene so iOS 27 will display it.
+#if os(iOS) || os(tvOS)
+    if window == nil {
+      window = UIWindow(frame: UIScreen.main.bounds)
+    }
+    if let window {
+      startReactNative(in: window, launchOptions: launchOptions)
+    }
+#if !DEBUG
+    keepReleaseDevLauncherFromCrashing()
+#endif
+#endif
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  /// Release builds never prepare the dev launcher, so its launch subscriber
+  /// throws and the process dies on the storyboard. A launch URL makes that
+  /// subscriber return without replacing the React root.
+  private func keepReleaseDevLauncherFromCrashing() {
+    guard let controllerClass = NSClassFromString("EXDevLauncherController") else { return }
+    let sharedSelector = NSSelectorFromString("sharedInstance")
+    guard let sharedMethod = class_getClassMethod(controllerClass, sharedSelector) else { return }
+    typealias SharedMethod = @convention(c) (AnyClass, Selector) -> AnyObject?
+    let shared = unsafeBitCast(method_getImplementation(sharedMethod), to: SharedMethod.self)(
+      controllerClass,
+      sharedSelector
+    )
+    guard let shared else { return }
+
+    let prepareSelector = NSSelectorFromString("autoSetupPrepare:launchOptions:")
+    guard let prepareMethod = class_getInstanceMethod(object_getClass(shared), prepareSelector),
+          let openURL = URL(string: "synapse://open") else {
+      return
+    }
+    typealias PrepareMethod = @convention(c) (AnyObject, Selector, AnyObject, NSDictionary) -> Void
+    let options = [UIApplication.LaunchOptionsKey.url.rawValue: openURL] as NSDictionary
+    unsafeBitCast(method_getImplementation(prepareMethod), to: PrepareMethod.self)(
+      shared,
+      prepareSelector,
+      self,
+      options
+    )
   }
 
   /// Point the scene at our delegate in code. A mismatched plist class name
@@ -50,7 +94,9 @@ public class AppDelegate: ExpoAppDelegate {
     launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) {
     self.window = window
-    guard let factory = reactNativeFactory as? ExpoReactNativeFactory else { return }
+    window.makeKeyAndVisible()
+    guard !didStartReactNative, let factory = reactNativeFactory else { return }
+    didStartReactNative = true
     factory.startReactNative(
       withModuleName: "main",
       in: window,
@@ -61,7 +107,7 @@ public class AppDelegate: ExpoAppDelegate {
 
 #if os(iOS) || os(tvOS)
   /// How long to keep the leaf launch screen before loading the embedded bundle.
-  private static let splashRecoveryDelay: TimeInterval = 6
+  private static let splashRecoveryDelay: TimeInterval = 2
 
   private func scheduleEmbeddedBundleFallback() {
 #if DEBUG
