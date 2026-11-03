@@ -60,6 +60,18 @@ target 'Synapse' do
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
 
+    # Xcode 27 only builds deployment targets from 15.0 up. React Native raises
+    # the pod libraries, but their resource bundles stay on 12.x or 13.x and
+    # the build stops.
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        current = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+        if current.nil? || current.to_f < 15.1
+          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+        end
+      end
+    end
+
     # In Release the dev launcher never prepares a delegate, then its launch
     # subscriber throws. The process dies and the leaf storyboard stays up.
     subscriber = File.expand_path(
