@@ -145,6 +145,15 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
   { key: "managedperson", type: "screen", label: "Managed Person", icon: "accessibility-outline", iconActive: "accessibility", parent: "carehub", role: "caregiver", description: "Details for the person you support" },
 
   // —— You & Settings children (Settings 2.0) ——
+  {
+    key: "synapseplus",
+    type: "screen",
+    label: "Synapse Plus",
+    icon: "sparkles-outline",
+    iconActive: "sparkles",
+    parent: "accounthub",
+    description: "Plans, restore purchases, and subscription status",
+  },
   { key: "healthprofile", type: "screen", label: "My Profile", icon: "person-outline", iconActive: "person", parent: "accounthub", description: "Your information and photo" },
   { key: "healthprofileconditions", type: "screen", label: "Conditions", icon: "clipboard-outline", iconActive: "clipboard", parent: "accounthub", description: "Important health conditions" },
   { key: "allergy", type: "screen", label: "Allergy & Emergency Info", icon: "warning-outline", iconActive: "warning", parent: "accounthub", description: "Allergies, EpiPen, emergency details" },
@@ -159,15 +168,6 @@ export const NAV_REGISTRY: NavRegistryEntry[] = [
   { key: "editprofile", type: "screen", label: "Backup & Restore", icon: "cloud-outline", iconActive: "cloud", parent: "accounthub", description: "Keep your data safe" },
   { key: "feedback", type: "screen", label: "Help & Feedback", icon: "chatbubble-ellipses-outline", iconActive: "chatbubble-ellipses", parent: "accounthub", description: "Share feedback or get help" },
   { key: "meetfounder", type: "screen", label: "About Synapse", icon: "heart-outline", iconActive: "heart", parent: "accounthub", description: "Meet the founder" },
-  {
-    key: "synapseplus",
-    type: "screen",
-    label: "Synapse Plus",
-    icon: "sparkles-outline",
-    iconActive: "sparkles",
-    parent: "accounthub",
-    description: "Plans, restore purchases, and subscription status",
-  },
   /** Internal paywall route — not listed in hubs. */
   { key: "paywall", type: "screen", label: "Synapse Plus", icon: "sparkles-outline", iconActive: "sparkles" },
   /** Internal feature gate route — not listed in hubs. */
