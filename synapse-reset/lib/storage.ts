@@ -926,7 +926,7 @@ function createStores(KEYS: KeyMap, profileId: string) {
     setEnabled: async (medicationId: string, enabled: boolean) => {
       const now = new Date().toISOString();
       const existing = await medicationEnforcerConfigStorage.getByMedicationId(medicationId);
-      return medicationEnforcerConfigStorage.upsert(existing ?? {
+      return medicationEnforcerConfigStorage.upsert({
         medicationId,
         enabled,
         mode: "strict",
@@ -935,6 +935,8 @@ function createStores(KEYS: KeyMap, profileId: string) {
         maxSnoozes: 3,
         showMedicationNameOnLockScreen: false,
         createdAt: now,
+        ...(existing ?? {}),
+        enabled,
         updatedAt: now,
       } as MedicationEnforcerConfig);
     },

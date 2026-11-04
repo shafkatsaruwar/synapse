@@ -121,13 +121,13 @@ export default function MedicationEnforcementCard({ onResolved }: { onResolved?:
     await refresh();
   };
 
-  // No dose currently waiting: show the compact private 30-day metrics.
+  // No dose currently waiting: the owner can still choose medications. Metrics
+  // appear only after a dose has actually been scheduled.
   if (!due) {
-    if (!metrics || metrics.scheduledOccurrences === 0) return null;
     return (
       <View style={styles.metricsCard}>
         <Text style={styles.metricsTitle}>Medication Enforcer</Text>
-        <Text style={styles.explanation}>Choose which scheduled medications need extra reminders. Nothing is enabled automatically.</Text>
+        <Text style={styles.explanation}>Choose which medications need extra reminders. Synapse will keep checking in until you update their status. Nothing is enabled automatically.</Text>
         {medications.map((medication) => (
           <View key={medication.id} style={styles.medicationRow}>
             <Text style={styles.medicationRowName} numberOfLines={1}>{medication.name}</Text>
@@ -139,7 +139,8 @@ export default function MedicationEnforcementCard({ onResolved }: { onResolved?:
           </View>
         ))}
         {medications.length === 0 && <Text style={styles.meta}>Add a scheduled medication to choose it here.</Text>}
-        <Text style={styles.metricsTitle}>Enforcement · last 30 days</Text>
+        {metrics && metrics.scheduledOccurrences > 0 ? <Text style={styles.metricsTitle}>Enforcement · last 30 days</Text> : null}
+        {metrics && metrics.scheduledOccurrences > 0 ? (
         <View style={styles.metricsRow}>
           <Metric label="Taken" value={String(metrics.confirmedTaken)} styles={styles} />
           <Metric label="Skipped" value={String(metrics.skipped)} styles={styles} />
@@ -152,6 +153,7 @@ export default function MedicationEnforcementCard({ onResolved }: { onResolved?:
           <Metric label="Max level" value={String(metrics.highestEscalationLevelReached)} styles={styles} />
           <Metric label="Occurrences" value={String(metrics.scheduledOccurrences)} styles={styles} />
         </View>
+        ) : null}
       </View>
     );
   }

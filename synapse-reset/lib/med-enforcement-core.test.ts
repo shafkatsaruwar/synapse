@@ -10,7 +10,7 @@
  *  3. SNOOZE does not modify adherence
  *  4. SKIPPED does not fabricate a MedicationLog
  *  5. UNABLE_TO_TAKE does not fabricate a MedicationLog
- *  6. stale unresolved metadata can become MISSED without changing Reports math
+ *  6. an unanswered past dose stays unresolved and does not change Reports math
  *  7. escalation notifications are pre-scheduled
  *  8. resolution cancels remaining escalation notifications (id prefix invariant)
  *  9. reconciliation does not create duplicate notification IDs (determinism + budget)
@@ -138,16 +138,16 @@ section("4/5 SKIPPED & UNABLE never write a log");
   assert(JSON.stringify(before) === JSON.stringify(after), "skip/unable do not change adherence math");
 }
 
-// 6: stale unresolved -> MISSED without changing Reports math
-section("6 stale -> MISSED, Reports unchanged");
+// 6: an unanswered past dose stays unresolved. It is not recorded as missed.
+section("6 unanswered stays unresolved, Reports unchanged");
 {
   const logs: Log[] = [];
   const before = reportsAdherence(meds, logs, CUTOFF, TODAY);
   const past = createEnforcementEvent({ medicationId: "med-A", doseIndex: 0, scheduledAtMs: new Date("2026-08-20T09:00:00").getTime(), nowMs: new Date("2026-08-20T09:00:00").getTime() });
   const { events, changedIds } = finalizeStaleAsMissed([past], TODAY, Date.now());
-  assert(changedIds.length === 1 && events[0].resolution === "MISSED", "past unresolved event becomes MISSED");
+  assert(changedIds.length === 0 && events[0].status === "unresolved" && events[0].resolution === undefined, "past unanswered event stays unresolved");
   const after = reportsAdherence(meds, logs, CUTOFF, TODAY);
-  assert(JSON.stringify(before) === JSON.stringify(after), "MISSED finalize does not touch adherence math");
+  assert(JSON.stringify(before) === JSON.stringify(after), "leaving a dose unresolved does not touch adherence math");
 }
 
 // 7: escalation notifications are pre-scheduled
