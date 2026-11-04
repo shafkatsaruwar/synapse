@@ -141,6 +141,7 @@ export default function MedicationEnforcementCard({ onResolved }: { onResolved?:
         {medications.length === 0 && <Text style={styles.meta}>Add a scheduled medication to choose it here.</Text>}
         {metrics && metrics.scheduledOccurrences > 0 ? <Text style={styles.metricsTitle}>Enforcement · last 30 days</Text> : null}
         {metrics && metrics.scheduledOccurrences > 0 ? (
+        <>
         <View style={styles.metricsRow}>
           <Metric label="Taken" value={String(metrics.confirmedTaken)} styles={styles} />
           <Metric label="Skipped" value={String(metrics.skipped)} styles={styles} />
@@ -153,6 +154,7 @@ export default function MedicationEnforcementCard({ onResolved }: { onResolved?:
           <Metric label="Max level" value={String(metrics.highestEscalationLevelReached)} styles={styles} />
           <Metric label="Occurrences" value={String(metrics.scheduledOccurrences)} styles={styles} />
         </View>
+        </>
         ) : null}
       </View>
     );
