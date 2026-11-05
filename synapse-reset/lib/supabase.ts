@@ -86,7 +86,21 @@ function supabaseFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Re
       : input instanceof URL
         ? input.href.includes("/auth/")
         : false;
-  return fetch(input, init)
+  // iOS rejects application/json;charset=UTF-8 and a fetch AbortSignal with
+  // "Network request failed", even when Safari can open the same host.
+  const nextInit: RequestInit = { ...(init ?? {}) };
+  if (Platform.OS !== "web") {
+    delete nextInit.signal;
+  }
+  if (nextInit.headers) {
+    const headers = new Headers(nextInit.headers);
+    const contentType = headers.get("content-type");
+    if (contentType?.toLowerCase().startsWith("application/json")) {
+      headers.set("content-type", "application/json");
+    }
+    nextInit.headers = headers;
+  }
+  return fetch(input, nextInit)
     .then((res) => {
       if (!res.ok && isAuthRequest) {
         auditLogger.log("AUTH", "user", "failure", {

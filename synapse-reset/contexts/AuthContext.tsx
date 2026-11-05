@@ -200,10 +200,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await signInWithAppleNative();
       if (result.canceled) return { error: null, canceled: true };
       if (result.error) {
+        const err = mapAuthNetworkError(result.error, hostForAuthError());
         await auditLogger.log("AUTH", "user", "failure", {
-          errorMessage: result.error.message.substring(0, 100),
+          errorMessage: err.message.substring(0, 100),
         });
-        return { error: result.error };
+        return { error: err };
       }
       await auditLogger.log("AUTH", "user", "success", {
         details: "Apple sign-in successful",
