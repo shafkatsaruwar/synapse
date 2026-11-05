@@ -1,0 +1,31 @@
+{
+  "disclaimer": "All values are fictional test fixtures. Do not use real health data or accounts.",
+  "personaName": "Alex Rivera",
+  "preferredName": "Alex",
+  "medication": {
+    "name": "Lisinopril (test)",
+    "dose": "10 mg",
+    "form": "tablet",
+    "frequency": "Once daily",
+    "time": "8:00 AM",
+    "notes": "Fictional sample med for usability testing only"
+  },
+  "appointment": {
+    "title": "Check-up with Dr. Morgan Lee",
+    "doctor": "Dr. Morgan Lee",
+    "specialty": "Primary Care",
+    "location": "Riverside Clinic — Test Wing",
+    "notes": "Bring medication list (fictional visit)"
+  },
+  "emergencyContact": {
+    "name": "Jordan Rivera",
+    "relationship": "Sibling",
+    "phone": "555-010-0199"
+  },
+  "allergy": "Penicillin (test allergy — not a real record)",
+  "condition": "Seasonal allergies (test)",
+  "accounts": {
+    "email": "usability.test.alex@example.invalid",
+    "note": "Use only disposable simulator state. Never sign into a real account."
+  }
+}
