@@ -9,7 +9,7 @@ import {
 
 describe("plus feature gating", () => {
   it("keeps medications, appointments, sick mode, emergency free", () => {
-    for (const key of ["medications", "appointments", "sickmode", "emergencyhub", "dashboard"]) {
+    for (const key of ["medications", "appointments", "doctors", "sickmode", "emergencyhub", "dashboard"]) {
       assert.equal(requiresPlus(key), false, key);
       assert.equal(requiresPlusGate(key), false, key);
     }
@@ -21,7 +21,8 @@ describe("plus feature gating", () => {
     assert.equal(requiresPlusGate("log"), true);
     assert.equal(requiresPlusGate("healthdata"), true);
     assert.equal(requiresPlusGate("checkin"), true);
-    assert.equal(requiresPlusGate("doctors"), true);
+    assert.equal(requiresPlusGate("pharmacies"), true);
+    assert.equal(requiresPlus("doctors"), false);
   });
 
   it("does not gate account privacy or allergy", () => {

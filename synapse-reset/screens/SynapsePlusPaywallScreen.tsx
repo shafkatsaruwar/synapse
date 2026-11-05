@@ -25,7 +25,7 @@ const BENEFITS = [
   "How I’m Feeling — daily log, symptoms, monthly check-in",
   "Health Records — vitals, labs, imaging, timeline, reports",
   "Wellbeing tools — eating, comfort, goals, and more",
-  "Check-In and Care & Support",
+  "Check-In, pharmacies, and care connections",
   "Advanced Emergency Card helpers",
 ];
 
