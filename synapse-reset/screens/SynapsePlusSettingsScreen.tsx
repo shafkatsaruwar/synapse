@@ -62,7 +62,7 @@ export default function SynapsePlusSettingsScreen({ onNavigate }: Props) {
         {hasPlus ? <PlusBadge /> : null}
       </View>
       <Text style={styles.subtitle}>
-        Premium tracking, records, wellbeing, Check-In, and Care & Support.
+        Premium tracking, records, wellbeing, Check-In, pharmacies, and care connections.
       </Text>
 
       <View style={styles.card}>

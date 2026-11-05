@@ -4,6 +4,7 @@
  * Always free:
  * - Medications, schedules, doses, reminders
  * - Appointments and preparation notes
+ * - Doctors (needed to schedule an appointment)
  * - Sick Mode
  * - Basic Emergency Card (view + essential edit)
  * - You & Settings essentials (profile, allergy, privacy, backup, preferences)
@@ -13,7 +14,7 @@
  * - Health Records (+ vitals, labs, imaging, timeline, reports, documents, insights)
  * - Wellbeing (+ children)
  * - Check-In
- * - Care & Support hub (+ doctors, pharmacies, care connections, caregiver tools)
+ * - Care & Support hub (+ pharmacies, care connections, caregiver tools)
  * - Advanced Emergency Card convenience (export / save / share helpers)
  */
 
@@ -48,7 +49,6 @@ export const PLUS_REQUIRED_NAV_KEYS = new Set([
   // Check-In & Care
   "checkin",
   "carehub",
-  "doctors",
   "pharmacies",
   "careconnections",
   "caregiverdashboard",
@@ -63,6 +63,7 @@ export const ALWAYS_FREE_NAV_KEYS = new Set([
   "health",
   "medications",
   "appointments",
+  "doctors",
   "sickmode",
   "emergencyhub",
   "emergencycard",
@@ -217,8 +218,8 @@ const FEATURE_COPY: Record<string, PlusFeatureInfo> = {
   carehub: {
     key: "carehub",
     title: "Care & Support",
-    summary: "Doctors, pharmacies, and care helpers in one place.",
-    benefits: ["Care team contacts", "Pharmacies", "Care connections"],
+    summary: "Pharmacies and care helpers in one place. Doctors stay free.",
+    benefits: ["Pharmacies", "Care connections", "Caregiver tools"],
   },
   doctors: {
     key: "doctors",
@@ -277,7 +278,7 @@ export function getPlusFeatureInfo(rawKey: string): PlusFeatureInfo {
     benefits: [
       "How I’m Feeling",
       "Health Records & Wellbeing",
-      "Check-In and Care & Support",
+      "Check-In, pharmacies, and care connections",
     ],
   };
 }

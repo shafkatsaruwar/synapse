@@ -8,6 +8,7 @@ Synapse Health Companion is a personal health organization app. This update intr
 
 - Medications (schedules, doses, reminders)
 - Appointments and preparation notes
+- Doctors (care team contacts used when scheduling an appointment)
 - Sick Mode
 - Basic Emergency Card (allergies, medications, emergency contacts, and essential medical details already entered remain visible)
 - Profile, allergy info, privacy controls, backup/export tools
@@ -18,7 +19,7 @@ Synapse Health Companion is a personal health organization app. This update intr
 - Health Records (vitals, labs, imaging, timeline, reports)
 - Wellbeing tools
 - Check-In
-- Care & Support (doctors, pharmacies, care connections)
+- Care & Support (pharmacies, care connections)
 - Advanced Emergency Card helpers (export / save to Photos)
 
 All Plus purchase options unlock the **same** entitlement (`synapse_plus`).
