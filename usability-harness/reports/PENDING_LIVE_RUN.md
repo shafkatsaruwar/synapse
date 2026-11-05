@@ -1,55 +1,46 @@
 # Synapse Usability Report
 
 **Session:** `pending-live-simulator-run`  
-**Status:** Harness scaffolded — **no live iOS Simulator evidence yet**
+**Updated:** 2026-11-05 (America/New_York)  
+**Status:** Harness installed + dry-run verified — **live iOS Simulator still blocked**
 
 > This AI/simulator usability session does **not** replace testing with real people. Observed failures are separated from AI speculation. No UX changes should be implemented automatically from this report.
 
-## Method
+## Observed progress
 
-An AI agent with a **first-time / low-confidence** persona will choose taps from **screenshots only**. A separate Maestro controller executes actions. The agent is instructed not to use app source, nav keys, accessibility IDs, or hidden state.
-
-## Observed blockers (this environment)
-
-| Observation | Evidence |
+| Item | Status |
 |---|---|
-| Cannot execute Simulator automation here | Host OS is Linux; no Xcode / `simctl` / Maestro |
-| Paid vision APIs not called | Explicit requirement to ask before using paid AI APIs |
-| npm / Maestro not installed yet | Explicit requirement to ask before installing dependencies |
+| Separate harness package | Done (`usability-harness/`) |
+| npm deps installed in this agent | Done (`zod`, `tsx`, `typescript`, optional `openai`) |
+| Dry-run (`npm run dry-run`) | Passed — mock vision, 8 tasks scaffolded |
+| Production app unmodified | Confirmed |
+| Live iOS Simulator session | **Blocked** |
+| Paid vision API call | **Not yet** — key missing; secret request filed |
 
-## Task results
+## Observed blockers (live run)
 
-| Task | Status | Elapsed | Taps | Nav steps | Retries | Assistance |
-|---|---|---:|---:|---:|---:|---|
-| Complete onboarding | not_run | 0s | 0 | 0 | 0 | yes |
-| Add a sample medication and reminder | not_run | 0s | 0 | 0 | 0 | yes |
-| Add a doctor's appointment | not_run | 0s | 0 | 0 | 0 | yes |
-| Find the Emergency Card | not_run | 0s | 0 | 0 | 0 | yes |
-| Locate and use Sick Mode | not_run | 0s | 0 | 0 | 0 | yes |
-| Find health records and identify Plus restrictions | not_run | 0s | 0 | 0 | 0 | yes |
-| Recover from an incorrect tap | not_run | 0s | 0 | 0 | 0 | yes |
-| Locate subscription pricing and restore purchases | not_run | 0s | 0 | 0 | 0 | yes |
+1. **No iOS Simulator on this Cloud Agent host** (Linux).
+2. **Self-hosted Mac worker is registered for `lifeos` only**, not `synapse`. Subagents launched from this run show `usePrivateWorker: false` / `privateWorkerId: null`, so they stay on Linux cloud VMs.
+3. **No vision API key** in the agent environment (`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` missing). A secrets request was filed for `OPENAI_API_KEY` (required) and `ANTHROPIC_API_KEY` (optional).
 
-## Findings (severity-ranked)
+## What to approve / do next (host side)
 
-### [NOTE] Live usability run not executed
+1. Add Synapse to the Mac self-hosted worker (or start `agent worker` from the Synapse checkout on Mo’s MacBook Pro).
+2. Confirm the OpenAI (or Anthropic) secret in Cursor dashboard / agent secrets.
+3. On the Mac:
 
-- **Kind:** Observed
-- **Evidence:**
-  - Cloud Agent host is Linux without Xcode/iOS Simulator
-  - Approval required before installing dependencies or calling paid AI APIs
-- **Suggested improvement:** Approve a Mac runner (e.g. Mo’s MacBook Pro worker), Maestro install, harness `npm install`, and one vision provider; then re-run and replace this placeholder with evidence-backed findings.
+```bash
+cd usability-harness
+./scripts/bootstrap-simulator.sh --install-maestro   # if Maestro missing
+# install Synapse debug build on Simulator
+USABILITY_API_APPROVED=1 ./scripts/run-live-macos.sh --provider openai
+```
 
-## What is ready
+## Dry-run note (not live evidence)
 
-- Separate package: `usability-harness/`
-- Vision-vs-controller split + import guard
-- Eight task definitions + fictional fixtures
-- Safety blocks for purchases / messages / real accounts / notification opt-in
-- Markdown report generator with observed vs speculation separation
-- Dry-run / mock provider path
+A mock dry-run completed under `reports/usability-2026-11-05T18-14-25-960Z-0a3c1a57/`. All eight tasks are marked **blocked** by design in mock mode. That output is **not** a usability finding about Synapse UI.
 
 ## Limits
 
-- Simulator + AI persona ≠ real users.
-- No UX changes will be implemented until you approve findings from a live run.
+- No UX changes will be implemented until you approve findings from a **live** Simulator run.
+- This harness does not replace testing with real people.

@@ -105,16 +105,23 @@ Reports land in `reports/<session-id>/usability-report.md` with screenshots and 
 - Completion status  
 - Short first-person observations grounded in visible UI  
 
-## Approval checklist before a live run
+## Live-run checklist
 
-Please confirm before we install or spend:
+Approved so far in-agent: harness `npm install` + dry-run.
 
-1. **Install harness npm dependencies** (`zod`, `tsx`, `typescript`; optional `openai`)?  
-2. **Install Maestro** on the Mac runner?  
-3. **Which vision API** (OpenAI / Anthropic / Gemini) and may we bind/use that secret?  
-4. **Run on** Mo’s MacBook Pro self-hosted worker (or another Mac with Simulator + Synapse build)?  
+Still required for a real Simulator session:
 
-Until those are approved, only `--dry-run` / mock mode should be used.
+1. **Vision secret** in the Cloud Agent environment: `OPENAI_API_KEY` (preferred) or `ANTHROPIC_API_KEY`.
+2. **Mac self-hosted worker that includes this Synapse repo** (the currently connected worker is registered for `lifeos` only, so synapse subagents stay on Linux).
+3. **Maestro** + Synapse debug build on that Mac Simulator.
+4. Run:
+
+```bash
+cd usability-harness
+USABILITY_API_APPROVED=1 ./scripts/run-live-macos.sh --provider openai
+```
+
+Until then, only `--dry-run` / mock mode produces output here — not UI findings.
 
 ## Repo hygiene
 

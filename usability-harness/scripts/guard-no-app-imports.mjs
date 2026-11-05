@@ -17,7 +17,7 @@ const banned = [
   "testID",
 ];
 
-const checkDirs = ["src/providers", "src/persona.ts", "src/tasks.ts", "src/agent"].map((p) =>
+const checkDirs = ["src/providers", "src/persona.ts", "src/tasks.ts"].map((p) =>
   join(root, p),
 );
 

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { VisionDecisionSchema, type VisionDecision, type UsabilityTask } from "../types.js";
 import { personaSystemPrompt } from "../persona.js";
+import { BridgeVisionProvider } from "./bridge.js";
 
 export interface VisionProvider {
   readonly name: string;
@@ -248,12 +249,17 @@ export class GeminiVisionProvider implements VisionProvider {
 }
 
 export function createVisionProvider(opts: {
-  provider: "openai" | "anthropic" | "gemini" | "mock";
+  provider: "openai" | "anthropic" | "gemini" | "mock" | "bridge";
   model?: string;
   dryRun?: boolean;
+  bridgeDir?: string;
 }): VisionProvider {
   if (opts.dryRun || opts.provider === "mock") {
     return new MockVisionProvider();
+  }
+  if (opts.provider === "bridge") {
+    const dir = opts.bridgeDir || process.env.USABILITY_BRIDGE_DIR || "./reports/bridge";
+    return new BridgeVisionProvider(dir);
   }
   if (opts.provider === "openai") {
     const key = process.env.OPENAI_API_KEY;

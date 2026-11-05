@@ -113,9 +113,6 @@ export async function runSession(config: SessionConfig): Promise<SessionResult> 
           }
         }
 
-        if (decision.taskProgress === "completed" && action.type !== "give_up") {
-          // Trust done-action more than progress hint; continue unless done.
-        }
         step += 1;
       }
 

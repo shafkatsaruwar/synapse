@@ -16,7 +16,7 @@ Usage:
 
 Options for run:
   --dry-run              No simulator, no paid APIs (mock vision)
-  --provider <name>      openai | anthropic | gemini | mock (default: mock)
+  --provider <name>      openai | anthropic | gemini | mock | bridge (default: mock)
   --model <id>           Provider model override
   --device <name>        Simulator device name
   --app-id <id>          iOS bundle id (default: com.mohammedsaruwar.synapse)
@@ -64,7 +64,7 @@ async function cmdRun(argv: string[]) {
     args.provider ?? process.env.USABILITY_VISION_PROVIDER ?? "mock",
   ) as SessionConfig["visionProvider"];
 
-  if (!dryRun && provider !== "mock") {
+  if (!dryRun && provider !== "mock" && provider !== "bridge") {
     console.error(
       [
         "",
@@ -72,6 +72,7 @@ async function cmdRun(argv: string[]) {
         "This harness will call the selected provider with screenshots.",
         "Re-run only after explicit approval to use that API and after keys are configured.",
         "For a no-cost pass:  npx tsx src/cli.ts run --dry-run",
+        "Or use --provider bridge with a parent agent fulfilling ./reports/bridge/*.response.json",
         "",
       ].join("\n"),
     );

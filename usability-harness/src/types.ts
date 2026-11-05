@@ -136,7 +136,7 @@ export interface SessionConfig {
   appId: string;
   deviceName: string;
   outputDir: string;
-  visionProvider: "openai" | "anthropic" | "gemini" | "mock";
+  visionProvider: "openai" | "anthropic" | "gemini" | "mock" | "bridge";
   visionModel?: string;
   maxStepsPerTask: number;
   allowPurchases: boolean;
