@@ -1,0 +1,32 @@
+{
+  "name": "synapse-usability-harness",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-driven usability testing harness for Synapse iOS. Separate from production app code.",
+  "type": "module",
+  "bin": {
+    "synapse-usability": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "tsx src/cli.ts",
+    "dry-run": "tsx src/cli.ts run --dry-run",
+    "report:sample": "tsx src/cli.ts report --from fixtures/sample-session.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "guard:no-app-imports": "node scripts/guard-no-app-imports.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  },
+  "optionalDependencies": {
+    "openai": "^6.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.20.6",
+    "typescript": "~5.9.2"
+  }
+}
