@@ -6,7 +6,6 @@ reports/*
 !reports/.gitkeep
 !reports/README.md
 !reports/PENDING_LIVE_RUN.md
-!reports/PENDING_LIVE_RUN.md
 *.log
 .DS_Store
 .tmp/
