@@ -40,7 +40,6 @@ import {
 import { getMedList, type MedListItem } from "@/lib/med-list-storage";
 
 const CARD_BG = "#FFFFFF";
-const CARD_HEADER = "#800020";
 const CARD_TEXT = "#111111";
 const CARD_LABEL = "#555555";
 
@@ -295,7 +294,7 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
                 accessibilityRole="button"
                 accessibilityLabel="Edit emergency card"
               >
-                <Ionicons name="pencil" size={20} color={CARD_HEADER} />
+                <Ionicons name="pencil" size={20} color={C.tint} />
               </Pressable>
             </View>
 
@@ -646,7 +645,7 @@ function makeStyles(C: Theme) {
       width: 44,
       height: 44,
       borderRadius: 22,
-      // Solid white chip + maroon pencil so it reads clearly on the red card header.
+      // Solid white chip + theme-tint pencil so it reads clearly on the card header.
       backgroundColor: "#FFFFFF",
       borderWidth: 0,
       alignItems: "center",
@@ -682,7 +681,7 @@ function makeStyles(C: Theme) {
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
-      backgroundColor: CARD_HEADER,
+      backgroundColor: C.tint,
       paddingVertical: 12,
       paddingHorizontal: 16,
     },
@@ -738,7 +737,7 @@ function makeStyles(C: Theme) {
       borderRadius: 20,
       overflow: "hidden",
       borderWidth: 2,
-      borderColor: CARD_HEADER,
+      borderColor: C.tint,
     },
     tapToClose: {
       fontSize: 12,
