@@ -371,15 +371,15 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
                 placeholder="e.g. 34"
                 keyboardType="number-pad"
               />
-              <Field
-                label="Current Medications"
-                value={medListItems.map((item) => item.name).join(", ")}
-                onChange={() => {}}
-                placeholder="Add medications in the Medications list"
-                multiline
-                editable={false}
-              />
-              <Text style={styles.syncHint}>Pulled automatically from your Medications list.</Text>
+              <View style={styles.field}>
+                <Text style={styles.label}>Current Medications</Text>
+                <Text style={styles.medsPullNote}>
+                  Your meds will be pulled from your current Medications list
+                  {medListItems.length > 0
+                    ? ` (${medListItems.length} on file).`
+                    : ". Add them in Medications to show them on this card."}
+                </Text>
+              </View>
               {!hasAllergyInfoFromProfile && onNavigate && (
                 <Pressable
                   style={styles.allergyPrompt}
@@ -586,6 +586,7 @@ function makeStyles(C: Theme) {
     field: { marginBottom: 14 },
     label: { fontWeight: "500", fontSize: 12, color: C.textSecondary, marginBottom: 6 },
     syncHint: { fontSize: 12, color: C.textTertiary, marginTop: -8, marginBottom: 10 },
+    medsPullNote: { fontSize: 15, color: C.textSecondary, lineHeight: 22 },
     input: {
       backgroundColor: C.surface,
       borderRadius: 12,
