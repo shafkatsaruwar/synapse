@@ -52,7 +52,7 @@ interface EmergencyCardScreenProps {
 function hasCardBasics(data: EmergencyCardData): boolean {
   return Boolean(
     data.fullName.trim() ||
-      data.dateOfBirth.trim() ||
+      data.age.trim() ||
       data.emergencyContactName.trim() ||
       data.emergencyContactPhone.trim() ||
       data.optionalNotes.trim()
@@ -71,7 +71,7 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
 
   const [data, setData] = useState<EmergencyCardData>({
     fullName: "",
-    dateOfBirth: "",
+    age: "",
     allergies: "",
     currentMedications: "",
     epipenAvailable: false,
@@ -232,7 +232,7 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
         </View>
         <View style={styles.cardBody}>
           <Row label="Name" value={data.fullName || "—"} />
-          <Row label="Date of Birth" value={data.dateOfBirth || "—"} />
+          <Row label="Age" value={data.age || "—"} />
           <Row label="Allergies" value={allergiesDisplay} />
           <Row label="Current Medications" value={currentMedicationsDisplay} />
           <Row label="EpiPen" value={epipenDisplay} />
@@ -365,7 +365,13 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Your details</Text>
               <Field label="Full Name" value={data.fullName} onChange={(v) => update({ fullName: v })} placeholder="Full name" />
-              <Field label="Date of Birth" value={data.dateOfBirth} onChange={(v) => update({ dateOfBirth: v })} placeholder="e.g. Jan 15, 1990" />
+              <Field
+                label="Age"
+                value={data.age}
+                onChange={(v) => update({ age: v.replace(/[^\d]/g, "").slice(0, 3) })}
+                placeholder="e.g. 34"
+                keyboardType="number-pad"
+              />
               <Field
                 label="Current Medications"
                 value={medListItems.map((item) => item.name).join(", ")}
@@ -471,7 +477,7 @@ export default function EmergencyCardScreen({ onNavigate }: EmergencyCardScreenP
             </View>
             <View style={styles.cardBody}>
               <Row label="Name" value={data.fullName || "—"} large />
-              <Row label="Date of Birth" value={data.dateOfBirth || "—"} large />
+              <Row label="Age" value={data.age || "—"} large />
               <Row label="Allergies" value={allergiesDisplay} large />
               <Row label="Current Medications" value={currentMedicationsDisplay} large />
               <Row label="EpiPen" value={epipenDisplay} large />
@@ -528,7 +534,7 @@ function Field({
   onChange: (v: string) => void;
   placeholder?: string;
   multiline?: boolean;
-  keyboardType?: "phone-pad" | "default";
+  keyboardType?: "phone-pad" | "number-pad" | "default";
   editable?: boolean;
 }) {
   const { colors: C } = useTheme();
