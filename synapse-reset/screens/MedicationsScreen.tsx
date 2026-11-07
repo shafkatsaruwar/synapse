@@ -27,6 +27,7 @@ import MedicationEnforcementCard from "@/components/MedicationEnforcementCard";
 import AddMedicationGuidedFlow from "@/components/medications/AddMedicationGuidedFlow";
 import EditMedicationHub from "@/components/medications/EditMedicationHub";
 import TodaysDosesPanel from "@/components/medications/TodaysDosesPanel";
+import MarkDueTakenSheet from "@/components/medications/MarkDueTakenSheet";
 import MyMedicationsPanel from "@/components/medications/MyMedicationsPanel";
 import { featureFlags } from "@/constants/feature-flags";
 import {
@@ -35,6 +36,12 @@ import {
   buildTodayDoseInstances,
   formatDoseAmountLabel,
 } from "@/lib/medication-today";
+import {
+  buildMarkDueBatchPlan,
+  listDueUntakenDoses,
+  markDueUndoLabel,
+  type DueDoseCandidate,
+} from "@/lib/mark-due-taken";
 import {
   draftFromScan,
   type AddMedicationDraft,
@@ -326,7 +333,14 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
   const [showEditHub, setShowEditHub] = useState(false);
   const [hubMedication, setHubMedication] = useState<Medication | null>(null);
   const [medsBrowseTab, setMedsBrowseTab] = useState<"today" | "meds">("today");
-  const [doseUndo, setDoseUndo] = useState<{ medicationId: string; doseIndex: number; label: string } | null>(null);
+  const [doseUndo, setDoseUndo] = useState<
+    | { kind: "single"; medicationId: string; doseIndex: number; label: string }
+    | { kind: "batch"; entries: Array<{ medicationId: string; doseIndex: number }>; label: string }
+    | null
+  >(null);
+  const [markDueVisible, setMarkDueVisible] = useState(false);
+  const [markDueBusy, setMarkDueBusy] = useState(false);
+  const [markDueCandidates, setMarkDueCandidates] = useState<DueDoseCandidate[]>([]);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
   const [nudgeMedId, setNudgeMedId] = useState<string | null>(null);
   const [nudgeVisible, setNudgeVisible] = useState(false);
@@ -1184,6 +1198,7 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
           const dose = normalizedMed?.doses?.[doseIdx];
           const amount = formatDoseAmountLabel(dose?.amount ?? "", dose?.unit ?? "");
           setDoseUndo({
+            kind: "single",
             medicationId: medId,
             doseIndex: doseIdx,
             label: `Logged ${med?.name?.trim() || "dose"}${amount ? ` · ${amount}` : ""}`,
@@ -1275,6 +1290,117 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
     } catch (error) {
       console.warn("Failed to update PRN log details", error);
       Alert.alert("Couldn’t save details", "Something got in the way when we tried to save those details. Please try again.");
+    }
+  };
+
+  const openMarkDueSheet = () => {
+    const candidates = listDueUntakenDoses(medications, medLogs, today);
+    if (candidates.length === 0) return;
+    setMarkDueCandidates(candidates);
+    setMarkDueVisible(true);
+    void Haptics.selectionAsync().catch(() => {});
+  };
+
+  const handleConfirmMarkDue = async (selectedKeys: string[]) => {
+    if (markDueBusy || selectedKeys.length === 0) return;
+    setMarkDueBusy(true);
+    const reportedTakenAt = new Date().toISOString();
+    try {
+      const candidates = listDueUntakenDoses(medications, medLogs, today);
+      const plan = buildMarkDueBatchPlan({
+        candidates,
+        selectedKeys,
+        logs: medLogs,
+        dateKey: today,
+        reportedTakenAt,
+      });
+      if (plan.writable.length === 0) {
+        setMarkDueVisible(false);
+        setMarkDueCandidates([]);
+        await refreshMedicationStatus();
+        return;
+      }
+
+      const { newlyMarkedKeys } = await medicationLogStorage.ensureTakenMany(
+        plan.writable.map((dose) => ({
+          medicationId: dose.medicationId,
+          date: today,
+          doseIndex: dose.doseIndex,
+          scheduledTime: dose.reminderTime ?? undefined,
+          recordedAt: reportedTakenAt,
+        })),
+      );
+
+      let medCache = [...medications];
+      for (const key of newlyMarkedKeys) {
+        const [medicationId, doseIndexRaw] = key.split(":");
+        const doseIndex = parseInt(doseIndexRaw ?? "0", 10) || 0;
+        const medIdx = medCache.findIndex((m) => m.id === medicationId);
+        if (medIdx < 0) continue;
+        medCache[medIdx] = await updateMedicationSupply(medCache[medIdx], doseIndex, "take");
+      }
+      setMedications(medCache);
+
+      setDoseUndo({
+        kind: "batch",
+        entries: newlyMarkedKeys.map((key) => {
+          const [medicationId, doseIndexRaw] = key.split(":");
+          return { medicationId, doseIndex: parseInt(doseIndexRaw ?? "0", 10) || 0 };
+        }),
+        label: markDueUndoLabel(newlyMarkedKeys.length),
+      });
+
+      setMarkDueVisible(false);
+      setMarkDueCandidates([]);
+      await refreshMedicationStatus();
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      await syncAllFromSettings().catch((error) => {
+        console.warn("Medication reminder sync failed after mark due batch", error);
+      });
+      await syncMissedMedicationCheckIn().catch(() => {});
+      await updateAppIconBadgeCount().catch(() => {});
+      requestBadgeRefresh();
+      await syncWidgetSnapshot().catch((error) => {
+        console.warn("Medication widget sync failed after mark due batch", error);
+      });
+    } catch (error) {
+      console.warn("Failed to mark due doses as taken", error);
+      Alert.alert("Couldn’t log doses", "Something got in the way when we tried to mark those doses as taken. Please try again.");
+    } finally {
+      setMarkDueBusy(false);
+    }
+  };
+
+  const handleDoseUndo = async () => {
+    if (!doseUndo) return;
+    if (doseUndo.kind === "single") {
+      await handleDoseToggle(doseUndo.medicationId, doseUndo.doseIndex, { fromUndo: true });
+      return;
+    }
+    try {
+      const entries = doseUndo.entries;
+      await medicationLogStorage.unmarkTakenMany(
+        entries.map((e) => ({ medicationId: e.medicationId, date: today, doseIndex: e.doseIndex })),
+      );
+      let medCache = [...medications];
+      for (const entry of entries) {
+        const medIdx = medCache.findIndex((m) => m.id === entry.medicationId);
+        if (medIdx < 0) continue;
+        medCache[medIdx] = await updateMedicationSupply(medCache[medIdx], entry.doseIndex, "undo");
+      }
+      setMedications(medCache);
+      setDoseUndo(null);
+      await refreshMedicationStatus();
+      void Haptics.selectionAsync().catch(() => {});
+      await syncAllFromSettings().catch((error) => {
+        console.warn("Medication reminder sync failed after mark due undo", error);
+      });
+      await syncWidgetSnapshot().catch((error) => {
+        console.warn("Medication widget sync failed after mark due undo", error);
+      });
+    } catch (error) {
+      console.warn("Failed to undo mark due batch", error);
+      Alert.alert("Couldn’t undo", "We couldn’t reverse that batch. You can still un-take doses individually.");
     }
   };
 
@@ -1477,10 +1603,20 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
             const med = medications.find((m) => m.id === medicationId);
             if (med) openEditModal(med);
           }}
-          undoToast={doseUndo ? { key: `${doseUndo.medicationId}:${doseUndo.doseIndex}`, label: doseUndo.label } : null}
+          onMarkDueAsTaken={openMarkDueSheet}
+          undoToast={
+            doseUndo
+              ? {
+                  key:
+                    doseUndo.kind === "single"
+                      ? `${doseUndo.medicationId}:${doseUndo.doseIndex}`
+                      : `batch:${doseUndo.entries.map((e) => `${e.medicationId}:${e.doseIndex}`).join(",")}`,
+                  label: doseUndo.label,
+                }
+              : null
+          }
           onUndo={() => {
-            if (!doseUndo) return;
-            void handleDoseToggle(doseUndo.medicationId, doseUndo.doseIndex, { fromUndo: true });
+            void handleDoseUndo();
           }}
           onDismissUndo={() => setDoseUndo(null)}
         />
@@ -3186,6 +3322,20 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
           </View>
         </View>
       </Modal>
+
+      <MarkDueTakenSheet
+        visible={markDueVisible}
+        candidates={markDueCandidates}
+        busy={markDueBusy}
+        onClose={() => {
+          if (markDueBusy) return;
+          setMarkDueVisible(false);
+          setMarkDueCandidates([]);
+        }}
+        onConfirm={(selectedKeys) => {
+          void handleConfirmMarkDue(selectedKeys);
+        }}
+      />
     </View>
   );
 }

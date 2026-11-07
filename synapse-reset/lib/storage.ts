@@ -795,36 +795,97 @@ function createStores(KEYS: KeyMap, profileId: string) {
       doseIndex = 0,
       metadata?: { scheduledTime?: string; notes?: string; recordedAt?: string; enteredBy?: "self" | "caregiver" },
     ) => {
-      const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
-      const index = logs.findIndex(
+      const result = await medicationLogStorage.ensureTakenMany([
+        { medicationId, date, doseIndex, ...metadata },
+      ]);
+      return result.logs.find(
         (l) => l.medicationId === medicationId && l.date === date && (l.doseIndex ?? 0) === doseIndex,
-      );
-      if (index >= 0) {
-        logs[index] = {
-          ...logs[index],
-          taken: true,
-          recordedAt: logs[index].recordedAt ?? metadata?.recordedAt ?? new Date().toISOString(),
-          scheduledTime: metadata?.scheduledTime ?? logs[index].scheduledTime,
-          notes: metadata?.notes ?? logs[index].notes,
-          ...(metadata?.enteredBy ? { enteredBy: metadata.enteredBy } : {}),
-        };
-        await setItem(KEYS.MEDICATION_LOGS, logs);
-        return logs[index];
+      )!;
+    },
+    /**
+     * Atomically ensure many scheduled doses are taken (single read + write).
+     * Idempotent per (medicationId, date, doseIndex) — never creates duplicates
+     * and never flips an already-taken dose back to false.
+     */
+    ensureTakenMany: async (
+      entries: Array<{
+        medicationId: string;
+        date: string;
+        doseIndex: number;
+        scheduledTime?: string;
+        notes?: string;
+        recordedAt?: string;
+        enteredBy?: "self" | "caregiver";
+      }>,
+    ) => {
+      const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+      const newlyMarkedKeys: string[] = [];
+      const fallbackEnteredBy = isSelfProfile ? undefined : ("caregiver" as const);
+      const reportedAtDefault = new Date().toISOString();
+
+      for (const entry of entries) {
+        const doseIndex = entry.doseIndex ?? 0;
+        const key = `${entry.medicationId}:${doseIndex}`;
+        const index = logs.findIndex(
+          (l) =>
+            l.medicationId === entry.medicationId &&
+            l.date === entry.date &&
+            (l.doseIndex ?? 0) === doseIndex,
+        );
+        const enteredBy = entry.enteredBy ?? fallbackEnteredBy;
+        if (index >= 0) {
+          if (logs[index].taken) continue;
+          logs[index] = {
+            ...logs[index],
+            taken: true,
+            recordedAt: entry.recordedAt ?? reportedAtDefault,
+            scheduledTime: entry.scheduledTime ?? logs[index].scheduledTime,
+            notes: entry.notes ?? logs[index].notes,
+            ...(enteredBy ? { enteredBy } : {}),
+          };
+          newlyMarkedKeys.push(key);
+        } else {
+          logs.push({
+            id: Crypto.randomUUID(),
+            medicationId: entry.medicationId,
+            doseIndex,
+            date: entry.date,
+            taken: true,
+            recordedAt: entry.recordedAt ?? reportedAtDefault,
+            scheduledTime: entry.scheduledTime,
+            notes: entry.notes,
+            ...(enteredBy ? { enteredBy } : {}),
+          });
+          newlyMarkedKeys.push(key);
+        }
       }
-      const created: MedicationLog = {
-        id: Crypto.randomUUID(),
-        medicationId,
-        doseIndex,
-        date,
-        taken: true,
-        recordedAt: metadata?.recordedAt ?? new Date().toISOString(),
-        scheduledTime: metadata?.scheduledTime,
-        notes: metadata?.notes,
-        ...(metadata?.enteredBy ? { enteredBy: metadata.enteredBy } : {}),
-      };
-      logs.push(created);
+
       await setItem(KEYS.MEDICATION_LOGS, logs);
-      return created;
+      return { logs, newlyMarkedKeys };
+    },
+    /**
+     * Atomically un-take previously marked doses (for batch undo).
+     * Only touches rows matching (medicationId, date, doseIndex) that are taken.
+     */
+    unmarkTakenMany: async (
+      entries: Array<{ medicationId: string; date: string; doseIndex: number }>,
+    ) => {
+      const logs = await getItem<MedicationLog>(KEYS.MEDICATION_LOGS);
+      let changed = false;
+      for (const entry of entries) {
+        const doseIndex = entry.doseIndex ?? 0;
+        const index = logs.findIndex(
+          (l) =>
+            l.medicationId === entry.medicationId &&
+            l.date === entry.date &&
+            (l.doseIndex ?? 0) === doseIndex,
+        );
+        if (index < 0 || !logs[index].taken) continue;
+        logs[index] = { ...logs[index], taken: false, recordedAt: undefined };
+        changed = true;
+      }
+      if (changed) await setItem(KEYS.MEDICATION_LOGS, logs);
+      return logs;
     },
     logPrnDose: async (
       medicationId: string,

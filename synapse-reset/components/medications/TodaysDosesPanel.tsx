@@ -16,6 +16,8 @@ export type TodaysDosesPanelProps = {
   caredForLabel?: string;
   onToggleDose: (medicationId: string, doseIndex: number) => void;
   onOpenMedication: (medicationId: string) => void;
+  /** Opens Mark Due as Taken sheet — only shown when needsAttention.length > 0. */
+  onMarkDueAsTaken?: () => void;
   undoToast?: { key: string; label: string } | null;
   onUndo?: () => void;
   onDismissUndo?: () => void;
@@ -127,12 +129,14 @@ export default function TodaysDosesPanel({
   caredForLabel = "Care recipient",
   onToggleDose,
   onOpenMedication,
+  onMarkDueAsTaken,
   undoToast,
   onUndo,
   onDismissUndo,
 }: TodaysDosesPanelProps) {
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
+  const dueCount = buckets.needsAttention.length;
 
   const ownerFor = (dose: TodayDoseInstance) =>
     isCaregiver && dose.entryOwner === "care_recipient" ? caredForLabel : undefined;
@@ -149,9 +153,21 @@ export default function TodaysDosesPanel({
 
   return (
     <View>
-      <Text style={styles.progress}>
-        {buckets.takenCount} of {buckets.total} taken today
-      </Text>
+      <View style={styles.progressRow}>
+        <Text style={styles.progress}>
+          {buckets.takenCount} of {buckets.total} taken today
+        </Text>
+        {dueCount > 0 && onMarkDueAsTaken ? (
+          <Pressable
+            style={styles.markDueBtn}
+            onPress={onMarkDueAsTaken}
+            accessibilityRole="button"
+            accessibilityLabel={`Mark ${dueCount} due dose${dueCount === 1 ? "" : "s"} as taken`}
+          >
+            <Text style={styles.markDueBtnText}>Mark Due as Taken</Text>
+          </Pressable>
+        ) : null}
+      </View>
 
       <Section title="Needs attention" count={buckets.needsAttention.length} styles={styles} empty="You're caught up on due doses.">
         {buckets.needsAttention.map((dose) => (
@@ -214,11 +230,30 @@ export default function TodaysDosesPanel({
 
 function makeStyles(C: Theme) {
   return StyleSheet.create({
+    progressRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+      marginBottom: 14,
+    },
     progress: {
+      flex: 1,
       fontSize: 14,
       fontWeight: "600",
       color: C.textSecondary,
-      marginBottom: 14,
+    },
+    markDueBtn: {
+      backgroundColor: C.tint,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      flexShrink: 0,
+    },
+    markDueBtnText: {
+      color: "#fff",
+      fontWeight: "700",
+      fontSize: 13,
     },
     section: { marginBottom: 20 },
     sectionHeader: {
