@@ -9,10 +9,9 @@ export const featureFlags = {
   medicationEnforcementEnabled: false,
   /**
    * Private CloudKit (iCloud) encrypted backup.
-   * Keep false until BOTH are true:
-   * 1) CloudKit Production schema for UserData is deployed (avoids CKErrorDomain 12)
-   * 2) Passphrase-wrapped DEK recovery has been verified on a real second device
+   * Enabled after CloudKit Production UserData schema deploy.
+   * Still verify passphrase recovery on a real reinstall / second device before relying on it.
    * See docs/ICLOUD_BACKUP.md. Manual JSON + SIWA Synapse Cloud backup remain available.
    */
-  cloudKitBackupEnabled: false,
+  cloudKitBackupEnabled: true,
 };

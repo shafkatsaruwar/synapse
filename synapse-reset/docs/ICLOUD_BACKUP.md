@@ -4,14 +4,11 @@ Encrypted private-CloudKit backups for Synapse Health Companion. Independent of 
 
 ## Status in this build
 
-`featureFlags.cloudKitBackupEnabled` is **`false`**.
+`featureFlags.cloudKitBackupEnabled` is **`true`**.
 
-Do **not** flip it on until both are true:
+CloudKit Production `UserData` schema has been deployed. Before trusting backups as your only recovery path, verify passphrase restore on a reinstall or second device (see device test plan below).
 
-1. CloudKit **Production** schema for container `iCloud.com.mohammedsaruwar.synapse` includes the `UserData` record type (and optional fields below).
-2. You have verified passphrase-wrapped DEK recovery on a second device / reinstall.
-
-Without (1), saves fail with `CKErrorDomain` / code **12** (missing Production schema). Without (2), encrypted cross-device restore is unsafe to offer.
+If saves fail with `CKErrorDomain` / code **12**, the Production schema is still missing or incomplete — set the flag back to `false` until that is fixed.
 
 ## What ships in code
 
