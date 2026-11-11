@@ -51,6 +51,8 @@ type BackupRestoreScreenProps = {
   onNavigate?: (screen: string) => void;
 };
 
+type BackupSegment = "cloud" | "file";
+
 export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: BackupRestoreScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -64,7 +66,10 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
   const [cloudStatus, setCloudStatus] = useState<BackupStatus | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [segment, setSegment] = useState<BackupSegment>("file");
+  const [segmentInitialized, setSegmentInitialized] = useState(false);
   const userId = user?.id ?? null;
+  const cloudSectionAvailable = Platform.OS === "ios" && (appleAvailable || Boolean(userId));
 
   const refreshStatus = useCallback(async () => {
     setStatus(await getManualBackupStatus());
@@ -90,6 +95,25 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
     void isAppleAuthAvailable().then(setAppleAvailable);
   }, []);
 
+  useEffect(() => {
+    if (segmentInitialized) return;
+    if (!cloudSectionAvailable) {
+      setSegment("file");
+      setSegmentInitialized(true);
+      return;
+    }
+    if (userId) {
+      setSegment("cloud");
+      setSegmentInitialized(true);
+    } else if (appleAvailable || !authLoading) {
+      setSegmentInitialized(true);
+    }
+  }, [segmentInitialized, cloudSectionAvailable, userId, appleAvailable, authLoading]);
+
+  useEffect(() => {
+    if (!cloudSectionAvailable && segment === "cloud") setSegment("file");
+  }, [cloudSectionAvailable, segment]);
+
   const statusLabel = describeBackupStatus(status ?? { lastExportedAt: null, lastConfirmedAt: null, lastFileName: null });
 
   const cloudStatusLabel = useMemo(() => {
@@ -97,7 +121,7 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
     if (!cloudStatus?.hasBackup) {
       return {
         title: "No cloud backup yet",
-        detail: "Sign in with Apple is connected. Upload a backup when you’re ready.",
+        detail: "Synapse Cloud is connected with Apple. Upload a backup when you’re ready.",
       };
     }
     const when = cloudStatus.lastSyncedAt
@@ -111,9 +135,37 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
       : null;
     return {
       title: "Cloud backup ready",
-      detail: when ? `Last uploaded ${when}.` : "A backup is stored with your Apple account.",
+      detail: when ? `Last uploaded ${when}.` : "A backup is stored with your Synapse account.",
     };
   }, [userId, cloudStatus]);
+
+  const activeStatus = useMemo(() => {
+    if (segment === "cloud" && userId && cloudStatusLabel) {
+      return {
+        eyebrow: "Cloud status",
+        title: cloudStatusLabel.title,
+        detail: cloudStatusLabel.detail,
+        reminder: null as string | null,
+      };
+    }
+    if (segment === "cloud" && !userId) {
+      return {
+        eyebrow: "Cloud status",
+        title: "Not signed in",
+        detail: "Sign in with Apple to use Synapse Cloud backup on this iPhone.",
+        reminder: null as string | null,
+      };
+    }
+    return {
+      eyebrow: "File backup status",
+      title: statusLabel.title,
+      detail: statusLabel.detail,
+      reminder:
+        statusLabel.kind === "none" || (statusLabel.kind === "confirmed" && statusLabel.stale)
+          ? "Consider saving a backup file so you can restore if you change phones."
+          : null,
+    };
+  }, [segment, userId, cloudStatusLabel, statusLabel]);
 
   const handleAppleSignIn = async () => {
     if (busy) return;
@@ -345,6 +397,13 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
     }
   };
 
+  const selectSegment = (next: BackupSegment) => {
+    if (next === segment) return;
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setSegment(next);
+    void Haptics.selectionAsync().catch(() => {});
+  };
+
   const topPad = isWide ? 28 : Platform.OS === "web" ? 40 : 8;
 
   return (
@@ -353,143 +412,161 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
         contentContainerStyle={[styles.content, { paddingTop: topPad, paddingBottom: insets.bottom + 120 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Backup & Restore</Text>
+        <Text style={styles.title} accessibilityRole="header">
+          Backup & Restore
+        </Text>
         <Text style={styles.subtitle}>
-          Your health information is stored on this device. Save a backup file so you can restore it if you lose, reset, or
-          replace your phone.
+          Keep a copy of your Synapse information so you can restore it later.
         </Text>
 
-        <View style={styles.statusCard}>
-          <Text style={styles.statusEyebrow}>Backup status</Text>
-          <Text style={styles.statusTitle}>{statusLabel.title}</Text>
-          <Text style={styles.statusDetail}>{statusLabel.detail}</Text>
-          {statusLabel.kind === "none" || (statusLabel.kind === "confirmed" && statusLabel.stale) ? (
-            <Text style={styles.statusReminder}>
-              Your health information is important. Consider saving a backup so you can restore it if you change phones.
-            </Text>
-          ) : null}
+        <View style={styles.statusCard} accessibilityRole="summary">
+          <Text style={styles.statusEyebrow}>{activeStatus.eyebrow}</Text>
+          <Text style={styles.statusTitle}>{activeStatus.title}</Text>
+          <Text style={styles.statusDetail}>{activeStatus.detail}</Text>
+          {activeStatus.reminder ? <Text style={styles.statusReminder}>{activeStatus.reminder}</Text> : null}
         </View>
 
-        <Text style={styles.sectionLabel}>Save Your Information</Text>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Create a Backup</Text>
-          <Text style={styles.rowBody}>
-            Save a copy of your medications, appointments, health records, and other Synapse information. Keep the file
-            somewhere safe, such as iCloud Drive.
-          </Text>
-          <Text style={styles.warning}>
-            Backup files are unencrypted JSON. Anyone who obtains the file may be able to read your health information.
-            Prefer a private folder you control.
-          </Text>
-          <Pressable
-            style={[styles.primaryBtn, busy && { opacity: 0.5 }]}
-            onPress={handleSaveBackup}
-            disabled={busy}
-            accessibilityRole="button"
-            accessibilityLabel="Save My Backup"
-          >
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save My Backup</Text>}
-          </Pressable>
-        </View>
-
-        <Text style={styles.sectionLabel}>Restore Your Information</Text>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Restore From a Backup</Text>
-          <Text style={styles.rowBody}>
-            Have a backup file from an earlier installation of Synapse? Select it to bring your saved information back.
-          </Text>
-          <Pressable
-            style={[styles.secondaryBtn, busy && { opacity: 0.5 }]}
-            onPress={handleRestore}
-            disabled={busy}
-            accessibilityRole="button"
-            accessibilityLabel="Restore My Data"
-          >
-            <Text style={styles.secondaryBtnText}>Restore My Data</Text>
-          </Pressable>
-        </View>
-
-        {(appleAvailable || userId) && Platform.OS === "ios" ? (
-          <>
-            <Text style={styles.sectionLabel}>Optional Cloud Backup</Text>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Sign in with Apple</Text>
-              <Text style={styles.rowBody}>
-                Use your Apple ID to upload a backup to Synapse cloud storage and restore it after a reinstall or on
-                another iPhone. Manual file backup above still works without an account.
-              </Text>
-              <Text style={styles.warning}>
-                Cloud backups are stored with your Synapse account (not end-to-end encrypted). Prefer Sign in with Apple
-                and treat this like any online copy of health information.
-              </Text>
-
-              {authLoading ? (
-                <ActivityIndicator color={C.tint} />
-              ) : userId ? (
-                <>
-                  {cloudStatusLabel ? (
-                    <View style={styles.cloudStatusBox}>
-                      <Text style={styles.cloudStatusTitle}>{cloudStatusLabel.title}</Text>
-                      <Text style={styles.rowBody}>{cloudStatusLabel.detail}</Text>
-                    </View>
-                  ) : null}
-                  <Pressable
-                    style={[styles.primaryBtn, busy && { opacity: 0.5 }]}
-                    onPress={handleCloudBackup}
-                    disabled={busy}
-                    accessibilityRole="button"
-                    accessibilityLabel="Upload cloud backup"
-                  >
-                    {busy ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.primaryBtnText}>
-                        {cloudStatus?.hasBackup ? "Update Cloud Backup" : "Upload Cloud Backup"}
-                      </Text>
-                    )}
-                  </Pressable>
-                  <Pressable
-                    style={[styles.secondaryBtn, busy && { opacity: 0.5 }]}
-                    onPress={handleCloudRestore}
-                    disabled={busy || !cloudStatus?.hasBackup}
-                    accessibilityRole="button"
-                    accessibilityLabel="Restore from cloud"
-                  >
-                    <Text
-                      style={[
-                        styles.secondaryBtnText,
-                        (!cloudStatus?.hasBackup || busy) && { opacity: 0.45 },
-                      ]}
-                    >
-                      Restore From Cloud
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.linkBtn, { marginBottom: 0 }]}
-                    onPress={handleSignOut}
-                    disabled={busy}
-                    accessibilityRole="button"
-                    accessibilityLabel="Sign out of Apple account"
-                  >
-                    <Text style={styles.linkText}>Sign Out</Text>
-                  </Pressable>
-                </>
-              ) : appleAvailable ? (
-                <AppleAuthentication.AppleAuthenticationButton
-                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                  buttonStyle={
-                    appleButtonDark
-                      ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
-                      : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
-                  }
-                  cornerRadius={14}
-                  style={styles.appleBtn}
-                  onPress={handleAppleSignIn}
-                />
-              ) : null}
-            </View>
-          </>
+        {cloudSectionAvailable ? (
+          <View style={styles.segment} accessibilityRole="tablist">
+            {(
+              [
+                { id: "cloud" as const, label: "Cloud Backup" },
+                { id: "file" as const, label: "Backup File" },
+              ] as const
+            ).map((tab) => {
+              const selected = segment === tab.id;
+              return (
+                <Pressable
+                  key={tab.id}
+                  style={[styles.segmentBtn, selected && styles.segmentBtnActive]}
+                  onPress={() => selectSegment(tab.id)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={tab.label}
+                >
+                  <Text style={[styles.segmentBtnText, selected && styles.segmentBtnTextActive]}>{tab.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         ) : null}
+
+        {segment === "cloud" && cloudSectionAvailable ? (
+          <View style={styles.card}>
+            {authLoading ? (
+              <ActivityIndicator color={C.tint} />
+            ) : userId ? (
+              <>
+                <View style={styles.connectedRow}>
+                  <View style={styles.connectedIcon}>
+                    <Ionicons name="cloud-done-outline" size={22} color={C.tint} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardTitle}>Synapse Cloud</Text>
+                    <Text style={styles.rowBody}>Connected with Apple</Text>
+                  </View>
+                </View>
+                <Text style={styles.note}>
+                  Cloud backups are stored with your Synapse account. They are not end-to-end encrypted. Treat this like
+                  any online copy of health information.
+                </Text>
+                <Pressable
+                  style={[styles.primaryBtn, busy && { opacity: 0.5 }]}
+                  onPress={handleCloudBackup}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Upload cloud backup"
+                >
+                  {busy ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.primaryBtnText}>
+                      {cloudStatus?.hasBackup ? "Update Cloud Backup" : "Upload Cloud Backup"}
+                    </Text>
+                  )}
+                </Pressable>
+                <Pressable
+                  style={[styles.secondaryBtn, busy && { opacity: 0.5 }]}
+                  onPress={handleCloudRestore}
+                  disabled={busy || !cloudStatus?.hasBackup}
+                  accessibilityRole="button"
+                  accessibilityLabel="Restore from cloud"
+                >
+                  <Text
+                    style={[styles.secondaryBtnText, (!cloudStatus?.hasBackup || busy) && { opacity: 0.45 }]}
+                  >
+                    Restore From Cloud
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={styles.linkBtn}
+                  onPress={handleSignOut}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sign out of Apple account"
+                >
+                  <Text style={styles.linkText}>Sign Out</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={styles.cardTitle}>Synapse Cloud</Text>
+                <Text style={styles.rowBody}>
+                  Sign in with Apple to upload a backup to Synapse cloud storage and restore it after a reinstall or on
+                  another iPhone.
+                </Text>
+                <Text style={styles.note}>
+                  Cloud backups are stored with your Synapse account. They are not end-to-end encrypted. Manual file
+                  backup still works without an account.
+                </Text>
+                {appleAvailable ? (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                    buttonStyle={
+                      appleButtonDark
+                        ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                        : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                    }
+                    cornerRadius={14}
+                    style={styles.appleBtn}
+                    onPress={handleAppleSignIn}
+                  />
+                ) : (
+                  <Text style={styles.rowBody}>Sign in with Apple isn’t available on this device.</Text>
+                )}
+              </>
+            )}
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Backup File</Text>
+            <Text style={styles.rowBody}>
+              Export a JSON file you control, or restore from a file you saved earlier. No account required.
+            </Text>
+            <Text style={styles.note}>
+              Backup files are unencrypted JSON. Anyone who obtains the file may be able to read your health information.
+              Prefer a private folder you control.
+            </Text>
+            <Pressable
+              style={[styles.primaryBtn, busy && { opacity: 0.5 }]}
+              onPress={handleSaveBackup}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Save My Backup"
+            >
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save My Backup</Text>}
+            </Pressable>
+            <Pressable
+              style={[styles.secondaryBtn, busy && { opacity: 0.5 }]}
+              onPress={handleRestore}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Restore My Data"
+            >
+              <Text style={styles.secondaryBtnText}>Restore My Data</Text>
+            </Pressable>
+          </View>
+        )}
 
         <Pressable
           style={styles.guideHeader}
@@ -499,32 +576,33 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
           }}
           accessibilityRole="button"
           accessibilityState={{ expanded: guideOpen }}
-          accessibilityLabel="How to keep your backup safe"
+          accessibilityLabel="How Backups Work"
         >
-          <Text style={styles.guideTitle}>How to keep your backup safe</Text>
+          <Text style={styles.guideTitle}>How Backups Work</Text>
           <Ionicons name={guideOpen ? "chevron-up" : "chevron-down"} size={18} color={C.textSecondary} />
         </Pressable>
         {guideOpen ? (
           <View style={styles.guideBody}>
-            <Text style={styles.guideStep}>1. Tap Save My Backup.</Text>
-            <Text style={styles.guideStep}>2. Choose Save to Files.</Text>
-            <Text style={styles.guideStep}>3. Select iCloud Drive or another secure location.</Text>
-            <Text style={styles.guideStep}>4. Tap Save.</Text>
-            <Text style={styles.guideStep}>5. Keep the backup file so you can restore it later.</Text>
-            <Text style={[styles.rowBody, { marginTop: 10 }]}>
-              Saving only to On My iPhone may not protect the file if this device is lost or reset.
+            <Text style={styles.guideStep}>File backup</Text>
+            <Text style={styles.rowBody}>
+              Tap Save My Backup, choose Save to Files, then pick iCloud Drive or another location you control. Saving
+              only to On My iPhone may not protect the file if this device is lost or reset.
             </Text>
-            <Text style={[styles.rowBody, { marginTop: 8 }]}>
-              iCloud Drive file storage is different from automatic Synapse iCloud backup.
+            <Text style={[styles.guideStep, { marginTop: 12 }]}>Cloud backup</Text>
+            <Text style={styles.rowBody}>
+              Optional Sign in with Apple uploads a copy to Synapse account storage. Restore after reinstall by signing
+              in with the same Apple ID. This is separate from saving a file to iCloud Drive, and from automatic iCloud
+              (CloudKit) backup.
+            </Text>
+            {!featureFlags.cloudKitBackupEnabled ? (
+              <Text style={[styles.rowBody, { marginTop: 12 }]}>
+                Automatic iCloud (CloudKit) backup is unavailable in this version.
+              </Text>
+            ) : null}
+            <Text style={[styles.rowBody, { marginTop: 12 }]}>
+              Restoring replaces information currently on this device. Changes made after the backup may be lost.
             </Text>
           </View>
-        ) : null}
-
-        {!featureFlags.cloudKitBackupEnabled ? (
-          <Text style={styles.footnote}>
-            Automatic iCloud (CloudKit) backup is unavailable. Manual file backup never requires sign-in. Optional Sign
-            in with Apple cloud backup uploads to Synapse account storage when you choose it.
-          </Text>
         ) : null}
 
         {onNavigate ? (
@@ -542,14 +620,14 @@ function makeStyles(C: Theme) {
     container: { flex: 1, backgroundColor: "transparent" },
     content: { paddingHorizontal: 20 },
     title: { fontWeight: "800", fontSize: 28, color: C.text, letterSpacing: -0.4, marginBottom: 4 },
-    subtitle: { fontWeight: "500", fontSize: 14, color: C.textSecondary, marginBottom: 18, lineHeight: 20 },
+    subtitle: { fontWeight: "500", fontSize: 15, color: C.textSecondary, marginBottom: 18, lineHeight: 21 },
     statusCard: {
       backgroundColor: C.surface,
       borderRadius: 16,
       padding: 16,
       borderWidth: 1,
       borderColor: C.border,
-      marginBottom: 18,
+      marginBottom: 16,
       gap: 6,
       ...raised("sm"),
     },
@@ -563,20 +641,37 @@ function makeStyles(C: Theme) {
     statusTitle: { fontWeight: "800", fontSize: 17, color: C.text, letterSpacing: -0.2 },
     statusDetail: { fontWeight: "500", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
     statusReminder: {
-      marginTop: 6,
+      marginTop: 4,
       fontWeight: "600",
       fontSize: 13,
       color: C.text,
       lineHeight: 18,
     },
-    sectionLabel: {
+    segment: {
+      flexDirection: "row",
+      backgroundColor: C.surfaceElevated,
+      borderRadius: 12,
+      padding: 4,
+      marginBottom: 16,
+      gap: 4,
+    },
+    segmentBtn: {
+      flex: 1,
+      alignItems: "center",
+      paddingVertical: 10,
+      borderRadius: 10,
+    },
+    segmentBtnActive: {
+      backgroundColor: C.surface,
+      ...raised("sm"),
+    },
+    segmentBtnText: {
       fontWeight: "700",
-      fontSize: 12,
-      color: C.textTertiary,
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
-      marginBottom: 8,
-      marginTop: 4,
+      fontSize: 14,
+      color: C.textSecondary,
+    },
+    segmentBtnTextActive: {
+      color: C.text,
     },
     card: {
       backgroundColor: C.surface,
@@ -589,15 +684,30 @@ function makeStyles(C: Theme) {
       ...raised("sm"),
     },
     cardTitle: { fontWeight: "800", fontSize: 17, color: C.text, letterSpacing: -0.2 },
-    rowBody: { fontWeight: "500", fontSize: 13, color: C.textSecondary, lineHeight: 18 },
-    warning: {
-      fontWeight: "600",
+    rowBody: { fontWeight: "500", fontSize: 14, color: C.textSecondary, lineHeight: 20 },
+    note: {
+      fontWeight: "500",
       fontSize: 13,
-      color: C.text,
-      lineHeight: 18,
-      backgroundColor: C.tintLight,
+      color: C.textSecondary,
+      lineHeight: 19,
+      backgroundColor: C.surfaceElevated,
       borderRadius: 12,
       padding: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    connectedRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    connectedIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: C.tintLight,
+      alignItems: "center",
+      justifyContent: "center",
     },
     primaryBtn: {
       minHeight: 48,
@@ -618,13 +728,6 @@ function makeStyles(C: Theme) {
     },
     secondaryBtnText: { fontWeight: "700", fontSize: 15, color: C.text },
     appleBtn: { width: "100%", height: 48 },
-    cloudStatusBox: {
-      borderRadius: 12,
-      padding: 12,
-      backgroundColor: C.tintLight,
-      gap: 4,
-    },
-    cloudStatusTitle: { fontWeight: "700", fontSize: 14, color: C.text },
     guideHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -640,17 +743,10 @@ function makeStyles(C: Theme) {
       borderColor: C.border,
       padding: 14,
       marginBottom: 16,
-      gap: 4,
+      gap: 6,
     },
-    guideStep: { fontWeight: "600", fontSize: 13, color: C.text, lineHeight: 20 },
-    footnote: {
-      fontWeight: "500",
-      fontSize: 12,
-      color: C.textTertiary,
-      lineHeight: 17,
-      marginBottom: 12,
-    },
-    linkBtn: { paddingVertical: 4, marginBottom: 8 },
+    guideStep: { fontWeight: "700", fontSize: 13, color: C.text, lineHeight: 18 },
+    linkBtn: { paddingVertical: 8, marginBottom: 4 },
     linkText: { fontWeight: "700", fontSize: 14, color: C.tint },
   });
 }
