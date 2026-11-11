@@ -8,9 +8,11 @@
  * - Never logs passphrase or DEK bytes.
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import {
   generateBackupDek,
+  setCloudKitRandomSource,
   type CloudKitWrappedDek,
   validatePassphraseConfirmation,
   wrapDek,
@@ -19,6 +21,9 @@ import {
   type PassphraseFailure,
 } from "@/lib/cloudkit-crypto";
 import { fromBase64Url, toBase64Url } from "@/lib/care/crypto";
+
+// React Native has no Web Crypto by default — wire expo-crypto like Care Connections.
+setCloudKitRandomSource((n) => Crypto.getRandomBytes(n));
 
 const DEK_SECURE_KEY = "synapse_cloudkit_dek_v1";
 const WRAP_ASYNC_KEY = "synapse_cloudkit_wrap_v1";
