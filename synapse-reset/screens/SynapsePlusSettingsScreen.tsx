@@ -1,11 +1,13 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +18,11 @@ import { usePlus } from "@/contexts/PlusContext";
 import { softCardSurface } from "@/constants/soft-card";
 import PlusBadge from "@/components/plus/PlusBadge";
 import PlusPromoCodeField from "@/components/plus/PlusPromoCodeField";
+import {
+  registerOwnerDeviceForPurchaseAlerts,
+  sendOwnerTestPurchaseAlert,
+} from "@/lib/owner-purchase-alerts";
+import { getSupabaseUrl } from "@/lib/supabase";
 
 type Props = {
   onNavigate?: (screen: string) => void;
@@ -37,6 +44,46 @@ export default function SynapsePlusSettingsScreen({ onNavigate }: Props) {
     lastPurchaseError,
     openLegalUrl,
   } = usePlus();
+  const [ownerToolsOpen, setOwnerToolsOpen] = useState(false);
+  const [ownerSecret, setOwnerSecret] = useState("");
+  const [ownerBusy, setOwnerBusy] = useState(false);
+
+  const ownerFunctionsBase = useMemo(() => {
+    const url = getSupabaseUrl() || process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || "";
+    return url ? `${url.replace(/\/$/, "")}/functions/v1` : "";
+  }, []);
+
+  const runOwnerAction = async (action: "register" | "test") => {
+    if (!ownerFunctionsBase) {
+      Alert.alert("Unavailable", "Supabase URL is not configured in this build.");
+      return;
+    }
+    setOwnerBusy(true);
+    try {
+      if (action === "register") {
+        await registerOwnerDeviceForPurchaseAlerts({
+          secret: ownerSecret,
+          label: "Owner iPhone",
+          supabaseFunctionsBaseUrl: ownerFunctionsBase,
+        });
+        setOwnerSecret("");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        Alert.alert("Registered", "This iPhone will receive Synapse Plus purchase alerts.");
+      } else {
+        const result = await sendOwnerTestPurchaseAlert({
+          secret: ownerSecret,
+          supabaseFunctionsBaseUrl: ownerFunctionsBase,
+        });
+        setOwnerSecret("");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        Alert.alert("Test sent", `Delivered to ${result.sent ?? 0} owner device(s).`);
+      }
+    } catch (e) {
+      Alert.alert("Couldn’t finish", e instanceof Error ? e.message : "Try again.");
+    } finally {
+      setOwnerBusy(false);
+    }
+  };
 
   const expiresLabel =
     entitlement.expiresAt &&
@@ -189,6 +236,65 @@ export default function SynapsePlusSettingsScreen({ onNavigate }: Props) {
         data is never erased when Plus access changes.
       </Text>
 
+      {Platform.OS === "ios" ? (
+        <View style={styles.card}>
+          <Pressable
+            onPress={() => setOwnerToolsOpen((open) => !open)}
+            accessibilityRole="button"
+            accessibilityLabel="Owner purchase alerts"
+          >
+            <Text style={styles.cardLabel}>Founder tools</Text>
+            <Text style={styles.cardValue}>Owner purchase alerts</Text>
+            <Text style={styles.cardFoot}>
+              Register this iPhone to get a private push when a real customer buys Synapse Plus. Uses your
+              server secret — never share it.
+            </Text>
+          </Pressable>
+          {ownerToolsOpen ? (
+            <View style={{ gap: 10, marginTop: 10 }}>
+              <TextInput
+                style={styles.secretInput}
+                value={ownerSecret}
+                onChangeText={setOwnerSecret}
+                placeholder="Owner alerts secret"
+                placeholderTextColor={C.textTertiary}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!ownerBusy}
+                accessibilityLabel="Owner alerts secret"
+              />
+              <Pressable
+                style={[styles.primary, ownerBusy && { opacity: 0.5 }]}
+                disabled={ownerBusy}
+                onPress={() => {
+                  void runOwnerAction("register");
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Register this iPhone"
+              >
+                {ownerBusy ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryText}>Register this iPhone</Text>
+                )}
+              </Pressable>
+              <Pressable
+                style={[styles.secondary, ownerBusy && { opacity: 0.5 }]}
+                disabled={ownerBusy}
+                onPress={() => {
+                  void runOwnerAction("test");
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Send test purchase alert"
+              >
+                <Text style={styles.secondaryText}>Send test notification</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
       {onNavigate ? (
         <Pressable onPress={() => onNavigate("accounthub")} accessibilityRole="button">
           <Text style={styles.backLink}>Back to You & Settings</Text>
@@ -264,6 +370,27 @@ function makeStyles(C: Theme) {
       marginBottom: 14,
     },
     primaryText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
+    secondary: {
+      backgroundColor: C.surfaceElevated,
+      borderRadius: 14,
+      minHeight: 48,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+    },
+    secondaryText: { color: C.text, fontSize: 15, fontWeight: "700" },
+    secretInput: {
+      minHeight: 46,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+      backgroundColor: C.surfaceElevated,
+      paddingHorizontal: 12,
+      color: C.text,
+      fontSize: 15,
+      fontWeight: "500",
+    },
     list: { gap: 8 },
     row: {
       flexDirection: "row",
