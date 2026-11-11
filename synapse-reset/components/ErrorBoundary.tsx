@@ -1,4 +1,5 @@
 import React, { Component, ComponentType, PropsWithChildren } from "react";
+import * as SplashScreen from "expo-splash-screen";
 import { ErrorFallback, ErrorFallbackProps } from "@/components/ErrorFallback";
 
 export type ErrorBoundaryProps = PropsWithChildren<{
@@ -29,6 +30,9 @@ export class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: { componentStack: string }): void {
+    // A startup throw used to leave the native leaf splash up, because
+    // hideAsync only ran from the root layout effect.
+    SplashScreen.hideAsync().catch(() => {});
     if (typeof this.props.onError === "function") {
       this.props.onError(error, info.componentStack);
     }

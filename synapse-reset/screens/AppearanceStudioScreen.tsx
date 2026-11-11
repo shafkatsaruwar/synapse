@@ -16,11 +16,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { isDarkAppearance, useTheme, type Theme, type ThemePreference } from "@/contexts/ThemeContext";
+import { useTheme, type Theme, type ThemePreference } from "@/contexts/ThemeContext";
 import { ACCENT_SWATCHES } from "@/lib/appearance/accents";
 import {
   ACCENT_TO_ICON,
   APP_ICON_OPTIONS,
+  MISSING_APP_ICON_VARIANTS,
   canChangeAppIcon,
   getCurrentAppIcon,
   setAppIcon,
@@ -57,7 +58,6 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
   const isWide = width >= 768;
   const {
     colors: C,
-    themeId,
     appearance,
     draftAppearance,
     beginAppearanceDraft,
@@ -76,11 +76,10 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
   const [busy, setBusy] = useState(false);
   const appliedRef = useRef(false);
   const iconsSupported = canChangeAppIcon();
-  const [savedIcon, setSavedIcon] = useState<AppIconId>("default");
-  const [pickedIcon, setPickedIcon] = useState<AppIconId>("default");
+  const [savedIcon, setSavedIcon] = useState<AppIconId>("ocean-light");
+  const [pickedIcon, setPickedIcon] = useState<AppIconId>("ocean-light");
   // Picking an accent also picks its matching icon, until you choose an icon yourself.
   const [matchIcon, setMatchIcon] = useState(true);
-  const isDarkSurface = isDarkAppearance(themeId);
 
   useEffect(() => {
     appliedRef.current = false;
@@ -127,13 +126,17 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
       if (iconsSupported && pickedIcon !== savedIcon) {
         try {
           await setAppIcon(pickedIcon);
+          const nativeIcon = await getCurrentAppIcon();
+          if (nativeIcon !== pickedIcon) throw new Error("iOS did not confirm the selected icon.");
+          setSavedIcon(nativeIcon);
           // Rebuild pending notifications so they carry a thumbnail of the new icon.
           const { refreshNotificationIcon } = await import("@/lib/notification-icon");
           await refreshNotificationIcon();
           const { syncAllFromSettings } = await import("@/lib/notification-manager");
           void syncAllFromSettings().catch(() => {});
         } catch {
-          Alert.alert("Couldn't change the app icon", "Your other appearance changes were saved. Try the icon again in a moment.");
+          Alert.alert("Couldn't change the app icon", "Your other appearance changes were saved. The previous icon is still active.");
+          return;
         }
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -251,7 +254,6 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
             <View style={styles.iconGrid}>
               {APP_ICON_OPTIONS.map((opt) => {
                 const selected = pickedIcon === opt.id;
-                const source = isDarkSurface && opt.dark ? opt.dark : opt.light;
                 return (
                   <Pressable
                     key={opt.id}
@@ -263,14 +265,21 @@ export default function AppearanceStudioScreen({ onBack }: AppearanceStudioScree
                     }}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
-                    accessibilityLabel={`${opt.label} app icon`}
+                    accessibilityLabel={`${opt.family} ${opt.variant} app icon${selected ? ", selected" : ""}`}
                   >
-                    <Image source={source} style={styles.iconImage} />
-                    <Text style={styles.iconLabel}>{opt.label}</Text>
+                    <Image source={opt.preview} style={styles.iconImage} />
+                    <Text style={styles.iconLabel}>{opt.family}</Text>
+                    <Text style={styles.iconVariant}>{opt.variant}</Text>
+                    {selected ? <Ionicons name="checkmark-circle" size={18} color={C.tint} /> : null}
                   </Pressable>
                 );
               })}
             </View>
+            {MISSING_APP_ICON_VARIANTS.length > 0 ? (
+              <Text style={[styles.rowBody, { marginTop: 8 }]}>
+                Available icon variants are shown below. Still needed before the full 16-icon set is complete: {MISSING_APP_ICON_VARIANTS.join(", ")}.
+              </Text>
+            ) : null}
             <View style={[styles.toggleRow, { borderBottomWidth: 0, marginTop: 4 }]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>Match icon to accent color</Text>
@@ -627,6 +636,7 @@ function makeStyles(C: Theme) {
     iconCardSelected: { borderColor: C.tint, backgroundColor: C.surface },
     iconImage: { width: 56, height: 56, borderRadius: 13 },
     iconLabel: { fontWeight: "600", fontSize: 11, color: C.text },
+    iconVariant: { fontWeight: "600", fontSize: 10, color: C.textTertiary },
     wallpaperRow: { gap: 10, paddingRight: 8 },
     wallpaperCard: {
       width: 84,

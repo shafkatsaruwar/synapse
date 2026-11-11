@@ -1,5 +1,6 @@
 import { story } from "@/lib/feature-content/content";
 import { pageMeta } from "@/lib/seo";
+import { KatanaPageView } from "@/components/ui/KatanaPageView";
 
 export const metadata = pageMeta({
   title: "Our Story",
@@ -10,6 +11,7 @@ export const metadata = pageMeta({
 export default function StoryPage() {
   return (
     <div className="page story-page">
+      <KatanaPageView path="/story" />
       <header className="page-hero">
         <p className="eyebrow">Our Story</p>
         <h1>Built so health admin can feel calm.</h1>

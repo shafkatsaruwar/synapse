@@ -9,20 +9,25 @@ import {
   useWindowDimensions,
   Animated,
   StatusBar,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { settingsStorage, healthProfileStorage, ALL_SECTION_KEYS, type AppMode } from "@/lib/storage-self";
-import { useTheme, type Theme } from "@/contexts/ThemeContext";
+import { useTheme, isDarkAppearance, type Theme } from "@/contexts/ThemeContext";
 import { useAppMode } from "@/contexts/AppModeContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { isAppleAuthAvailable } from "@/lib/apple-auth";
 import { recordMilestone } from "@/lib/product-milestones";
 import SynapseLogo from "@/components/SynapseLogo";
+import * as AppleAuthentication from "expo-apple-authentication";
 
-type OnboardingStepId = "welcome" | "name" | "firstAction";
+type OnboardingStepId = "welcome" | "backup" | "name" | "firstAction";
 
-const ONBOARDING_STEPS: OnboardingStepId[] = ["welcome", "name", "firstAction"];
+const ONBOARDING_STEPS: OnboardingStepId[] = ["welcome", "backup", "name", "firstAction"];
 
 export type OnboardingFirstAction = "medications" | "appointments" | "feeling" | "explore";
 
@@ -38,7 +43,7 @@ interface OnboardingScreenProps {
 }
 
 /**
- * Simplified first-run onboarding: Welcome → Name → First useful action.
+ * Simplified first-run onboarding: Welcome → optional Apple backup → name → First useful action.
  * Theme, app mode, modules, biometrics, and walkthrough are deferred to Settings / contextual tips.
  */
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
@@ -46,11 +51,15 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const { width } = useWindowDimensions();
   const { colors: previewColors, themeId } = useTheme();
   const { appMode, setAppMode } = useAppMode();
+  const { user, signInWithApple } = useAuth();
+  const appleButtonDark = isDarkAppearance(themeId);
 
   const [step, setStep] = useState(0);
   const slideX = useRef(new Animated.Value(0)).current;
   const [onboardingFirstName, setOnboardingFirstName] = useState("");
   const [finishing, setFinishing] = useState(false);
+  const [appleBusy, setAppleBusy] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom + 16;
@@ -58,6 +67,10 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const statusBarStyle = themeId === "dark" ? "light-content" : "dark-content";
   const stepId = ONBOARDING_STEPS[step];
   const slideCount = ONBOARDING_STEPS.length;
+
+  useEffect(() => {
+    void isAppleAuthAvailable().then(setAppleAvailable);
+  }, []);
 
   useEffect(() => {
     Animated.timing(slideX, {
@@ -78,6 +91,25 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     if (step > 0) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setStep((s) => s - 1);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    if (appleBusy || finishing) return;
+    setAppleBusy(true);
+    try {
+      const result = await signInWithApple();
+      if (result.canceled) return;
+      if (result.error) {
+        Alert.alert("Sign in failed", result.error.message);
+        return;
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      goNext();
+    } catch (e) {
+      Alert.alert("Sign in failed", e instanceof Error ? e.message : "Try again.");
+    } finally {
+      setAppleBusy(false);
     }
   };
 
@@ -170,9 +202,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
           <View style={styles.onboardingHeroBadge}>
             <Ionicons name="person-outline" size={28} color="#fff" />
           </View>
-          <Text style={styles.setupTitle}>What should we call you?</Text>
+          <Text style={styles.setupTitle}>What would you like to be called?</Text>
           <Text style={styles.setupSub}>
-            Just a first name is enough. Everything else is optional and can wait.
+            Just a first name is enough. This stays the same whether you signed in with Apple or tapped Not now.
           </Text>
           <View style={styles.formFieldCard}>
             <Text style={styles.formFieldLabel}>Preferred name (optional)</Text>
@@ -187,6 +219,64 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
               accessibilityLabel="Preferred name, optional"
             />
           </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+
+  const renderBackup = () => (
+    <View style={[styles.slide, { width: slideWidth, paddingHorizontal: paddingH }]}>
+      <ScrollView
+        style={styles.onboardingScroll}
+        contentContainerStyle={styles.onboardingScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.onboardingPanel}>
+          <View style={styles.onboardingHeroBadge}>
+            <Ionicons name="cloud-upload-outline" size={28} color="#fff" />
+          </View>
+          <Text style={styles.setupTitle}>Back up your information</Text>
+          <Text style={styles.setupSub}>
+            This is optional. Not now skips sign-in. Either way, the next step asks what you’d like to be called. You
+            can sign in with Apple later from Backup & Restore. Signing in saves a copy to Synapse’s cloud so you can
+            restore it on another phone.
+          </Text>
+          {user ? (
+            <View style={styles.localCard}>
+              <Ionicons name="checkmark-circle-outline" size={20} color={previewColors.tint} />
+              <Text style={styles.localCardText}>You’re signed in. Your information can be backed up.</Text>
+            </View>
+          ) : Platform.OS === "ios" ? (
+            <View style={styles.appleWrap}>
+              {appleBusy ? (
+                <ActivityIndicator color={previewColors.tint} />
+              ) : (
+                <AppleAuthentication.AppleAuthenticationButton
+                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                  buttonStyle={
+                    appleButtonDark
+                      ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                      : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                  }
+                  cornerRadius={14}
+                  style={styles.appleBtn}
+                  onPress={() => void handleAppleSignIn()}
+                />
+              )}
+              {!appleAvailable ? (
+                <Text style={styles.appleHint}>
+                  If the button doesn’t open, sign in to this iPhone in Settings, then try again. You can also skip this.
+                </Text>
+              ) : null}
+            </View>
+          ) : (
+            <View style={styles.localCard}>
+              <Ionicons name="phone-portrait-outline" size={20} color={previewColors.tint} />
+              <Text style={styles.localCardText}>
+                Sign in with Apple is available on iPhone. You can skip this and back up later.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -272,6 +362,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         return renderWelcome();
       case "name":
         return renderName();
+      case "backup":
+        return renderBackup();
       case "firstAction":
         return renderFirstAction();
       default:
@@ -328,9 +420,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
             style={styles.continueBtn}
             onPress={goNext}
             accessibilityRole="button"
-            accessibilityLabel="Continue"
+            accessibilityLabel={stepId === "backup" && !user ? "Not now" : "Continue"}
           >
-            <Text style={styles.continueBtnText}>Continue</Text>
+            <Text style={styles.continueBtnText}>{stepId === "backup" && !user ? "Not now" : "Continue"}</Text>
             <Ionicons name="arrow-forward" size={18} color="#fff" />
           </Pressable>
         ) : null}
@@ -457,6 +549,14 @@ function makeStyles(C: Theme) {
       fontSize: 14,
       color: C.textSecondary,
       marginBottom: 10,
+    },
+    appleWrap: { width: "100%", maxWidth: 360, gap: 12, alignItems: "center" },
+    appleBtn: { width: "100%", height: 48 },
+    appleHint: {
+      fontSize: 13,
+      lineHeight: 18,
+      textAlign: "center",
+      color: C.textTertiary,
     },
     nameInput: {
       fontWeight: "500",

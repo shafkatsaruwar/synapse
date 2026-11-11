@@ -25,6 +25,8 @@ type AuthContextValue = {
   signUp: (email: string, password: string, metadata?: { first_name?: string; last_name?: string }) => Promise<{ error: Error | null }>;
   /** Native Sign in with Apple (iOS) → Supabase session for optional cloud backup. */
   signInWithApple: () => Promise<{ error: Error | null; canceled?: boolean }>;
+  /** Permanently remove the signed-in account and its optional cloud data. */
+  deleteAccount: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
 };
@@ -235,6 +237,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const deleteAccount = useCallback(async (): Promise<{ error: Error | null }> => {
+    try {
+      const supabase = getSupabase();
+      if (!supabase || !user) return { error: new Error("No account is signed in.") };
+
+      const { error } = await supabase.functions.invoke("delete-account");
+      if (error) {
+        await auditLogger.log("AUTH", "user", "failure", {
+          errorMessage: "Account deletion failed",
+        });
+        return { error: new Error(error.message || "Account deletion failed") };
+      }
+
+      await auditLogger.log("AUTH", "user", "success", {
+        details: "Account deleted",
+      });
+      return { error: null };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      await auditLogger.log("AUTH", "user", "failure", {
+        errorMessage: "Account deletion failed",
+      });
+      return { error: err };
+    }
+  }, [user]);
+
   const resetPassword = useCallback(
     async (email: string): Promise<{ error: Error | null }> => {
       try {
@@ -295,6 +323,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signIn,
     signUp,
     signInWithApple,
+    deleteAccount,
     signOut,
     resetPassword,
   };

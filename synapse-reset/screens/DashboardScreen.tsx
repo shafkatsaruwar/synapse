@@ -18,6 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { isDarkAppearance, isEvergreenTheme, useTheme, type Theme } from "@/contexts/ThemeContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useModeAwareScreen } from "@/contexts/AppModeContext";
 import { useDisplaySettings } from "@/contexts/DisplaySettingsContext";
 import GlassView from "@/components/GlassView";
@@ -500,6 +501,7 @@ const priorityIconWrapStyle = {
 const priorityLabelStyle = { fontWeight: "800" as const, fontSize: 12, color: "#fff", flex: 1 };
 
 export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardScreenProps) {
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { colors: C, themeId } = useTheme();
@@ -545,6 +547,9 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
   const [loaded, setLoaded] = useState(false);
   const [showRecoverySetup, setShowRecoverySetup] = useState(false);
   const [recoveryFocusInput, setRecoveryFocusInput] = useState("");
+  const [preferredNameDraft, setPreferredNameDraft] = useState("");
+  const [savingPreferredName, setSavingPreferredName] = useState(false);
+  const [hidePreferredNamePrompt, setHidePreferredNamePrompt] = useState(false);
 
   const loadData = useCallback(async () => {
     const [logsData, meds, ml, apts, fl, sett, profileInfo, symptomsData, vitalsData, hydrationData] = await Promise.all([
@@ -1336,6 +1341,20 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
     ? "Checked in today"
     : "A moment to check in";
 
+  const savePreferredName = async () => {
+    const firstName = preferredNameDraft.trim();
+    if (!firstName || savingPreferredName) return;
+    setSavingPreferredName(true);
+    try {
+      const nextSettings = { ...settings, firstName, name: firstName };
+      await settingsStorage.save(nextSettings);
+      setSettings(nextSettings);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } finally {
+      setSavingPreferredName(false);
+    }
+  };
+
   const cardStackPadding = isWide ? 0 : 16;
   const dualColumn = width >= 360;
 
@@ -1363,6 +1382,48 @@ export default function DashboardScreen({ onNavigate, onRefreshKey }: DashboardS
           <Ionicons name="person-outline" size={22} color={C.textSecondary} />
         </Pressable>
       </View>
+
+      {user && !displayFirstName && !hidePreferredNamePrompt ? (
+        <View style={styles.quietCard}>
+          <Text style={styles.quietCardTitle}>What would you like to be called?</Text>
+          <Text style={styles.quietCardBody}>
+            Signing in does not replace this. A first name is enough, and you can change it later.
+          </Text>
+          <TextInput
+            style={styles.preferredNameInput}
+            placeholder="e.g. Sam"
+            placeholderTextColor={C.textTertiary}
+            value={preferredNameDraft}
+            onChangeText={setPreferredNameDraft}
+            autoCapitalize="words"
+            returnKeyType="done"
+            onSubmitEditing={() => void savePreferredName()}
+            accessibilityLabel="Preferred name"
+          />
+          <View style={styles.preferredNameActions}>
+            <Pressable
+              onPress={() => setHidePreferredNamePrompt(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Not now"
+            >
+              <Text style={styles.preferredNameLater}>Not now</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.viewPill, pressed && { opacity: 0.88 }, !preferredNameDraft.trim() && { opacity: 0.45 }]}
+              onPress={() => void savePreferredName()}
+              disabled={!preferredNameDraft.trim() || savingPreferredName}
+              accessibilityRole="button"
+              accessibilityLabel="Save preferred name"
+            >
+              {savingPreferredName ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.viewPillText}>Save</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
 
       {/* Medications — reference card with UP NEXT + View */}
       <View ref={refMed} collapsable={false} style={solidCard(styles.medHeroCard)}>
@@ -2009,6 +2070,27 @@ function makeStyles(C: Theme, textScale: number, themeId: import("@/contexts/The
       color: C.textSecondary,
       lineHeight: 22,
       marginTop: 2,
+    },
+    preferredNameInput: {
+      marginTop: 12,
+      minHeight: 48,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      backgroundColor: C.background,
+      color: C.text,
+      fontSize: 17,
+      fontWeight: "600",
+    },
+    preferredNameActions: {
+      marginTop: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    preferredNameLater: {
+      color: C.textSecondary,
+      fontSize: 15,
+      fontWeight: "600",
     },
     profileFab: {
       width: 44,

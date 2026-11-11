@@ -555,6 +555,18 @@ export interface UserSettings {
   medicationEnforcementEnabled?: boolean;
 }
 
+export interface MedicationEnforcerConfig {
+  medicationId: string;
+  enabled: boolean;
+  mode: "strict";
+  escalationOffsetsMin: number[];
+  allowSnooze: boolean;
+  maxSnoozes: number;
+  showMedicationNameOnLockScreen: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 const BASE_KEYS = {
   HEALTH_LOGS: "fir_health_logs",
   SYMPTOMS: "fir_symptoms",
@@ -588,6 +600,7 @@ const BASE_KEYS = {
   USER_ROLE: "fir_user_role",
   CAREGIVER_PROFILE: "fir_caregiver_profile",
   MED_ENFORCEMENT: "fir_med_enforcement_events",
+  MED_ENFORCEMENT_CONFIG: "fir_med_enforcement_configs",
 };
 
 /** App-level keys that are never namespaced per care profile. */
@@ -954,6 +967,43 @@ function createStores(KEYS: KeyMap, profileId: string) {
     delete: async (id: string) => {
       const all = await getItem<MedicationEnforcementEvent>(KEYS.MED_ENFORCEMENT);
       await setItem(KEYS.MED_ENFORCEMENT, all.filter((event) => event.id !== id));
+    },
+  };
+
+  const medicationEnforcerConfigStorage = {
+    getAll: () => getItem<MedicationEnforcerConfig>(KEYS.MED_ENFORCEMENT_CONFIG),
+    getByMedicationId: async (medicationId: string) => {
+      const all = await getItem<MedicationEnforcerConfig>(KEYS.MED_ENFORCEMENT_CONFIG);
+      return all.find((config) => config.medicationId === medicationId) ?? null;
+    },
+    upsert: async (config: MedicationEnforcerConfig) => {
+      const all = await getItem<MedicationEnforcerConfig>(KEYS.MED_ENFORCEMENT_CONFIG);
+      const index = all.findIndex((existing) => existing.medicationId === config.medicationId);
+      if (index >= 0) all[index] = config;
+      else all.push(config);
+      await setItem(KEYS.MED_ENFORCEMENT_CONFIG, all);
+      return config;
+    },
+    setEnabled: async (medicationId: string, enabled: boolean) => {
+      const now = new Date().toISOString();
+      const existing = await medicationEnforcerConfigStorage.getByMedicationId(medicationId);
+      return medicationEnforcerConfigStorage.upsert({
+        medicationId,
+        enabled,
+        mode: "strict",
+        escalationOffsetsMin: [5, 10, 15],
+        allowSnooze: true,
+        maxSnoozes: 3,
+        showMedicationNameOnLockScreen: false,
+        createdAt: now,
+        ...(existing ?? {}),
+        enabled,
+        updatedAt: now,
+      } as MedicationEnforcerConfig);
+    },
+    deleteByMedicationId: async (medicationId: string) => {
+      const all = await getItem<MedicationEnforcerConfig>(KEYS.MED_ENFORCEMENT_CONFIG);
+      await setItem(KEYS.MED_ENFORCEMENT_CONFIG, all.filter((config) => config.medicationId !== medicationId));
     },
   };
 
@@ -1968,6 +2018,7 @@ function createStores(KEYS: KeyMap, profileId: string) {
     medicationStorage,
     medicationLogStorage,
     medicationEnforcementStorage,
+    medicationEnforcerConfigStorage,
     doctorsStorage,
     pharmacyStorage,
     appointmentStorage,
@@ -2046,6 +2097,7 @@ export const feedbackStorage = selfStores.feedbackStorage;
 export const medicationStorage = activeProxy("medicationStorage");
 export const medicationLogStorage = activeProxy("medicationLogStorage");
 export const medicationEnforcementStorage = activeProxy("medicationEnforcementStorage");
+export const medicationEnforcerConfigStorage = activeProxy("medicationEnforcerConfigStorage");
 export const doctorsStorage = activeProxy("doctorsStorage");
 export const pharmacyStorage = activeProxy("pharmacyStorage");
 export const appointmentStorage = activeProxy("appointmentStorage");
@@ -2276,6 +2328,7 @@ const EXTRA_CLEAR_KEYS = [
   "synapse_appearance_saved_looks_v1",
   "app_theme",
   "synapse_brand_notification_icon_cleared_build",
+  "fir_backup_last_sync",
 ] as const;
 
 export const clearAllData = async () => {

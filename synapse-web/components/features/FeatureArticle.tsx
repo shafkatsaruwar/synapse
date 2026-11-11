@@ -5,11 +5,13 @@ import { PhoneFrame } from "@/components/product/PhoneFrame";
 import { ScreenFor } from "@/components/product/screens";
 import { AppStoreLink } from "@/components/ui/AppStoreLink";
 import { TrackView } from "@/components/ui/TrackView";
+import { KatanaPageView } from "@/components/ui/KatanaPageView";
 
 export function FeatureArticle({ feature }: { feature: FeatureContent }) {
   const related = features.filter((item) => item.slug !== feature.slug).slice(0, 3);
   return (
     <article className="feature" data-layout={feature.layout} data-slug={feature.slug}>
+      <KatanaPageView path={`/features/${feature.slug}`} />
       <TrackView event="feature_visit" id={feature.slug} />
       <header className="feature-hero">
         <div>

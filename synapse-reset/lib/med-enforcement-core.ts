@@ -71,7 +71,7 @@ export function doseEventId(medicationId: string, doseIndex: number, date: strin
   return `${medicationId}:${doseIndex}:${date}`;
 }
 
-const ENFORCE_PREFIX = "med-enforce";
+const ENFORCE_PREFIX = "med-enforcer";
 
 /** Deterministic notification id prefix for one dose event (used for cancel-by-event). */
 export function enforcementNotificationPrefix(eventId: string): string {
@@ -246,25 +246,15 @@ function isUnresolved(status: EnforcementStatus): boolean {
 }
 
 /**
- * Finalize stale unresolved events as MISSED using a neutral administrative
- * boundary: the scheduled date is in the past (date rollover). This is NOT a
- * medical judgment and must never change medicationLogStorage adherence math —
- * it only annotates enforcement metadata.
+ * Past unanswered doses stay unresolved. Silence is not proof the dose was missed,
+ * so this does not write a resolution. Kept so older call sites can still ask.
  */
 export function finalizeStaleAsMissed(
   events: readonly MedicationEnforcementEvent[],
-  todayDateStr: string,
-  nowMs: number,
+  _todayDateStr: string,
+  _nowMs: number,
 ): { events: MedicationEnforcementEvent[]; changedIds: string[] } {
-  const changedIds: string[] = [];
-  const next = events.map((event) => {
-    if (event.date < todayDateStr && isUnresolved(event.status)) {
-      changedIds.push(event.id);
-      return applyResolution(event, "MISSED", nowMs);
-    }
-    return event;
-  });
-  return { events: next, changedIds };
+  return { events: events.map((event) => event), changedIds: [] };
 }
 
 export type EnforcementMetrics = {

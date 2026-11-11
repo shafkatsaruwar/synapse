@@ -12,14 +12,15 @@
  * to avoid a require cycle.
  */
 import { featureFlags } from "@/constants/feature-flags";
+import { getSupabase } from "@/lib/supabase";
 import { DEFAULT_ESCALATION_OFFSETS_MIN, DEFAULT_ENFORCEMENT_SNOOZE_MIN } from "@/constants/med-enforcement-copy";
 import { getDaysAgo, getToday } from "@/lib/date-utils";
 import {
   medicationEnforcementStorage,
+  medicationEnforcerConfigStorage,
   medicationLogStorage,
   medicationStorage,
   normalizeMedication,
-  settingsStorage,
   type Medication,
 } from "@/lib/storage-self";
 import {
@@ -30,7 +31,7 @@ import {
   computeEnforcementMetrics,
   createEnforcementEvent,
   doseEventId,
-  finalizeStaleAsMissed,
+  enforcementNotificationPrefix,
   localDateKey,
   nextDailyOccurrenceMs,
   selectOccurrencesWithinBudget,
@@ -54,12 +55,30 @@ import {
  */
 export async function isMedicationEnforcementActive(): Promise<boolean> {
   if (!featureFlags.medicationEnforcementEnabled) return false;
+  // Fail closed: the private entitlement must be granted server-side. A local
+  // toggle is never sufficient to expose this owner-only feature.
+  const supabase = getSupabase();
+  if (!supabase) return false;
   try {
-    const settings = await settingsStorage.get();
-    return settings.medicationEnforcementEnabled === true;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) return false;
+    // Medication Enforcer is restricted to the owner's Apple-authenticated
+    // account. Never fall back to email, display name, or a client-side owner
+    // identifier; those are not sufficient authorization signals.
+    const provider = user.app_metadata?.provider;
+    const providers = user.app_metadata?.providers;
+    const isAppleAuthenticated = provider === "apple" || (Array.isArray(providers) && providers.includes("apple"));
+    if (!isAppleAuthenticated) return false;
+    const { data, error } = await supabase
+      .from("medication_enforcer_entitlements")
+      .select("enabled")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error || data?.enabled !== true) return false;
   } catch {
     return false;
   }
+  return true;
 }
 
 function doseTime(med: Medication, doseIndex: number): { hour: number; minute: number } {
@@ -116,21 +135,19 @@ export async function reconcileEnforcement(options?: { medicationNotificationsEn
   }
 
   const now = Date.now();
-  const today = getToday();
 
-  // 1) Administrative finalize: past-date unresolved events become MISSED.
+  // An unanswered reminder is not a missed dose. Leave those events unresolved.
   const existing = await loadEvents();
-  const { events: afterFinalize, changedIds } = finalizeStaleAsMissed(existing, today, now);
-  if (changedIds.length > 0) {
-    await medicationEnforcementStorage.setAll(afterFinalize);
-  }
-  const byId = new Map(afterFinalize.map((event) => [event.id, event]));
+  const byId = new Map(existing.map((event) => [event.id, event]));
 
   // 2) Build candidate occurrences for the nearest upcoming daily doses.
   const meds = await medicationStorage.getAll();
+  const configs = await medicationEnforcerConfigStorage.getAll();
+  const enabledMedicationIds = new Set(configs.filter((config) => config.enabled).map((config) => config.medicationId));
   const candidates: OccurrenceCandidate[] = [];
   for (const med of meds) {
-    if (!med.active || !isDailyCadenceMed(med)) continue;
+    // Selection is explicitly opt-in per medication. Missing config means off.
+    if (!med.active || !enabledMedicationIds.has(med.id) || !isDailyCadenceMed(med)) continue;
     const normalized = normalizeMedication(med);
     const doseCount = Math.max(1, normalized.doses?.length ?? 1);
     for (let doseIndex = 0; doseIndex < doseCount; doseIndex++) {
@@ -172,7 +189,10 @@ export async function reconcileEnforcement(options?: { medicationNotificationsEn
       await medicationEnforcementStorage.upsert(event);
       continue;
     }
-    const plan = buildEscalationPlan(id, candidate.scheduledAtMs, now, DEFAULT_ESCALATION_OFFSETS_MIN);
+    const plan = [
+      { id: `${enforcementNotificationPrefix(id)}:initial`, fireAtMs: candidate.scheduledAtMs, level: 0 },
+      ...buildEscalationPlan(id, candidate.scheduledAtMs, now, DEFAULT_ESCALATION_OFFSETS_MIN),
+    ].filter((item) => item.fireAtMs > now);
     const updated: MedicationEnforcementEvent = {
       ...event,
       firstNotifiedAt: event.firstNotifiedAt ?? new Date(now).toISOString(),
@@ -180,12 +200,14 @@ export async function reconcileEnforcement(options?: { medicationNotificationsEn
     };
     await medicationEnforcementStorage.upsert(updated);
     if (plan.length > 0) {
+      const config = configs.find((item) => item.medicationId === candidate.medicationId);
       await scheduleEnforcementNotificationsForPlan(plan, {
         doseEventId: id,
         medicationId: candidate.medicationId,
         doseIndex: candidate.doseIndex,
         medicationName: candidate.medicationName,
         dosage: candidate.dosage,
+        showMedicationName: config?.showMedicationNameOnLockScreen === true,
       });
     }
     // Keep only the freshest selected occurrences tracked as "active" ladders.
@@ -262,6 +284,9 @@ export async function snoozeDoseEvent(
   options?: { medicationId?: string; doseIndex?: number; medicationName?: string; dosage?: string },
 ): Promise<MedicationEnforcementEvent> {
   const event = await ensureEvent(eventId, options);
+  const configs = await medicationEnforcerConfigStorage.getAll();
+  const maxSnoozes = configs.find((config) => config.medicationId === event.medicationId)?.maxSnoozes ?? 3;
+  if (event.snoozeCount >= maxSnoozes) return event;
   const now = Date.now();
   const { event: snoozed, snoozeIndex, snoozeFireAtMs } = applySnooze(event, now, snoozeMinutes);
   await medicationEnforcementStorage.upsert(snoozed);

@@ -6,7 +6,7 @@ export const featureFlags = {
    * setting (`UserSettings.medicationEnforcementEnabled`) are true. This flag is
    * intentionally private — there is no public settings/marketing surface for it.
    */
-  medicationEnforcementEnabled: false,
+  medicationEnforcementEnabled: true,
   /**
    * Private CloudKit (iCloud) encrypted backup.
    * Enabled after CloudKit Production UserData schema deploy.

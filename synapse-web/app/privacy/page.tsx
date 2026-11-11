@@ -1,4 +1,5 @@
 import { pageMeta } from "@/lib/seo";
+import { KatanaPageView } from "@/components/ui/KatanaPageView";
 
 export const metadata = pageMeta({
   title: "Privacy Policy",
@@ -311,6 +312,7 @@ function renderBlock(block: Block, key: string) {
 export default function PrivacyPage() {
   return (
     <div className="page prose">
+      <KatanaPageView path="/privacy" />
       <header className="page-hero">
         <p className="eyebrow">Privacy</p>
         <h1>Privacy Policy</h1>

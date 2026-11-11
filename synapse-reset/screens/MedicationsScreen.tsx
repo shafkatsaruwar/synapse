@@ -13,7 +13,7 @@ import { getSickModePalette, type SickModePalette } from "@/constants/sick-mode-
 import * as Crypto from "expo-crypto";
 import * as ImagePicker from "expo-image-picker";
 import {
-  medicationStorage, medicationLogStorage, settingsStorage, sickModeStorage, doctorsStorage, pharmacyStorage, healthProfileStorage, normalizeMedication,
+  medicationStorage, medicationLogStorage, medicationEnforcerConfigStorage, settingsStorage, sickModeStorage, doctorsStorage, pharmacyStorage, healthProfileStorage, normalizeMedication,
   type Medication, type MedicationDose, type MedicationLog, type UserSettings, type SickModeData, type Doctor, type Pharmacy, type HealthProfileInfo, type RecordOwner,
 } from "@/lib/storage";
 import { getMedList, addMedListItem, removeMedListItem, updateMedListItem, type MedListItem, type MedListDose, type MedListDoseTime } from "@/lib/med-list-storage";
@@ -1094,6 +1094,10 @@ export default function MedicationsScreen({ simpleOpenAddToken, simpleOpenAddOwn
           await cancelMedicationReminders(med.id).catch(() => {});
           await medicationStorage.delete(med.id);
           await medicationLogStorage.deleteByMedicationId(med.id);
+          // Enforcement history is intentionally retained by default, but its
+          // per-medication configuration must not keep a deleted medication
+          // eligible for future scheduling.
+          await medicationEnforcerConfigStorage.deleteByMedicationId(med.id);
           await syncAllFromSettings();
           await syncWidgetSnapshot().catch(() => {});
           loadData();

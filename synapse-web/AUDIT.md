@@ -22,9 +22,9 @@ No edits under `synapse-reset/ios`, `synapse-reset/android`, `synapse-reset/app`
 | Need | Where it actually lives |
 | --- | --- |
 | App Store | https://apps.apple.com/us/app/synapse-health-companion/id6759972036 — also `synapse-reset/eas.json` `ascAppId` `6759972036` and the root README |
-| Privacy policy URL | None in the repo. The product statement is the in-app `PrivacyScreen` (`synapse-reset/screens/PrivacyScreen.tsx`). Engineering notes are `synapse-reset/SECURITY.md`. `/privacy` restates those, and says so. |
-| Terms | None in the repo or the app. `/terms` says that and links the App Store listing and `/privacy`. It does not invent terms. |
-| Support email | None. `FeedbackScreen` writes to on-device `feedbackStorage`. `/support` says that and links the App Store. |
+| Privacy policy URL | `/privacy` and the in-app `PrivacyScreen` both link to the published policy. |
+| Terms | `/terms` contains the public terms, purchase, deletion, and medical-disclaimer language and is linked from the paywall. |
+| Support email | `/support` publishes `mohammedshafkatsaruwar@gmail.com`; in-app support links use the same public route. |
 | Analytics | The app stores a few on-device milestones (`synapse-reset/docs/RETENTION_MEASUREMENT.md`) and does not ship a third-party SDK. This site’s `lib/analytics.ts` sends nothing unless `NEXT_PUBLIC_ANALYTICS_ENDPOINT` is set and the visitor has granted consent. No health fields. |
 
 ## Feature claims that were checked
