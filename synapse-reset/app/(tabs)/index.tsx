@@ -115,19 +115,20 @@ import { syncWidgetSnapshot } from "@/lib/widget-sync";
 import { getPendingIcsImport, type IcsImportPayload } from "@/lib/ics-import";
 import { processPendingAppIntentActions } from "@/lib/app-intents";
 
-const WHATS_NEW_TITLE = "Faster adds, smarter visits, cleaner care.";
+/** Bump when What’s New copy changes so returning users see the new card once. */
+const WHATS_NEW_ID = "1.17-plus-backup-doses";
+const WHATS_NEW_TITLE = "Plus options, quicker doses, safer backups.";
 const WHATS_NEW_BODY =
-  "This update makes it easier to add health info, prep for appointments, and find the support details that actually belong with each workflow.";
+  "This update helps you unlock deeper tracking when you want it, clear today’s doses faster, and keep a copy of your Synapse information.";
 const WHATS_NEW_BULLETS = [
-  "Quick Add is now a centered + in the tab bar — tap for Scan, Medication, Appointment, Symptom, or More",
-  "Apple Calendar import now prioritizes relevant appointments so visits are easier to find",
-  "Appointments can show travel guidance based on your approximate current area",
-  "Appointment cards now offer clear Edit, Reschedule, and Cancel actions",
-  "Doctors belong with Appointments, and Pharmacies belong with Medications",
-  "Widgets now show more useful medication times and appointment details",
+  "Synapse Plus unlocks How I’m Feeling, Health Records, Wellbeing, Check-In, and Care & Support — medications and appointments stay free",
+  "Mark due doses as taken in one tap from Today’s doses",
+  "Backup & Restore is clearer: save a file you control, optional Sign in with Apple cloud backup, or automatic encrypted iCloud backup",
+  "Emergency Card now asks for age instead of date of birth, with a cleaner header and meds note",
+  "Backup status and restore confirmation live under You & Settings whenever you need them",
 ] as const;
 const WHATS_NEW_FOOTER =
-  "Try the new flows from the plus button, Appointments, Medications, or You & Settings whenever you want a refresher.";
+  "Explore Synapse Plus, Medications, or Backup & Restore under You whenever you’re ready.";
 
 const SIMPLE_TOUR_GAP = 14;
 const SIMPLE_TOUR_ARROW_SIZE = 11;
@@ -827,7 +828,7 @@ export default function MainScreen() {
   const NOTIFICATION_ASKED_KEY = "notification_permission_asked";
   const appVersion = Constants.expoConfig?.version ?? "dev";
   const appBuild = Constants.expoConfig?.ios?.buildNumber ?? "dev";
-  const WHATS_NEW_SEEN_KEY = `whats_new_seen_${appVersion}_${appBuild}`;
+  const WHATS_NEW_SEEN_KEY = `whats_new_seen_${WHATS_NEW_ID}`;
   const FEEDBACK_VERSION_KEY = `${appVersion}_${appBuild}`;
 
   useEffect(() => {
