@@ -10,7 +10,7 @@ Synapse stays **local-first**. Manual Backup & Restore (JSON file) never require
 2. Native Apple sheet → identity token → Supabase `signInWithIdToken` (`provider: "apple"`).
 3. Signed-in users can **Upload Cloud Backup** / **Restore From Cloud** via the existing `user_backups` table.
 
-This is **not** automatic iCloud / CloudKit backup (`cloudKitBackupEnabled` remains off). CloudKit and SIWA cloud backup are separate.
+This is **not** automatic iCloud / CloudKit backup (`cloudKitBackupEnabled` remains off until Production schema + recovery checks; see `docs/ICLOUD_BACKUP.md`). CloudKit and SIWA cloud backup are separate.
 
 ## Can Apple sign-in power backups?
 
