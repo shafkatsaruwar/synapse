@@ -11,7 +11,7 @@ This document describes the **actual** security posture so engineers and operato
 | Path | Reality |
 |------|---------|
 | Default health logs | Stored on-device (AsyncStorage / local persistence). Not marketed as AES-256 encrypted. |
-| Optional iCloud / CloudKit | User-initiated or settings-driven backup to the user’s Apple iCloud container when enabled. |
+| Optional iCloud / CloudKit | Encrypted AES-256-GCM private-CloudKit backups with passphrase-wrapped DEK recovery when enabled (`cloudKitBackupEnabled`). See `docs/ICLOUD_BACKUP.md`. Flag stays off until Production schema deploy. |
 | Optional Supabase | Used for auth/sync features when configured; RLS must never be `USING (true)`. |
 | Optional AI (document scan / insights) | Sends user-selected health data to the Synapse API → third-party AI provider. Requires `API_SHARED_SECRET`. |
 | Export / Share | Unencrypted JSON the user chooses to share. |

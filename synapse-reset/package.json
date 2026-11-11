@@ -14,6 +14,7 @@
     "test:care": "npx tsx --test lib/care/*.test.ts",
     "test:plus": "npx tsx --test lib/plus/*.test.ts",
     "test:meds": "npx tsx --test lib/medication-today.test.ts lib/mark-due-taken.test.ts lib/med-enforcement-core.test.ts",
+    "test:cloudkit": "npx tsx --test lib/cloudkit-crypto.test.ts && npx tsx lib/cloudkit-backup.smoke.test.ts",
     "export:web": "expo export --platform web",
     "lint": "npx expo lint"
   },

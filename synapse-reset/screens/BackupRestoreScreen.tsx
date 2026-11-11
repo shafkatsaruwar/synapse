@@ -11,6 +11,8 @@ import {
   useWindowDimensions,
   LayoutAnimation,
   UIManager,
+  Switch,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,6 +38,22 @@ import {
   restoreFromCloud,
   type BackupStatus,
 } from "@/lib/backup";
+import {
+  enableAutomaticICloudBackup,
+  getCloudKitBackupStatus,
+  listICloudSnapshots,
+  previewICloudRestore,
+  restoreFromICloud,
+  saveToICloud,
+  type CloudKitSnapshotInfo,
+} from "@/lib/cloudkit-backup";
+import { setupCloudKitRecoveryPassphrase } from "@/lib/cloudkit-keys";
+import { CLOUDKIT_PASSPHRASE_MIN_LENGTH } from "@/lib/cloudkit-crypto";
+import {
+  describeCloudKitAccountStatus,
+  describeCloudKitRestoreError,
+  describeCloudKitSaveError,
+} from "@/lib/cloudkit-error-copy";
 import { isAppleAuthAvailable } from "@/lib/apple-auth";
 import { syncAllFromSettings } from "@/lib/notification-manager";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
@@ -68,8 +86,16 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
   const [guideOpen, setGuideOpen] = useState(false);
   const [segment, setSegment] = useState<BackupSegment>("file");
   const [segmentInitialized, setSegmentInitialized] = useState(false);
+  const [iCloudStatus, setICloudStatus] = useState<Awaited<ReturnType<typeof getCloudKitBackupStatus>> | null>(
+    null,
+  );
+  const [iCloudSnapshots, setICloudSnapshots] = useState<CloudKitSnapshotInfo[]>([]);
+  const [passphrase, setPassphrase] = useState("");
+  const [passphraseConfirm, setPassphraseConfirm] = useState("");
+  const [restorePassphrase, setRestorePassphrase] = useState("");
   const userId = user?.id ?? null;
   const cloudSectionAvailable = Platform.OS === "ios" && (appleAvailable || Boolean(userId));
+  const showICloudSection = Platform.OS === "ios";
 
   const refreshStatus = useCallback(async () => {
     setStatus(await getManualBackupStatus());
@@ -83,6 +109,22 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
     setCloudStatus(await getBackupStatus(userId));
   }, [userId]);
 
+  const refreshICloudStatus = useCallback(async () => {
+    if (!showICloudSection) {
+      setICloudStatus(null);
+      setICloudSnapshots([]);
+      return;
+    }
+    const next = await getCloudKitBackupStatus();
+    setICloudStatus(next);
+    if (next.featureEnabled && next.available) {
+      const listed = await listICloudSnapshots();
+      setICloudSnapshots(listed.snapshots);
+    } else {
+      setICloudSnapshots([]);
+    }
+  }, [showICloudSection]);
+
   useEffect(() => {
     refreshStatus();
   }, [refreshStatus]);
@@ -90,6 +132,10 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
   useEffect(() => {
     void refreshCloudStatus();
   }, [refreshCloudStatus]);
+
+  useEffect(() => {
+    void refreshICloudStatus();
+  }, [refreshICloudStatus]);
 
   useEffect(() => {
     void isAppleAuthAvailable().then(setAppleAvailable);
@@ -404,7 +450,176 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
     void Haptics.selectionAsync().catch(() => {});
   };
 
+  const formatWhen = (iso: string | null | undefined) => {
+    if (!iso) return null;
+    const time = new Date(iso).getTime();
+    if (!Number.isFinite(time)) return null;
+    return new Date(iso).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const handleSetupRecoveryPassphrase = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await setupCloudKitRecoveryPassphrase(passphrase, passphraseConfirm);
+      if (!result.ok) {
+        Alert.alert("Couldn’t set passphrase", result.message);
+        return;
+      }
+      setPassphrase("");
+      setPassphraseConfirm("");
+      await refreshICloudStatus();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        "Recovery passphrase saved",
+        "Remember this passphrase. You’ll need it to restore encrypted iCloud backups after reinstalling Synapse or on a new iPhone. Synapse never stores the passphrase itself.",
+      );
+    } catch (e) {
+      Alert.alert("Couldn’t set passphrase", e instanceof Error ? e.message : "Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleToggleAutoICloud = async (enabled: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await enableAutomaticICloudBackup(enabled);
+      if (!result.ok) {
+        Alert.alert(
+          "Couldn’t update automatic backup",
+          result.reason === "recovery_not_configured"
+            ? "Set a recovery passphrase first."
+            : describeCloudKitAccountStatus(result.reason),
+        );
+        await refreshICloudStatus();
+        return;
+      }
+      await refreshICloudStatus();
+      Haptics.selectionAsync().catch(() => {});
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleICloudBackupNow = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await saveToICloud();
+      if (result.skipped) {
+        Alert.alert(
+          "Backup skipped",
+          result.skipReason === "recovery_not_configured"
+            ? "Set a recovery passphrase before backing up to iCloud."
+            : describeCloudKitAccountStatus(result.skipReason),
+        );
+        return;
+      }
+      if (result.error) {
+        Alert.alert("iCloud backup failed", describeCloudKitSaveError(result.error.message));
+        await refreshICloudStatus();
+        return;
+      }
+      await refreshICloudStatus();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("iCloud backup saved", "CloudKit confirmed the encrypted backup upload.");
+    } catch (e) {
+      Alert.alert("iCloud backup failed", describeCloudKitSaveError(e instanceof Error ? e.message : null));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmAndRestoreICloud = async (recordName?: string) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const preview = await previewICloudRestore({
+        recordName,
+        passphrase: restorePassphrase || undefined,
+      });
+      if (!preview.ok) {
+        if (preview.needsPassphrase) {
+          Alert.alert(
+            "Recovery passphrase needed",
+            "Enter the recovery passphrase used when this backup was created, then try Restore again.",
+          );
+        } else {
+          Alert.alert("Couldn’t restore", preview.reason);
+        }
+        return;
+      }
+
+      Alert.alert(
+        "Restore From iCloud",
+        [
+          "Restoring may replace information currently stored in Synapse. Newer local changes may be lost.",
+          "",
+          preview.preview.summaryText,
+          "",
+          "Synapse will keep a rollback copy on this device and only report success after the restore verifies.",
+        ].join("\n"),
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Replace & Restore",
+            style: "destructive",
+            onPress: async () => {
+              setBusy(true);
+              try {
+                const result = await restoreFromICloud({
+                  recordName,
+                  passphrase: restorePassphrase || undefined,
+                });
+                if (!result.restored) {
+                  Alert.alert(
+                    "Restore failed",
+                    result.needsPassphrase
+                      ? "Enter your recovery passphrase and try again."
+                      : describeCloudKitRestoreError(result.error?.message || result.skipReason),
+                  );
+                  return;
+                }
+                setRestorePassphrase("");
+                await syncAllFromSettings().catch(() => {});
+                await syncWidgetSnapshot().catch(() => {});
+                onRestoreComplete?.();
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert("Restore complete", "Your iCloud backup is back on this device.");
+              } catch (e) {
+                Alert.alert(
+                  "Restore failed",
+                  describeCloudKitRestoreError(e instanceof Error ? e.message : null),
+                );
+              } finally {
+                setBusy(false);
+              }
+            },
+          },
+        ],
+      );
+    } catch (e) {
+      Alert.alert("Couldn’t restore", describeCloudKitRestoreError(e instanceof Error ? e.message : null));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const topPad = isWide ? 28 : Platform.OS === "web" ? 40 : 8;
+  const iCloudLastBackup = formatWhen(iCloudStatus?.lastSyncedAt || iCloudStatus?.cloudLastUpdatedAt);
+  const iCloudReady =
+    Boolean(iCloudStatus?.featureEnabled) &&
+    Boolean(iCloudStatus?.available) &&
+    Boolean(iCloudStatus?.recoveryConfigured) &&
+    Boolean(iCloudStatus?.dekPresent);
 
   return (
     <View style={styles.container}>
@@ -568,6 +783,180 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
           </View>
         )}
 
+        {showICloudSection ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>iCloud Backup</Text>
+            <Text style={styles.rowBody}>
+              Optional automatic encrypted backup to your private iCloud (CloudKit) database. Works without Sign in with
+              Apple inside Synapse. Free.
+            </Text>
+
+            {!featureFlags.cloudKitBackupEnabled ? (
+              <Text style={styles.note}>
+                Automatic iCloud backup stays off in this build until the CloudKit Production schema is deployed and
+                encrypted recovery is enabled. Manual file backup and Synapse Cloud backup continue to work. See
+                docs/ICLOUD_BACKUP.md for Apple Developer steps.
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.statusDetail}>
+                  {describeCloudKitAccountStatus(iCloudStatus?.accountStatus)}
+                </Text>
+                <Text style={styles.statusDetail}>
+                  Last successful backup: {iCloudLastBackup ?? "None yet"}
+                </Text>
+                {iCloudStatus?.lastError ? (
+                  <Text style={styles.note}>{describeCloudKitSaveError(iCloudStatus.lastError)}</Text>
+                ) : null}
+
+                {!iCloudStatus?.recoveryConfigured ? (
+                  <>
+                    <Text style={styles.rowBody}>
+                      Set a recovery passphrase (at least {CLOUDKIT_PASSPHRASE_MIN_LENGTH} characters) before enabling
+                      automatic backup. You’ll need it on a new iPhone or after reinstalling.
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      value={passphrase}
+                      onChangeText={setPassphrase}
+                      placeholder="Recovery passphrase"
+                      placeholderTextColor={C.textTertiary}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!busy}
+                      accessibilityLabel="Recovery passphrase"
+                    />
+                    <TextInput
+                      style={styles.input}
+                      value={passphraseConfirm}
+                      onChangeText={setPassphraseConfirm}
+                      placeholder="Confirm passphrase"
+                      placeholderTextColor={C.textTertiary}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!busy}
+                      accessibilityLabel="Confirm recovery passphrase"
+                    />
+                    <Pressable
+                      style={[styles.primaryBtn, busy && { opacity: 0.5 }]}
+                      onPress={handleSetupRecoveryPassphrase}
+                      disabled={busy}
+                      accessibilityRole="button"
+                      accessibilityLabel="Save recovery passphrase"
+                    >
+                      {busy ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.primaryBtnText}>Save Recovery Passphrase</Text>
+                      )}
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.toggleRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.guideStep}>Automatic Backup</Text>
+                        <Text style={styles.rowBody}>
+                          Backs up after meaningful changes (debounced) and when Synapse backgrounds, if iCloud allows
+                          it.
+                        </Text>
+                      </View>
+                      <Switch
+                        value={Boolean(iCloudStatus?.autoBackupEnabled)}
+                        onValueChange={(value) => {
+                          void handleToggleAutoICloud(value);
+                        }}
+                        disabled={busy || !iCloudReady}
+                        accessibilityLabel="Automatic iCloud backup"
+                      />
+                    </View>
+
+                    <Pressable
+                      style={[styles.primaryBtn, (!iCloudReady || busy) && { opacity: 0.5 }]}
+                      onPress={handleICloudBackupNow}
+                      disabled={busy || !iCloudReady}
+                      accessibilityRole="button"
+                      accessibilityLabel="Back Up Now to iCloud"
+                    >
+                      {busy ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.primaryBtnText}>Back Up Now</Text>
+                      )}
+                    </Pressable>
+
+                    <Text style={styles.rowBody}>
+                      If this iPhone doesn’t have the encryption key yet (reinstall / new device), enter your recovery
+                      passphrase before restoring.
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      value={restorePassphrase}
+                      onChangeText={setRestorePassphrase}
+                      placeholder="Recovery passphrase (if needed)"
+                      placeholderTextColor={C.textTertiary}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!busy}
+                      accessibilityLabel="Restore recovery passphrase"
+                    />
+
+                    <Pressable
+                      style={[styles.secondaryBtn, busy && { opacity: 0.5 }]}
+                      onPress={() => {
+                        void confirmAndRestoreICloud();
+                      }}
+                      disabled={busy || !iCloudStatus?.available}
+                      accessibilityRole="button"
+                      accessibilityLabel="Restore From iCloud"
+                    >
+                      <Text style={styles.secondaryBtnText}>Restore From iCloud</Text>
+                    </Pressable>
+
+                    {iCloudSnapshots.length > 0 ? (
+                      <View style={{ gap: 8 }}>
+                        <Text style={styles.guideStep}>Available recovery snapshots</Text>
+                        {iCloudSnapshots.slice(0, 8).map((snap) => {
+                          const when = formatWhen(snap.createdAt) ?? "Unknown date";
+                          return (
+                            <Pressable
+                              key={snap.recordName}
+                              style={styles.snapshotRow}
+                              onPress={() => {
+                                void confirmAndRestoreICloud(snap.recordName);
+                              }}
+                              disabled={busy}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Restore snapshot from ${when}`}
+                            >
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.guideStep}>{when}</Text>
+                                <Text style={styles.rowBody}>
+                                  {snap.summary
+                                    ? `${snap.summary.medicationCount} meds · ${snap.summary.appointmentCount} appointments · ${snap.summary.healthLogCount} logs`
+                                    : snap.encrypted
+                                      ? "Encrypted snapshot"
+                                      : "Snapshot"}
+                                </Text>
+                              </View>
+                              <Ionicons name="chevron-forward" size={18} color={C.textSecondary} />
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ) : (
+                      <Text style={styles.rowBody}>No recovery snapshots listed yet.</Text>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </View>
+        ) : null}
+
         <Pressable
           style={styles.guideHeader}
           onPress={() => {
@@ -588,15 +977,22 @@ export default function BackupRestoreScreen({ onRestoreComplete, onNavigate }: B
               Tap Save My Backup, choose Save to Files, then pick iCloud Drive or another location you control. Saving
               only to On My iPhone may not protect the file if this device is lost or reset.
             </Text>
-            <Text style={[styles.guideStep, { marginTop: 12 }]}>Cloud backup</Text>
+            <Text style={[styles.guideStep, { marginTop: 12 }]}>Synapse Cloud backup</Text>
             <Text style={styles.rowBody}>
               Optional Sign in with Apple uploads a copy to Synapse account storage. Restore after reinstall by signing
               in with the same Apple ID. This is separate from saving a file to iCloud Drive, and from automatic iCloud
               (CloudKit) backup.
             </Text>
+            <Text style={[styles.guideStep, { marginTop: 12 }]}>iCloud (CloudKit) backup</Text>
+            <Text style={styles.rowBody}>
+              When enabled, Synapse encrypts a snapshot with AES-256-GCM and stores it in your private iCloud database.
+              A recovery passphrase unwraps the encryption key on a new device. Automatic restore never runs just because
+              you signed into iCloud.
+            </Text>
             {!featureFlags.cloudKitBackupEnabled ? (
               <Text style={[styles.rowBody, { marginTop: 12 }]}>
-                Automatic iCloud (CloudKit) backup is unavailable in this version.
+                Automatic iCloud (CloudKit) backup remains unavailable until CloudKit Production schema deploy and the
+                feature flag are turned on.
               </Text>
             ) : null}
             <Text style={[styles.rowBody, { marginTop: 12 }]}>
@@ -728,6 +1124,33 @@ function makeStyles(C: Theme) {
     },
     secondaryBtnText: { fontWeight: "700", fontSize: 15, color: C.text },
     appleBtn: { width: "100%", height: 48 },
+    toggleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    input: {
+      minHeight: 48,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+      backgroundColor: C.surfaceElevated,
+      paddingHorizontal: 14,
+      color: C.text,
+      fontWeight: "500",
+      fontSize: 15,
+    },
+    snapshotRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+      backgroundColor: C.surfaceElevated,
+    },
     guideHeader: {
       flexDirection: "row",
       alignItems: "center",
