@@ -63,7 +63,7 @@ export default function PlusFeatureGateScreen({ featureKey, onBack }: Props) {
         accessibilityRole="button"
         accessibilityLabel="Upgrade to Synapse Plus"
       >
-        <Text style={styles.ctaText}>Try Synapse Plus free for 7 days</Text>
+        <Text style={styles.ctaText}>See Synapse Plus plans</Text>
       </Pressable>
 
       {onBack ? (

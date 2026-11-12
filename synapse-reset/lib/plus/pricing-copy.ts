@@ -19,15 +19,16 @@ export function subscriptionOfferCopy(
     periodLabel(product?.subscriptionPeriodUnitIOS) || meta.fallbackIntervalLabel;
 
   const introMode = (product?.introductoryPricePaymentModeIOS ?? "").toLowerCase();
-  const hasFreeTrial =
-    meta.offersTrial &&
-    (introMode.includes("free") ||
-      introMode === "freemium" ||
-      // When StoreKit hasn't loaded intro metadata yet, still disclose intended trial.
-      (!product && meta.offersTrial) ||
-      (product?.introductoryPriceIOS === "Free" ||
-        product?.introductoryPriceAsAmountIOS === "0" ||
-        product?.introductoryPriceIOS === "$0.00"));
+  // Only claim a free trial when StoreKit shows free intro pricing, or when
+  // products have not loaded yet and ASC metadata says the plan offers one.
+  // Never promise a trial for a loaded product that has no free intro fields.
+  const storeKitShowsFreeIntro =
+    introMode.includes("free") ||
+    introMode === "freemium" ||
+    product?.introductoryPriceIOS === "Free" ||
+    product?.introductoryPriceAsAmountIOS === "0" ||
+    product?.introductoryPriceIOS === "$0.00";
+  const hasFreeTrial = meta.offersTrial && (storeKitShowsFreeIntro || (!product && meta.offersTrial));
 
   // Prefer StoreKit period count when available; default 7-day intro from ASC plan.
   const periods = product?.introductoryPriceNumberOfPeriodsIOS;

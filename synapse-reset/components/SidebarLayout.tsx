@@ -688,14 +688,14 @@ export default function SidebarLayout({
             style={styles.mobileNavItem}
             onPress={() => handleBottomNavPress(item.key)}
             testID="tab-quickadd"
-            accessibilityRole="button"
+            accessibilityRole="tab"
             accessibilityLabel={open ? "Close quick add" : "Quick add"}
             accessibilityHint={
               open
                 ? "Close add options"
                 : "Open shortcuts for scan, medication, appointment, symptom, and more"
             }
-            accessibilityState={{ expanded: open }}
+            accessibilityState={{ expanded: open, selected: open }}
           >
             <View style={styles.quickAddNavButtonWrap}>
               <View
@@ -740,7 +740,7 @@ export default function SidebarLayout({
           onLongPress={item.key === "settings" || item.key === "accounthub" ? openSynapseHQ : undefined}
           delayLongPress={3500}
           testID={`tab-${item.key}`}
-          accessibilityRole="button"
+          accessibilityRole="tab"
           accessibilityLabel={getNavAccessibilityLabel(item)}
           accessibilityState={{ selected: active }}
         >
@@ -748,7 +748,7 @@ export default function SidebarLayout({
             <Ionicons
               name={active ? item.iconActive : item.icon}
               size={simpleMode ? 22 : 24}
-              color={active ? (sickMode ? C.red : C.accent) : "#8E8E93"}
+              color={active ? (sickMode ? C.red : C.accent) : C.textTertiary}
             />
             {renderIconBadge(badgeCount)}
           </View>
@@ -879,7 +879,9 @@ export default function SidebarLayout({
                 (isEvergreenTheme(themeId) || themeId === "light") && styles.mobileNavEvergreen,
               ]}
             >
-              <View style={styles.mobileNavContent}>{bottomNavItems.map(renderBottomNavItem)}</View>
+              <View style={styles.mobileNavContent} accessibilityRole="tablist">
+                {bottomNavItems.map(renderBottomNavItem)}
+              </View>
             </View>
           ) : (
             <GlassView
@@ -891,7 +893,9 @@ export default function SidebarLayout({
                 (isEvergreenTheme(themeId) || themeId === "light") && styles.mobileNavEvergreen,
               ]}
             >
-              <View style={styles.mobileNavContent}>{bottomNavItems.map(renderBottomNavItem)}</View>
+              <View style={styles.mobileNavContent} accessibilityRole="tablist">
+                {bottomNavItems.map(renderBottomNavItem)}
+              </View>
             </GlassView>
           )}
         </View>

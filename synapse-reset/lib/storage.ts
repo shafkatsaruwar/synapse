@@ -540,6 +540,8 @@ export interface UserSettings {
   notificationsAppointments?: boolean;
   notificationsDailyCheckIn?: boolean;
   notificationsHydration?: boolean;
+  /** Opt-in only. Age-based preventive-care reminders (not medical advice). */
+  notificationsScreening?: boolean;
   notificationsMonthly?: boolean;
   notificationsDailySummary?: boolean;
   notificationsWeeklySummary?: boolean;

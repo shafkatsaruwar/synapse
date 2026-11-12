@@ -93,7 +93,13 @@ export default function PreferencesScreen({ onNavigate, onResetApp }: Preference
   };
 
   const saveNotificationToggle = async (
-    key: "notificationsMedications" | "notificationsAppointments" | "notificationsDailyCheckIn" | "notificationsMonthly",
+    key:
+      | "notificationsMedications"
+      | "notificationsAppointments"
+      | "notificationsDailyCheckIn"
+      | "notificationsMonthly"
+      | "notificationsHydration"
+      | "notificationsScreening",
     value: boolean
   ) => {
     if (!settings) return;
@@ -224,7 +230,13 @@ export default function PreferencesScreen({ onNavigate, onResetApp }: Preference
         ) : null}
 
         <Text style={styles.sectionLabel}>Notifications</Text>
-        <Pressable style={styles.navRow} onPress={() => setShowNotifications(true)} accessibilityRole="button">
+        <Pressable
+          style={styles.navRow}
+          onPress={() => setShowNotifications(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Reminders and alerts"
+          accessibilityHint="Choose which medication, appointment, and check-in notifications Synapse may schedule"
+        >
           <View style={styles.iconWrap}><Ionicons name="notifications-outline" size={20} color={C.text} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>Reminders & alerts</Text>
@@ -297,18 +309,31 @@ export default function PreferencesScreen({ onNavigate, onResetApp }: Preference
           <Pressable style={styles.modal} onPress={() => {}}>
             <Text style={styles.modalTitle}>Notifications</Text>
             {([
-              { key: "notificationsMedications" as const, label: "Medication reminders" },
-              { key: "notificationsAppointments" as const, label: "Appointment reminders" },
-              { key: "notificationsDailyCheckIn" as const, label: "Daily check-in" },
-              { key: "notificationsMonthly" as const, label: "Monthly check-in" },
+              { key: "notificationsMedications" as const, label: "Medication reminders", on: !!settings.notificationsMedications },
+              { key: "notificationsAppointments" as const, label: "Appointment reminders", on: !!settings.notificationsAppointments },
+              { key: "notificationsDailyCheckIn" as const, label: "Daily check-in", on: !!settings.notificationsDailyCheckIn },
+              { key: "notificationsMonthly" as const, label: "Monthly check-in", on: !!settings.notificationsMonthly },
+              {
+                key: "notificationsHydration" as const,
+                label: "Hydration reminders",
+                on: settings.notificationsHydration !== false,
+              },
+              {
+                key: "notificationsScreening" as const,
+                label: "Optional preventive-care reminders",
+                on: settings.notificationsScreening === true,
+              },
             ]).map((row) => (
               <View key={row.key} style={styles.modalRow}>
                 <Text style={styles.modalRowText}>{row.label}</Text>
                 <Switch
-                  value={!!settings[row.key]}
+                  value={row.on}
                   onValueChange={(v) => saveNotificationToggle(row.key, v)}
                   trackColor={{ true: C.tintLight, false: C.border }}
-                  thumbColor={settings[row.key] ? C.tint : C.surfaceElevated}
+                  thumbColor={row.on ? C.tint : C.surfaceElevated}
+                  accessibilityRole="switch"
+                  accessibilityLabel={row.label}
+                  accessibilityState={{ checked: row.on }}
                 />
               </View>
             ))}

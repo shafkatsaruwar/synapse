@@ -586,8 +586,9 @@ export async function scheduleAppointmentReminder(params: {
         : when;
   const identifier = getAppointmentReminderIdentifier(appointmentId, reminderType);
   try {
-    const granted = await requestPermission();
-    if (!granted) return null;
+    // Do not prompt here — sync/scheduling must respect an existing grant only.
+    const status = await getPermissionStatus();
+    if (status !== "granted") return null;
 
     const appointmentDate = parseAppointmentDateTime(date, time);
     if (!appointmentDate) return null;
@@ -953,8 +954,8 @@ export async function scheduleAgeBasedScreeningReminder(dateOfBirth?: string): P
     const id = await scheduleWithIcon({
       identifier,
       content: {
-        title: "Preventive Care Reminder",
-        body: `You are now ${nextMilestone.age} years old. Consider asking your doctor about ${nextMilestone.screening}.`,
+        title: "Optional preventive-care reminder",
+        body: `Around age ${nextMilestone.age}, some people discuss ${nextMilestone.screening} with their clinician. This is not medical advice.`,
         data: { age: nextMilestone.age, screening: nextMilestone.screening },
       },
       trigger: {
@@ -1234,6 +1235,18 @@ function parseTimeHHMM(s: string | undefined): { hour: number; minute: number } 
 export async function syncAllFromSettings(): Promise<void> {
   if (!isNative()) return;
   try {
+    // Never schedule (or re-prompt) unless the user already granted notification permission.
+    // Permission prompts belong to explicit UI (Preferences / first-run / Check-In).
+    const permission = await getPermissionStatus();
+    if (permission !== "granted") {
+      try {
+        await Notifications.cancelAllScheduledNotificationsAsync();
+      } catch {
+        // Best-effort cleanup when alerts are not allowed.
+      }
+      return;
+    }
+
     // Delivered tray items (and some pending ones) can keep a prior App Icon
     // until dismissed/cancelled. Clear once per native build + icon generation,
     // then reschedule below so new deliveries bind to the current App Icon.
@@ -1413,7 +1426,12 @@ export async function syncAllFromSettings(): Promise<void> {
       await scheduleMonthlyCheckIn(1, 9, 0);
     }
 
-    await scheduleAgeBasedScreeningReminder(profile.dateOfBirth);
+    // Opt-in only — never surprise users with clinical-sounding preventive reminders.
+    if (settings.notificationsScreening === true) {
+      await scheduleAgeBasedScreeningReminder(profile.dateOfBirth);
+    } else {
+      await cancelScreeningNotifications();
+    }
     await syncRecoveryTrackingCheckIn();
 
     // Medication Enforcement Mode (private): reconcile the bounded escalation

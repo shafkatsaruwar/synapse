@@ -64,6 +64,14 @@ export default function SynapsePlusPaywallScreen({ visible, onClose, featureKey 
     return subscriptions.find((s) => s.id === productId);
   };
 
+  const selectedMeta = PLUS_PLANS.find((p) => p.productId === selectedId)!;
+  const selectedCopy = subscriptionOfferCopy(productFor(selectedId), selectedMeta);
+  const subhead = selectedCopy.trialLine
+    ? selectedCopy.trialLine.replace(/\.\s*Cancel anytime\.?$/i, ".")
+    : selectedMeta.kind === "lifetime"
+      ? "Lifetime unlock. One-time purchase — no free trial."
+      : "Choose a plan. Cancel anytime in Apple subscription settings.";
+
   const onBuy = async () => {
     Haptics.selectionAsync().catch(() => {});
     await purchasePlan(selectedId);
@@ -100,7 +108,7 @@ export default function SynapsePlusPaywallScreen({ visible, onClose, featureKey 
           <Text style={styles.headline} accessibilityRole="header">
             Your health, all together.
           </Text>
-          <Text style={styles.subhead}>Try Synapse Plus free for 7 days.</Text>
+          <Text style={styles.subhead}>{subhead}</Text>
 
           {feature ? (
             <View style={styles.featureCard}>
@@ -146,7 +154,13 @@ export default function SynapsePlusPaywallScreen({ visible, onClose, featureKey 
                   }}
                   accessibilityRole="radio"
                   accessibilityState={{ selected }}
-                  accessibilityLabel={`${plan.fallbackTitle} plan, ${copy.priceLine}`}
+                  accessibilityLabel={[
+                    `${plan.fallbackTitle} plan`,
+                    copy.priceLine,
+                    copy.trialLine || (plan.kind === "lifetime" ? "One-time purchase. No free trial." : null),
+                  ]
+                    .filter(Boolean)
+                    .join(". ")}
                 >
                   {plan.emphasized ? (
                     <Text style={styles.bestValue}>Best value</Text>
@@ -226,19 +240,31 @@ export default function SynapsePlusPaywallScreen({ visible, onClose, featureKey 
           <Text style={styles.legal}>
             Payment will be charged to your Apple ID. Subscriptions renew automatically unless canceled at
             least 24 hours before the end of the current period. Manage or cancel in Account Settings →
-            Subscriptions.
+            Subscriptions. Synapse Plus is not medical advice and does not diagnose or treat conditions.
           </Text>
 
           <View style={styles.links}>
-            <Pressable onPress={() => openLegalUrl("terms")} accessibilityRole="link">
+            <Pressable
+              onPress={() => openLegalUrl("terms")}
+              accessibilityRole="link"
+              accessibilityLabel="Terms of Use"
+            >
               <Text style={styles.link}>Terms of Use</Text>
             </Pressable>
             <Text style={styles.linkDot}>·</Text>
-            <Pressable onPress={() => openLegalUrl("privacy")} accessibilityRole="link">
+            <Pressable
+              onPress={() => openLegalUrl("privacy")}
+              accessibilityRole="link"
+              accessibilityLabel="Privacy Policy"
+            >
               <Text style={styles.link}>Privacy Policy</Text>
             </Pressable>
             <Text style={styles.linkDot}>·</Text>
-            <Pressable onPress={() => openLegalUrl("support")} accessibilityRole="link">
+            <Pressable
+              onPress={() => openLegalUrl("support")}
+              accessibilityRole="link"
+              accessibilityLabel="Support"
+            >
               <Text style={styles.link}>Support</Text>
             </Pressable>
           </View>
@@ -359,7 +385,7 @@ function makeStyles(C: Theme) {
     legal: {
       fontSize: 12,
       lineHeight: 17,
-      color: C.textTertiary,
+      color: C.textSecondary,
       marginBottom: 14,
     },
     links: {
