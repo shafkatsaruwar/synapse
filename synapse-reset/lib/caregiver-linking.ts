@@ -19,12 +19,21 @@ import {
   CAREGIVER_LINK_CODE_LENGTH,
   normalizeCaregiverLinkCode,
 } from "@/lib/caregiver-link-code";
+import {
+  cloudCaregiverDisabledError,
+  isCloudCaregiverPushEnabled,
+} from "@/lib/caregiver-cloud-gate";
 
 export {
   CAREGIVER_LINK_CODE_LENGTH,
   isValidCaregiverLinkCode,
   normalizeCaregiverLinkCode,
 } from "@/lib/caregiver-link-code";
+
+export {
+  CLOUD_CAREGIVER_DISABLED_MESSAGE,
+  isCloudCaregiverPushEnabled,
+} from "@/lib/caregiver-cloud-gate";
 
 const INSTALL_USER_ID_KEY = "synapse_linking_install_user_id";
 const REPORTED_EVENT_KEYS = "synapse_linking_reported_events";
@@ -184,6 +193,7 @@ async function setLinkedUsers(userId: string, role: CaregiverLinkRole, linkedUse
 
 export async function getCaregiverLinkState(authUserId?: string | null): Promise<CaregiverLinkState> {
   const userId = await getLinkingUserId(authUserId);
+  if (!isCloudCaregiverPushEnabled()) return { userId, linkedUsers: [] };
   const supabase = getSupabase();
   if (!supabase) return { userId, linkedUsers: [] };
   const [{ data: userRow }, { data: codeRow }] = await Promise.all([
@@ -207,6 +217,7 @@ export async function getCaregiverLinkState(authUserId?: string | null): Promise
 }
 
 export async function generatePatientLinkCode(authUserId?: string | null): Promise<{ code?: string; expiresAt?: string; error: Error | null }> {
+  if (!isCloudCaregiverPushEnabled()) return { error: cloudCaregiverDisabledError() };
   const supabase = getSupabase();
   if (!supabase) return { error: new Error("Supabase not configured") };
   const patientUserId = await getLinkingUserId(authUserId);
@@ -237,6 +248,7 @@ export async function generatePatientLinkCode(authUserId?: string | null): Promi
 }
 
 export async function linkCaregiverWithCode(codeInput: string, authUserId?: string | null): Promise<{ patientUserId?: string; error: Error | null }> {
+  if (!isCloudCaregiverPushEnabled()) return { error: cloudCaregiverDisabledError() };
   const supabase = getSupabase();
   if (!supabase) return { error: new Error("Supabase not configured") };
   const code = normalizeCaregiverLinkCode(codeInput);
@@ -282,6 +294,7 @@ export async function linkCaregiverWithCode(codeInput: string, authUserId?: stri
 }
 
 export async function unlinkCaregiverUser(targetUserId: string, authUserId?: string | null): Promise<{ error: Error | null }> {
+  if (!isCloudCaregiverPushEnabled()) return { error: cloudCaregiverDisabledError() };
   const supabase = getSupabase();
   if (!supabase) return { error: new Error("Supabase not configured") };
   const userId = await getLinkingUserId(authUserId);
@@ -319,6 +332,7 @@ async function reportAccountabilityEventIfNeeded(params: {
   eventKey: string;
   payload: Record<string, unknown>;
 }): Promise<{ reported: boolean; error: Error | null }> {
+  if (!isCloudCaregiverPushEnabled()) return { reported: false, error: null };
   const supabase = getSupabase();
   if (!supabase) return { reported: false, error: null };
   if (await wasEventReported(params.eventKey)) return { reported: false, error: null };
@@ -466,6 +480,7 @@ export async function reportMissedAppointmentIfNeeded(authUserId?: string | null
 }
 
 export async function sendCaregiverReminder(patientUserId: string, message = "Don't forget your medication", authUserId?: string | null) {
+  if (!isCloudCaregiverPushEnabled()) return { error: cloudCaregiverDisabledError() };
   const supabase = getSupabase();
   if (!supabase) return { error: new Error("Supabase not configured") };
   const caregiverUserId = await getLinkingUserId(authUserId);
@@ -499,6 +514,7 @@ export async function fetchCaregiverAccountabilityEvents(
   authUserId?: string | null,
   limit = 12
 ): Promise<{ events: CaregiverAccountabilityEvent[]; error: Error | null }> {
+  if (!isCloudCaregiverPushEnabled()) return { events: [], error: null };
   const supabase = getSupabase();
   if (!supabase) return { events: [], error: null };
   const caregiverUserId = await getLinkingUserId(authUserId);
@@ -514,6 +530,7 @@ export async function fetchCaregiverAccountabilityEvents(
 }
 
 export async function acknowledgeCaregiverEvent(eventId: string, authUserId?: string | null): Promise<{ error: Error | null }> {
+  if (!isCloudCaregiverPushEnabled()) return { error: cloudCaregiverDisabledError() };
   const supabase = getSupabase();
   if (!supabase) return { error: new Error("Supabase not configured") };
   const caregiverUserId = await getLinkingUserId(authUserId);

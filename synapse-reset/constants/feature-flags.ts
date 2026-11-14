@@ -14,4 +14,11 @@ export const featureFlags = {
    * See docs/ICLOUD_BACKUP.md. Manual JSON + SIWA Synapse Cloud backup remain available.
    */
   cloudKitBackupEnabled: true,
+  /**
+   * Remote cloud caregiver linking + Edge Function push (SHIELD-005).
+   * Kept off until auth-bound identities replace local_* install IDs (Option A).
+   * On-device caregiver mode and Care Connections stay available.
+   * See docs/SHIELD_005_CAREGIVER_AUTH_DECISION.md.
+   */
+  cloudCaregiverPushEnabled: false,
 };
