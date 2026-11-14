@@ -638,7 +638,8 @@ export default function SettingsScreen({
             Caregiver linking
           </Text>
           <Text style={[styles.desc, simple && { fontSize: simpleBodySize, marginBottom: 0 }]}>
-            Remote cloud caregiver alerts are unavailable in this version. Use on-device caregiver mode from Role above.
+            Remote cloud caregiver alerts are turned off until cloud linking is secured. Use on-device caregiver mode from
+            Role above, or Care Connections for encrypted sharing without Synapse servers.
           </Text>
         </View>
         <View style={[styles.linkStatusPill, hasLinkedUsers && styles.linkStatusPillLinked]}>
@@ -651,7 +652,8 @@ export default function SettingsScreen({
       {!hasLinkedUsers ? (
         <View style={styles.linkSection}>
           <Text style={styles.linkHelpText}>
-            Connection codes are turned off until cloud linking is secured. Local Self / Caregiver roles still work on this device.
+            Connection codes and remote push are disabled (security hold). Local Self / Caregiver roles and Care
+            Connections still work on this device.
           </Text>
         </View>
       ) : (

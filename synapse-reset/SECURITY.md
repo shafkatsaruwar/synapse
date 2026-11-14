@@ -17,6 +17,7 @@ This document describes the **actual** security posture so engineers and operato
 | Export / Share | Unencrypted JSON the user chooses to share. |
 | On-device caregiver mode | Local profile on the same device. |
 | Cloud caregiver linking tables | Client (anon) access is **denied** after `caregiver_linking_v2_lockdown.sql`. Re-enable only with Auth-bound RLS or Edge Functions + service role. |
+| Cloud caregiver push (Edge) | **Disabled** (`cloudCaregiverPushEnabled: false`, SHIELD-005 Option B). Function sources fail closed with 503 until auth-bound migration. On-device caregiver / Care Connections remain. See `docs/SHIELD_005_CAREGIVER_AUTH_DECISION.md`. |
 
 ## Authentication for PHI APIs
 
