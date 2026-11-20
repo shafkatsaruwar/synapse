@@ -53,6 +53,7 @@ import {
 
 const REFILL_THRESHOLD = 5;
 const MEDICATION_CATEGORY = "MEDICATION_REMINDER";
+const RETAINER_CATEGORY = "RETAINER_CARE";
 const SNOOZE_MINUTES = 10;
 
 /** Default hour/minute for time-of-day labels when no explicit time is set. */
@@ -92,7 +93,8 @@ export type NotificationNavigationTarget =
   | { screen: "sickmode"; notificationType: "recovery-check-in" }
   | { screen: "healthprofile"; notificationType: "screening" }
   | { screen: "hydration"; notificationType: "hydration" }
-  | { screen: "checkin"; notificationType: "check-in"; personId?: string };
+  | { screen: "checkin"; notificationType: "check-in"; personId?: string }
+  | { screen: "retainercare"; notificationType: "retainer-care"; occurrenceId?: string };
 
 function isNative(): boolean {
   return Platform.OS === "ios" || Platform.OS === "android";
@@ -202,6 +204,64 @@ export async function setupMedicationCategory(): Promise<void> {
   } catch (e) {
     console.warn("setupMedicationCategory failed", e);
   }
+}
+
+/** Personal Retainer Care actions — Confirm opens in-app verification; never auto-completes. */
+export async function setupRetainerCategory(): Promise<void> {
+  if (!isNative()) return;
+  try {
+    await Notifications.setNotificationCategoryAsync(RETAINER_CATEGORY, [
+      { identifier: "RETAINER_CONFIRM", buttonTitle: "Confirm", options: { isDestructive: false, isAuthenticationRequired: false } },
+      { identifier: "RETAINER_SNOOZE", buttonTitle: "Remind me in 10 minutes", options: { isDestructive: false, isAuthenticationRequired: false } },
+      { identifier: "RETAINER_SKIP", buttonTitle: "Not tonight", options: { isDestructive: true, isAuthenticationRequired: false } },
+      { identifier: "RETAINER_BACK_IN", buttonTitle: "They’re back in", options: { isDestructive: false, isAuthenticationRequired: false } },
+      { identifier: "RETAINER_STILL_EATING", buttonTitle: "Still eating", options: { isDestructive: false, isAuthenticationRequired: false } },
+    ]);
+  } catch (e) {
+    console.warn("setupRetainerCategory failed", e);
+  }
+}
+
+/** Schedule bounded retainer notifications (cancel-then-set by deterministic id). */
+export async function scheduleRetainerNotificationsForPlan(
+  plan: Array<{ id: string; fireAtMs: number; title: string; body: string }>,
+  meta: { occurrenceId: string; nightId: string },
+): Promise<void> {
+  if (!isNative()) return;
+  for (const item of plan) {
+    try {
+      await Notifications.cancelScheduledNotificationAsync(item.id);
+      await scheduleWithIcon({
+        identifier: item.id,
+        content: {
+          title: item.title,
+          body: item.body,
+          data: {
+            retainer: true,
+            occurrenceId: meta.occurrenceId,
+            nightId: meta.nightId,
+            widgetTarget: "retainercare",
+          },
+          categoryIdentifier: RETAINER_CATEGORY,
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(item.fireAtMs) },
+      });
+    } catch (e) {
+      console.warn("scheduleRetainerNotificationsForPlan failed", e);
+    }
+  }
+}
+
+export async function cancelRetainerNotifications(occurrenceId: string): Promise<void> {
+  if (!isNative()) return;
+  try {
+    const prefix = `retainer:${occurrenceId}`;
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const toCancel = scheduled
+      .filter((n) => n.identifier === prefix || n.identifier.startsWith(`${prefix}:`))
+      .map((n) => n.identifier);
+    for (const id of toCancel) await Notifications.cancelScheduledNotificationAsync(id);
+  } catch {}
 }
 
 /** Schedule daily medication reminder. Identifier prevents duplicates. */
@@ -1098,7 +1158,14 @@ export async function cancelAppointmentReminders(appointmentId: string): Promise
 /** Map a notification identifier to an app screen key. */
 function getNavigationTarget(
   id: string,
-  data?: { medicationId?: string; doseIndex?: number; appointmentId?: string; widgetTarget?: string; personId?: string }
+  data?: {
+    medicationId?: string;
+    doseIndex?: number;
+    appointmentId?: string;
+    widgetTarget?: string;
+    personId?: string;
+    occurrenceId?: string;
+  }
 ): NotificationNavigationTarget | null {
   if (id.startsWith("checkin-") || data?.widgetTarget === "checkin") {
     return { screen: "checkin", notificationType: "check-in", personId: data?.personId };
@@ -1123,6 +1190,9 @@ function getNavigationTarget(
   }
   if (id.startsWith(`${NOTIFICATION_IDS.prefixHydration}-`) || data?.widgetTarget === "hydration") {
     return { screen: "hydration", notificationType: "hydration" };
+  }
+  if (id.startsWith("retainer:") || data?.widgetTarget === "retainercare") {
+    return { screen: "retainercare", notificationType: "retainer-care", occurrenceId: data?.occurrenceId };
   }
   if (id === NOTIFICATION_IDS.dailyCheckIn) return { screen: "logtoday", notificationType: "daily-checkin" };
   if (id === NOTIFICATION_IDS.monthlyCheckIn) return { screen: "monthlycheckin", notificationType: "monthly-checkin" };
@@ -1172,7 +1242,40 @@ export function addNotificationResponseListener(
         .catch(() => {});
       return;
     }
-    const data = response.notification.request.content.data as { medicationId?: string; doseIndex?: number; medicationName?: string; dosage?: string; appointmentId?: string; widgetTarget?: string; enforcement?: boolean; doseEventId?: string };
+    const data = response.notification.request.content.data as {
+      medicationId?: string;
+      doseIndex?: number;
+      medicationName?: string;
+      dosage?: string;
+      appointmentId?: string;
+      widgetTarget?: string;
+      enforcement?: boolean;
+      doseEventId?: string;
+      retainer?: boolean;
+      occurrenceId?: string;
+      nightId?: string;
+    };
+    // Personal Retainer Care — confirm never auto-completes from the tray.
+    if (data?.retainer || data?.widgetTarget === "retainercare" || response.notification.request.identifier.startsWith("retainer:")) {
+      import("@/lib/retainer-care")
+        .then((mod) =>
+          mod.handleRetainerNotificationAction(actionId, {
+            occurrenceId: data?.occurrenceId,
+            nightId: data?.nightId,
+          }),
+        )
+        .then((result) => {
+          if (result === "open" && _navigateCallback) {
+            _navigateCallback({
+              screen: "retainercare",
+              notificationType: "retainer-care",
+              occurrenceId: data?.occurrenceId,
+            });
+          }
+        })
+        .catch(() => {});
+      return;
+    }
     // Medication Enforcement notifications route through the enforcement resolver.
     // Opening/dismissing the banner never counts as taken — only the explicit
     // MARK_TAKEN action (or an in-app resolution) records a taken dose.
@@ -1441,6 +1544,14 @@ export async function syncAllFromSettings(): Promise<void> {
       await enforcement.reconcileEnforcement({ medicationNotificationsEnabled: notifMed });
     } catch (e) {
       console.warn("reconcileEnforcement failed", e);
+    }
+
+    // Personal Retainer Care: reconcile bedtime / snack ladders. No-ops unless active.
+    try {
+      const retainer = await import("@/lib/retainer-care");
+      await retainer.reconcileRetainerCare();
+    } catch (e) {
+      console.warn("reconcileRetainerCare failed", e);
     }
 
     await updateAppIconBadgeCount();
