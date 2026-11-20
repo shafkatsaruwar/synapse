@@ -146,16 +146,18 @@ export default function LabWorkScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardTitle}>{record.testName}</Text>
                     <Text style={styles.cardMeta}>{formatDate(record.date)}</Text>
+                    {record.labName ? <Text style={styles.cardSub}>{record.labName}</Text> : null}
                     {doctorName ? <Text style={styles.cardSub}>Doctor: {doctorName}</Text> : null}
                     {record.results?.length ? (
                       <View style={styles.resultPreview}>
-                        {record.results.slice(0, 3).map((result, index) => (
+                        {record.results.slice(0, 5).map((result, index) => (
                           <Text key={`${result.name}-${index}`} style={styles.resultPreviewText}>
-                            {result.name}: {result.value} {result.unit}
+                            {result.name}: {result.value}{result.unit ? ` ${result.unit}` : ""}
+                            {result.flag ? ` (${result.flag})` : ""}
                           </Text>
                         ))}
-                        {record.results.length > 3 ? (
-                          <Text style={styles.resultPreviewMore}>+{record.results.length - 3} more</Text>
+                        {record.results.length > 5 ? (
+                          <Text style={styles.resultPreviewMore}>+{record.results.length - 5} more</Text>
                         ) : null}
                       </View>
                     ) : null}

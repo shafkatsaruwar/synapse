@@ -1,0 +1,11 @@
+Labcorp Laboratory
+Final Report
+Collection Date: 11/01/2026
+
+Test Result Flag Units Ref Range
+WBC 6.2  x10E3/uL 3.8-10.8
+RBC 4.71  x10E6/uL 4.20-5.80
+Hemoglobin 14.2  g/dL 13.2-17.1
+Hematocrit 42.1  % 38.5-50.0
+Platelets 210  x10E3/uL 140-400
+MCV 89.4  fL 80-100

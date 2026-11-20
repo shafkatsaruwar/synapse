@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import TextInput from "@/components/DoneTextInput";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +18,7 @@ import {
   type Medication,
 } from "@/lib/storage";
 import { syncWidgetSnapshot } from "@/lib/widget-sync";
+import { findLikelyDuplicateLabWork } from "@/lib/lab-parse";
 import {
   parseAppointmentScan,
   parseImagingScan,
@@ -81,10 +82,15 @@ export default function VisualScanImportModal({
   const [labDoctor, setLabDoctor] = useState("");
   const [labDoctorId, setLabDoctorId] = useState<string | undefined>(undefined);
   const [labTestName, setLabTestName] = useState("");
-  const [labDate, setLabDate] = useState(new Date().toISOString().slice(0, 10));
+  const [labFacility, setLabFacility] = useState("");
+  const [labDate, setLabDate] = useState("");
   const [labNotes, setLabNotes] = useState("");
   const [labDocumentUri, setLabDocumentUri] = useState<string | undefined>(undefined);
   const [labResults, setLabResults] = useState<LabResult[]>([]);
+  const [labWarnings, setLabWarnings] = useState<string[]>([]);
+  const [labUnresolved, setLabUnresolved] = useState<string[]>([]);
+  const [labScanStatus, setLabScanStatus] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [imagingType, setImagingType] = useState("");
   const [imagingBodyArea, setImagingBodyArea] = useState("");
   const [imagingDoctor, setImagingDoctor] = useState("");
@@ -131,10 +137,15 @@ export default function VisualScanImportModal({
     setLabDoctor("");
     setLabDoctorId(undefined);
     setLabTestName("");
-    setLabDate(new Date().toISOString().slice(0, 10));
+    setLabFacility("");
+    setLabDate("");
     setLabNotes("");
     setLabDocumentUri(undefined);
     setLabResults([]);
+    setLabWarnings([]);
+    setLabUnresolved([]);
+    setLabScanStatus("");
+    setIsSaving(false);
     setImagingType("");
     setImagingBodyArea("");
     setImagingDoctor("");
@@ -163,11 +174,19 @@ export default function VisualScanImportModal({
     if (result.canceled || !result.assets?.[0]?.uri) return;
 
     setIsScanning(true);
+    setLabScanStatus(scanType === "lab" ? "Reading image…" : "");
     try {
       const text = await recognizeTextFromImage(result.assets[0].uri);
+      if (!text.trim()) {
+        throw new Error("No readable text was found in that image.");
+      }
       setRawText(text);
+      if (scanType === "lab") setLabDocumentUri(result.assets[0].uri);
+      setLabScanStatus(scanType === "lab" ? "Extracting lab rows…" : "");
       applyParsedText(text, scanType);
+      setLabScanStatus("");
     } catch (error: any) {
+      setLabScanStatus("");
       Alert.alert("Scan failed", error?.message || "Could not read text from that image.");
     } finally {
       setIsScanning(false);
@@ -193,10 +212,19 @@ export default function VisualScanImportModal({
     if (type === "lab") {
       const parsed = parseLabScan(text);
       setLabDoctor(parsed.doctorName);
-      setLabTestName(parsed.results.length ? "Imported lab report" : "Lab Work");
+      setLabFacility(parsed.labName ?? "");
+      setLabTestName(
+        parsed.labName
+          ? `${parsed.labName} report`
+          : parsed.results.length
+            ? "Imported lab report"
+            : "Lab Work",
+      );
       setLabDate(parsed.date);
       setLabNotes(parsed.notes);
       setLabResults(parsed.results);
+      setLabWarnings(parsed.warnings);
+      setLabUnresolved(parsed.unresolvedHints);
       return;
     }
     const parsed = parseImagingScan(text);
@@ -225,12 +253,19 @@ export default function VisualScanImportModal({
     if (result.canceled || !result.assets?.[0]?.uri) return;
 
     setIsScanning(true);
+    setLabScanStatus("Reading PDF…");
     try {
       const text = await recognizeTextFromPDF(result.assets[0].uri);
+      if (!text.trim()) {
+        throw new Error("No readable text was found in that PDF.");
+      }
       setRawText(text);
       setLabDocumentUri(result.assets[0].uri);
+      setLabScanStatus("Extracting lab rows…");
       applyParsedText(text, "lab");
+      setLabScanStatus("");
     } catch (error: any) {
+      setLabScanStatus("");
       Alert.alert("PDF scan failed", error?.message || "Could not read text from that PDF.");
     } finally {
       setIsScanning(false);
@@ -321,7 +356,13 @@ export default function VisualScanImportModal({
     }
 
     if (scanType === "lab") {
-      if (!labTestName.trim()) return Alert.alert("Lab test name needed", "Add a test name before saving.");
+      if (!labTestName.trim()) return Alert.alert("Lab test name needed", "Add a panel or report name before saving.");
+      if (!labDate.trim()) {
+        return Alert.alert(
+          "Collection date needed",
+          "No date was found on the report. Enter the collection or report date (YYYY-MM-DD) before saving.",
+        );
+      }
       const cleanedResults: LabResult[] = labResults
         .map((result) => {
           const value = typeof result.value === "string" ? result.value.trim() : result.value;
@@ -331,6 +372,8 @@ export default function VisualScanImportModal({
             unit: result.unit.trim(),
             referenceRange: result.referenceRange?.trim() || undefined,
             flag: result.flag?.trim() || undefined,
+            needsReview: result.needsReview === true ? true : undefined,
+            sourceEvidence: result.sourceEvidence?.trim() || undefined,
           };
         })
         .filter((result) => result.name && (typeof result.value === "number" ? Number.isFinite(result.value) : result.value.length > 0));
@@ -339,18 +382,66 @@ export default function VisualScanImportModal({
         return Alert.alert("Review needed", "Keep at least one parsed lab result or add one manually before saving.");
       }
 
-      const saved = await labWorkStorage.save({
-        testName: labTestName.trim(),
-        date: labDate.trim(),
-        doctorId: labDoctorId,
-        notes: labNotes.trim(),
-        results: cleanedResults,
-        documentUri: labDocumentUri,
-        status: "completed",
-        source: "scan",
-      } as Omit<LabWork, "id">);
-      onSaved?.("lab", saved.id);
-      close();
+      const reviewCount = cleanedResults.filter((r) => r.needsReview).length;
+      if (reviewCount > 0) {
+        const proceed = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            "Review flagged rows",
+            `${reviewCount} result${reviewCount === 1 ? "" : "s"} still need review. Save anyway?`,
+            [
+              { text: "Keep editing", style: "cancel", onPress: () => resolve(false) },
+              { text: "Save", onPress: () => resolve(true) },
+            ],
+          );
+        });
+        if (!proceed) return;
+      }
+
+      try {
+        setIsSaving(true);
+        const existing = await labWorkStorage.getAll();
+        const duplicate = findLikelyDuplicateLabWork(existing, {
+          testName: labTestName.trim(),
+          date: labDate.trim(),
+          results: cleanedResults,
+          documentUri: labDocumentUri,
+        });
+        if (duplicate) {
+          const proceed = await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              "Possible duplicate",
+              `${duplicate.reason} Save another copy anyway? Legitimate repeat labs are OK.`,
+              [
+                { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+                { text: "Save copy", onPress: () => resolve(true) },
+              ],
+            );
+          });
+          if (!proceed) return;
+        }
+
+        const saved = await labWorkStorage.save({
+          testName: labTestName.trim(),
+          date: labDate.trim(),
+          labName: labFacility.trim() || undefined,
+          doctorId: labDoctorId,
+          notes: labNotes.trim(),
+          results: cleanedResults,
+          documentUri: labDocumentUri,
+          status: "completed",
+          source: "scan",
+        } as Omit<LabWork, "id">);
+        await syncWidgetSnapshot().catch(() => {});
+        onSaved?.("lab", saved.id);
+        close();
+      } catch (error: any) {
+        Alert.alert(
+          "Save failed",
+          error?.message || "Lab results were not saved. Your review draft is still here — try again.",
+        );
+      } finally {
+        setIsSaving(false);
+      }
       return;
     }
 
@@ -425,6 +516,11 @@ export default function VisualScanImportModal({
               </>
             ) : scanType === "lab" ? (
               <>
+                {(isScanning || !!labScanStatus) && (
+                  <View style={styles.statusBox}>
+                    <Text style={styles.statusText}>{labScanStatus || "Working…"}</Text>
+                  </View>
+                )}
                 <DoctorChooser
                   doctors={doctors}
                   selectedId={labDoctorId}
@@ -433,55 +529,110 @@ export default function VisualScanImportModal({
                   styles={styles}
                   colors={C}
                 />
-                <Field label="Test name" value={labTestName} onChangeText={setLabTestName} styles={styles} colors={C} placeholder="CBC, metabolic panel, iron panel..." />
-                <Field label="Date" value={labDate} onChangeText={setLabDate} styles={styles} colors={C} placeholder="YYYY-MM-DD" />
+                <Field label="Report / panel name" value={labTestName} onChangeText={setLabTestName} styles={styles} colors={C} placeholder="CBC, metabolic panel, iron panel..." />
+                <Field label="Lab / facility optional" value={labFacility} onChangeText={setLabFacility} styles={styles} colors={C} placeholder="Labcorp, Quest…" />
+                <Field
+                  label="Collection / report date"
+                  value={labDate}
+                  onChangeText={setLabDate}
+                  styles={styles}
+                  colors={C}
+                  placeholder="YYYY-MM-DD (required — not invented)"
+                />
                 <View style={styles.reviewHeader}>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.reviewTitle}>Review extracted results</Text>
-                    <Text style={styles.reviewSub}>Edit or delete anything that looks wrong.</Text>
+                    <Text style={styles.reviewSub}>
+                      {labResults.length} recognized
+                      {labResults.filter((r) => r.needsReview).length
+                        ? ` · ${labResults.filter((r) => r.needsReview).length} need review`
+                        : ""}
+                      {labUnresolved.length ? ` · ${labUnresolved.length} unresolved` : ""}
+                    </Text>
                   </View>
-                  <Pressable style={styles.addResultBtn} onPress={addLabResult}>
+                  <Pressable style={styles.addResultBtn} onPress={addLabResult} accessibilityLabel="Add lab result row">
                     <Ionicons name="add" size={18} color={C.tint} />
                   </Pressable>
                 </View>
+                {labWarnings.length > 0 ? (
+                  <View style={styles.warningBox}>
+                    {labWarnings.map((warning, index) => (
+                      <Text key={`w-${index}`} style={styles.warningText}>
+                        {warning}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+                {labUnresolved.length > 0 ? (
+                  <View style={styles.warningBox}>
+                    <Text style={styles.reviewTitle}>Unresolved</Text>
+                    {labUnresolved.map((hint, index) => (
+                      <Text key={`u-${index}`} style={styles.warningText}>
+                        {hint}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
                 {labResults.length === 0 ? (
                   <View style={styles.emptyReview}>
-                    <Text style={styles.emptyReviewText}>No structured results found yet. Scan a clearer report or add rows manually.</Text>
+                    <Text style={styles.emptyReviewText}>
+                      No structured results found yet. Try a clearer photo/PDF, or add rows manually. Nothing is saved until you confirm.
+                    </Text>
                   </View>
                 ) : (
                   <View style={styles.resultList}>
                     {labResults.map((result, index) => (
-                      <View key={`${result.name}-${index}`} style={styles.resultCard}>
+                      <View key={`${result.name}-${index}`} style={[styles.resultCard, result.needsReview ? styles.resultCardReview : null]}>
                         <View style={styles.resultTopRow}>
-                          <Text style={styles.resultIndex}>Result {index + 1}</Text>
+                          <Text style={styles.resultIndex}>
+                            Result {index + 1}
+                            {result.needsReview ? " · needs review" : ""}
+                          </Text>
                           <Pressable style={styles.deleteResultBtn} onPress={() => deleteLabResult(index)}>
                             <Ionicons name="trash-outline" size={17} color={C.red} />
                           </Pressable>
                         </View>
-                        <Field label="Test name" value={result.name} onChangeText={(value) => updateLabResult(index, { name: value })} styles={styles} colors={C} placeholder="Glucose" />
+                        <Field label="Test name" value={result.name} onChangeText={(value) => updateLabResult(index, { name: value, needsReview: false })} styles={styles} colors={C} placeholder="Glucose" />
                         <View style={styles.resultGrid}>
                           <View style={{ flex: 1 }}>
                             <Field
                               label="Value"
                               value={String(result.value ?? "")}
-                              onChangeText={(value) => updateLabResult(index, { value })}
+                              onChangeText={(value) => updateLabResult(index, { value, needsReview: false })}
                               styles={styles}
                               colors={C}
                               placeholder="95 or <3"
                             />
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Field label="Unit" value={result.unit} onChangeText={(value) => updateLabResult(index, { unit: value })} styles={styles} colors={C} placeholder="mg/dL" />
+                            <Field label="Unit" value={result.unit} onChangeText={(value) => updateLabResult(index, { unit: value, needsReview: false })} styles={styles} colors={C} placeholder="mg/dL" />
                           </View>
                         </View>
-                        <Field
-                          label="Reference range optional"
-                          value={result.referenceRange ?? ""}
-                          onChangeText={(value) => updateLabResult(index, { referenceRange: value })}
-                          styles={styles}
-                          colors={C}
-                          placeholder="70-99 mg/dL"
-                        />
+                        <View style={styles.resultGrid}>
+                          <View style={{ flex: 1 }}>
+                            <Field
+                              label="Reference range"
+                              value={result.referenceRange ?? ""}
+                              onChangeText={(value) => updateLabResult(index, { referenceRange: value, needsReview: false })}
+                              styles={styles}
+                              colors={C}
+                              placeholder="70-99 mg/dL"
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Field
+                              label="Flag"
+                              value={result.flag ?? ""}
+                              onChangeText={(value) => updateLabResult(index, { flag: value, needsReview: false })}
+                              styles={styles}
+                              colors={C}
+                              placeholder="High / Low"
+                            />
+                          </View>
+                        </View>
+                        {result.sourceEvidence ? (
+                          <Text style={styles.evidenceText}>Source: {result.sourceEvidence}</Text>
+                        ) : null}
                       </View>
                     ))}
                   </View>
@@ -514,9 +665,21 @@ export default function VisualScanImportModal({
 
             <View style={styles.actions}>
               <Pressable style={styles.cancelBtn} onPress={close}><Text style={styles.cancelText}>Cancel</Text></Pressable>
-              <Pressable style={styles.confirmBtn} onPress={save}>
+              <Pressable
+                style={[styles.confirmBtn, (isScanning || isSaving) && { opacity: 0.55 }]}
+                onPress={save}
+                disabled={isScanning || isSaving}
+              >
                 <Text style={styles.confirmText}>
-                  {scanType === "medication" ? "Add Medication" : scanType === "appointment" ? "Import Appointment" : scanType === "lab" ? "Add Lab Work" : "Add Imaging"}
+                  {isSaving
+                    ? "Saving…"
+                    : scanType === "medication"
+                      ? "Add Medication"
+                      : scanType === "appointment"
+                        ? "Import Appointment"
+                        : scanType === "lab"
+                          ? "Save reviewed labs"
+                          : "Add Imaging"}
                 </Text>
               </Pressable>
             </View>
@@ -656,12 +819,18 @@ function makeStyles(C: Theme) {
     addResultBtn: { width: 38, height: 38, borderRadius: 14, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
     emptyReview: { borderRadius: 14, borderWidth: 1, borderColor: C.border, backgroundColor: surfaceElevated, padding: 12, marginBottom: 14 },
     emptyReviewText: { color: C.textSecondary, fontSize: 13, fontWeight: "600", lineHeight: 18 },
+    statusBox: { borderRadius: 12, backgroundColor: C.tintLight, padding: 10, marginBottom: 12 },
+    statusText: { color: C.tint, fontWeight: "700", fontSize: 13 },
+    warningBox: { borderRadius: 12, borderWidth: 1, borderColor: C.orange, backgroundColor: C.orangeLight, padding: 10, marginBottom: 12, gap: 4 },
+    warningText: { color: C.text, fontSize: 12, fontWeight: "600", lineHeight: 17 },
     resultList: { gap: 10, marginBottom: 14 },
     resultCard: { borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: surfaceElevated, padding: 12 },
+    resultCardReview: { borderColor: C.orange },
     resultTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
     resultIndex: { fontSize: 12, fontWeight: "900", color: C.textSecondary, textTransform: "uppercase" },
     deleteResultBtn: { width: 32, height: 32, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.red + "12" },
     resultGrid: { flexDirection: "row", gap: 10 },
+    evidenceText: { marginTop: 4, fontSize: 11, lineHeight: 15, color: C.textTertiary, fontWeight: "500" },
     rawBox: { borderRadius: 14, backgroundColor: C.surfaceElevated, borderWidth: 1, borderColor: C.border, padding: 12, marginBottom: 14 },
     rawLabel: { fontWeight: "800", fontSize: 11, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
     rawText: { fontWeight: "400", fontSize: 12, color: C.textSecondary, lineHeight: 18 },
