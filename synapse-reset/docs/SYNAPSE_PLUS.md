@@ -99,6 +99,10 @@ Enable **In-App Purchase** capability on the Synapse target if Xcode does not ad
 
 Optional Sign in with Apple for cloud backup is separate from Plus IAP. See `docs/SIGN_IN_WITH_APPLE.md`. Manual file backup remains free and does not require an account or Plus.
 
+## Owner purchase alerts
+
+Optional App Store Server Notifications V2 → Supabase Edge Function → Expo Push to the founder’s iPhone on **new** Plus purchases (not renewals). Setup: `docs/PLUS_OWNER_PURCHASE_ALERTS.md`. Not deployed until you configure Supabase + App Store Connect.
+
 ## Review notes
 
 See `docs/APP_REVIEW_NOTES_PLUS.md`.
