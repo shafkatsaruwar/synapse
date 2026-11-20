@@ -28,18 +28,7 @@ final class SynapseVisionBridge: NSObject {
           return
         }
 
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = true
-        request.minimumTextHeight = 0.01
-
-        let handler = VNImageRequestHandler(cgImage: image, options: [:])
-        try handler.perform([request])
-
-        let lines = (request.results ?? [])
-          .compactMap { $0.topCandidates(1).first?.string.trimmingCharacters(in: .whitespacesAndNewlines) }
-          .filter { !$0.isEmpty }
-
+        let lines = try Self.recognizeLines(in: image)
         resolve(lines.joined(separator: "\n"))
       } catch {
         reject("vision_text_failed", error.localizedDescription, error)
@@ -66,6 +55,20 @@ final class SynapseVisionBridge: NSObject {
         let pageLimit = min(document.pageCount, 12)
         for pageIndex in 0..<pageLimit {
           guard let page = document.page(at: pageIndex) else { continue }
+
+          // Prefer embedded text when the page already has a usable text layer.
+          // Fall back to Vision OCR for scanned / image-only pages.
+          let embedded = (page.string ?? "")
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+          let embeddedCharCount = embedded.joined(separator: " ").count
+          if embeddedCharCount >= 40 {
+            allLines.append(contentsOf: embedded)
+            continue
+          }
+
           let bounds = page.bounds(for: .mediaBox)
           let scale: CGFloat = 2.0
           let size = CGSize(width: bounds.width * scale, height: bounds.height * scale)
@@ -85,6 +88,11 @@ final class SynapseVisionBridge: NSObject {
           allLines.append(contentsOf: try Self.recognizeLines(in: cgImage))
         }
 
+        if allLines.isEmpty {
+          reject("vision_pdf_empty", "No readable text was found in this PDF.", nil)
+          return
+        }
+
         resolve(allLines.joined(separator: "\n"))
       } catch {
         reject("vision_pdf_text_failed", error.localizedDescription, error)
@@ -101,7 +109,17 @@ final class SynapseVisionBridge: NSObject {
     let handler = VNImageRequestHandler(cgImage: image, options: [:])
     try handler.perform([request])
 
-    return (request.results ?? [])
+    // Sort top→bottom, then left→right so multi-column OCR is more stable.
+    let observations = (request.results ?? []).sorted { lhs, rhs in
+      let ly = lhs.boundingBox.origin.y
+      let ry = rhs.boundingBox.origin.y
+      if abs(ly - ry) > 0.02 {
+        return ly > ry
+      }
+      return lhs.boundingBox.origin.x < rhs.boundingBox.origin.x
+    }
+
+    return observations
       .compactMap { $0.topCandidates(1).first?.string.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
   }

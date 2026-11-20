@@ -1,0 +1,5 @@
+Hospital Lab
+CBC
+
+WBC 7.1 x10E3/uL 3.8-10.8
+Hemoglobin 13.5 g/dL 12.0-15.5

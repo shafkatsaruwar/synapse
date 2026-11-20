@@ -324,6 +324,10 @@ export interface LabResult {
   referenceRange?: string;
   /** Optional flag pulled from the report, e.g. "Low", "High", "Normal". */
   flag?: string;
+  /** Parser could not confidently bind this row — review before trusting. */
+  needsReview?: boolean;
+  /** Local-only evidence line(s) from the source text used during import review. */
+  sourceEvidence?: string;
 }
 
 export interface LabWork {
@@ -331,6 +335,8 @@ export interface LabWork {
   source?: "manual" | "scan" | "import";
   testName: string;
   date: string;
+  /** Performing lab / facility when present on the report. */
+  labName?: string;
   doctorId?: string;
   appointmentId?: string;
   status?: LabWorkStatus;

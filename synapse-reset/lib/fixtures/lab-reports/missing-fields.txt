@@ -1,0 +1,9 @@
+Clinic Lab
+Results
+
+Mystery Analyte
+Value 12.4
+
+Glucose 100
+
+Some prose about reference interval based on a population of nonobese adults years old et al PMID 12345

@@ -1,8 +1,15 @@
 import { NativeModules, Platform } from "react-native";
 import type { LabResult } from "@/lib/storage";
-import { parseLabResults } from "@/lib/lab-parse";
+import {
+  extractAnyDocumentDate,
+  parseLabReport,
+  parseLabResults,
+  type LabParseReport,
+  type ParsedLabResult,
+} from "@/lib/lab-parse";
 
-export { parseLabResults };
+export { parseLabResults, parseLabReport };
+export type { LabParseReport, ParsedLabResult };
 
 type NativeVisionBridge = {
   recognizeText?: (imageUri: string) => Promise<string>;
@@ -28,9 +35,14 @@ export type ScannedAppointment = {
 
 export type ScannedLabNote = {
   doctorName: string;
+  /** YYYY-MM-DD when found on the document; empty string if unknown (never invents today). */
   date: string;
+  labName?: string;
   notes: string;
-  results: LabResult[];
+  results: ParsedLabResult[];
+  warnings: string[];
+  unresolvedHints: string[];
+  recognizedCount: number;
   rawText: string;
 };
 
@@ -98,11 +110,26 @@ export function parseAppointmentScan(rawText: string): ScannedAppointment {
 export function parseLabScan(rawText: string): ScannedLabNote {
   const lines = cleanLines(rawText);
   const doctorLine = lines.find((line) => /\b(dr\.?|md|provider|ordered by|physician)\b/i.test(line)) ?? "";
+  const report = parseLabReport(rawText);
+  const date = report.collectedAt ?? report.reportedAt ?? extractAnyDocumentDate(rawText) ?? "";
+  // Keep notes short and non-duplicative of structured rows — still useful for review.
+  const notes = [
+    report.labName ? `Lab: ${report.labName}` : null,
+    report.warnings.length ? `Parse notes: ${report.warnings.join(" ")}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, 1200);
+
   return {
     doctorName: cleanDoctorName(doctorLine),
-    date: parseDate(rawText),
-    notes: rawText.slice(0, 1200),
-    results: parseLabResults(rawText),
+    date,
+    labName: report.labName,
+    notes,
+    results: report.results,
+    warnings: report.warnings,
+    unresolvedHints: report.unresolvedHints,
+    recognizedCount: report.recognizedCount,
     rawText,
   };
 }

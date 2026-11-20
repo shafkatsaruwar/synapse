@@ -1,0 +1,27 @@
+Quest Diagnostics
+Patient Report
+Collected: 03/12/2026
+Reported: 03/13/2026
+Ordered by: Dr. Jane Smith MD
+
+Comprehensive Metabolic Panel
+
+Glucose
+Normal range: 70 - 99 mg/dL
+Value 95
+
+Sodium
+Normal range: 136 - 145 mmol/L
+Value 138
+
+Potassium
+Normal range: 3.5 - 5.1 mmol/L
+Value 5.4 High
+
+Creatinine
+Normal range: 0.60 - 1.30 mg/dL
+Value 0.92
+
+ALT
+Normal range: 7 - 52 U/L
+Value 28
