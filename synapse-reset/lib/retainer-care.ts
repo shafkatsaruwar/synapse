@@ -2,6 +2,7 @@
  * Retainer Care orchestration — ties pure core to local storage + notifications.
  * Personal / local-only. Does not write medication logs or CloudKit export payloads.
  */
+import { Linking, Platform } from "react-native";
 import { featureFlags } from "@/constants/feature-flags";
 import {
   DEFAULT_SNOOZE_MIN,
@@ -45,6 +46,9 @@ import {
 import {
   cancelRetainerNotifications,
   scheduleRetainerNotificationsForPlan,
+  scheduleRetainerTestNotification,
+  requestPermission,
+  getPermissionStatus,
 } from "@/lib/notification-manager";
 
 function planWithCopy(
@@ -54,6 +58,13 @@ function planWithCopy(
     const copy = retainerNotificationContentForPlanItem(item.kind, item.level);
     return { ...item, title: copy.title, body: copy.body };
   });
+}
+
+function deliveryFromSettings(settings: RetainerSettings) {
+  return {
+    persistentAlerts: settings.persistentAlerts !== false,
+    playSound: settings.playSound !== false,
+  };
 }
 
 export async function isRetainerCareActive(): Promise<boolean> {
@@ -150,7 +161,11 @@ async function persistAndReschedule(occurrence: RetainerOccurrence, settings?: R
   await cancelRetainerNotifications(occurrence.id);
   if (resolvedSettings.enabled && resolvedSettings.enforcementEnabled) {
     const plan = planWithCopy(buildRetainerNotificationPlan(occurrence, resolvedSettings, Date.now()));
-    await scheduleRetainerNotificationsForPlan(plan, { occurrenceId: occurrence.id, nightId: occurrence.nightId });
+    await scheduleRetainerNotificationsForPlan(
+      plan,
+      { occurrenceId: occurrence.id, nightId: occurrence.nightId },
+      deliveryFromSettings(resolvedSettings),
+    );
   }
   return occurrence;
 }
@@ -208,7 +223,11 @@ export async function snoozeRetainerCare(minutes?: number): Promise<RetainerOccu
       },
       ...buildRetainerNotificationPlan(snoozed, settings, Date.now()),
     ]);
-    await scheduleRetainerNotificationsForPlan(plan, { occurrenceId: snoozed.id, nightId: snoozed.nightId });
+    await scheduleRetainerNotificationsForPlan(
+      plan,
+      { occurrenceId: snoozed.id, nightId: snoozed.nightId },
+      deliveryFromSettings(settings),
+    );
   }
   return snoozed;
 }
@@ -261,7 +280,11 @@ export async function reconcileRetainerCare(): Promise<void> {
       });
       await upsertRetainerOccurrence(created);
       const plan = planWithCopy(buildRetainerNotificationPlan(created, settings, now));
-      await scheduleRetainerNotificationsForPlan(plan, { occurrenceId: created.id, nightId: created.nightId });
+      await scheduleRetainerNotificationsForPlan(
+        plan,
+        { occurrenceId: created.id, nightId: created.nightId },
+        deliveryFromSettings(settings),
+      );
     }
   }
 
@@ -273,7 +296,48 @@ export async function reconcileRetainerCare(): Promise<void> {
 
   await cancelRetainerNotifications(current.id);
   const plan = planWithCopy(buildRetainerNotificationPlan(current, settings, now));
-  await scheduleRetainerNotificationsForPlan(plan, { occurrenceId: current.id, nightId: current.nightId });
+  await scheduleRetainerNotificationsForPlan(
+    plan,
+    { occurrenceId: current.id, nightId: current.nightId },
+    deliveryFromSettings(settings),
+  );
+}
+
+export type RetainerPermissionState = "granted" | "denied" | "undetermined" | "unavailable";
+
+export async function getRetainerNotificationPermission(): Promise<RetainerPermissionState> {
+  if (Platform.OS !== "ios" && Platform.OS !== "android") return "unavailable";
+  try {
+    const status = await getPermissionStatus();
+    if (status === "granted") return "granted";
+    if (status === "denied") return "denied";
+    return "undetermined";
+  } catch {
+    return "undetermined";
+  }
+}
+
+/** Ask for OS notification permission and ensure Retainer Care scheduling is on. */
+export async function enableRetainerNotifications(): Promise<{ granted: boolean; settings: RetainerSettings }> {
+  const granted = await requestPermission();
+  const settings = await updateRetainerSettings({
+    enabled: true,
+    enforcementEnabled: true,
+  });
+  return { granted, settings };
+}
+
+export async function openSystemNotificationSettings(): Promise<void> {
+  try {
+    await Linking.openSettings();
+  } catch (e) {
+    console.warn("openSystemNotificationSettings failed", e);
+  }
+}
+
+export async function sendRetainerTestNotification(): Promise<boolean> {
+  const settings = await loadRetainerSettings();
+  return scheduleRetainerTestNotification(deliveryFromSettings(settings));
 }
 
 /** Notification quick-action router. Banner tap alone must not complete. */

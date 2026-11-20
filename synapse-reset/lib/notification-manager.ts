@@ -206,10 +206,23 @@ export async function setupMedicationCategory(): Promise<void> {
   }
 }
 
+const RETAINER_ANDROID_CHANNEL = "retainer-care";
+
 /** Personal Retainer Care actions — Confirm opens in-app verification; never auto-completes. */
 export async function setupRetainerCategory(): Promise<void> {
   if (!isNative()) return;
   try {
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync(RETAINER_ANDROID_CHANNEL, {
+        name: "Retainer Care",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
+        enableVibrate: true,
+        showBadge: true,
+      });
+    }
     await Notifications.setNotificationCategoryAsync(RETAINER_CATEGORY, [
       { identifier: "RETAINER_CONFIRM", buttonTitle: "Confirm", options: { isDestructive: false, isAuthenticationRequired: false } },
       { identifier: "RETAINER_SNOOZE", buttonTitle: "Remind me in 10 minutes", options: { isDestructive: false, isAuthenticationRequired: false } },
@@ -222,12 +235,21 @@ export async function setupRetainerCategory(): Promise<void> {
   }
 }
 
+export type RetainerNotificationDelivery = {
+  persistentAlerts?: boolean;
+  playSound?: boolean;
+};
+
 /** Schedule bounded retainer notifications (cancel-then-set by deterministic id). */
 export async function scheduleRetainerNotificationsForPlan(
   plan: Array<{ id: string; fireAtMs: number; title: string; body: string }>,
   meta: { occurrenceId: string; nightId: string },
+  delivery: RetainerNotificationDelivery = {},
 ): Promise<void> {
   if (!isNative()) return;
+  const persistent = delivery.persistentAlerts !== false;
+  const playSound = delivery.playSound !== false;
+  await setupRetainerCategory();
   for (const item of plan) {
     try {
       await Notifications.cancelScheduledNotificationAsync(item.id);
@@ -236,6 +258,14 @@ export async function scheduleRetainerNotificationsForPlan(
         content: {
           title: item.title,
           body: item.body,
+          sound: playSound ? "default" : undefined,
+          // Time-sensitive needs the iOS entitlement on the installed binary.
+          interruptionLevel: persistent ? "timeSensitive" : "active",
+          sticky: persistent,
+          autoDismiss: !persistent,
+          priority: persistent
+            ? Notifications.AndroidNotificationPriority.MAX
+            : Notifications.AndroidNotificationPriority.HIGH,
           data: {
             retainer: true,
             occurrenceId: meta.occurrenceId,
@@ -243,12 +273,49 @@ export async function scheduleRetainerNotificationsForPlan(
             widgetTarget: "retainercare",
           },
           categoryIdentifier: RETAINER_CATEGORY,
+          ...(Platform.OS === "android" ? { channelId: RETAINER_ANDROID_CHANNEL } : null),
         },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(item.fireAtMs) },
       });
     } catch (e) {
       console.warn("scheduleRetainerNotificationsForPlan failed", e);
     }
+  }
+}
+
+/** Fire a one-off retainer test alert (~3s) so permission + delivery can be verified. */
+export async function scheduleRetainerTestNotification(delivery: RetainerNotificationDelivery = {}): Promise<boolean> {
+  if (!isNative()) return false;
+  try {
+    const granted = await requestPermission();
+    if (!granted) return false;
+    await setupRetainerCategory();
+    const persistent = delivery.persistentAlerts !== false;
+    const playSound = delivery.playSound !== false;
+    const id = `retainer:test:${Date.now()}`;
+    await scheduleWithIcon({
+      identifier: id,
+      content: {
+        title: "Retainer Care test",
+        body: "Notifications are working. This is only a test.",
+        sound: playSound ? "default" : undefined,
+        interruptionLevel: persistent ? "timeSensitive" : "active",
+        sticky: persistent,
+        autoDismiss: !persistent,
+        priority: Notifications.AndroidNotificationPriority.MAX,
+        data: { retainer: true, widgetTarget: "retainercare", test: true },
+        categoryIdentifier: RETAINER_CATEGORY,
+        ...(Platform.OS === "android" ? { channelId: RETAINER_ANDROID_CHANNEL } : null),
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: 3,
+      },
+    });
+    return true;
+  } catch (e) {
+    console.warn("scheduleRetainerTestNotification failed", e);
+    return false;
   }
 }
 

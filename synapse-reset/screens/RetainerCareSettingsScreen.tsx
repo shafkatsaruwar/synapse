@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
+  AppState,
   Platform,
   Pressable,
   ScrollView,
@@ -15,7 +17,15 @@ import * as Haptics from "expo-haptics";
 import SoftCard from "@/components/SoftCard";
 import { RETAINER_FIRM_ENFORCEMENT_EXPLAINER } from "@/constants/retainer-care-copy";
 import { useTheme, type Theme } from "@/contexts/ThemeContext";
-import { getRetainerSettings, updateRetainerSettings } from "@/lib/retainer-care";
+import {
+  enableRetainerNotifications,
+  getRetainerNotificationPermission,
+  getRetainerSettings,
+  openSystemNotificationSettings,
+  sendRetainerTestNotification,
+  updateRetainerSettings,
+  type RetainerPermissionState,
+} from "@/lib/retainer-care";
 import type { RetainerSettings } from "@/lib/retainer-care-core";
 
 type Props = {
@@ -29,6 +39,19 @@ function clampInt(raw: string, min: number, max: number, fallback: number): numb
   return Math.min(max, Math.max(min, n));
 }
 
+function permissionLabel(state: RetainerPermissionState): string {
+  switch (state) {
+    case "granted":
+      return "Allowed";
+    case "denied":
+      return "Off — open system Settings to allow";
+    case "unavailable":
+      return "Not available on this device";
+    default:
+      return "Not set up yet";
+  }
+}
+
 export default function RetainerCareSettingsScreen(_props: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -36,6 +59,8 @@ export default function RetainerCareSettingsScreen(_props: Props) {
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const [settings, setSettings] = useState<RetainerSettings | null>(null);
+  const [permission, setPermission] = useState<RetainerPermissionState>("undetermined");
+  const [busy, setBusy] = useState(false);
   const [bedHour, setBedHour] = useState("23");
   const [bedMinute, setBedMinute] = useState("55");
   const [firstFollow, setFirstFollow] = useState("10");
@@ -52,8 +77,9 @@ export default function RetainerCareSettingsScreen(_props: Props) {
   const bottomPad = isWide ? 40 : Platform.OS === "web" ? 118 : insets.bottom + 100;
 
   const load = useCallback(async () => {
-    const s = await getRetainerSettings();
+    const [s, perm] = await Promise.all([getRetainerSettings(), getRetainerNotificationPermission()]);
     setSettings(s);
+    setPermission(perm);
     setBedHour(String(s.bedtimeHour));
     setBedMinute(String(s.bedtimeMinute).padStart(2, "0"));
     setFirstFollow(String(s.firstFollowUpMin));
@@ -69,6 +95,13 @@ export default function RetainerCareSettingsScreen(_props: Props) {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void load();
+    });
+    return () => sub.remove();
   }, [load]);
 
   const persist = async (partial: Partial<RetainerSettings>) => {
@@ -96,6 +129,53 @@ export default function RetainerCareSettingsScreen(_props: Props) {
     });
   };
 
+  const onSetupNotifications = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (permission === "denied") {
+        await openSystemNotificationSettings();
+        return;
+      }
+      const result = await enableRetainerNotifications();
+      setSettings(result.settings);
+      setPermission(result.granted ? "granted" : await getRetainerNotificationPermission());
+      Haptics.notificationAsync(
+        result.granted
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Warning,
+      );
+      if (!result.granted) {
+        Alert.alert(
+          "Notifications still off",
+          "Synapse can’t schedule retainer alerts until notifications are allowed for this app.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Open Settings", onPress: () => void openSystemNotificationSettings() },
+          ],
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onTest = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const ok = await sendRetainerTestNotification();
+      if (ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert("Test scheduled", "You should see a Retainer Care test alert in a few seconds.");
+      } else {
+        Alert.alert("Couldn’t send test", "Allow notifications first, then try again.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!settings) {
     return <View style={styles.root} />;
   }
@@ -110,6 +190,63 @@ export default function RetainerCareSettingsScreen(_props: Props) {
       <Text style={styles.title}>Retainer settings</Text>
 
       <SoftCard style={styles.card}>
+        <Text style={styles.cardTitle}>Notifications</Text>
+        <Text style={styles.meta}>Status: {permissionLabel(permission)}</Text>
+        <Pressable
+          style={[styles.saveBtn, busy ? styles.disabled : null]}
+          onPress={() => void onSetupNotifications()}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={permission === "granted" ? "Refresh notification permission" : "Set up notifications"}
+        >
+          <Text style={styles.saveText}>
+            {permission === "granted"
+              ? "Notifications are on"
+              : permission === "denied"
+                ? "Open system Settings"
+                : "Set up notifications"}
+          </Text>
+        </Pressable>
+        <Row label="Persistent alerts" styles={styles}>
+          <Switch
+            value={settings.persistentAlerts !== false}
+            onValueChange={(value) => void persist({ persistentAlerts: value })}
+            accessibilityLabel="Persistent alerts"
+          />
+        </Row>
+        <Text style={styles.meta}>
+          Uses higher-priority delivery so alerts are harder to miss. On iOS, Focus breakthrough works best after a
+          native build with Time Sensitive Notifications enabled.
+        </Text>
+        <Row label="Play sound" styles={styles}>
+          <Switch
+            value={settings.playSound !== false}
+            onValueChange={(value) => void persist({ playSound: value })}
+            accessibilityLabel="Play sound"
+          />
+        </Row>
+        <Row label="Keep notifying until confirmed" styles={styles}>
+          <Switch
+            value={settings.enforcementEnabled}
+            onValueChange={(value) => void persist({ enforcementEnabled: value })}
+            accessibilityLabel="Keep notifying until confirmed"
+          />
+        </Row>
+        <Text style={styles.meta}>
+          Firm follow-ups continue on a schedule until you confirm, skip, pause, or report a fit issue.
+        </Text>
+        <Pressable
+          style={[styles.secondaryBtn, busy ? styles.disabled : null]}
+          onPress={() => void onTest()}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel="Send test notification"
+        >
+          <Text style={styles.secondaryBtnText}>Send test notification</Text>
+        </Pressable>
+      </SoftCard>
+
+      <SoftCard style={styles.card}>
         <Text style={styles.cardTitle}>Routine</Text>
         <Text style={styles.explainer}>{RETAINER_FIRM_ENFORCEMENT_EXPLAINER}</Text>
         <Row label="Enable Retainer Care" styles={styles}>
@@ -117,13 +254,6 @@ export default function RetainerCareSettingsScreen(_props: Props) {
             value={settings.enabled}
             onValueChange={(value) => void persist({ enabled: value })}
             accessibilityLabel="Enable Retainer Care"
-          />
-        </Row>
-        <Row label="Firm follow-ups" styles={styles}>
-          <Switch
-            value={settings.enforcementEnabled}
-            onValueChange={(value) => void persist({ enforcementEnabled: value })}
-            accessibilityLabel="Firm follow-ups"
           />
         </Row>
       </SoftCard>
@@ -230,5 +360,15 @@ function makeStyles(C: Theme) {
       alignItems: "center",
     },
     saveText: { color: "#fff", fontWeight: "600", fontSize: 15 },
+    secondaryBtn: {
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: "center",
+      backgroundColor: C.surfaceElevated,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+    },
+    secondaryBtnText: { color: C.text, fontWeight: "600", fontSize: 15 },
+    disabled: { opacity: 0.45 },
   });
 }

@@ -53,6 +53,13 @@ export type RetainerSettings = {
   /** Master local enable (still requires compile-time feature flag). */
   enabled: boolean;
   enforcementEnabled: boolean;
+  /**
+   * Prefer time-sensitive / high-priority delivery so alerts are harder to miss.
+   * iOS Focus breakthrough needs the Time Sensitive entitlement (native build).
+   */
+  persistentAlerts: boolean;
+  /** Play notification sound when a retainer alert fires. */
+  playSound: boolean;
   bedtimeHour: number;
   bedtimeMinute: number;
   firstFollowUpMin: number;
@@ -96,6 +103,8 @@ export type PlannedRetainerNotification = {
 export const DEFAULT_RETAINER_SETTINGS: RetainerSettings = {
   enabled: true,
   enforcementEnabled: true,
+  persistentAlerts: true,
+  playSound: true,
   bedtimeHour: DEFAULT_BEDTIME.hour,
   bedtimeMinute: DEFAULT_BEDTIME.minute,
   firstFollowUpMin: DEFAULT_FIRST_FOLLOW_UP_MIN,
