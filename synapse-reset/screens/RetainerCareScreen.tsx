@@ -2,10 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   AppState,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,7 +34,8 @@ import {
 import type { RetainerOccurrence, RetainerStatusView } from "@/lib/retainer-care-core";
 
 type Props = {
-  onBack: () => void;
+  /** Shell owns the back control; kept for route wiring consistency. */
+  onBack?: () => void;
   onNavigate?: (screen: string) => void;
   refreshKey?: number;
 };
@@ -58,8 +61,10 @@ function formatWhen(iso?: string | null): string {
   return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export default function RetainerCareScreen({ onBack, onNavigate, refreshKey }: Props) {
+export default function RetainerCareScreen({ onNavigate, refreshKey }: Props) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isWide = width >= 768;
   const { colors: C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const [ready, setReady] = useState(false);
@@ -70,6 +75,9 @@ export default function RetainerCareScreen({ onBack, onNavigate, refreshKey }: P
   const [recent, setRecent] = useState<RetainerOccurrence[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const topPad = isWide ? 28 : Platform.OS === "web" ? 40 : 14;
+  const bottomPad = isWide ? 40 : Platform.OS === "web" ? 118 : insets.bottom + 100;
 
   const load = useCallback(async () => {
     if (!featureFlags.retainerCareEnabled) {
@@ -122,18 +130,18 @@ export default function RetainerCareScreen({ onBack, onNavigate, refreshKey }: P
   };
 
   if (!ready) {
-    return <View style={[styles.root, { paddingTop: insets.top }]} />;
+    return <View style={styles.root} />;
   }
 
   if (!featureFlags.retainerCareEnabled) {
     return (
-      <View style={[styles.root, { paddingTop: insets.top, padding: 24 }]}>
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={[styles.content, { paddingTop: topPad, paddingBottom: bottomPad }]}
+      >
         <Text style={styles.title}>Retainer Care</Text>
         <Text style={styles.meta}>This personal module is turned off in this build.</Text>
-        <Pressable onPress={onBack} style={styles.secondaryBtn}>
-          <Text style={styles.secondaryBtnText}>Back</Text>
-        </Pressable>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -144,23 +152,25 @@ export default function RetainerCareScreen({ onBack, onNavigate, refreshKey }: P
     statusView === "retainers_out";
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Back" hitSlop={12}>
-          <Ionicons name="chevron-back" size={28} color={C.tint} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Retainer Care</Text>
-        <Pressable
-          onPress={() => onNavigate?.("retainercaresettings")}
-          accessibilityRole="button"
-          accessibilityLabel="Retainer settings"
-          hitSlop={12}
-        >
-          <Ionicons name="settings-outline" size={22} color={C.tint} />
-        </Pressable>
-      </View>
+    <View style={styles.root}>
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={[styles.content, { paddingTop: topPad, paddingBottom: bottomPad }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Retainer Care</Text>
+          <Pressable
+            style={({ pressed }) => [styles.settingsBtn, pressed && { opacity: 0.8 }]}
+            onPress={() => onNavigate?.("retainercaresettings")}
+            accessibilityRole="button"
+            accessibilityLabel="Retainer settings"
+            hitSlop={12}
+          >
+            <Ionicons name="settings-outline" size={22} color={C.tint} />
+          </Pressable>
+        </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
         <SoftCard style={styles.card}>
           <Text style={styles.routine}>{RETAINER_ROUTINE_LABEL}</Text>
           <Text style={styles.statusTitle}>{status.title}</Text>
@@ -298,18 +308,33 @@ function makeStyles(C: Theme) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: 12,
-      paddingBottom: 8,
+      gap: 12,
+      marginBottom: 4,
     },
-    headerTitle: { fontSize: 18, fontWeight: "700", color: C.text },
-    content: { padding: 16, paddingBottom: 48, gap: 14 },
+    title: { flex: 1, fontSize: 28, fontWeight: "700", color: C.text },
+    settingsBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: C.border,
+    },
+    content: { paddingHorizontal: 16, gap: 14 },
     card: { padding: 16, gap: 10 },
-    routine: { fontSize: 13, fontWeight: "600", color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.4 },
+    routine: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: C.textSecondary,
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
+    },
     statusTitle: { fontSize: 22, fontWeight: "700", color: C.text },
     statusDetail: { fontSize: 15, lineHeight: 22, color: C.textSecondary },
     cardTitle: { fontSize: 17, fontWeight: "700", color: C.text, marginBottom: 2 },
     meta: { fontSize: 13, lineHeight: 18, color: C.textSecondary },
-    title: { fontSize: 22, fontWeight: "700", color: C.text, marginBottom: 8 },
     actionBtn: {
       borderRadius: 12,
       paddingVertical: 13,
@@ -327,15 +352,6 @@ function makeStyles(C: Theme) {
       borderWidth: 0,
     },
     primaryBtnText: { textAlign: "center", fontSize: 16, fontWeight: "600", color: "#fff" },
-    secondaryBtn: {
-      marginTop: 16,
-      alignSelf: "flex-start",
-      paddingVertical: 10,
-      paddingHorizontal: 14,
-      borderRadius: 10,
-      backgroundColor: C.surface,
-    },
-    secondaryBtnText: { color: C.tint, fontWeight: "600" },
     disabled: { opacity: 0.45 },
     historyRow: {
       flexDirection: "row",
