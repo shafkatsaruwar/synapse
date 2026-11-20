@@ -25,3 +25,17 @@ Local-only bedtime retainer check with Level 2 Firm Enforcement.
 ## Notifications
 
 Category `RETAINER_CARE`. Reconciled via `reconcileRetainerCare()` inside `syncAllFromSettings` and on app active.
+
+### Setup (in Retainer settings)
+
+- **Set up notifications** — requests OS permission (or opens system Settings if previously denied)
+- **Persistent alerts** — schedules with iOS `timeSensitive` / Android max priority + sticky
+- **Play sound** — optional sound on each alert
+- **Keep notifying until confirmed** — firm follow-up ladder
+- **Send test notification** — fires a one-off test in ~3 seconds
+
+### Delivery limits
+
+- iOS Focus breakthrough for persistent alerts needs the **Time Sensitive Notifications** entitlement on the installed binary (`com.apple.developer.usernotifications.time-sensitive`). That requires a **new native build**; the JS setup UI can still ship by OTA.
+- Critical Alerts are not used.
+- Delivery is never guaranteed (Focus / DND / OS deferral still apply).

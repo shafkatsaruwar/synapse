@@ -23,13 +23,17 @@ import {
   confirmRetainersNotYet,
   confirmRetainersYes,
   consumePendingRetainerConfirm,
+  enableRetainerNotifications,
   getRetainerCareSnapshot,
+  getRetainerNotificationPermission,
+  openSystemNotificationSettings,
   pauseRetainerCareTonight,
   removedForSnack,
   reportRetainersHurt,
   skipRetainerCareTonight,
   snoozeRetainerCare,
   updateRetainerSettings,
+  type RetainerPermissionState,
 } from "@/lib/retainer-care";
 import type { RetainerOccurrence, RetainerStatusView } from "@/lib/retainer-care-core";
 
@@ -75,6 +79,7 @@ export default function RetainerCareScreen({ onNavigate, refreshKey }: Props) {
   const [recent, setRecent] = useState<RetainerOccurrence[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [permission, setPermission] = useState<RetainerPermissionState>("undetermined");
 
   const topPad = isWide ? 28 : Platform.OS === "web" ? 40 : 14;
   const bottomPad = isWide ? 40 : Platform.OS === "web" ? 118 : insets.bottom + 100;
@@ -85,12 +90,13 @@ export default function RetainerCareScreen({ onNavigate, refreshKey }: Props) {
       setActive(false);
       return;
     }
-    const snap = await getRetainerCareSnapshot();
+    const [snap, perm] = await Promise.all([getRetainerCareSnapshot(), getRetainerNotificationPermission()]);
     setActive(snap.active);
     setStatusView(snap.statusView);
     setOccurrence(snap.occurrence);
     setNextFollowUpAt(snap.nextFollowUpAt);
     setRecent(snap.recent);
+    setPermission(perm);
     setReady(true);
     if (consumePendingRetainerConfirm()) {
       setConfirmOpen(true);
@@ -170,6 +176,34 @@ export default function RetainerCareScreen({ onNavigate, refreshKey }: Props) {
             <Ionicons name="settings-outline" size={22} color={C.tint} />
           </Pressable>
         </View>
+
+        {permission !== "granted" && permission !== "unavailable" ? (
+          <SoftCard style={styles.card}>
+            <Text style={styles.cardTitle}>Set up notifications</Text>
+            <Text style={styles.meta}>
+              Allow alerts so bedtime and snack follow-ups can reach you when the app is closed.
+            </Text>
+            <Pressable
+              style={styles.primaryBtn}
+              onPress={() =>
+                void run(async () => {
+                  if (permission === "denied") {
+                    await openSystemNotificationSettings();
+                    return;
+                  }
+                  const result = await enableRetainerNotifications();
+                  setPermission(result.granted ? "granted" : await getRetainerNotificationPermission());
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Set up notifications"
+            >
+              <Text style={styles.primaryBtnText}>
+                {permission === "denied" ? "Open system Settings" : "Allow notifications"}
+              </Text>
+            </Pressable>
+          </SoftCard>
+        ) : null}
 
         <SoftCard style={styles.card}>
           <Text style={styles.routine}>{RETAINER_ROUTINE_LABEL}</Text>

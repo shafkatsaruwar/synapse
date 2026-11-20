@@ -75,6 +75,8 @@ module.exports = {
         "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)com.mohammedsaruwar.synapse",
         "com.apple.developer.healthkit": true,
         "com.apple.developer.healthkit.access": [],
+        // Retainer Care persistent alerts (Focus breakthrough). Requires a new native build.
+        "com.apple.developer.usernotifications.time-sensitive": true,
       },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
