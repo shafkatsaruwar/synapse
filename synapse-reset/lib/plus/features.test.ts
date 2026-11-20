@@ -30,6 +30,12 @@ describe("plus feature gating", () => {
     assert.equal(ALWAYS_FREE_NAV_KEYS.has("allergy"), true);
   });
 
+  it("keeps personal Retainer Care free of Plus gating", () => {
+    assert.equal(requiresPlusGate("retainercare"), false);
+    assert.equal(requiresPlusGate("retainercaresettings"), false);
+    assert.equal(ALWAYS_FREE_NAV_KEYS.has("retainercare"), true);
+  });
+
   it("marks Health hub Plus destinations", () => {
     assert.equal(HEALTH_HUB_PLUS_ITEM_KEYS.has("feelinghub"), true);
     assert.equal(HEALTH_HUB_PLUS_ITEM_KEYS.has("medications"), false);

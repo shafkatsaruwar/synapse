@@ -85,6 +85,9 @@ export const ALWAYS_FREE_NAV_KEYS = new Set([
   "paywall",
   "healthstatus",
   "careteam", // alias into care hub — gated at carehub children, not this alias alone
+  // Personal Retainer Care — private dual-gated module, not a Plus product surface
+  "retainercare",
+  "retainercaresettings",
 ]);
 
 /**

@@ -8,6 +8,12 @@ export const featureFlags = {
    */
   medicationEnforcementEnabled: true,
   /**
+   * Personal Retainer Care (Firm Enforcement). Dual-gated with local
+   * `RetainerSettings.enabled`. No marketing / onboarding / CloudKit export.
+   * Wellbeing hub entry appears only when this flag is on.
+   */
+  retainerCareEnabled: true,
+  /**
    * Private CloudKit (iCloud) encrypted backup.
    * Enabled after CloudKit Production UserData schema deploy.
    * Still verify passphrase recovery on a real reinstall / second device before relying on it.

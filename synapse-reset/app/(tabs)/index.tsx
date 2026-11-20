@@ -21,6 +21,8 @@ import EatingScreen from "@/screens/EatingScreen";
 import MentalHealthModeScreen from "@/screens/MentalHealthModeScreen";
 import ComfortScreen from "@/screens/ComfortScreen";
 import GoalsScreen from "@/screens/GoalsScreen";
+import RetainerCareScreen from "@/screens/RetainerCareScreen";
+import RetainerCareSettingsScreen from "@/screens/RetainerCareSettingsScreen";
 import ReportsScreen from "@/screens/ReportsScreen";
 import CareSharingScreen from "@/screens/CareSharingScreen";
 import IntegrationsScreen from "@/screens/IntegrationsScreen";
@@ -1480,6 +1482,16 @@ export default function MainScreen() {
         return <ComfortScreen />;
       case "goals":
         return <GoalsScreen />;
+      case "retainercare":
+        return (
+          <RetainerCareScreen
+            onBack={() => backToParentOr("wellbeinghub")}
+            onNavigate={handleNavigate}
+            refreshKey={refreshKey}
+          />
+        );
+      case "retainercaresettings":
+        return <RetainerCareSettingsScreen onBack={() => backToParentOr("retainercare")} />;
       case "appointments":
         return (
           <AppointmentsScreen

@@ -82,7 +82,7 @@ export const HEALTH_HUB: HubDefinition = {
     {
       key: "wellbeinghub",
       label: "Wellbeing",
-      description: "Eating, comfort, goals, and more",
+      description: "Eating, comfort, goals, retainer care, and more",
       icon: "leaf-outline",
       target: "wellbeinghub",
     },

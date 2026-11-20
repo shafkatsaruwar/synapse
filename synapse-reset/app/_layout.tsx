@@ -21,6 +21,7 @@ import { queryClient } from "@/lib/query-client";
 import {
   setNotificationHandler,
   setupMedicationCategory,
+  setupRetainerCategory,
   addNotificationResponseListener,
   updateAppIconBadgeCount,
 } from "@/lib/notification-manager";
@@ -45,6 +46,7 @@ export default function RootLayout() {
   useEffect(() => {
     setNotificationHandler();
     setupMedicationCategory();
+    setupRetainerCategory();
     const remove = addNotificationResponseListener(() => {}, () => {});
     updateAppIconBadgeCount().catch(() => {});
     syncWidgetSnapshot().catch(() => {});
@@ -59,6 +61,7 @@ export default function RootLayout() {
         updateAppIconBadgeCount().catch(() => {});
         // Re-plan Check-In reminders so a changed time zone (travel, daylight saving) is picked up.
         import("@/lib/care/checkin").then((m) => m.syncCheckInReminders()).catch(() => {});
+        import("@/lib/retainer-care").then((m) => m.reconcileRetainerCare()).catch(() => {});
       }
     });
     return () => sub.remove();

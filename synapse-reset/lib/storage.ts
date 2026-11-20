@@ -2331,6 +2331,9 @@ const EXTRA_CLEAR_KEYS = [
   "app_theme",
   "synapse_brand_notification_icon_cleared_build",
   "fir_backup_last_sync",
+  // Personal Retainer Care — local-only; never in exportAllData / CloudKit.
+  "synapse_retainer_care_settings_v1",
+  "synapse_retainer_care_occurrences_v1",
 ] as const;
 
 export const clearAllData = async () => {
